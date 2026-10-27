@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:scaleX="0.55"
+        android:scaleY="0.55"
+        android:translateX="24.3"
+        android:translateY="24.3">
+        <!-- Stylized Rooster / Poultry Silhouette in Clean Crisp White -->
+        <!-- Comb -->
+        <path
+            android:fillColor="#FFD54F"
+            android:pathData="M44,18 C46,14 51,13 54,16 C57,14 62,15 63,19 C66,19 69,22 68,26 L46,26 Z" />
+        <!-- Head and Beak -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M46,24 C52,24 62,24 64,28 C66,32 64,38 60,42 C64,43 72,40 76,43 C72,46 64,47 60,48 C56,58 48,66 38,70 C34,64 34,54 36,46 C38,38 42,26 46,24 Z" />
+        <!-- Wattle -->
+        <path
+            android:fillColor="#EF5350"
+            android:pathData="M60,44 C63,46 64,50 62,54 C59,54 58,50 59,46 Z" />
+        <!-- Body and Wing -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M38,50 C48,50 66,56 74,66 C80,74 80,84 72,90 C62,96 46,96 34,90 C22,82 20,68 28,58 C31,54 34,51 38,50 Z" />
+        <path
+            android:fillColor="#E8F5E9"
+            android:pathData="M44,60 C52,60 62,65 66,72 C68,76 66,82 60,85 C52,88 42,86 36,80 C34,74 36,66 44,60 Z" />
+        <!-- Tail Feathers -->
+        <path
+            android:fillColor="#C8E6C9"
+            android:pathData="M24,62 C16,56 12,44 14,32 C20,40 24,50 26,58 Z" />
+        <path
+            android:fillColor="#A5D6A7"
+            android:pathData="M28,58 C22,48 20,36 24,26 C28,34 32,46 32,54 Z" />
+    </group>
+</vector>

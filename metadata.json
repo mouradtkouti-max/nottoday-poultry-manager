@@ -1,0 +1,6 @@
+{
+  "name": "Poultry Manager",
+  "description": "Multi-farm poultry management system data models and architecture",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

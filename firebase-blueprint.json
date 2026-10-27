@@ -1,0 +1,152 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile storing farm assignment and RBAC role (OWNER, VETERINARIAN, WORKER).",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Firebase Auth UID of the user." },
+        "role": { "type": "string", "enum": ["OWNER", "VETERINARIAN", "WORKER"], "description": "RBAC role of the user." },
+        "farmId": { "type": "string", "description": "Assigned farm identifier." },
+        "displayName": { "type": "string", "description": "Display name of the user." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp of creation." },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp of last update." }
+      },
+      "required": ["userId", "role", "farmId", "createdAt", "updatedAt"]
+    },
+    "FarmRecord": {
+      "title": "FarmRecord",
+      "description": "Shared farm entity enabling multi-user collaboration via members RBAC map.",
+      "type": "object",
+      "properties": {
+        "farmId": { "type": "string", "description": "Unique farm identifier." },
+        "name": { "type": "string", "description": "Name of the barn/farm." },
+        "location": { "type": "string", "description": "Geographic location of the farm." },
+        "capacity": { "type": "integer", "description": "Bird capacity of the barn." },
+        "assignedWorkerId": { "type": "string", "description": "Assigned worker identifier." },
+        "members": {
+          "type": "object",
+          "description": "Map of Firebase Auth UIDs to RBAC roles (OWNER, VETERINARIAN, WORKER)."
+        },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp of creation." },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp of last update." }
+      },
+      "required": ["farmId", "name", "location", "capacity", "assignedWorkerId", "members", "createdAt", "updatedAt"]
+    },
+    "CycleRecord": {
+      "title": "CycleRecord",
+      "description": "Active poultry production cycle metadata and live bird inventory.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Creator Firebase Auth UID." },
+        "farmId": { "type": "string", "description": "Farm identifier." },
+        "totalBirdsPlaced": { "type": "integer", "description": "Initial number of chicks placed." },
+        "targetWeightKg": { "type": "number", "description": "Target weight in kilograms." },
+        "cumulativeBirdsSold": { "type": "integer", "description": "Total birds sold across all invoices in this cycle." },
+        "cumulativeSoldWeightKg": { "type": "number", "description": "Total net weight in kg of birds sold across all partial/full sales in this cycle." },
+        "feedInventoryKg": { "type": "number", "description": "Current feed stock in kilograms." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp of creation." },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp of last update." }
+      },
+      "required": ["userId", "farmId", "totalBirdsPlaced", "targetWeightKg", "cumulativeBirdsSold", "createdAt", "updatedAt"]
+    },
+    "DailyReport": {
+      "title": "DailyReport",
+      "description": "Daily barn metrics recorded by Workers or Owners.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Firebase Auth UID." },
+        "farmId": { "type": "string", "description": "Farm identifier." },
+        "cycleId": { "type": "string", "description": "Cycle identifier." },
+        "dayNumber": { "type": "integer", "description": "Day of age in the cycle." },
+        "feedIntakeKg": { "type": "number", "description": "Daily feed consumed in kg." },
+        "waterIntakeLiters": { "type": "number", "description": "Daily water consumed in liters." },
+        "mortalityCount": { "type": "integer", "description": "Daily bird mortality count." },
+        "temperature": { "type": "number", "description": "Barn temperature in Celsius." },
+        "gasUnits": { "type": "number", "description": "Gas consumption units." },
+        "ventilationStatus": { "type": "string", "description": "Ventilation quality status." },
+        "litterCondition": { "type": "string", "description": "Litter condition description." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp of creation." },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp of last update." }
+      },
+      "required": ["userId", "farmId", "cycleId", "dayNumber", "feedIntakeKg", "waterIntakeLiters", "mortalityCount", "temperature", "gasUnits", "ventilationStatus", "litterCondition", "createdAt", "updatedAt"]
+    },
+    "VetNote": {
+      "title": "VetNote",
+      "description": "Veterinary inspection notes and prescriptions managed by Vets and Owners.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Firebase Auth UID." },
+        "farmId": { "type": "string", "description": "Farm identifier." },
+        "cycleId": { "type": "string", "description": "Cycle identifier." },
+        "dayNumber": { "type": "integer", "description": "Day number of inspection." },
+        "medication": { "type": "string", "description": "Prescribed medication or vaccine." },
+        "dosage": { "type": "string", "description": "Dosage instructions." },
+        "diagnosis": { "type": "string", "description": "Clinical observation and diagnosis." },
+        "isUrgent": { "type": "boolean", "description": "Whether the note is an urgent alert." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp of creation." },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp of last update." }
+      },
+      "required": ["userId", "farmId", "cycleId", "dayNumber", "medication", "dosage", "diagnosis", "isUrgent", "createdAt", "updatedAt"]
+    },
+    "TreasuryTransaction": {
+      "title": "TreasuryTransaction",
+      "description": "Financial income or expense transaction in the farm treasury. Accessible by Owners, and Vets can create MEDICATION EXPENSE entries.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Author Firebase Auth UID." },
+        "farmId": { "type": "string", "description": "Farm identifier." },
+        "cycleId": { "type": "string", "description": "Cycle identifier." },
+        "type": { "type": "string", "enum": ["EXPENSE", "INCOME"], "description": "Transaction direction." },
+        "category": { "type": "string", "description": "Expense or income category." },
+        "amount": { "type": "number", "description": "Monetary amount." },
+        "currency": { "type": "string", "description": "Currency symbol/code." },
+        "date": { "type": "string", "description": "Formatted cycle day / date string." },
+        "idempotencyKey": { "type": "string", "description": "Unique key preventing duplicate financial writes." },
+        "invoiceNumber": { "type": "string", "description": "Optional sales invoice number." },
+        "buyerName": { "type": "string", "description": "Optional buyer name for chicken sales." },
+        "truckPlate": { "type": "string", "description": "Optional truck plate for chicken sales." },
+        "birdAgeDays": { "type": "integer", "description": "Optional bird age in days at sale." },
+        "totalCrates": { "type": "integer", "description": "Optional total crates in sale." },
+        "birdsPerCrate": { "type": "integer", "description": "Optional birds per crate in sale." },
+        "totalBirdsSold": { "type": "integer", "description": "Optional total birds sold in sale." },
+        "totalGrossKg": { "type": "number", "description": "Optional total gross weight in kg." },
+        "totalTareKg": { "type": "number", "description": "Optional total tare weight in kg." },
+        "totalNetKg": { "type": "number", "description": "Optional total net weight in kg." },
+        "avgBirdWeightKg": { "type": "number", "description": "Optional average weight per bird in kg." },
+        "pricePerKg": { "type": "number", "description": "Optional price per kg." },
+        "tareWeightsCount": { "type": "integer", "description": "Optional number of tare weighs." },
+        "grossWeightsCount": { "type": "integer", "description": "Optional number of gross weighs." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp of creation." },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp of last update." }
+      },
+      "required": ["userId", "farmId", "cycleId", "type", "category", "amount", "currency", "date", "idempotencyKey", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "User profile document holding RBAC role and assigned farmId."
+    },
+    "/farms/{farmId}": {
+      "schema": { "$ref": "#/entities/FarmRecord" },
+      "description": "Shared farm document with members RBAC map."
+    },
+    "/farms/{farmId}/cycles/{cycleId}": {
+      "schema": { "$ref": "#/entities/CycleRecord" },
+      "description": "Cycle metadata and live bird inventory."
+    },
+    "/farms/{farmId}/dailyReports/{reportId}": {
+      "schema": { "$ref": "#/entities/DailyReport" },
+      "description": "Daily barn reports (Workers & Owners write; Vets read-only)."
+    },
+    "/farms/{farmId}/vetNotes/{noteId}": {
+      "schema": { "$ref": "#/entities/VetNote" },
+      "description": "Veterinary notes (Vets & Owners read/write; Workers read-only)."
+    },
+    "/farms/{farmId}/transactions/{transactionId}": {
+      "schema": { "$ref": "#/entities/TreasuryTransaction" },
+      "description": "Financial treasury transactions (Owners full access; Vets can create MEDICATION EXPENSE entries)."
+    }
+  }
+}
