@@ -27,7 +27,6 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.shape.CircleShape
@@ -84,18 +83,16 @@ object AgritechMockDb {
     val cycles = mutableStateListOf<CycleModel>()
 
     val dailyReports = mutableStateListOf(
-        DailyReportModel("rep_1", "farm_1", "cycle_2026_01", 1, 180.0, 1200.0, 10, 33.2, 12.0, "جيدة", "طبيعية", actualAvgWeightKg = 0.049),
-        DailyReportModel("rep_2", "farm_1", "cycle_2026_01", 2, 220.0, 1400.0, 9, 32.8, 11.3, "جيدة", "طبيعية", actualAvgWeightKg = 0.073),
-        DailyReportModel("rep_3", "farm_1", "cycle_2026_01", 3, 260.0, 1600.0, 10, 32.4, 10.6, "جيدة", "طبيعية", actualAvgWeightKg = 0.096),
-        DailyReportModel("rep_4", "farm_1", "cycle_2026_01", 4, 310.0, 1800.0, 9, 32.0, 9.9, "جيدة", "طبيعية", actualAvgWeightKg = 0.120),
-        DailyReportModel("rep_5", "farm_1", "cycle_2026_01", 5, 350.0, 2000.0, 10, 31.6, 9.2, "متوسطة", "طبيعية", actualAvgWeightKg = 0.143),
-        DailyReportModel("rep_6", "farm_1", "cycle_2026_01", 6, 400.0, 2200.0, 9, 31.2, 8.5, "جيدة", "طبيعية", actualAvgWeightKg = 0.167),
-        DailyReportModel("rep_7", "farm_1", "cycle_2026_01", 7, 440.0, 2400.0, 10, 30.8, 7.8, "جيدة", "طبيعية", actualAvgWeightKg = 0.190),
+        DailyReportModel("rep_1", "farm_1", "cycle_2026_01", 1, 240.0, 500.0, 2, 33.0, 4.0, "جيدة", "طبيعية"),
+        DailyReportModel("rep_2", "farm_1", "cycle_2026_01", 2, 280.0, 580.0, 1, 32.5, 3.8, "جيدة", "طبيعية"),
+        DailyReportModel("rep_3", "farm_1", "cycle_2026_01", 3, 340.0, 680.0, 3, 32.0, 3.5, "جيدة", "طبيعية"),
+        DailyReportModel("rep_4", "farm_1", "cycle_2026_01", 4, 410.0, 810.0, 2, 31.5, 3.2, "جيدة", "طبيعية"),
+        DailyReportModel("rep_5", "farm_1", "cycle_2026_01", 5, 490.0, 960.0, 4, 31.0, 3.0, "متوسطة", "طبيعية"),
+        DailyReportModel("rep_6", "farm_1", "cycle_2026_01", 6, 560.0, 1080.0, 2, 30.5, 2.8, "جيدة", "طبيعية"),
+        DailyReportModel("rep_7", "farm_1", "cycle_2026_01", 7, 630.0, 1210.0, 1, 30.0, 2.5, "جيدة", "طبيعية"),
         DailyReportModel("rep_f2_1", "farm_2", "cycle_2026_02", 1, 320.0, 640.0, 2, 33.0, 4.2, "جيدة", "طبيعية"),
         DailyReportModel("rep_f2_2", "farm_2", "cycle_2026_02", 2, 390.0, 760.0, 1, 32.5, 3.9, "جيدة", "طبيعية"),
-        DailyReportModel("rep_f2_7", "farm_2", "cycle_2026_02", 7, 740.0, 1450.0, 3, 29.8, 2.6, "جيدة", "طبيعية"),
-        DailyReportModel("rep_f2_14", "farm_2", "cycle_2026_02", 14, 980.0, 1950.0, 4, 28.0, 2.1, "جيدة", "طبيعية"),
-        DailyReportModel("rep_f2_21", "farm_2", "cycle_2026_02", 21, 1280.0, 2550.0, 3, 26.5, 1.8, "جيدة", "طبيعية")
+        DailyReportModel("rep_f2_7", "farm_2", "cycle_2026_02", 7, 740.0, 1450.0, 3, 29.8, 2.6, "جيدة", "طبيعية")
     )
 
     val vetNotes = mutableStateListOf(
@@ -198,9 +195,9 @@ object AgritechMockDb {
             role = AppRole.CHICK_HATCHERY,
             clientName = "مزرعة الهضاب للدواجن",
             clientPhone = "+213 552 40 50 60",
-            itemSummary = "صيصان تسمين Ross 308 عمر يوم واحد محصنة (80 دج/صوص)",
+            itemSummary = "صيصان تسمين Ross 308 عمر يوم واحد محصنة",
             quantityText = "8,000 طائر",
-            totalAmountDzd = 640000.0,
+            totalAmountDzd = 960000.0,
             status = "APPROVED"
         ),
         RoleBusinessOrderModel(
@@ -208,7 +205,7 @@ object AgritechMockDb {
             role = AppRole.WHOLESALE_TRADER,
             clientName = "عنبر الخيرات والبركة 1",
             clientPhone = "+213 550 11 22 33",
-            itemSummary = "شحنة دجاج لحم حي جاهز للتسويق (متوسط وزن 2.8 - 3.0 كغ)",
+            itemSummary = "شحنة دجاج لحم حي جاهز للتسويق (متوسط 2.35 كغ)",
             quantityText = "1,500 طائر (150 صندوق)",
             totalAmountDzd = 570000.0,
             status = "APPROVED"
@@ -235,51 +232,45 @@ object AgritechMockDb {
         }
     }
 
-    /**
-     * Automatically deducts 1 unit from the matching medicine in `vetPharmacyInventory`
-     * (or the first available antibiotic/vaccine item) whenever a Vet issues a medicine invoice
-     * or records a clinical prescription.
-     */
-    fun deductVetPharmacyForPrescribedMedicine(medicineName: String) {
-        if (vetPharmacyInventory.isEmpty()) return
-        val clean = medicineName.trim()
-        val matchedIdx = vetPharmacyInventory.indexOfFirst { item ->
-            clean.isNotBlank() && (
-                item.name.contains(clean, ignoreCase = true) ||
-                    clean.contains(item.name.substringBefore("(").trim(), ignoreCase = true) ||
-                    (clean.contains("تيلوزين", ignoreCase = true) && item.name.contains("تيلوزين", ignoreCase = true)) ||
-                    (clean.contains("إنروفلوكساسين", ignoreCase = true) && item.name.contains("إنروفلوكساسين", ignoreCase = true)) ||
-                    (clean.contains("فيتامين", ignoreCase = true) && item.name.contains("فيتامين", ignoreCase = true)) ||
-                    (clean.contains("نيوكاسل", ignoreCase = true) && item.name.contains("نيوكاسل", ignoreCase = true)) ||
-                    (clean.contains("جمبورو", ignoreCase = true) && item.name.contains("جمبورو", ignoreCase = true))
-                )
-        }.let { idx ->
-            if (idx >= 0) idx else vetPharmacyInventory.indexOfFirst { it.stockUnits > 0 }.coerceAtLeast(0)
-        }
-        val targetItem = vetPharmacyInventory[matchedIdx]
-        vetPharmacyInventory[matchedIdx] = targetItem.copy(
-            stockUnits = (targetItem.stockUnits - 1).coerceAtLeast(0)
-        )
-    }
-
-    /**
-     * Restocks all items in `vetPharmacyInventory` by `addedUnits` from the Veterinary Drug Importer.
-     */
-    fun restockVetPharmacyFromImporter(addedUnits: Int = 10) {
-        for (i in vetPharmacyInventory.indices) {
-            val item = vetPharmacyInventory[i]
-            vetPharmacyInventory[i] = item.copy(stockUnits = item.stockUnits + addedUnits)
-        }
-    }
-
     val transactions = mutableStateListOf(
-        TransactionModel("tx_1", "farm_1", "cycle_2026_01", TransactionType.EXPENSE, "🐥 شراء الكتاكيت (8,000 صوص × 80 دج)", 640000.0, "دج", "اليوم 1", notes = "8,000 صوص تسمين Ross 308 بسعر 80 دج"),
-        TransactionModel("tx_2", "farm_1", "cycle_2026_01", TransactionType.EXPENSE, "🌾 شراء الأعلاف (دفعة التأسيس 80 ق)", 640000.0, "دج", "اليوم 1", notes = "80 قنطار علف بادئ متكامل بسعر 8,000 دج للقنطار"),
-        TransactionModel("tx_litter_1", "farm_1", "cycle_2026_01", TransactionType.EXPENSE, "🧹 فرشة نشارة وتعقيم وتجهيز العنبر", 47000.0, "دج", "اليوم 1", notes = "فرشة نشارة خشب جافة ومطهرات"),
-        TransactionModel("tx_3", "farm_1", "cycle_2026_01", TransactionType.EXPENSE, "🔥 غاز وتدفئة التحضين", 45000.0, "دج", "اليوم 2", notes = "قارورات غاز البروبان لدفايات التحضين"),
-        TransactionModel("tx_4", "farm_1", "cycle_2026_01", TransactionType.EXPENSE, "💊 أدوية وتحصين وفيتامينات الاستقبال", 49000.0, "دج", "اليوم 4", notes = "لقاح هتشنر B1 + فيتامينات AD3E"),
-        TransactionModel("tx_water_w1", "farm_1", "cycle_2026_01", TransactionType.EXPENSE, "💧 صهاريج مياه الشرب (6 صهاريج × 1,000 دج)", 6000.0, "دج", "اليوم 5", notes = "6 صهاريج ماء سعة 3,000 لتر بسعر 1,000 دج للصهريج"),
-        TransactionModel("tx_f2_1", "farm_2", "cycle_2026_02", TransactionType.EXPENSE, "🌾 علف بادئ (30 ق)", 240000.0, "دج", "اليوم 1")
+        TransactionModel("tx_1", "farm_1", "cycle_2026_01", TransactionType.EXPENSE, "🐣 كتاكيت (Ross 308)", 1440000.0, "دج", "اليوم 1"),
+        TransactionModel("tx_2", "farm_1", "cycle_2026_01", TransactionType.EXPENSE, "🌾 علف بادئ (25 ق)", 200000.0, "دج", "اليوم 1"),
+        TransactionModel("tx_2b", "farm_1", "cycle_2026_01", TransactionType.EXPENSE, "🌾 علف نامي (15 ق)", 120000.0, "دج", "اليوم 3"),
+        TransactionModel("tx_3", "farm_1", "cycle_2026_01", TransactionType.EXPENSE, "🔥 غاز وتدفئة", 35000.0, "دج", "اليوم 2"),
+        TransactionModel("tx_4", "farm_1", "cycle_2026_01", TransactionType.EXPENSE, "💊 أدوية وتحصين", 48000.0, "دج", "اليوم 4"),
+        TransactionModel("tx_5", "farm_1", "cycle_2026_01", TransactionType.INCOME, "🚜 بيع سماد عضوي", 60000.0, "دج", "اليوم 5"),
+        TransactionModel("tx_f2_1", "farm_2", "cycle_2026_02", TransactionType.EXPENSE, "🌾 علف بادئ (30 ق)", 240000.0, "دج", "اليوم 1"),
+        TransactionModel(
+            "tx_sales_01",
+            "farm_1",
+            "cycle_2026_01",
+            TransactionType.INCOME,
+            "tx_chicken_sale",
+            570000.0,
+            "دج",
+            "اليوم 5 - كمال رابحي",
+            SalesInvoiceModel(
+                invoiceNumber = "INV-1-0001",
+                farmName = "عنبر الخيرات والبركة 1",
+                cycleId = "cycle_2026_01",
+                dateText = "اليوم 5",
+                birdAgeDays = 5,
+                buyerName = "كمال رابحي (تاجر الجملة)",
+                truckPlate = "04521-122-16",
+                totalCrates = 150,
+                birdsPerCrate = 10,
+                totalBirdsSold = 1500,
+                totalGrossKg = 3650.0,
+                totalTareKg = 2150.0,
+                totalNetKg = 1500.0,
+                avgBirdWeightKg = 1.000,
+                pricePerKg = 380.0,
+                totalAmount = 570000.0,
+                currency = "دج",
+                tareWeightsCount = 5,
+                grossWeightsCount = 15
+            )
+        )
     )
 
     val chatMessages = mutableStateListOf(
@@ -406,7 +397,7 @@ object AgritechMockDb {
             senderId = "buyer_1",
             senderName = "ياسين",
             senderRole = "تاجر دواجن الجملة 🚚",
-            text = "السلام عليكم، نبحث عن شحنة دجاج لحم واجد (متوسط وزن 2.8 - 3.0 كغ) بـ 385 دج للكيلوغرام نقداً في المزرعة.",
+            text = "السلام عليكم، نبحث عن شحنة دجاج لحم واجد (متوسط وزن 2.3 كغ) بـ 385 دج للكيلوغرام نقداً في المزرعة.",
             timestamp = "أمس"
         )
     )
@@ -458,7 +449,7 @@ object AgritechMockDb {
             roleLabel = "تسويق دجاج اللحم الحي 🚚",
             avatarEmoji = "🚚",
             avatarBgHex = 0xFFF1F5F9,
-            defaultSnippet = "السلام عليكم، نبحث عن شحنة دجاج لحم واجد (متوسط وزن 2.8 - 3.0 كغ) بـ 385 دج للكيلوغرام نقداً في المزرعة.",
+            defaultSnippet = "السلام عليكم، نبحث عن شحنة دجاج لحم واجد (متوسط وزن 2.3 كغ) بـ 385 دج للكيلوغرام نقداً في المزرعة.",
             defaultTimestamp = "أمس",
             unreadCount = 0
         )
@@ -469,7 +460,7 @@ object AgritechMockDb {
             id = "post_1",
             title = "علف بادئ ونامي ممتاز (ذرة وصويا نقية 22% بروتين)",
             description = "متوفر كميات جاهزة للتوصيل الفوري لجميع الولايات. علف متوازن لكتاكيت Ross 308 يضمن تحويل غذائي ممتاز من الأسبوع الأول.",
-            priceDzd = 8000.0,
+            priceDzd = 7950.0,
             priceUnit = "دج / قنطار",
             publisherName = "كمال - تاجر أعلاف",
             publisherLocation = "البليدة - بوفاريك",
@@ -478,13 +469,13 @@ object AgritechMockDb {
         ),
         MarketPostModel(
             id = "post_2",
-            title = "دفعة دجاج لحم حي جاهز للتسويق (متوسط وزن 2.8 - 3.0 كغ)",
+            title = "دفعة دجاج لحم حي جاهز للتسويق (متوسط وزن 2.4 كغ)",
             description = "العدد المتوفر: 3,500 طائر بصحة ممتازة وريش كامل، متاح للوزن والتحميل المباشر من العنبر.",
             priceDzd = 385.0,
             priceUnit = "دج / كغ",
             publisherName = "مزرعة الهضاب للدواجن",
             publisherLocation = "سطيف - عين أرنات",
-            imageCaption = "صورة القطيع داخل العنبر (عمر 40 يوم)",
+            imageCaption = "صورة القطيع داخل العنبر (عمر 36 يوم)",
             chatChannelId = "conv_wholesale_buyer"
         ),
         MarketPostModel(
@@ -529,11 +520,7 @@ object AgritechMockDb {
         vetNote: VetNoteModel,
         chatChannelId: String = "${tx.cycleId}_vet"
     ) {
-        val sanitizedAmount = AgritechFirestoreRepository.sanitizePositiveDouble(tx.amount)
-        val pendingTx = tx.copy(
-            amount = sanitizedAmount,
-            status = "PENDING"
-        )
+        val pendingTx = tx.copy(status = "PENDING")
         val pendingNote = vetNote.copy(
             status = "PENDING",
             linkedTransactionId = pendingTx.id,
@@ -542,15 +529,15 @@ object AgritechMockDb {
         )
         val existingTxIdx = transactions.indexOfFirst { it.id == pendingTx.id }
         if (existingTxIdx >= 0) {
-            return
+            transactions[existingTxIdx] = pendingTx
+        } else {
+            transactions.add(pendingTx)
         }
-        transactions.add(pendingTx)
         val existingNoteIdx = vetNotes.indexOfFirst { it.id == pendingNote.id }
         if (existingNoteIdx >= 0) {
             vetNotes[existingNoteIdx] = pendingNote
         } else {
             vetNotes.add(0, pendingNote)
-            deductVetPharmacyForPrescribedMedicine(pendingNote.medicineName)
         }
         val nowTime = try {
             java.time.LocalTime.now().format(
@@ -590,16 +577,13 @@ object AgritechMockDb {
         senderRole: String,
         chatChannelId: String
     ) {
-        val sanitizedAmount = AgritechFirestoreRepository.sanitizePositiveDouble(tx.amount)
-        val pendingTx = tx.copy(
-            amount = sanitizedAmount,
-            status = "PENDING"
-        )
+        val pendingTx = tx.copy(status = "PENDING")
         val existingTxIdx = transactions.indexOfFirst { it.id == pendingTx.id }
         if (existingTxIdx >= 0) {
-            return
+            transactions[existingTxIdx] = pendingTx
+        } else {
+            transactions.add(0, pendingTx)
         }
-        transactions.add(0, pendingTx)
         val nowTime = try {
             java.time.LocalTime.now().format(
                 java.time.format.DateTimeFormatter.ofPattern("hh:mm a", java.util.Locale("ar"))
@@ -624,136 +608,6 @@ object AgritechMockDb {
                 requestCurrency = pendingTx.currency
             )
         )
-    }
-
-    /**
-     * Wholesale Trader Slaughterhouse Arrival DOA Notification ("🚛 إشعار الفلاح بنفوق الوصول للمذبح"):
-     * Records road mortality upon arrival at the slaughterhouse, sends an official notification in Chat
-     * (`conv_wholesale_buyer` and `general_admin`), and logs a `PENDING` settlement note/transaction
-     * for the Farm Owner ("إشعار من التاجر: تسجيل X طير نافق عند الوصول للمذبح").
-     */
-    fun recordSlaughterhouseDoaSettlementNotification(
-        deadBirdsCount: Int,
-        farmId: String = "farm_1",
-        cycleId: String = "cycle_2026_01",
-        avgBirdWeightKg: Double = 2.35,
-        pricePerKgDzd: Double = 380.0,
-        currency: String = "دج"
-    ): TransactionModel? {
-        val sanitizedBirds = AgritechFirestoreRepository.sanitizeNonNegativeInt(deadBirdsCount)
-        if (sanitizedBirds <= 0) return null
-        PersonaSimulatorEngine.transportMortalityBirdsAtWeighbridge = sanitizedBirds
-        val safeWeight = AgritechFirestoreRepository.sanitizePositiveDouble(avgBirdWeightKg, fallback = 2.35)
-        val safePrice = AgritechFirestoreRepository.sanitizePositiveDouble(pricePerKgDzd, fallback = 380.0)
-        val deductedKg = sanitizedBirds * safeWeight
-        val settlementAmount = AgritechFirestoreRepository.sanitizePositiveDouble(deductedKg * safePrice, fallback = 1.0)
-        val txId = "tx_trader_doa_${farmId}_${cycleId}_${sanitizedBirds}"
-        val categoryText = "إشعار من التاجر: تسجيل $sanitizedBirds طير نافق عند الوصول للمذبح"
-        val pendingTx = TransactionModel(
-            id = txId,
-            farmId = farmId,
-            cycleId = cycleId,
-            type = TransactionType.EXPENSE,
-            category = categoryText,
-            amount = settlementAmount,
-            currency = currency,
-            date = "اليوم 40",
-            status = "PENDING"
-        )
-        val existingIdx = transactions.indexOfFirst { it.id == txId }
-        if (existingIdx >= 0) {
-            transactions[existingIdx] = pendingTx
-        } else {
-            transactions.add(0, pendingTx)
-        }
-        val formattedKg = String.format(java.util.Locale.US, "%.1f", deductedKg)
-        val formattedAmount = String.format(java.util.Locale.US, "%,.0f", settlementAmount)
-        val msgText = "🚛 $categoryText ($formattedKg كغ • تسوية مقترحة: $formattedAmount $currency بانتظار موافقة المالك)"
-        sendChatMessage(
-            ChatMessageModel(
-                id = "msg_trader_doa_${txId}",
-                cycleId = "conv_wholesale_buyer",
-                senderId = "trader_1",
-                senderName = "ياسين - تاجر دواجن الجملة",
-                senderRole = "تسويق دجاج اللحم الحي 🚚",
-                text = msgText,
-                timestamp = "الآن",
-                linkedTransactionId = txId,
-                requestCategory = categoryText,
-                requestAmount = settlementAmount,
-                requestCurrency = currency
-            )
-        )
-        sendChatMessage(
-            ChatMessageModel(
-                id = "msg_trader_doa_admin_${txId}",
-                cycleId = "general_admin",
-                senderId = "trader_1",
-                senderName = "ياسين - تاجر دواجن الجملة",
-                senderRole = "تسويق دجاج اللحم الحي 🚚",
-                text = msgText,
-                timestamp = "الآن",
-                linkedTransactionId = txId,
-                requestCategory = categoryText,
-                requestAmount = settlementAmount,
-                requestCurrency = currency
-            )
-        )
-        val convIdx = chatConversations.indexOfFirst { it.id == "conv_wholesale_buyer" }
-        if (convIdx >= 0) {
-            val conv = chatConversations[convIdx]
-            chatConversations[convIdx] = conv.copy(
-                defaultSnippet = msgText,
-                defaultTimestamp = "الآن",
-                unreadCount = conv.unreadCount + 1
-            )
-        }
-        return pendingTx
-    }
-
-    /**
-     * OWASP MASVS Role-Based Access Control (RBAC):
-     * Prevents WORKER, VETERINARIAN / VET_CLINIC, and external partner roles from deleting
-     * approved treasury records or finalized sale invoices (`INV-...`).
-     */
-    fun deleteTransactionWithRbac(transactionId: String, actorRole: AppRole): Boolean {
-        if (!AgritechFirestoreRepository.canDeleteOrModifyApprovedTreasuryRecord(actorRole)) {
-            return false
-        }
-        val idx = transactions.indexOfFirst { it.id == transactionId }
-        if (idx < 0) return false
-        val target = transactions[idx]
-        if (AgritechFirestoreRepository.isImmutableFinalizedSaleInvoice(target)) {
-            return false
-        }
-        transactions.removeAt(idx)
-        return true
-    }
-
-    /**
-     * OWASP MASVS Role-Based Access Control (RBAC):
-     * Finalized sale invoices (`INV-...`) are immutable and cannot be modified by WORKER,
-     * VETERINARIAN / VET_CLINIC, or any unauthorized session.
-     */
-    fun modifySalesInvoiceWithRbac(
-        transactionId: String,
-        updatedInvoice: SalesInvoiceModel,
-        actorRole: AppRole
-    ): Boolean {
-        if (!AgritechFirestoreRepository.canDeleteOrModifyApprovedTreasuryRecord(actorRole)) {
-            return false
-        }
-        val idx = transactions.indexOfFirst { it.id == transactionId }
-        if (idx < 0) return false
-        val existing = transactions[idx]
-        if (AgritechFirestoreRepository.isImmutableFinalizedSaleInvoice(existing)) {
-            return false
-        }
-        transactions[idx] = existing.copy(
-            amount = AgritechFirestoreRepository.sanitizePositiveDouble(updatedInvoice.totalAmount),
-            invoiceData = updatedInvoice
-        )
-        return true
     }
 
     /**
@@ -789,17 +643,8 @@ object AgritechMockDb {
      * Owner Approval Action ("تأكيد واعتماد الصرف ✓"):
      * Updates the Vet Invoice Transaction and VetNote status from "PENDING" to "APPROVED"
      * so the expense is officially deducted from the Treasury.
-     * Enforces RBAC (only OWNER / OWNER_BARN can approve) and idempotency (no duplicate approval).
      */
-    fun approveVetInvoice(
-        transactionId: String,
-        vetNoteId: String = "",
-        actorRole: AppRole = AppRole.OWNER
-    ): Boolean {
-        if (!AgritechFirestoreRepository.canApprovePendingTransaction(actorRole)) {
-            return false
-        }
-        var changed = false
+    fun approveVetInvoice(transactionId: String, vetNoteId: String = "") {
         var resolvedTxId = transactionId
         if (vetNoteId.isNotBlank()) {
             val vnIdx = vetNotes.indexOfFirst { it.id == vetNoteId }
@@ -808,26 +653,20 @@ object AgritechMockDb {
                 if (resolvedTxId.isBlank() && vn.linkedTransactionId.isNotBlank()) {
                     resolvedTxId = vn.linkedTransactionId
                 }
-                if (!vn.status.equals("APPROVED", ignoreCase = true)) {
-                    vetNotes[vnIdx] = vn.copy(status = "APPROVED")
-                    changed = true
-                }
+                vetNotes[vnIdx] = vn.copy(status = "APPROVED")
             }
         }
         if (resolvedTxId.isNotBlank()) {
             val txIdx = transactions.indexOfFirst { it.id == resolvedTxId }
-            if (txIdx >= 0 && !transactions[txIdx].status.equals("APPROVED", ignoreCase = true)) {
+            if (txIdx >= 0) {
                 transactions[txIdx] = transactions[txIdx].copy(status = "APPROVED")
-                changed = true
             }
             for (i in vetNotes.indices) {
-                if (vetNotes[i].linkedTransactionId == resolvedTxId && !vetNotes[i].status.equals("APPROVED", ignoreCase = true)) {
+                if (vetNotes[i].linkedTransactionId == resolvedTxId && vetNotes[i].status != "APPROVED") {
                     vetNotes[i] = vetNotes[i].copy(status = "APPROVED")
-                    changed = true
                 }
             }
         }
-        return changed
     }
 
     /**
@@ -1234,19 +1073,12 @@ fun AgritechMainApp(
                         try {
                             firestoreRepo.observeTransactions(activeFarmId).collectLatest { cloudTxs ->
                                 if (cloudTxs.isNotEmpty()) {
-                                    val hasSimulatedBaseline = AgritechMockDb.transactions.any {
-                                        it.farmId == activeFarmId && (it.id.startsWith("tx_sim_") || it.id.startsWith("tx_1_"))
-                                    }
                                     cloudTxs.forEach { tx ->
-                                        // Avoid re-inserting duplicate initial chick invoice or stale feed tx over calibrated 40-day simulator state
-                                        val isDuplicateInitialChickTx = hasSimulatedBaseline && tx.id.startsWith("tx_chicks_")
-                                        if (!isDuplicateInitialChickTx) {
-                                            val idx = AgritechMockDb.transactions.indexOfFirst { it.id == tx.id }
-                                            if (idx >= 0) {
-                                                AgritechMockDb.transactions[idx] = tx
-                                            } else {
-                                                AgritechMockDb.transactions.add(tx)
-                                            }
+                                        val idx = AgritechMockDb.transactions.indexOfFirst { it.id == tx.id }
+                                        if (idx >= 0) {
+                                            AgritechMockDb.transactions[idx] = tx
+                                        } else {
+                                            AgritechMockDb.transactions.add(tx)
                                         }
                                     }
                                 }
@@ -1363,23 +1195,15 @@ fun AgritechMainApp(
                 currentTheme = currentTheme,
                 lang = currentLanguage,
                 firestoreRepo = firestoreRepo,
-                reports = AgritechMockDb.dailyReports.filter { it.farmId == farm.id }.ifEmpty {
-                    AgritechMockDb.dailyReports.filter { it.farmId == "farm_1" }
-                }.sortedBy { it.dayNumber },
-                vetNotes = AgritechMockDb.vetNotes.filter { it.farmId == farm.id }.ifEmpty {
-                    AgritechMockDb.vetNotes.filter { it.farmId == "farm_1" }
-                },
-                transactions = AgritechMockDb.transactions.filter { it.farmId == farm.id }.ifEmpty {
-                    AgritechMockDb.transactions.filter { it.farmId == "farm_1" }
-                },
+                reports = AgritechMockDb.dailyReports.filter { it.farmId == farm.id }.sortedBy { it.dayNumber },
+                vetNotes = AgritechMockDb.vetNotes.filter { it.farmId == farm.id },
+                transactions = AgritechMockDb.transactions.filter { it.farmId == farm.id },
                 onAddTransaction = { tx, addedFeedKg ->
                     if (AgritechMockDb.transactions.none { it.id == tx.id }) {
                         AgritechMockDb.transactions.add(tx)
                         val invoice = tx.invoiceData
                         if (invoice != null && tx.type == TransactionType.INCOME) {
-                            val cycleIdx = AgritechMockDb.cycles.indexOfFirst {
-                                it.id == tx.cycleId || (it.farmId == tx.farmId && it.status.equals("active", ignoreCase = true))
-                            }
+                            val cycleIdx = AgritechMockDb.cycles.indexOfFirst { it.id == tx.cycleId }
                             if (cycleIdx >= 0) {
                                 val c = AgritechMockDb.cycles[cycleIdx]
                                 AgritechMockDb.cycles[cycleIdx] = c.copy(
@@ -1388,16 +1212,10 @@ fun AgritechMainApp(
                                 )
                             }
                         } else if (addedFeedKg > 0.0) {
-                            val cycleIdx = AgritechMockDb.cycles.indexOfFirst {
-                                it.id == tx.cycleId || (it.farmId == tx.farmId && it.status.equals("active", ignoreCase = true))
-                            }
+                            val cycleIdx = AgritechMockDb.cycles.indexOfFirst { it.id == tx.cycleId }
                             if (cycleIdx >= 0) {
                                 val c = AgritechMockDb.cycles[cycleIdx]
                                 AgritechMockDb.cycles[cycleIdx] = c.copy(feedInventoryKg = c.feedInventoryKg + addedFeedKg)
-                            } else {
-                                AgritechMockDb.cycles.add(
-                                    cycle.copy(feedInventoryKg = cycle.feedInventoryKg + addedFeedKg)
-                                )
                             }
                         }
                         scope.launch {
@@ -1448,36 +1266,11 @@ fun AgritechMainApp(
             BackHandler { sessionState.selectedFarmForVet = null }
             val farm = sessionState.selectedFarmForVet!!
             val cycle = AgritechMockDb.cycles.firstOrNull { it.farmId == farm.id }
-                ?: CycleModel(
-                    id = if (farm.id == "farm_2") "cycle_2026_02" else "cycle_default_${farm.id}",
-                    farmId = farm.id,
-                    totalBirdsPlaced = farm.capacity,
-                    targetWeight = 2.3,
-                    status = "active"
-                )
+                ?: AgritechMockDb.cycles.firstOrNull()
+                ?: CycleModel("cycle_default_${farm.id}", farm.id, farm.capacity, 2.3, "active")
             val allSupervisedFarms = (AgritechMockDb.farms + AgritechMockDb.supervisedVetFarms).distinctBy { it.id }
-            val directReports = AgritechMockDb.dailyReports.filter { it.farmId == farm.id }
-            val farmReports = directReports.ifEmpty {
-                val calcDay = PoultryCalculators.calculateCycleDay(cycle.startDate, 1)
-                val baseReports = AgritechMockDb.dailyReports.filter { it.farmId == "farm_1" }
-                if (calcDay > 1 && baseReports.none { it.dayNumber == calcDay }) {
-                    baseReports + DailyReportModel(
-                        id = "rep_auto_${farm.id}_$calcDay",
-                        farmId = farm.id,
-                        cycleId = cycle.id,
-                        dayNumber = calcDay,
-                        feedIntakeKg = PoultryCalculators.getCalibratedDailyFeedQuintals(calcDay) * 100.0,
-                        waterIntakeLiters = PoultryCalculators.getCalibratedDailyWaterLiters(calcDay),
-                        mortalityCount = 2,
-                        temperature = 27.5,
-                        gasUnits = 3.5,
-                        ventilationStatus = "جيدة",
-                        generalStatus = "طبيعية",
-                        actualAvgWeightKg = PoultryCalculators.getCalibratedBroilerWeightKg(calcDay)
-                    )
-                } else {
-                    baseReports
-                }
+            val farmReports = AgritechMockDb.dailyReports.filter { it.farmId == farm.id }.ifEmpty {
+                AgritechMockDb.dailyReports.filter { it.farmId == "farm_1" }
             }
             AgritechVetNotebookScreen(
                 farm = farm,
@@ -1486,15 +1279,12 @@ fun AgritechMainApp(
                 lang = currentLanguage,
                 firestoreRepo = firestoreRepo,
                 reports = farmReports,
-                vetNotes = AgritechMockDb.vetNotes.filter { it.farmId == farm.id }.ifEmpty {
-                    AgritechMockDb.vetNotes.filter { it.farmId == "farm_1" }
-                },
+                vetNotes = AgritechMockDb.vetNotes.filter { it.farmId == farm.id },
                 farms = allSupervisedFarms,
                 onSwitchFarm = { sessionState.selectedFarmForVet = it },
                 onAddNote = { note ->
                     if (AgritechMockDb.vetNotes.none { it.id == note.id }) {
                         AgritechMockDb.vetNotes.add(note)
-                        AgritechMockDb.deductVetPharmacyForPrescribedMedicine(note.medicineName)
                         scope.launch {
                             firestoreRepo?.saveVetNote(note)
                         }
@@ -1967,13 +1757,12 @@ fun AgritechOwnerDashboard(
     }
     var showGeneralChatSheet by remember { mutableStateOf(false) }
     var showQrJoinSheetFromDashboard by remember { mutableStateOf(false) }
-    var showPersonaInspectorModal by remember { mutableStateOf(false) }
     var targetFarmForVetInvoice by remember { mutableStateOf<FarmModel?>(null) }
     var targetFarmForCycle by remember { mutableStateOf<FarmModel?>(null) }
     var farmNameInput by remember { mutableStateOf("") }
     var locationInput by remember { mutableStateOf("") }
     var birdCountInput by remember { mutableStateOf("8000") }
-    var chickPriceInput by remember { mutableStateOf("80") }
+    var chickPriceInput by remember { mutableStateOf("40") }
 
     // Strict Freemium Paywall Interception for "+ دورة جديدة / عنبر جديد" (New Barn):
     // a) Count existing farms owned by the current user
@@ -1986,7 +1775,7 @@ fun AgritechOwnerDashboard(
             farmNameInput = ""
             locationInput = ""
             birdCountInput = "8000"
-            chickPriceInput = "80"
+            chickPriceInput = "40"
             showNewCycleDialog = true
         } else {
             showSubscriptionPaywallSheet = true
@@ -2009,7 +1798,7 @@ fun AgritechOwnerDashboard(
                 farmNameInput = ""
                 locationInput = ""
                 birdCountInput = "8000"
-                chickPriceInput = "80"
+                chickPriceInput = "40"
                 showNewCycleDialog = true
             }
         )
@@ -2070,23 +1859,10 @@ fun AgritechOwnerDashboard(
         )
     }
 
-    if (showPersonaInspectorModal) {
-        RealHumanPersonaInspectorDialog(
-            currentTheme = currentTheme,
-            lang = lang,
-            activeRole = activeRole,
-            onSelectRole = { newRole ->
-                onUpdateUserProfileMode(newRole, true)
-            },
-            onDismiss = { showPersonaInspectorModal = false }
-        )
-    }
-
     Scaffold(
         containerColor = currentTheme.bgColor,
         topBar = {
             TopAppBar(
-                modifier = Modifier.statusBarsPadding(),
                 title = {
                     Column {
                         Text(
@@ -2144,29 +1920,6 @@ fun AgritechOwnerDashboard(
                             contentDescription = Translations.tr("chat_general_admin_title", lang),
                             tint = primaryTextColor
                         )
-                    }
-                    Surface(
-                        modifier = Modifier
-                            .padding(end = 2.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .testTag("persona_inspector_btn")
-                            .clickable { showPersonaInspectorModal = true },
-                        shape = RoundedCornerShape(12.dp),
-                        color = accentBadgeBg,
-                        border = BorderStroke(1.dp, accentEmerald.copy(alpha = 0.45f))
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                Translations.tr("persona_inspector_btn", lang),
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = accentEmerald,
-                                maxLines = 1
-                            )
-                        }
                     }
                     IconButton(onClick = onOpenSettings) {
                         Icon(Icons.Default.Settings, contentDescription = "Settings", tint = primaryTextColor)
@@ -2571,7 +2324,7 @@ fun AgritechOwnerDashboard(
                     Button(
                         onClick = {
                             val count = birdCountInput.toIntOrNull() ?: 8000
-                            val price = chickPriceInput.toDoubleOrNull() ?: 80.0
+                            val price = chickPriceInput.toDoubleOrNull() ?: 40.0
                             val chickTotal = count * price
                             val uniqueSuffix = (System.currentTimeMillis() % 100000).toString()
                             val existingFarm = targetFarmForCycle
@@ -2594,7 +2347,7 @@ fun AgritechOwnerDashboard(
                                 id = cycleId,
                                 farmId = farmId,
                                 totalBirdsPlaced = count,
-                                targetWeight = 2.9,
+                                targetWeight = 2.3,
                                 status = "active",
                                 startDate = todayStr,
                                 chickPrice = price,
@@ -2617,7 +2370,7 @@ fun AgritechOwnerDashboard(
                             farmNameInput = ""
                             locationInput = ""
                             birdCountInput = "8000"
-                            chickPriceInput = "80"
+                            chickPriceInput = "40"
                         },
                         modifier = Modifier.testTag("btn_confirm_new_cycle"),
                         shape = RoundedCornerShape(12.dp),
@@ -2973,28 +2726,6 @@ fun ManagementHubScreen(
                                             )
                                         }
                                     }
-                                    val hasActiveMedPrescription = AgritechMockDb.vetNotes.any {
-                                        it.farmId == farm.id && it.medicineName.isNotBlank()
-                                    }
-                                    if (hasActiveMedPrescription) {
-                                        Spacer(modifier = Modifier.height(8.dp))
-                                        Surface(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .testTag("vet_withdrawal_period_badge_${farm.id}"),
-                                            shape = pillShape,
-                                            color = if (isDark) Color(0xFF78350F).copy(alpha = 0.35f) else Color(0xFFFEF3C7),
-                                            border = BorderStroke(1.dp, Color(0xFFF59E0B))
-                                        ) {
-                                            Text(
-                                                Translations.tr("vet_withdrawal_period_badge", lang),
-                                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                                fontSize = 11.sp,
-                                                fontWeight = FontWeight.ExtraBold,
-                                                color = if (isDark) Color(0xFFFDE68A) else Color(0xFF92400E)
-                                            )
-                                        }
-                                    }
                                     Spacer(modifier = Modifier.height(12.dp))
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
@@ -3183,192 +2914,6 @@ fun ManagementHubScreen(
                                 }
                             }
                         }
-                        item {
-                            when (normalizedRole) {
-                                AppRole.WHOLESALE_TRADER -> {
-                                    var transportDeadBirdsInput by remember {
-                                        mutableStateOf(
-                                            if (PersonaSimulatorEngine.transportMortalityBirdsAtWeighbridge > 0)
-                                                PersonaSimulatorEngine.transportMortalityBirdsAtWeighbridge.toString()
-                                            else "5"
-                                        )
-                                    }
-                                    var doaNotificationSent by remember { mutableStateOf(false) }
-                                    val deadBirdsCount = transportDeadBirdsInput.toIntOrNull()?.coerceAtLeast(0) ?: 0
-                                    LaunchedEffect(deadBirdsCount) {
-                                        PersonaSimulatorEngine.transportMortalityBirdsAtWeighbridge = deadBirdsCount
-                                    }
-                                    val deductedKg = deadBirdsCount * 2.35
-                                    val deductedAmountDzd = deductedKg * 380.0
-                                    Card(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .testTag("trader_transport_mortality_card"),
-                                        shape = cardCornerShape,
-                                        colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
-                                        border = BorderStroke(1.2.dp, activeAccent.copy(alpha = 0.4f))
-                                    ) {
-                                        Column(
-                                            modifier = Modifier.padding(14.dp),
-                                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                                        ) {
-                                            Text(
-                                                Translations.tr("trader_transport_mortality_label", lang),
-                                                fontWeight = FontWeight.ExtraBold,
-                                                fontSize = 13.5.sp,
-                                                color = primaryTextColor
-                                            )
-                                            OutlinedTextField(
-                                                value = transportDeadBirdsInput,
-                                                onValueChange = { newVal ->
-                                                    transportDeadBirdsInput = newVal.filter { it.isDigit() }
-                                                    doaNotificationSent = false
-                                                },
-                                                label = { Text(Translations.tr("trader_transport_mortality_hint", lang)) },
-                                                placeholder = { Text("0") },
-                                                trailingIcon = {
-                                                    if (transportDeadBirdsInput.isNotEmpty()) {
-                                                        IconButton(onClick = {
-                                                            transportDeadBirdsInput = ""
-                                                            doaNotificationSent = false
-                                                        }) {
-                                                            Icon(Icons.Default.Close, contentDescription = "Clear", modifier = Modifier.size(18.dp))
-                                                        }
-                                                    }
-                                                },
-                                                textStyle = LocalTextStyle.current.copy(
-                                                    textDirection = androidx.compose.ui.text.style.TextDirection.Ltr
-                                                ),
-                                                singleLine = true,
-                                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .testTag("input_transport_mortality_birds"),
-                                                shape = pillShape
-                                            )
-                                            Text(
-                                                "${Translations.tr("trader_net_payable_after_mortality", lang)}: -${String.format(java.util.Locale.US, "%.1f", deductedKg)} ${Translations.tr("kg_unit", lang)} (-${String.format(java.util.Locale.US, "%,.0f", deductedAmountDzd)} $curr)",
-                                                fontSize = 12.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = activeAccent
-                                            )
-                                            Button(
-                                                onClick = {
-                                                    val birdsToLog = if (deadBirdsCount > 0) deadBirdsCount else 5
-                                                    if (deadBirdsCount == 0) {
-                                                        transportDeadBirdsInput = "5"
-                                                    }
-                                                    AgritechMockDb.recordSlaughterhouseDoaSettlementNotification(
-                                                        deadBirdsCount = birdsToLog,
-                                                        currency = curr
-                                                    )
-                                                    doaNotificationSent = true
-                                                },
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .height(46.dp)
-                                                    .testTag("btn_trader_notify_slaughterhouse_doa"),
-                                                shape = pillShape,
-                                                colors = ButtonDefaults.buttonColors(containerColor = primaryButtonAccent)
-                                            ) {
-                                                Text(
-                                                    Translations.tr("trader_notify_farmer_slaughterhouse_doa_btn", lang),
-                                                    fontWeight = FontWeight.Bold,
-                                                    fontSize = 12.sp,
-                                                    color = Color.White,
-                                                    maxLines = 1,
-                                                    overflow = TextOverflow.Ellipsis
-                                                )
-                                            }
-                                            if (doaNotificationSent) {
-                                                Surface(
-                                                    color = activeAccent.copy(alpha = 0.14f),
-                                                    shape = RoundedCornerShape(8.dp),
-                                                    modifier = Modifier
-                                                        .fillMaxWidth()
-                                                        .testTag("banner_trader_doa_notified")
-                                                ) {
-                                                    Text(
-                                                        Translations.tr("trader_doa_notification_sent_banner", lang),
-                                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                                        fontSize = 11.5.sp,
-                                                        fontWeight = FontWeight.Bold,
-                                                        color = activeAccent
-                                                    )
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                                AppRole.CHICK_HATCHERY -> {
-                                    Card(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .testTag("hatchery_free_bonus_card"),
-                                        shape = cardCornerShape,
-                                        colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
-                                        border = BorderStroke(1.2.dp, activeAccent.copy(alpha = 0.4f))
-                                    ) {
-                                        Column(
-                                            modifier = Modifier.padding(14.dp),
-                                            verticalArrangement = Arrangement.spacedBy(6.dp)
-                                        ) {
-                                            Text(
-                                                Translations.tr("hatchery_bonus_2pct_label", lang),
-                                                fontWeight = FontWeight.ExtraBold,
-                                                fontSize = 13.5.sp,
-                                                color = primaryTextColor
-                                            )
-                                            Text(
-                                                "8,000 + 160 = 8,160 ${Translations.tr("birds_unit_short", lang)} (2% Free Bonus)",
-                                                fontSize = 12.5.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = activeAccent
-                                            )
-                                        }
-                                    }
-                                }
-                                AppRole.VET_IMPORTER -> {
-                                    Card(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .testTag("importer_supply_pharmacy_card"),
-                                        shape = cardCornerShape,
-                                        colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
-                                        border = BorderStroke(1.2.dp, activeAccent.copy(alpha = 0.4f))
-                                    ) {
-                                        Column(
-                                            modifier = Modifier.padding(14.dp),
-                                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                                        ) {
-                                            Text(
-                                                Translations.tr("vet_hub_tab_pharmacy", lang),
-                                                fontWeight = FontWeight.ExtraBold,
-                                                fontSize = 13.5.sp,
-                                                color = primaryTextColor
-                                            )
-                                            Button(
-                                                onClick = { AgritechMockDb.restockVetPharmacyFromImporter(10) },
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .height(44.dp)
-                                                    .testTag("btn_importer_supply_vet_pharmacy"),
-                                                shape = pillShape,
-                                                colors = ButtonDefaults.buttonColors(containerColor = primaryButtonAccent)
-                                            ) {
-                                                Text(
-                                                    Translations.tr("importer_restock_vet_pharmacy_btn", lang),
-                                                    fontWeight = FontWeight.Bold,
-                                                    fontSize = 12.sp,
-                                                    color = Color.White
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-                                else -> {}
-                            }
-                        }
                         items(roleOrders, key = { it.id }) { order ->
                             val isPending = order.status.equals("PENDING", ignoreCase = true)
                             Card(
@@ -3389,7 +2934,7 @@ fun ManagementHubScreen(
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Text(
-                                            Translations.localizePartnerOrderClient(order.clientName, lang),
+                                            order.clientName,
                                             fontWeight = FontWeight.ExtraBold,
                                             fontSize = 14.sp,
                                             color = primaryTextColor,
@@ -3403,7 +2948,7 @@ fun ManagementHubScreen(
                                         )
                                     }
                                     Text(
-                                        Translations.localizePartnerOrderSummary(order.itemSummary, order.quantityText, lang),
+                                        "${order.itemSummary} • ${order.quantityText}",
                                         fontSize = 12.sp,
                                         color = secondaryTextColor
                                     )
@@ -3576,170 +3121,6 @@ fun ManagementHubScreen(
                                                     }
                                                 }
                                             }
-                                        }
-                                    }
-                                }
-                            }
-                            // Live Remaining Feed Stock Counter Card in Quintals + 5-Day Vet Withdrawal Alert in Owner Management Hub
-                            item {
-                                val primaryFarm = farms.first()
-                                val primaryCycle = AgritechMockDb.cycles.firstOrNull { it.farmId == primaryFarm.id }
-                                    ?: AgritechMockDb.cycles.firstOrNull()
-                                val consumedFeedKg = AgritechMockDb.dailyReports
-                                    .filter { it.farmId == primaryFarm.id }
-                                    .sumOf { it.feedIntakeKg }
-                                val purchasedFeedFromTxKg = AgritechMockDb.transactions
-                                    .filter { it.farmId == primaryFarm.id && PoultryCalculators.isFeedTransaction(it) && !it.id.startsWith("tx_2") && !it.id.startsWith("tx_1_feed_base") }
-                                    .sumOf { PoultryCalculators.extractFeedKgFromTransaction(it) }
-                                val cycleStoredFeedKg = primaryCycle?.feedInventoryKg ?: PoultryCalculators.INITIAL_BASELINE_FEED_KG
-                                val derivedRemainingFeedKg = (PoultryCalculators.INITIAL_BASELINE_FEED_KG + purchasedFeedFromTxKg - consumedFeedKg).coerceAtLeast(0.0)
-                                val remainingFeedKg = if (consumedFeedKg > 0.0 || purchasedFeedFromTxKg > 0.0) {
-                                    derivedRemainingFeedKg
-                                } else {
-                                    cycleStoredFeedKg
-                                }
-                                val remainingFeedQ = remainingFeedKg / 100.0
-                                val consumedFeedQ = consumedFeedKg / 100.0
-                                val isLowStock = remainingFeedQ < 10.0
-                                val qUnit = Translations.tr("quintal_short", lang)
-                                val hasActiveMed = AgritechMockDb.vetNotes.any {
-                                    it.farmId == primaryFarm.id && (it.medicineName.isNotBlank() || it.note.isNotBlank())
-                                }
-
-                                Card(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .testTag("remaining_feed_stock_card"),
-                                    shape = cardCornerShape,
-                                    colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
-                                    border = BorderStroke(
-                                        1.2.dp,
-                                        if (isLowStock) ActionRed else activeAccent.copy(alpha = 0.35f)
-                                    ),
-                                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                                ) {
-                                    Column(
-                                        modifier = Modifier.padding(14.dp),
-                                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Column(modifier = Modifier.weight(1f)) {
-                                                Text(
-                                                    Translations.tr("remaining_feed_stock_quintal_label", lang),
-                                                    fontWeight = FontWeight.ExtraBold,
-                                                    fontSize = 13.5.sp,
-                                                    color = primaryTextColor
-                                                )
-                                                Text(
-                                                    "${Translations.tr("total_feed", lang)}: ${Translations.formatQuintalNumber(consumedFeedQ)} $qUnit",
-                                                    fontSize = 11.5.sp,
-                                                    color = secondaryTextColor
-                                                )
-                                            }
-                                            Surface(
-                                                shape = pillShape,
-                                                color = if (isLowStock) Color(0xFFFFEBEE) else accentBadgeBg
-                                            ) {
-                                                Text(
-                                                    "${Translations.formatQuintalNumber(remainingFeedQ)} $qUnit",
-                                                    modifier = Modifier
-                                                        .padding(horizontal = 12.dp, vertical = 6.dp)
-                                                        .testTag("remaining_feed_stock_value"),
-                                                    fontWeight = FontWeight.ExtraBold,
-                                                    fontSize = 14.sp,
-                                                    color = if (isLowStock) ActionRed else activeAccent
-                                                )
-                                            }
-                                        }
-
-                                        if (isLowStock) {
-                                            Surface(
-                                                shape = pillShape,
-                                                color = if (isDark) Color(0xFF450A0A) else Color(0xFFFEF2F2),
-                                                border = BorderStroke(1.dp, ActionRed.copy(alpha = 0.5f)),
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .testTag("feed_stock_low_warning_banner")
-                                            ) {
-                                                Text(
-                                                    Translations.tr("remaining_feed_stock_low_warning", lang),
-                                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                                    fontSize = 11.5.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = if (isDark) Color(0xFFFCA5A5) else ActionRed
-                                                )
-                                            }
-                                        }
-
-                                        if (hasActiveMed) {
-                                            Surface(
-                                                shape = pillShape,
-                                                color = if (isDark) Color(0xFF78350F).copy(alpha = 0.35f) else Color(0xFFFEF3C7),
-                                                border = BorderStroke(1.dp, Color(0xFFF59E0B)),
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .testTag("vet_withdrawal_period_badge")
-                                            ) {
-                                                Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
-                                                    Text(
-                                                        Translations.tr("vet_withdrawal_period_badge", lang),
-                                                        fontSize = 11.5.sp,
-                                                        fontWeight = FontWeight.ExtraBold,
-                                                        color = if (isDark) Color(0xFFFDE68A) else Color(0xFF92400E)
-                                                    )
-                                                    Text(
-                                                        Translations.tr("vet_withdrawal_period_desc", lang),
-                                                        fontSize = 10.5.sp,
-                                                        color = secondaryTextColor
-                                                    )
-                                                }
-                                            }
-                                        }
-
-                                        OutlinedButton(
-                                            onClick = {
-                                                val targetCycleId = primaryCycle?.id ?: "cycle_1"
-                                                val restockTxId = "tx_feed_restock_${System.currentTimeMillis()}"
-                                                AgritechMockDb.transactions.add(
-                                                    TransactionModel(
-                                                        id = restockTxId,
-                                                        farmId = primaryFarm.id,
-                                                        cycleId = targetCycleId,
-                                                        type = TransactionType.EXPENSE,
-                                                        category = "🌾 ${Translations.tr("tx_feed", lang)} (40 $qUnit)",
-                                                        amount = 320000.0,
-                                                        currency = curr,
-                                                        date = "${Translations.tr("day_prefix", lang)} 12",
-                                                        notes = "40 قنطار"
-                                                    )
-                                                )
-                                                if (primaryCycle != null) {
-                                                    val cIdx = AgritechMockDb.cycles.indexOfFirst { it.id == primaryCycle.id }
-                                                    if (cIdx >= 0) {
-                                                        val cur = AgritechMockDb.cycles[cIdx]
-                                                        AgritechMockDb.cycles[cIdx] = cur.copy(
-                                                            feedInventoryKg = cur.feedInventoryKg + 4000.0
-                                                        )
-                                                    }
-                                                }
-                                            },
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .height(40.dp)
-                                                .testTag("btn_quick_restock_feed"),
-                                            shape = pillShape,
-                                            border = BorderStroke(1.dp, activeAccent)
-                                        ) {
-                                            Text(
-                                                Translations.tr("btn_quick_restock_feed_40q", lang),
-                                                fontSize = 11.5.sp,
-                                                fontWeight = FontWeight.ExtraBold,
-                                                color = activeAccent
-                                            )
                                         }
                                     }
                                 }
@@ -5467,11 +4848,7 @@ fun FarmCard(
                 }
                 val maxReportDay = reportsForCycle.maxOfOrNull { it.dayNumber } ?: 1
                 val calculatedDay = PoultryCalculators.calculateCycleDay(activeCycle.startDate, maxReportDay)
-                val estimatedWeightKg = PoultryCalculators.resolveActualAvgBirdWeightKg(
-                    reports = reportsForCycle,
-                    cycleTransactions = txsForCycle,
-                    cycleId = activeCycle.id
-                ) ?: PoultryCalculators.getCalibratedBroilerWeightKg(calculatedDay)
+                val estimatedWeightKg = PoultryCalculators.getRoss308StandardWeightKg(calculatedDay)
                 val formattedStartDate = PoultryCalculators.formatDateDdMmYyyy(activeCycle.startDate)
                 val kgUnit = Translations.tr("kg_unit", lang)
 
@@ -5481,7 +4858,6 @@ fun FarmCard(
                         farmName = Translations.getLocalizedFarmName(farm.id, lang, farm.name),
                         cycle = activeCycle,
                         transactions = txsForCycle,
-                        consumedFeedKg = reportsForCycle.sumOf { it.feedIntakeKg },
                         lang = lang,
                         onDismiss = { showCardFeedLedger = false }
                     )
@@ -6437,40 +5813,16 @@ fun AgritechFarmNotebookScreen(
             } catch (_: Exception) {}
         }
     }
-    val rawActiveCycle = AgritechMockDb.cycles.firstOrNull { it.id == cycle.id }
-        ?: AgritechMockDb.cycles.firstOrNull { it.farmId == farm.id && it.status.equals("active", ignoreCase = true) }
-        ?: streamedCycles.firstOrNull { it.id == cycle.id }
+    val activeCycle = streamedCycles.firstOrNull { it.id == cycle.id }
         ?: streamedCycles.firstOrNull()
+        ?: AgritechMockDb.cycles.firstOrNull { it.id == cycle.id }
         ?: cycle
 
     val reportsForCycle = reports.filter {
-        it.cycleId == rawActiveCycle.id || it.cycleId.isBlank() || it.cycleId == "cycle_2026_01"
-    }.ifEmpty { reports }
-
-    val hasCalibratedSimChickTx = transactions.any { it.id.startsWith("tx_1_") || it.id == "tx_1" }
-    val txsForCycle = transactions.filter { tx ->
-        val matchesCycle = tx.cycleId == rawActiveCycle.id || tx.cycleId.isBlank() || tx.cycleId == "cycle_2026_01"
-        val isDuplicateInitialChickTx = hasCalibratedSimChickTx && tx.id.startsWith("tx_chicks_")
-        matchesCycle && !isDuplicateInitialChickTx
-    }.ifEmpty { transactions }
-
-    // 100% Reactive Feed Stock Calculation (baseline 80 Q + purchased feed transactions - consumed daily reports)
-    val reactiveFeedInventoryKg by remember(farm.id, rawActiveCycle, txsForCycle, reportsForCycle) {
-        derivedStateOf {
-            val consumedKg = reportsForCycle.sumOf { it.feedIntakeKg }
-            val purchasedTxKg = txsForCycle
-                .filter { PoultryCalculators.isFeedTransaction(it) && !it.id.startsWith("tx_2") && !it.id.startsWith("tx_1_feed_base") }
-                .sumOf { PoultryCalculators.extractFeedKgFromTransaction(it) }
-            val derivedFromBaselineKg = (PoultryCalculators.INITIAL_BASELINE_FEED_KG + purchasedTxKg - consumedKg).coerceAtLeast(0.0)
-            if (consumedKg > 0.0 || purchasedTxKg > 0.0) {
-                derivedFromBaselineKg
-            } else {
-                rawActiveCycle.feedInventoryKg
-            }
-        }
+        it.farmId == farm.id && (it.cycleId == activeCycle.id || it.cycleId.isBlank())
     }
-    val activeCycle = remember(rawActiveCycle, reactiveFeedInventoryKg) {
-        rawActiveCycle.copy(feedInventoryKg = reactiveFeedInventoryKg)
+    val txsForCycle = transactions.filter {
+        it.farmId == farm.id && (it.cycleId == activeCycle.id || it.cycleId.isBlank())
     }
 
     val calculatedCycleDay = remember(activeCycle.startDate, reportsForCycle) {
@@ -6478,10 +5830,6 @@ fun AgritechFarmNotebookScreen(
         PoultryCalculators.calculateCycleDay(activeCycle.startDate, reportMax)
     }
     val ageInDays = calculatedCycleDay
-    val withdrawalDaysRemaining = remember(vetNotes, ageInDays, reportsForCycle) {
-        val reportMax = reportsForCycle.maxOfOrNull { it.dayNumber } ?: ageInDays
-        PoultryCalculators.calculateWithdrawalDaysRemaining(vetNotes, ageInDays, reportMax)
-    }
 
     var lastSavedInvoice by remember { mutableStateOf<SalesInvoiceModel?>(null) }
     var selectedInvoiceForView by remember { mutableStateOf<SalesInvoiceModel?>(null) }
@@ -6514,9 +5862,9 @@ fun AgritechFarmNotebookScreen(
     val totalWater = reportsForCycle.sumOf { it.waterIntakeLiters }
     val totalMortality = reportsForCycle.sumOf { it.mortalityCount }
 
-    // Idempotency & Single Source of Truth Treasury Balance (Only APPROVED transactions for active cycle affect Treasury)
+    // Idempotency & Single Source of Truth Treasury Balance (Only APPROVED transactions affect Treasury)
     var lastSubmittedIdempotencyKey by remember { mutableStateOf("") }
-    val approvedTransactions = txsForCycle.filter { it.status.equals("APPROVED", ignoreCase = true) }
+    val approvedTransactions = transactions.filter { it.status.equals("APPROVED", ignoreCase = true) }
     val totalExpenses = approvedTransactions.filter { it.type == TransactionType.EXPENSE && it.amount > 0.0 }.sumOf { it.amount }
     val totalIncome = approvedTransactions.filter { it.type == TransactionType.INCOME && it.amount > 0.0 }.sumOf { it.amount }
     val netBalance = totalIncome - totalExpenses
@@ -6588,20 +5936,19 @@ fun AgritechFarmNotebookScreen(
             onDismiss = { showExpenseDialog = false },
             onConfirm = { cat, amt, addedFeedKg ->
                 if (amt > 0.0) {
-                    val idempKey = "tx_exp_${farm.id}_${activeCycle.id}_$expenseDialogIdempUuid"
+                    val idempKey = "tx_exp_${farm.id}_${cycle.id}_$expenseDialogIdempUuid"
                     if (idempKey != lastSubmittedIdempotencyKey) {
                         lastSubmittedIdempotencyKey = idempKey
                         onAddTransaction(
                             TransactionModel(
                                 id = idempKey,
                                 farmId = farm.id,
-                                cycleId = activeCycle.id,
+                                cycleId = cycle.id,
                                 type = TransactionType.EXPENSE,
                                 category = cat,
                                 amount = amt,
                                 currency = curr,
-                                date = "${Translations.tr("day_prefix", lang)} $ageInDays",
-                                notes = if (addedFeedKg > 0.0) "${(addedFeedKg / 100.0).toInt()} قنطار" else ""
+                                date = "${Translations.tr("day_prefix", lang)} $ageInDays"
                             ),
                             addedFeedKg
                         )
@@ -6703,9 +6050,8 @@ fun AgritechFarmNotebookScreen(
                 currentTheme = currentTheme,
                 lang = lang,
                 farm = farm,
-                cycle = activeCycle,
+                cycle = cycle,
                 ageInDays = ageInDays,
-                withdrawalDaysRemaining = withdrawalDaysRemaining,
                 buyerName = buyerNameInput,
                 onBuyerNameChange = { buyerNameInput = it },
                 truckPlate = truckPlateInput,
@@ -6729,9 +6075,8 @@ fun AgritechFarmNotebookScreen(
                 currentTheme = currentTheme,
                 lang = lang,
                 farm = farm,
-                cycle = activeCycle,
+                cycle = cycle,
                 ageInDays = ageInDays,
-                withdrawalDaysRemaining = withdrawalDaysRemaining,
                 buyerName = buyerNameInput,
                 truckPlate = truckPlateInput,
                 birdsPerCrate = parsedBirdsPerCrate,
@@ -6753,11 +6098,6 @@ fun AgritechFarmNotebookScreen(
                     if (idx in grossWeightsList.indices) {
                         grossWeightsList = grossWeightsList.filterIndexed { i, _ -> i != idx }
                     }
-                },
-                onClearWeighTable = {
-                    tareWeightsList = emptyList()
-                    grossWeightsList = emptyList()
-                    directTareTotalInput = ""
                 },
                 onFinalizeAndMigrate = {
                     if (totalSalesValue > 0.0 && totalNetKg > 0.0 && totalBirdsSold > 0) {
@@ -6864,7 +6204,6 @@ fun AgritechFarmNotebookScreen(
                     farmName = Translations.getLocalizedFarmName(farm.id, lang, farm.name),
                     cycle = activeCycle,
                     transactions = transactions,
-                    consumedFeedKg = totalFeed,
                     lang = lang,
                     onDismiss = { showFeedLedgerBottomSheet = false }
                 )
@@ -6943,9 +6282,7 @@ fun AgritechFarmNotebookScreen(
 
                     Surface(
                         color = currentTheme.bgColor,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .statusBarsPadding()
+                        modifier = Modifier.fillMaxWidth()
                     ) {
                         Column(
                             modifier = Modifier
@@ -7254,56 +6591,6 @@ fun AgritechFarmNotebookScreen(
                                     fontWeight = FontWeight.Bold,
                                     color = Color.White
                                 )
-                            }
-                        }
-
-                        // Live Remaining Feed Stock Counter in Quintals inside Ledger Tab
-                        val remainingStockQuintals = activeCycle.feedInventoryKg / 100.0
-                        val totalConsumedQuintals = reports.sumOf { it.feedIntakeKg } / 100.0
-                        val hasActiveBarnMedication = vetNotes.any { it.medicineName.isNotBlank() }
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 8.dp)
-                                .testTag("ledger_remaining_feed_stock_card"),
-                            shape = notebookShape,
-                            colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
-                            border = BorderStroke(
-                                1.dp,
-                                if (isLowFeedInventory) feedAlertRed else notebookAccent.copy(alpha = 0.35f)
-                            )
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(12.dp),
-                                verticalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        Translations.tr("remaining_feed_stock_quintal_label", lang),
-                                        fontWeight = FontWeight.ExtraBold,
-                                        fontSize = 12.5.sp,
-                                        color = currentTheme.headingColor
-                                    )
-                                    Text(
-                                        "${Translations.formatQuintalNumber(remainingStockQuintals)} ${Translations.tr("quintal_short", lang)} (${Translations.tr("total_feed", lang)}: ${Translations.formatQuintalNumber(totalConsumedQuintals)} ${Translations.tr("quintal_short", lang)})",
-                                        fontWeight = FontWeight.ExtraBold,
-                                        fontSize = 12.5.sp,
-                                        color = if (isLowFeedInventory) feedAlertRed else notebookAccent
-                                    )
-                                }
-                                if (hasActiveBarnMedication) {
-                                    Text(
-                                        Translations.tr("vet_withdrawal_period_badge", lang),
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color(0xFFD97706),
-                                        modifier = Modifier.testTag("ledger_withdrawal_period_badge")
-                                    )
-                                }
                             }
                         }
 
@@ -7734,9 +7021,7 @@ fun AgritechFarmNotebookScreen(
                         modifier = Modifier
                             .fillMaxSize()
                             .verticalScroll(rememberScrollState())
-                            .padding(horizontal = 18.dp, vertical = 18.dp)
-                            .padding(bottom = 96.dp)
-                            .testTag("analytics_tab_scroll_column"),
+                            .padding(18.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
                         // 1. بطاقة مؤشرات الأداء والكفاءة (تبقى كما هي في الأعلى)
@@ -7888,27 +7173,6 @@ fun AgritechFarmNotebookScreen(
                                             Translations.tr("sales_banner_desc", lang),
                                             fontSize = 12.sp,
                                             color = if (currentTheme.isDark) Color(0xFFCBD5E1) else Color.Gray
-                                        )
-                                    }
-                                }
-
-                                // تنبيه فترة سحب الدواء قبل الذبح أو البيع
-                                if (withdrawalDaysRemaining > 0) {
-                                    Surface(
-                                        shape = notebookBtnShape,
-                                        color = if (currentTheme.isDark) Color(0xFF78350F).copy(alpha = 0.55f) else Color(0xFFFEF3C7),
-                                        border = BorderStroke(1.5.dp, Color(0xFFD97706)),
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .testTag("sales_card_withdrawal_safety_alert")
-                                    ) {
-                                        Text(
-                                            text = Translations.tr("withdrawal_safety_alert_banner", lang)
-                                                .replace("{days}", withdrawalDaysRemaining.toString()),
-                                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.ExtraBold,
-                                            color = if (currentTheme.isDark) Color(0xFFFDE68A) else Color(0xFF92400E)
                                         )
                                     }
                                 }
@@ -8104,28 +7368,6 @@ fun AgritechFarmNotebookScreen(
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = Color.White
-                                    )
-                                }
-                            }
-                        }
-
-                        if (withdrawalDaysRemaining > 0) {
-                            item {
-                                Surface(
-                                    shape = notebookShape,
-                                    color = if (currentTheme.isDark) Color(0xFF78350F).copy(alpha = 0.55f) else Color(0xFFFEF3C7),
-                                    border = BorderStroke(1.5.dp, Color(0xFFD97706)),
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .testTag("vet_tab_withdrawal_safety_alert")
-                                ) {
-                                    Text(
-                                        text = Translations.tr("withdrawal_safety_alert_banner", lang)
-                                            .replace("{days}", withdrawalDaysRemaining.toString()),
-                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-                                        fontSize = 12.5.sp,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        color = if (currentTheme.isDark) Color(0xFFFDE68A) else Color(0xFF92400E)
                                     )
                                 }
                             }
@@ -8945,17 +8187,9 @@ fun VetMedicineInvoiceDialog(
                         }
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            Translations.tr("vet_pharmacy_auto_deduct_note", lang),
+                            "يتم قيد الفاتورة آلياً في الخزنة وتسجيل الوصفة في السجل الطبي للعنبر.",
                             fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = accentEmerald
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            Translations.tr("vet_withdrawal_period_badge", lang),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFFD97706)
+                            color = primaryText
                         )
                     }
                 }
@@ -9364,7 +8598,6 @@ fun BatchShipmentInfoScreen(
     farm: FarmModel,
     cycle: CycleModel,
     ageInDays: Int,
-    withdrawalDaysRemaining: Int = 0,
     buyerName: String,
     onBuyerNameChange: (String) -> Unit,
     truckPlate: String,
@@ -9526,7 +8759,7 @@ fun BatchShipmentInfoScreen(
                             Spacer(modifier = Modifier.width(12.dp))
                             Column {
                                 Text(
-                                    Translations.tr("bird_age_auto_calculated_title", lang).replace("{days}", ageInDays.toString()),
+                                    "${Translations.tr("bird_age_auto_calculated_title", lang)}: $ageInDays ${Translations.tr("days_unit", lang)}",
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 13.5.sp,
                                     color = shipAccent
@@ -9540,60 +8773,18 @@ fun BatchShipmentInfoScreen(
                         }
                     }
 
-                    if (withdrawalDaysRemaining > 0) {
-                        Surface(
-                            shape = shipFieldShape,
-                            color = if (currentTheme.isDark) Color(0xFF78350F).copy(alpha = 0.55f) else Color(0xFFFEF3C7),
-                            border = BorderStroke(1.5.dp, Color(0xFFD97706)),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("shipment_withdrawal_safety_alert")
-                        ) {
-                            Text(
-                                text = Translations.tr("withdrawal_safety_alert_banner", lang)
-                                    .replace("{days}", withdrawalDaysRemaining.toString()),
-                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = if (currentTheme.isDark) Color(0xFFFDE68A) else Color(0xFF92400E)
-                            )
-                        }
-                    }
-
-                    // 4. سعر الكيلوغرام الواحد في السوق اليوم (دج/كغ) — Raw string state with LTR numeric cursor & 1-tap clear
-                    var rawPriceInput by remember { mutableStateOf(pricePerKg) }
+                    // 4. سعر الكيلوغرام الواحد في السوق اليوم (دج/كغ)
                     OutlinedTextField(
-                        value = rawPriceInput,
-                        onValueChange = { newVal ->
-                            val cleaned = newVal.filter { it.isDigit() || it == '.' || it == ',' }.replace(',', '.')
-                            rawPriceInput = cleaned
-                            onPricePerKgChange(cleaned)
-                        },
+                        value = pricePerKg,
+                        onValueChange = onPricePerKgChange,
                         label = { Text(Translations.tr("price_per_kg_label", lang), fontSize = 13.sp) },
                         placeholder = { Text("380") },
                         leadingIcon = {
                             Icon(Icons.Default.Payments, contentDescription = null, tint = shipAccent)
                         },
-                        trailingIcon = {
-                            if (rawPriceInput.isNotEmpty()) {
-                                IconButton(
-                                    onClick = {
-                                        rawPriceInput = ""
-                                        onPricePerKgChange("")
-                                    }
-                                ) {
-                                    Icon(Icons.Default.Close, contentDescription = "Clear", modifier = Modifier.size(18.dp))
-                                }
-                            }
-                        },
-                        textStyle = LocalTextStyle.current.copy(
-                            textDirection = androidx.compose.ui.text.style.TextDirection.Ltr
-                        ),
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("input_shipment_price_per_kg"),
+                        modifier = Modifier.fillMaxWidth(),
                         shape = shipFieldShape,
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = shipAccent,
@@ -9602,40 +8793,18 @@ fun BatchShipmentInfoScreen(
                     )
 
                     // 5. عدد الدجاج داخل الصندوق الواحد (حقل إدخال رقمي حر TextField)
-                    var rawBirdsPerCrateInput by remember { mutableStateOf(birdsPerCrate) }
                     OutlinedTextField(
-                        value = rawBirdsPerCrateInput,
-                        onValueChange = { newVal ->
-                            val cleaned = newVal.filter { it.isDigit() }
-                            rawBirdsPerCrateInput = cleaned
-                            onBirdsPerCrateChange(cleaned)
-                        },
+                        value = birdsPerCrate,
+                        onValueChange = onBirdsPerCrateChange,
                         label = { Text(Translations.tr("birds_per_crate_label", lang), fontSize = 13.sp) },
                         placeholder = { Text("10") },
                         supportingText = { Text(Translations.tr("birds_per_crate_free_hint", lang), fontSize = 11.5.sp, color = Color.Gray) },
                         leadingIcon = {
                             Icon(Icons.Default.Inbox, contentDescription = null, tint = shipAccent)
                         },
-                        trailingIcon = {
-                            if (rawBirdsPerCrateInput.isNotEmpty()) {
-                                IconButton(
-                                    onClick = {
-                                        rawBirdsPerCrateInput = ""
-                                        onBirdsPerCrateChange("")
-                                    }
-                                ) {
-                                    Icon(Icons.Default.Close, contentDescription = "Clear", modifier = Modifier.size(18.dp))
-                                }
-                            }
-                        },
-                        textStyle = LocalTextStyle.current.copy(
-                            textDirection = androidx.compose.ui.text.style.TextDirection.Ltr
-                        ),
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("input_shipment_birds_per_crate"),
+                        modifier = Modifier.fillMaxWidth(),
                         shape = shipFieldShape,
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = shipAccent,
@@ -9789,7 +8958,6 @@ fun BatchQuickWeighingScreen(
     farm: FarmModel,
     cycle: CycleModel,
     ageInDays: Int,
-    withdrawalDaysRemaining: Int = 0,
     buyerName: String,
     truckPlate: String,
     birdsPerCrate: Int,
@@ -9802,7 +8970,6 @@ fun BatchQuickWeighingScreen(
     onDeleteTareWeight: (Int) -> Unit,
     onAddGrossWeight: (Int, Double) -> Unit,
     onDeleteGrossWeight: (Int) -> Unit,
-    onClearWeighTable: () -> Unit = {},
     onFinalizeAndMigrate: () -> Unit,
     onBack: () -> Unit
 ) {
@@ -9824,52 +8991,40 @@ fun BatchQuickWeighingScreen(
         }
     }
 
-    var lastWeighSaveTapMs by remember { mutableStateOf(0L) }
     val submitCurrentWeighRow: () -> Unit = {
-        val nowMs = System.currentTimeMillis()
-        if (nowMs - lastWeighSaveTapMs >= 150L) {
-            lastWeighSaveTapMs = nowMs
-            val hadTare = tareInput.isNotBlank()
-            val hadGross = grossInput.isNotBlank()
-            var addedAny = false
-            var newTareCount = tareWeights.size
-            var newGrossCount = grossWeights.size
+        val hadTare = tareInput.isNotBlank()
+        val hadGross = grossInput.isNotBlank()
+        var addedAny = false
+        var newTareCount = tareWeights.size
+        var newGrossCount = grossWeights.size
 
-            val t = tareInput.trim().replace(',', '.').toDoubleOrNull()?.let {
-                AgritechFirestoreRepository.sanitizeNonNegativeDouble(it, maxAllowed = 100_000.0)
+        val t = tareInput.trim().replace(',', '.').toDoubleOrNull()
+        if (t != null && t > 0) {
+            onAddTareWeight(t)
+            tareInput = ""
+            addedAny = true
+            newTareCount += 1
+        }
+        val g = grossInput.trim().replace(',', '.').toDoubleOrNull()
+        if (g != null && g > 0) {
+            val crates = (cratesPerThisWeigh.toIntOrNull() ?: 5).coerceAtLeast(1)
+            onAddGrossWeight(crates, g)
+            grossInput = ""
+            addedAny = true
+            newGrossCount += 1
+        }
+        if (addedAny) {
+            val targetLastIdx = (maxOf(newTareCount, newGrossCount) - 1).coerceAtLeast(0)
+            weighScope.launch {
+                listState.animateScrollToItem(targetLastIdx)
             }
-            if (t != null && t > 0.0) {
-                onAddTareWeight(t)
-                tareInput = ""
-                addedAny = true
-                newTareCount += 1
-            }
-            val g = grossInput.trim().replace(',', '.').toDoubleOrNull()?.let {
-                AgritechFirestoreRepository.sanitizeNonNegativeDouble(it, maxAllowed = 100_000.0)
-            }
-            if (g != null && g > 0.0) {
-                val crates = AgritechFirestoreRepository.sanitizeNonNegativeInt(
-                    cratesPerThisWeigh.toIntOrNull() ?: 5,
-                    maxAllowed = 500
-                ).coerceAtLeast(1)
-                onAddGrossWeight(crates, g)
-                grossInput = ""
-                addedAny = true
-                newGrossCount += 1
-            }
-            if (addedAny) {
-                val targetLastIdx = (maxOf(newTareCount, newGrossCount) - 1).coerceAtLeast(0)
-                weighScope.launch {
-                    listState.animateScrollToItem(targetLastIdx)
+            try {
+                if (hadGross) {
+                    grossFocusRequester.requestFocus()
+                } else if (hadTare) {
+                    tareFocusRequester.requestFocus()
                 }
-                try {
-                    if (hadGross) {
-                        grossFocusRequester.requestFocus()
-                    } else if (hadTare) {
-                        tareFocusRequester.requestFocus()
-                    }
-                } catch (_: Exception) {}
-            }
+            } catch (_: Exception) {}
         }
     }
 
@@ -9881,7 +9036,7 @@ fun BatchQuickWeighingScreen(
     val totalGrossKg = grossWeights.sumOf { it.weightKg }
     val totalGrossCrates = grossWeights.sumOf { it.cratesCount }
     val totalNetKg = (totalGrossKg - totalTareKg).coerceAtLeast(0.0)
-    val totalBirdsSold = grossWeights.sumOf { it.cratesCount * birdsPerCrate }.coerceAtLeast(0)
+    val totalBirdsSold = grossWeights.sumOf { it.cratesCount * birdsPerCrate }
     val avgBirdWeightKg = if (totalBirdsSold > 0) totalNetKg / totalBirdsSold else 0.0
     val totalSalesValue = totalNetKg * pricePerKg
 
@@ -9898,38 +9053,18 @@ fun BatchQuickWeighingScreen(
                             Translations.tr("sales_stage_2_title", lang),
                             fontWeight = FontWeight.Bold,
                             fontSize = 17.sp,
-                            color = currentTheme.headingColor,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                            color = currentTheme.headingColor
                         )
                         Text(
                             "${buyerName.ifEmpty { Translations.tr("buyer_label", lang) }}${if (truckPlate.isNotBlank()) " • $truckPlate" else ""}",
                             fontSize = 12.sp,
-                            color = currentTheme.headingColor.copy(alpha = 0.8f),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                            color = currentTheme.headingColor.copy(alpha = 0.8f)
                         )
                     }
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = currentTheme.headingColor)
-                    }
-                },
-                actions = {
-                    IconButton(
-                        onClick = {
-                            onClearWeighTable()
-                            tareInput = ""
-                            grossInput = ""
-                            cratesPerThisWeigh = "5"
-                        },
-                        modifier = Modifier.testTag("btn_clear_weigh_table")
-                    ) {
-                        Text(
-                            "🗑️",
-                            fontSize = 16.sp
-                        )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = currentTheme.bgColor)
@@ -10041,11 +9176,11 @@ fun BatchQuickWeighingScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .padding(horizontal = 14.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             // 2. طريقة الإدخال البسيطة في أعلى الجدول (في نفس الصفحة):
-            // شريط اختيار عدد الصناديق السريع فوق خانتي الفارغ والممتلئ مع زر [✓ حفظ]
+            // خانة لإدخال وزن الفارغ وخانة لإدخال وزن الممتلئ بجانبها مع زر [حفظ ✓]
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = weighCardShape,
@@ -10053,10 +9188,9 @@ fun BatchQuickWeighingScreen(
                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
             ) {
                 Column(
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    modifier = Modifier.padding(18.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    // Row 1: Title "⚡ إدخال وزنات الدفعة" in full on the right + "سعر الكيلو: X DZD" cleanly on the left
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -10065,78 +9199,85 @@ fun BatchQuickWeighingScreen(
                         Text(
                             Translations.tr("weigh_batch_entry_title", lang),
                             fontSize = 13.5.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = currentTheme.headingColor,
-                            maxLines = 1,
-                            softWrap = false,
-                            modifier = Modifier.weight(1f)
+                            fontWeight = FontWeight.Bold,
+                            color = currentTheme.headingColor
                         )
                         Surface(
                             color = weighAccentContainer,
-                            shape = RoundedCornerShape(8.dp)
+                            shape = RoundedCornerShape(6.dp)
                         ) {
                             Text(
                                 "${Translations.tr("weigh_price_per_kg_badge", lang)}: ${String.format(java.util.Locale.US, "%,.0f", pricePerKg)} $curr",
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                fontSize = 11.sp,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                fontSize = 11.5.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = weighAccent,
-                                maxLines = 1,
-                                softWrap = false
+                                color = weighAccent
                             )
                         }
                     }
 
-                    // Row 2: Bordered crate selector strip directly above the two inputs:
-                    // 📦 صناديق وزنة الممتلئ: (50 طائر)  [5] [4] [3] [2] [1]
-                    val selectedCratesCount = (cratesPerThisWeigh.toIntOrNull() ?: 5).coerceAtLeast(1)
+                    // الحيلة الذكية لعدد الصناديق في الوزنة الممتلئة:
+                    // شريط متناسق بعرض كامل للأرقام من 1 إلى 5 بدون أي اقتصاص على الشاشات الصغيرة
                     Surface(
-                        color = if (currentTheme.isDark) Color(0xFF0F172A) else Color(0xFFF8FAFC),
+                        color = if (currentTheme.isDark) Color(0xFF1E293B) else weighAccentContainer.copy(alpha = 0.45f),
                         shape = RoundedCornerShape(10.dp),
-                        border = BorderStroke(1.dp, weighAccent.copy(alpha = 0.28f)),
+                        border = BorderStroke(1.dp, weighAccent.copy(alpha = 0.4f)),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Row(
+                        Column(
                             modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 8.dp, vertical = 6.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                                .padding(horizontal = 10.dp, vertical = 8.dp)
+                                .fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            Text(
-                                text = "${Translations.tr("weigh_full_crates_label", lang)} (${selectedCratesCount * birdsPerCrate} ${Translations.tr("birds_unit_short", lang)})",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = currentTheme.headingColor,
-                                maxLines = 1,
-                                softWrap = false,
-                                modifier = Modifier.weight(1f)
-                            )
+                            val cratesNum = cratesPerThisWeigh.toIntOrNull() ?: 5
+                            val birdsInThisWeigh = cratesNum * birdsPerCrate
                             Row(
-                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                listOf(1, 2, 3, 4, 5).forEach { count ->
-                                    val isSelected = selectedCratesCount == count
+                                Text(
+                                    Translations.tr("weigh_full_crates_label", lang),
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = weighAccent
+                                )
+                                Text(
+                                    "($birdsInThisWeigh ${Translations.tr("birds_unit_short", lang)})",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = weighAccent.copy(alpha = 0.85f)
+                                )
+                            }
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                listOf("1", "2", "3", "4", "5").forEach { preset ->
+                                    val isSelected = cratesPerThisWeigh == preset
                                     Surface(
-                                        onClick = { cratesPerThisWeigh = count.toString() },
-                                        shape = RoundedCornerShape(7.dp),
-                                        color = if (isSelected) weighButtonAccent else (if (currentTheme.isDark) Color(0xFF1E293B) else Color(0xFFF1F5F9)),
-                                        border = BorderStroke(
-                                            1.dp,
-                                            if (isSelected) weighButtonAccent else weighAccent.copy(alpha = 0.35f)
-                                        ),
+                                        color = if (isSelected) weighButtonAccent else if (currentTheme.isDark) Color(0xFF0F172A) else Color.White,
+                                        shape = RoundedCornerShape(8.dp),
+                                        border = BorderStroke(1.dp, if (isSelected) weighButtonAccent else Color.LightGray),
                                         modifier = Modifier
-                                            .width(34.dp)
-                                            .height(30.dp)
-                                            .testTag("crate_chip_$count")
+                                            .weight(1f)
+                                            .height(34.dp)
+                                            .testTag("crate_count_chip_$preset")
+                                            .clickable { cratesPerThisWeigh = preset }
                                     ) {
-                                        Box(contentAlignment = Alignment.Center) {
+                                        Box(
+                                            contentAlignment = Alignment.Center,
+                                            modifier = Modifier.fillMaxSize()
+                                        ) {
                                             Text(
-                                                text = count.toString(),
+                                                preset,
                                                 fontSize = 12.sp,
-                                                fontWeight = FontWeight.ExtraBold,
-                                                color = if (isSelected) Color.White else currentTheme.headingColor
+                                                fontWeight = FontWeight.Bold,
+                                                textAlign = TextAlign.Center,
+                                                color = if (isSelected) Color.White else (if (currentTheme.isDark) Color.White else Color(0xFF0F172A))
                                             )
                                         }
                                     }
@@ -10145,30 +9286,17 @@ fun BatchQuickWeighingScreen(
                         }
                     }
 
-                    // Row 3: [🧺 الفارغ (كغ)] + [📦 الممتلئ (كغ)] + [✓ حفظ] side-by-side on one clean row
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        // خانة وزن الفارغ (Supports numeric keypad Done action for instant scale entry)
                         OutlinedTextField(
                             value = tareInput,
-                            onValueChange = { newVal ->
-                                tareInput = newVal.filter { it.isDigit() || it == '.' || it == ',' }.replace(',', '.')
-                            },
-                            label = {
-                                Text(
-                                    "🧺 ${Translations.tr("weigh_tare_input_label", lang)}",
-                                    fontSize = 11.sp,
-                                    maxLines = 1,
-                                    softWrap = false,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            },
+                            onValueChange = { tareInput = it },
+                            label = { Text("${Translations.tr("weigh_tare_input_label", lang)} ($kgUnit)", fontSize = 11.sp) },
                             placeholder = { Text(Translations.tr("weigh_tare_placeholder", lang), color = Color.Gray, fontSize = 11.sp) },
-                            textStyle = LocalTextStyle.current.copy(
-                                textDirection = androidx.compose.ui.text.style.TextDirection.Ltr
-                            ),
                             modifier = Modifier
                                 .weight(1f)
                                 .focusRequester(tareFocusRequester)
@@ -10193,24 +9321,12 @@ fun BatchQuickWeighingScreen(
                             )
                         )
 
+                        // خانة وزن الممتلئ (Supports numeric keypad Done action for instant scale entry)
                         OutlinedTextField(
                             value = grossInput,
-                            onValueChange = { newVal ->
-                                grossInput = newVal.filter { it.isDigit() || it == '.' || it == ',' }.replace(',', '.')
-                            },
-                            label = {
-                                Text(
-                                    "📦 ${Translations.tr("weigh_gross_input_label", lang)}",
-                                    fontSize = 11.sp,
-                                    maxLines = 1,
-                                    softWrap = false,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            },
+                            onValueChange = { grossInput = it },
+                            label = { Text("${Translations.tr("weigh_gross_input_label", lang)} ($kgUnit)", fontSize = 11.sp) },
                             placeholder = { Text(Translations.tr("weigh_gross_placeholder", lang), color = Color.Gray, fontSize = 11.sp) },
-                            textStyle = LocalTextStyle.current.copy(
-                                textDirection = androidx.compose.ui.text.style.TextDirection.Ltr
-                            ),
                             modifier = Modifier
                                 .weight(1f)
                                 .focusRequester(grossFocusRequester)
@@ -10235,7 +9351,7 @@ fun BatchQuickWeighingScreen(
                             )
                         )
 
-                        // زر [✓ حفظ] (Single checkmark)
+                        // زر [حفظ ✓]
                         Button(
                             onClick = { submitCurrentWeighRow() },
                             enabled = tareInput.isNotBlank() || grossInput.isNotBlank(),
@@ -10249,26 +9365,21 @@ fun BatchQuickWeighingScreen(
                             ),
                             contentPadding = PaddingValues(horizontal = 14.dp)
                         ) {
-                            Text(
-                                Translations.tr("weigh_save_btn", lang),
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 13.sp,
-                                color = Color.White,
-                                maxLines = 1,
-                                softWrap = false
-                            )
+                            Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(Translations.tr("weigh_save_btn", lang), fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color.White)
                         }
                     }
                 }
             }
 
-            // 1. تصميم شاشة "جدول الميزان السريع" في بطاقة جدول واحدة عريضة ونظيفة بارتفاع مضمون:
+            // 1. تصميم شاشة "جدول الميزان السريع" في بطاقة جدول واحدة عريضة ونظيفة:
             // أعمدته هي فقط: [ # | 🧺 الفارغ (كغ) | 📦 الممتلئ (كغ) | 🗑️ ]
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f)
-                    .heightIn(min = 240.dp),
+                    .heightIn(min = 220.dp, max = 320.dp),
                 shape = weighCardShape,
                 colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
@@ -10278,7 +9389,7 @@ fun BatchQuickWeighingScreen(
                         .fillMaxSize()
                         .padding(14.dp)
                 ) {
-                    // ترويسة الجدول العريض (بدون تكرار (كغ) مرتين)
+                    // ترويسة الجدول العريض
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -10291,8 +9402,8 @@ fun BatchQuickWeighingScreen(
                     ) {
                         val headerColor = if (currentTheme.isDark) Color.White else weighAccent
                         CalmTableCell("#", 64.dp, isHeader = true, headingColor = headerColor)
-                        CalmTableCell("🧺 ${Translations.tr("weigh_tare_input_label", lang)}", width = 0.dp, modifier = Modifier.weight(1f), isHeader = true, headingColor = headerColor)
-                        CalmTableCell("📦 ${Translations.tr("weigh_gross_input_label", lang)}", width = 0.dp, modifier = Modifier.weight(1.2f), isHeader = true, headingColor = headerColor)
+                        CalmTableCell("${Translations.tr("weigh_tare_input_label", lang)} ($kgUnit)", width = 0.dp, modifier = Modifier.weight(1f), isHeader = true, headingColor = headerColor)
+                        CalmTableCell("${Translations.tr("weigh_gross_input_label", lang)} ($kgUnit)", width = 0.dp, modifier = Modifier.weight(1.2f), isHeader = true, headingColor = headerColor)
                         Box(modifier = Modifier.width(48.dp), contentAlignment = Alignment.Center) {
                             Text("🗑️", fontSize = 12.sp)
                         }
@@ -10780,12 +9891,11 @@ private fun parseFeedTransaction(
     val rawCat = tx.category.removePrefix("🌾").trim()
     val parenStart = rawCat.indexOf('(')
     val parenEnd = rawCat.lastIndexOf(')')
-    val rawDesignation = if (parenStart > 0) {
+    val designation = if (parenStart > 0) {
         rawCat.substring(0, parenStart).trim()
     } else {
         rawCat.ifEmpty { Translations.tr("feed_designation_default", lang) }
     }
-    val designation = Translations.localizeFeedDesignation(rawDesignation, lang)
     val insideParen = if (parenStart >= 0 && parenEnd > parenStart) {
         rawCat.substring(parenStart + 1, parenEnd).trim()
     } else {
@@ -10796,7 +9906,7 @@ private fun parseFeedTransaction(
         numericInParen != null && (insideParen.contains("طن") || insideParen.contains("ton", ignoreCase = true)) -> numericInParen * 1000.0
         numericInParen != null && (insideParen.contains("كغ") || insideParen.contains("kg", ignoreCase = true)) -> numericInParen
         numericInParen != null -> numericInParen * 100.0
-        else -> PoultryCalculators.extractFeedKgFromTransaction(tx).takeIf { it > 0.0 } ?: ((tx.amount / 8000.0) * 100.0)
+        else -> (tx.amount / 8000.0) * 100.0
     }
     val quantityText = Translations.formatBulkFeedPurchaseQuantity(estimatedKg, lang, unitPref)
     return FeedOrderParsedRow(
@@ -10815,7 +9925,6 @@ fun FeedOrdersLedgerBottomSheet(
     farmName: String,
     cycle: CycleModel,
     transactions: List<TransactionModel>,
-    consumedFeedKg: Double = 0.0,
     lang: AppLanguage,
     onDismiss: () -> Unit
 ) {
@@ -10829,12 +9938,20 @@ fun FeedOrdersLedgerBottomSheet(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val feedCategoryLocalized = Translations.tr("tx_feed", lang)
 
-    // Filter transactions for the current cycle where category corresponds to Feed ('feed'), excluding the initial 80 Q baseline row
+    // Filter transactions for the current cycle where category corresponds to Feed ('feed')
     val feedTransactions = remember(transactions, cycle.id, lang) {
         transactions.filter { tx ->
-            (tx.cycleId == cycle.id || tx.cycleId.isBlank() || tx.cycleId == "cycle_2026_01") &&
-                !tx.id.startsWith("tx_2") && !tx.id.startsWith("tx_1_feed_base") &&
-                (PoultryCalculators.isFeedTransaction(tx) || tx.category == feedCategoryLocalized)
+            tx.type == TransactionType.EXPENSE &&
+                (tx.cycleId == cycle.id || tx.cycleId.isBlank()) &&
+                (
+                    tx.category.equals("feed", ignoreCase = true) ||
+                        tx.category == feedCategoryLocalized ||
+                        tx.category.contains("علف") ||
+                        tx.category.contains("Feed", ignoreCase = true) ||
+                        tx.category.contains("Aliment", ignoreCase = true) ||
+                        tx.category.contains("Pienso", ignoreCase = true) ||
+                        tx.category.contains("चारा")
+                    )
         }
     }
 
@@ -10842,36 +9959,17 @@ fun FeedOrdersLedgerBottomSheet(
         feedTransactions.map { parseFeedTransaction(it, lang, preferredFeedUnit) }
     }
 
-    val curr = Translations.tr("currency", lang)
-    val kgShort = Translations.tr("kg_short", lang)
-    val quintalUnit = Translations.tr("quintal_unit", lang)
-    val quintalShort = Translations.tr("quintal_short", lang)
-
-    val txPurchasedKg = parsedRows.sumOf { it.estimatedKg }
-    val impliedTotalSupplyKg = cycle.feedInventoryKg + consumedFeedKg
-    val baselineFeedKg = remember(txPurchasedKg, impliedTotalSupplyKg) {
-        val rawBaseline = (impliedTotalSupplyKg - txPurchasedKg).coerceAtLeast(0.0)
-        if (rawBaseline >= 100.0) rawBaseline else PoultryCalculators.INITIAL_BASELINE_FEED_KG
-    }
-    val displayRows = remember(parsedRows, baselineFeedKg, lang, preferredFeedUnit, curr) {
-        val baselineRow = FeedOrderParsedRow(
-            date = "${Translations.tr("day_prefix", lang)} 1",
-            designation = Translations.tr("feed_initial_baseline_designation", lang),
-            quantityText = Translations.formatBulkFeedPurchaseQuantity(baselineFeedKg, lang, preferredFeedUnit),
-            estimatedKg = baselineFeedKg,
-            totalAmountDzd = (baselineFeedKg / 100.0) * 8000.0,
-            currency = curr
-        )
-        listOf(baselineRow) + parsedRows
-    }
-
-    val totalFeedPurchasedKg = displayRows.sumOf { it.estimatedKg }
+    val totalFeedPurchasedKg = parsedRows.sumOf { it.estimatedKg }
     val totalFeedPurchasedQuintals = totalFeedPurchasedKg / 100.0
-    val totalFeedPurchasedDzd = displayRows.sumOf { it.totalAmountDzd }
+    val totalFeedPurchasedDzd = parsedRows.sumOf { it.totalAmountDzd }
 
     val isLowInventory = cycle.feedInventoryKg < 500.0
     val alertRed = Color(0xFFD32F2F)
     val remainingColor = if (isLowInventory) alertRed else accentEmerald
+    val curr = Translations.tr("currency", lang)
+    val kgShort = Translations.tr("kg_short", lang)
+    val quintalUnit = Translations.tr("quintal_unit", lang)
+    val quintalShort = Translations.tr("quintal_short", lang)
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -11059,7 +10157,7 @@ fun FeedOrdersLedgerBottomSheet(
 
                     Spacer(modifier = Modifier.height(6.dp))
 
-                    if (displayRows.isEmpty()) {
+                    if (parsedRows.isEmpty()) {
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -11074,7 +10172,7 @@ fun FeedOrdersLedgerBottomSheet(
                             )
                         }
                     } else {
-                        displayRows.forEachIndexed { idx, row ->
+                        parsedRows.forEachIndexed { idx, row ->
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -11112,7 +10210,7 @@ fun FeedOrdersLedgerBottomSheet(
                                     textAlign = TextAlign.End
                                 )
                             }
-                            if (idx < displayRows.lastIndex) {
+                            if (idx < parsedRows.lastIndex) {
                                 HorizontalDivider(color = if (isDark) Color(0xFF334155) else Color(0xFFE2E8F0))
                             }
                         }
@@ -12034,30 +11132,15 @@ fun AgritechVetNotebookScreen(
     val curr = Translations.tr("currency", lang)
 
     var selectedVetWorkspaceTab by remember { mutableStateOf(0) }
-    var selectedVetClinicalFilter by remember { mutableStateOf(0) }
     var showVetMedicineInvoiceDialog by remember { mutableStateOf(false) }
-    var showVetOwnerChatSheet by remember { mutableStateOf(false) }
     var selectedDayReportForDetails by remember { mutableStateOf<DailyReportModel?>(null) }
 
-    val maxReportDay = reports.maxOfOrNull { it.dayNumber } ?: 1
-    val dayNumber = remember(farm.id, cycle.startDate, maxReportDay, PersonaSimulatorEngine.currentSimulatedDay) {
-        val calculatedFromCycle = PoultryCalculators.calculateCycleDay(cycle.startDate, maxReportDay)
-        if (farm.id == "farm_1" && PersonaSimulatorEngine.currentSimulatedDay > calculatedFromCycle) {
-            PersonaSimulatorEngine.currentSimulatedDay
-        } else {
-            calculatedFromCycle
-        }
-    }
+    val dayNumber = (reports.maxOfOrNull { it.dayNumber } ?: 1)
     val qShort = Translations.tr("quintal_short", lang)
     val literUnit = Translations.tr("liter_unit", lang)
     val totalFeed = reports.sumOf { it.feedIntakeKg }
     val totalWater = reports.sumOf { it.waterIntakeLiters }
     val totalMortality = reports.sumOf { it.mortalityCount }
-    val initialBirdsCount = if (cycle.totalBirdsPlaced > 0) cycle.totalBirdsPlaced else farm.capacity.coerceAtLeast(8000)
-    val livabilityPct = (((initialBirdsCount - totalMortality).toDouble() / initialBirdsCount.toDouble()) * 100.0).coerceIn(0.0, 100.0)
-    val withdrawalDaysRemaining = remember(vetNotes, dayNumber) {
-        PoultryCalculators.calculateWithdrawalDaysRemaining(vetNotes, dayNumber, dayNumber)
-    }
 
     val vetBottomNavItems = listOf(
         Triple(0, Translations.tr("vet_bottom_tab_barns", lang), Icons.Default.HomeWork),
@@ -12076,22 +11159,6 @@ fun AgritechVetNotebookScreen(
             channelId = "${cycle.id}_vet",
             firestoreRepo = firestoreRepo,
             onDismiss = { showVetMedicineInvoiceDialog = false }
-        )
-    }
-
-    if (showVetOwnerChatSheet) {
-        ContextualChatBottomSheet(
-            title = "💬 ${Translations.getLocalizedFarmName(farm.id, lang, farm.name)}",
-            subtitle = "${Translations.tr("vet_workspace_title", lang)} • ${cycle.id}",
-            channelId = "${cycle.id}_vet",
-            currentTheme = currentTheme,
-            lang = lang,
-            firestoreRepo = firestoreRepo,
-            onOpenVetInvoice = {
-                showVetOwnerChatSheet = false
-                showVetMedicineInvoiceDialog = true
-            },
-            onDismiss = { showVetOwnerChatSheet = false }
         )
     }
 
@@ -12204,58 +11271,14 @@ fun AgritechVetNotebookScreen(
         ) {
             when (selectedVetWorkspaceTab) {
                 0 -> {
-                    // Tab 0: 🏥 العنابر & Wlio-Style Clinical Flock Profile Card + Interactive Medical Ledger Table
-                    val filterChips = listOf(
-                        0 to Translations.tr("vet_filter_all", lang),
-                        1 to Translations.tr("vet_filter_urgent", lang),
-                        2 to Translations.tr("vet_filter_vaccines_due", lang),
-                        3 to Translations.tr("vet_filter_withdrawal", lang)
-                    )
-                    val isUnderMonitoring = withdrawalDaysRemaining > 0 || vetNotes.any { it.isUrgent } || livabilityPct < 94.0
-                    val latestClinicalNote = vetNotes.maxByOrNull { it.dayNumber }
-
+                    // Tab 0: 🏥 العنابر & Interactive Medical Ledger Table
                     LazyColumn(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(horizontal = 16.dp, vertical = 6.dp)
+                            .padding(horizontal = 16.dp, vertical = 10.dp)
                             .testTag("vet_notebook_lazy_column"),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
                     ) {
-                        // 0. Horizontal Pill Filter Chips (`[🖤 الكل]` | `[🚨 حالات عاجلة]` | `[💉 لقاحات مستحقة]` | `[⏳ فترة سحب الدواء]`)
-                        item {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .horizontalScroll(rememberScrollState())
-                                    .testTag("vet_clinical_filter_chips_row"),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                filterChips.forEach { (chipIdx, chipLabel) ->
-                                    val isChipSelected = selectedVetClinicalFilter == chipIdx
-                                    Surface(
-                                        onClick = { selectedVetClinicalFilter = chipIdx },
-                                        shape = RoundedCornerShape(50),
-                                        color = if (isChipSelected) primaryButtonAccent else currentTheme.cardColor,
-                                        border = BorderStroke(
-                                            1.dp,
-                                            if (isChipSelected) primaryButtonAccent else activeAccent.copy(alpha = 0.3f)
-                                        ),
-                                        modifier = Modifier.testTag("vet_filter_chip_$chipIdx")
-                                    ) {
-                                        Text(
-                                            text = chipLabel,
-                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                                            fontSize = 11.5.sp,
-                                            fontWeight = if (isChipSelected) FontWeight.ExtraBold else FontWeight.SemiBold,
-                                            color = if (isChipSelected) Color.White else primaryTextColor,
-                                            maxLines = 1
-                                        )
-                                    }
-                                }
-                            }
-                        }
-
                         if (farms.size > 1 && onSwitchFarm != null) {
                             item {
                                 FarmSwitcherRow(
@@ -12268,284 +11291,12 @@ fun AgritechVetNotebookScreen(
                             }
                         }
 
-                        // Compact "Wlio-Style" Clinical Flock Profile Card (`بطاقة الملف الطبي للقطيع`)
-                        item {
-                            Card(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .testTag("vet_clinical_flock_profile_card"),
-                                shape = cardShape,
-                                colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
-                                border = BorderStroke(1.2.dp, activeAccent.copy(alpha = 0.3f)),
-                                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                            ) {
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 14.dp, vertical = 10.dp),
-                                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    // Compact Header Row: Circular Avatar Badge (`🐔`) + Barn Name & Health Status Pill
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                            modifier = Modifier.weight(1f)
-                                        ) {
-                                            Surface(
-                                                shape = CircleShape,
-                                                color = accentBadgeBg,
-                                                border = BorderStroke(1.5.dp, activeAccent.copy(alpha = 0.55f)),
-                                                modifier = Modifier.size(40.dp)
-                                            ) {
-                                                Box(contentAlignment = Alignment.Center) {
-                                                    Text("🐔", fontSize = 20.sp)
-                                                }
-                                            }
-                                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                                Text(
-                                                    Translations.getLocalizedFarmName(farm.id, lang, farm.name),
-                                                    fontWeight = FontWeight.ExtraBold,
-                                                    fontSize = 15.sp,
-                                                    color = primaryTextColor,
-                                                    maxLines = 1,
-                                                    overflow = TextOverflow.Ellipsis
-                                                )
-                                                Text(
-                                                    Translations.tr("vet_clinical_profile_title", lang),
-                                                    fontSize = 11.sp,
-                                                    fontWeight = FontWeight.Medium,
-                                                    color = secondaryTextColor,
-                                                    maxLines = 1
-                                                )
-                                            }
-                                        }
-
-                                        Surface(
-                                            shape = RoundedCornerShape(50),
-                                            color = if (isUnderMonitoring) {
-                                                if (isDark) Color(0xFF78350F).copy(alpha = 0.45f) else Color(0xFFFEF3C7)
-                                            } else {
-                                                accentBadgeBg
-                                            },
-                                            border = BorderStroke(
-                                                1.dp,
-                                                if (isUnderMonitoring) Color(0xFFF59E0B) else activeAccent.copy(alpha = 0.45f)
-                                            )
-                                        ) {
-                                            Text(
-                                                text = if (isUnderMonitoring)
-                                                    Translations.tr("vet_status_monitoring", lang)
-                                                else
-                                                    Translations.tr("vet_status_stable", lang),
-                                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
-                                                fontSize = 10.5.sp,
-                                                fontWeight = FontWeight.ExtraBold,
-                                                color = if (isUnderMonitoring) {
-                                                    if (isDark) Color(0xFFFDE68A) else Color(0xFF92400E)
-                                                } else {
-                                                    activeAccent
-                                                },
-                                                maxLines = 1
-                                            )
-                                        }
-                                    }
-
-                                    // Compact 3-Column Horizontal Metrics Strip with Subtle Vertical Dividers:
-                                    // السلالة (Ross 308) | العمر (X يوم) | الحيوية (95.3%)
-                                    Surface(
-                                        shape = pillShape,
-                                        color = if (isDark) Color(0xFF0F172A) else Color(0xFFF8FAFC),
-                                        border = BorderStroke(1.dp, if (isDark) Color(0xFF334155) else Color(0xFFE2E8F0)),
-                                        modifier = Modifier.fillMaxWidth()
-                                    ) {
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(vertical = 7.dp, horizontal = 8.dp),
-                                            horizontalArrangement = Arrangement.SpaceEvenly,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Column(
-                                                horizontalAlignment = Alignment.CenterHorizontally,
-                                                modifier = Modifier.weight(1f)
-                                            ) {
-                                                Text(
-                                                    Translations.tr("vet_metric_breed", lang),
-                                                    fontSize = 10.5.sp,
-                                                    color = secondaryTextColor,
-                                                    maxLines = 1
-                                                )
-                                                Text(
-                                                    "Ross 308",
-                                                    fontWeight = FontWeight.ExtraBold,
-                                                    fontSize = 12.5.sp,
-                                                    color = primaryTextColor,
-                                                    maxLines = 1
-                                                )
-                                            }
-
-                                            Box(
-                                                modifier = Modifier
-                                                    .width(1.dp)
-                                                    .height(22.dp)
-                                                    .background(if (isDark) Color(0xFF334155) else Color(0xFFCBD5E1))
-                                            )
-
-                                            Column(
-                                                horizontalAlignment = Alignment.CenterHorizontally,
-                                                modifier = Modifier.weight(1f)
-                                            ) {
-                                                Text(
-                                                    Translations.tr("vet_metric_age", lang),
-                                                    fontSize = 10.5.sp,
-                                                    color = secondaryTextColor,
-                                                    maxLines = 1
-                                                )
-                                                Text(
-                                                    "$dayNumber ${Translations.tr("days_unit", lang)}",
-                                                    fontWeight = FontWeight.ExtraBold,
-                                                    fontSize = 12.5.sp,
-                                                    color = activeAccent,
-                                                    maxLines = 1
-                                                )
-                                            }
-
-                                            Box(
-                                                modifier = Modifier
-                                                    .width(1.dp)
-                                                    .height(22.dp)
-                                                    .background(if (isDark) Color(0xFF334155) else Color(0xFFCBD5E1))
-                                            )
-
-                                            Column(
-                                                horizontalAlignment = Alignment.CenterHorizontally,
-                                                modifier = Modifier.weight(1f)
-                                            ) {
-                                                Text(
-                                                    Translations.tr("vet_metric_livability", lang),
-                                                    fontSize = 10.5.sp,
-                                                    color = secondaryTextColor,
-                                                    maxLines = 1
-                                                )
-                                                Text(
-                                                    "${String.format(java.util.Locale.US, "%.1f", livabilityPct)}%",
-                                                    fontWeight = FontWeight.ExtraBold,
-                                                    fontSize = 12.5.sp,
-                                                    color = activeAccent,
-                                                    maxLines = 1
-                                                )
-                                            }
-                                        }
-                                    }
-
-                                    // Compact Clinical Summary Box ("ملخص الحالة والتشخيص الميداني")
-                                    Surface(
-                                        shape = pillShape,
-                                        color = if (isDark) Color(0xFF0F172A).copy(alpha = 0.7f) else accentBadgeBg.copy(alpha = 0.45f),
-                                        border = BorderStroke(1.dp, activeAccent.copy(alpha = 0.3f)),
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .testTag("vet_workspace_withdrawal_badge")
-                                    ) {
-                                        Column(
-                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
-                                            verticalArrangement = Arrangement.spacedBy(3.dp)
-                                        ) {
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                horizontalArrangement = Arrangement.SpaceBetween,
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                Text(
-                                                    "🩺 ${Translations.tr("vet_clinical_summary_title", lang)}",
-                                                    fontWeight = FontWeight.ExtraBold,
-                                                    fontSize = 11.5.sp,
-                                                    color = activeAccent,
-                                                    maxLines = 1,
-                                                    modifier = Modifier.weight(1f)
-                                                )
-                                                Text(
-                                                    Translations.tr("vet_withdrawal_period_badge", lang),
-                                                    fontWeight = FontWeight.ExtraBold,
-                                                    fontSize = 10.5.sp,
-                                                    color = if (isDark) Color(0xFFFDE68A) else Color(0xFF92400E),
-                                                    maxLines = 1
-                                                )
-                                            }
-                                            if (latestClinicalNote != null) {
-                                                Text(
-                                                    "💊 ${Translations.getLocalizedMedicine(latestClinicalNote.id, latestClinicalNote.medicineName, lang)} (${Translations.tr("day_prefix", lang)} ${latestClinicalNote.dayNumber}) — ${Translations.getLocalizedVetNote(latestClinicalNote.id, latestClinicalNote.note, lang)}",
-                                                    fontSize = 11.sp,
-                                                    fontWeight = FontWeight.Medium,
-                                                    color = primaryTextColor,
-                                                    maxLines = 1,
-                                                    overflow = TextOverflow.Ellipsis
-                                                )
-                                            }
-                                        }
-                                    }
-
-                                    // Two Side-by-Side Pill Action Buttons: [💬 مراسلة المالك] & [💉 إصدار وصفة وفاتورة]
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        OutlinedButton(
-                                            onClick = { showVetOwnerChatSheet = true },
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .height(40.dp)
-                                                .testTag("btn_vet_profile_message_owner"),
-                                            shape = RoundedCornerShape(50),
-                                            border = BorderStroke(1.5.dp, activeAccent),
-                                            contentPadding = PaddingValues(horizontal = 8.dp)
-                                        ) {
-                                            Text(
-                                                Translations.tr("vet_btn_message_owner", lang),
-                                                fontSize = 11.5.sp,
-                                                fontWeight = FontWeight.ExtraBold,
-                                                color = activeAccent,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
-                                        }
-
-                                        Button(
-                                            onClick = { showVetMedicineInvoiceDialog = true },
-                                            modifier = Modifier
-                                                .weight(1.15f)
-                                                .height(40.dp)
-                                                .testTag("btn_vet_profile_issue_rx"),
-                                            shape = RoundedCornerShape(50),
-                                            colors = ButtonDefaults.buttonColors(containerColor = primaryButtonAccent),
-                                            contentPadding = PaddingValues(horizontal = 8.dp)
-                                        ) {
-                                            Text(
-                                                Translations.tr("vet_btn_issue_rx_invoice", lang),
-                                                fontSize = 11.5.sp,
-                                                fontWeight = FontWeight.ExtraBold,
-                                                color = Color.White,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
                         // 1. Compact Interactive Daily Medical Ledger Table (`جدول السجل الطبي التفاعلي`)
                         item {
                             Text(
                                 Translations.tr("vet_interactive_table_title", lang),
                                 fontWeight = FontWeight.ExtraBold,
-                                fontSize = 13.5.sp,
+                                fontSize = 14.sp,
                                 color = primaryTextColor
                             )
                         }
@@ -12699,15 +11450,33 @@ fun AgritechVetNotebookScreen(
                             }
                         }
 
-                        // 2. Recorded Veterinary Prescriptions & Notes Section (without duplicate invoice button)
+                        // 2. Recorded Veterinary Prescriptions & Notes Section
                         item {
-                            Text(
-                                Translations.tr("vet_records_title", lang),
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 15.sp,
-                                color = primaryTextColor,
-                                modifier = Modifier.fillMaxWidth()
-                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    Translations.tr("vet_records_title", lang),
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 15.sp,
+                                    color = primaryTextColor
+                                )
+                                OutlinedButton(
+                                    onClick = { showVetMedicineInvoiceDialog = true },
+                                    shape = pillShape,
+                                    border = BorderStroke(1.2.dp, activeAccent),
+                                    modifier = Modifier.testTag("btn_vet_workspace_send_invoice")
+                                ) {
+                                    Text(
+                                        Translations.tr("vet_invoice_btn", lang),
+                                        fontSize = 11.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = activeAccent
+                                    )
+                                }
+                            }
                         }
                         items(vetNotes, key = { it.id }) { vn ->
                             Card(

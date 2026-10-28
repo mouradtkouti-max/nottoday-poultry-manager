@@ -3147,9 +3147,8 @@ fun SubscriptionPaywallBottomSheet(
                 enabled = !isProcessingPayment,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(min = 64.dp)
+                    .height(52.dp)
                     .testTag("btn_subscribe_google_play"),
-                contentPadding = PaddingValues(vertical = 12.dp, horizontal = 16.dp),
                 shape = RoundedCornerShape(14.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = TextForestGreen)
             ) {
@@ -3187,9 +3186,8 @@ fun SubscriptionPaywallBottomSheet(
                 enabled = !isProcessingPayment,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(min = 64.dp)
+                    .height(52.dp)
                     .testTag("btn_subscribe_stripe"),
-                contentPadding = PaddingValues(vertical = 12.dp, horizontal = 16.dp),
                 shape = RoundedCornerShape(14.dp),
                 border = BorderStroke(1.5.dp, Color(0xFF635BFF)),
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF635BFF))

@@ -29,8 +29,8 @@ enum class AppLanguage(
     AR("ar", "العربية", true, "Arabic", "مرحباً بك", "اختر لغتك المفضلة للمتابعة في إدارة المزرعة"),
     FR("fr", "Français", false, "French", "Bonjour", "Choisissez votre langue préférée pour continuer"),
     EN("en", "English", false, "English (International)", "Hello", "Choose your preferred language to continue"),
-    ES("es", "Español", false, "Spanish (Latin America)", "Hola", "Elige tu idioma preferido para continuar"),
-    PT("pt", "Português", false, "Portuguese (Brazil)", "Olá", "Escolha seu idioma preferido para continuar"),
+    ES("es", "Español", false, "Spanish (Latin America)", "¡Hola!", "Elige tu idioma preferido para continuar"),
+    PT("pt", "Português", false, "Portuguese (Brazil)", "Olá!", "Escolha seu idioma preferido para continuar"),
     TR("tr", "Türkçe", false, "Turkish", "Merhaba", "Devam etmek için tercih ettiğiniz dili seçin"),
     HI("hi", "हिन्दी", false, "Hindi", "नमस्ते", "जारी रखने के लिए अपनी पसंदीदा भाषा चुनें"),
     ID("id", "Bahasa Indonesia", false, "Indonesian", "Halo", "Pilih bahasa pilihan Anda untuk melanjutkan"),
@@ -3552,36 +3552,36 @@ object Translations {
             "hi" to "उदा: 170"
         ),
         "weigh_save_btn_short" to mapOf(
-            "ar" to "✓ حفظ",
-            "fr" to "✓ Valider",
-            "en" to "✓ Save",
-            "es" to "✓ Guardar",
-            "pt" to "✓ Salvar",
-            "hi" to "✓ सहेजें"
+            "ar" to "حفظ ✓",
+            "fr" to "Valider ✓",
+            "en" to "Save ✓",
+            "es" to "Guardar ✓",
+            "pt" to "Salvar ✓",
+            "hi" to "सहेजें ✓"
         ),
         "weigh_save_btn" to mapOf(
-            "ar" to "✓ حفظ",
-            "fr" to "✓ Valider",
-            "en" to "✓ Save",
-            "es" to "✓ Guardar",
-            "pt" to "✓ Salvar",
-            "hi" to "✓ सहेजें"
+            "ar" to "حفظ ✓",
+            "fr" to "Valider ✓",
+            "en" to "Save ✓",
+            "es" to "Guardar ✓",
+            "pt" to "Salvar ✓",
+            "hi" to "सहेजें ✓"
         ),
         "weigh_empty_table_hint" to mapOf(
-            "ar" to "لم يتم تسجيل أي وزنة بعد.\nأدخل أوزان الفارغ أو الممتلئ في الأعلى واضغط [✓ حفظ].",
-            "fr" to "Aucune pesée enregistrée.\nSaisissez le poids tare ou brut ci-dessus et appuyez sur [✓ Valider].",
-            "en" to "No weigh-ins recorded yet.\nEnter tare or gross weights above and tap [✓ Save].",
-            "es" to "Aún no hay pesadas registradas.\nIngrese el peso arriba y pulse [✓ Guardar].",
-            "pt" to "Nenhuma pesagem registrada ainda.\nInsira o peso acima e toque em [✓ Salvar].",
-            "hi" to "अभी तक कोई वजन दर्ज नहीं किया गया है।\nऊपर खाली या भरा वजन दर्ज करें और [✓ सहेजें] दबाएं।"
+            "ar" to "لم يتم تسجيل أي وزنة بعد.\nأدخل أوزان الفارغ أو الممتلئ في الأعلى واضغط [حفظ ✓].",
+            "fr" to "Aucune pesée enregistrée.\nSaisissez le poids tare ou brut ci-dessus et appuyez sur [Valider ✓].",
+            "en" to "No weigh-ins recorded yet.\nEnter tare or gross weights above and tap [Save ✓].",
+            "es" to "Aún no hay pesadas registradas.\nIngrese el peso arriba y pulse [Guardar ✓].",
+            "pt" to "Nenhuma pesagem registrada ainda.\nInsira o peso acima e toque em [Salvar ✓].",
+            "hi" to "अभी तक कोई वजन दर्ज नहीं किया गया है।\nऊपर खाली या भरा वजन दर्ज करें और [सहेजें ✓] दबाएं।"
         ),
         "weigh_empty_table_msg" to mapOf(
-            "ar" to "لم يتم تسجيل أي وزنة بعد.\nأدخل أوزان الفارغ أو الممتلئ في الأعلى واضغط [✓ حفظ].",
-            "fr" to "Aucune pesée enregistrée.\nSaisissez le poids tare ou brut ci-dessus et appuyez sur [✓ Valider].",
-            "en" to "No weigh-ins recorded yet.\nEnter tare or gross weights above and tap [✓ Save].",
-            "es" to "Aún no hay pesadas registradas.\nIngrese el peso arriba y pulse [✓ Guardar].",
-            "pt" to "Nenhuma pesagem registrada ainda.\nInsira o peso acima e toque em [✓ Salvar].",
-            "hi" to "अभी तक कोई वजन दर्ज नहीं किया गया है।\nऊपर खाली या भरा वजन दर्ज करें और [✓ सहेजें] दबाएं।"
+            "ar" to "لم يتم تسجيل أي وزنة بعد.\nأدخل أوزان الفارغ أو الممتلئ في الأعلى واضغط [حفظ ✓].",
+            "fr" to "Aucune pesée enregistrée.\nSaisissez le poids tare ou brut ci-dessus et appuyez sur [Valider ✓].",
+            "en" to "No weigh-ins recorded yet.\nEnter tare or gross weights above and tap [Save ✓].",
+            "es" to "Aún no hay pesadas registradas.\nIngrese el peso arriba y pulse [Guardar ✓].",
+            "pt" to "Nenhuma pesagem registrada ainda.\nInsira o peso acima e toque em [Salvar ✓].",
+            "hi" to "अभी तक कोई वजन दर्ज नहीं किया गया है।\nऊपर खाली या भरा वजन दर्ज करें और [सहेजें ✓] दबाएं।"
         ),
         "weigh_total_row_label" to mapOf(
             "ar" to "المجموع",
@@ -3646,70 +3646,6 @@ object Translations {
             "es" to "Eliminar fila completa (Tara y Bruto)",
             "pt" to "Excluir linha inteira (Tara e Bruto)",
             "hi" to "पूरी पंक्ति हटाएं (खाली और भरा)"
-        ),
-        "weigh_delete_dialog_msg" to mapOf(
-            "ar" to "هل تريد حذف وزن الفارغ أم وزن الممتلئ أم السطر بالكامل؟",
-            "fr" to "Voulez-vous supprimer le poids à vide, le poids brut ou toute la ligne ?",
-            "en" to "Do you want to delete the tare weight, the gross weight, or the entire row?",
-            "es" to "¿Desea eliminar el peso de tara, el peso bruto o la fila completa?",
-            "pt" to "Deseja excluir o peso da tara, o peso bruto ou a linha inteira?",
-            "hi" to "क्या आप खाली वजन, भरा वजन या पूरी पंक्ति हटाना चाहते हैं?"
-        ),
-        "weigh_delete_full_row" to mapOf(
-            "ar" to "حذف السطر بالكامل",
-            "fr" to "Supprimer toute la ligne",
-            "en" to "Delete Entire Row",
-            "es" to "Eliminar fila completa",
-            "pt" to "Excluir linha inteira",
-            "hi" to "पूरी पंक्ति हटाएं"
-        ),
-        "days_unit" to mapOf(
-            "ar" to "يوم",
-            "fr" to "jours",
-            "en" to "days",
-            "es" to "días",
-            "pt" to "dias",
-            "hi" to "दिन"
-        ),
-        "weigh_crate_count_input_label" to mapOf(
-            "ar" to "📦 عدد الصناديق",
-            "fr" to "📦 Nb Caisses",
-            "en" to "📦 Crate Count",
-            "es" to "📦 N.º Cajas",
-            "pt" to "📦 N.º Caixas",
-            "hi" to "📦 क्रेट संख्या"
-        ),
-        "weigh_clear_table_btn" to mapOf(
-            "ar" to "مسح الجدول الحالي 🗑️",
-            "fr" to "Réinitialiser la table 🗑️",
-            "en" to "Clear Current Table 🗑️",
-            "es" to "Limpiar tabla actual 🗑️",
-            "pt" to "Limpar tabela atual 🗑️",
-            "hi" to "वर्तमान तालिका साफ़ करें 🗑️"
-        ),
-        "weigh_toggle_tare_crate_hint" to mapOf(
-            "ar" to "تبديل الفارغ / الصناديق",
-            "fr" to "Basculer Tare / Caisses",
-            "en" to "Switch Tare / Crates",
-            "es" to "Cambiar Tara / Cajas",
-            "pt" to "Alternar Tara / Caixas",
-            "hi" to "टेयर / क्रेट बदलें"
-        ),
-        "withdrawal_safety_alert_banner" to mapOf(
-            "ar" to "⚠️ تنبيه صحي: هذا العنبر في فترة سحب الدواء (متبقي {days} أيام) - يُنصح بعدم الذبح أو البيع حالياً لسلامة المستهلك",
-            "fr" to "⚠️ Alerte sanitaire : Ce bâtiment est en période de retrait médicamenteux ({days} jours restants) - Abattage ou vente déconseillés pour la sécurité du consommateur",
-            "en" to "⚠️ Health Alert: This barn is in an active medication withdrawal period ({days} days remaining) - Slaughter or sale is not advised for consumer safety",
-            "es" to "⚠️ Alerta sanitaria: Este galpón está en período de retiro de medicamento (quedan {days} días) - No se recomienda vender ni sacrificar por seguridad del consumidor",
-            "pt" to "⚠️ Alerta sanitário: Este galpão está em período de carência de medicamento (restam {days} dias) - Não se recomenda abater ou vender para segurança do consumidor",
-            "hi" to "⚠️ स्वास्थ्य चेतावनी: यह शेड दवा निकासी अवधि में है ({days} दिन शेष) - उपभोक्ता सुरक्षा के लिए अभी बिक्री की सलाह नहीं दी जाती"
-        ),
-        "feed_initial_baseline_designation" to mapOf(
-            "ar" to "رصيد العلف الأساسي الأولي",
-            "fr" to "Stock d'aliment initial de base",
-            "en" to "Initial Baseline Feed Stock",
-            "es" to "Inventario inicial base de alimento",
-            "pt" to "Estoque inicial base de ração",
-            "hi" to "प्रारंभिक आधार चारा स्टॉक"
         ),
         "audit_feed_short" to mapOf(
             "ar" to "العلف",
@@ -3942,598 +3878,6 @@ object Translations {
             "es" to "Profesión y tipo de cuenta",
             "pt" to "Profissão e tipo de conta",
             "hi" to "पेशा और खाता प्रकार"
-        ),
-        "persona_inspector_btn_label" to mapOf(
-            "ar" to "🕵️‍♂️ محاكي ومفتش المهن",
-            "fr" to "🕵️‍♂️ Simulateur & Inspecteur",
-            "en" to "🕵️‍♂️ Persona Inspector & Sim",
-            "es" to "🕵️‍♂️ Simulador e Inspector",
-            "pt" to "🕵️‍♂️ Simulador e Inspetor",
-            "hi" to "🕵️‍♂️ पेशा सिम्युलेटर और निरीक्षक"
-        ),
-        "persona_inspector_modal_title" to mapOf(
-            "ar" to "🕵️‍♂️⚡ مفتش الأخطاء والمحاكي البشري للمهن السبع",
-            "fr" to "🕵️‍♂️⚡ Inspecteur & Simulateur Humain des 7 Professions",
-            "en" to "🕵️‍♂️⚡ Real-Human Persona Inspector & 7-Role Simulator",
-            "es" to "🕵️‍♂️⚡ Inspector y Simulador Humano de 7 Profesiones",
-            "pt" to "🕵️‍♂️⚡ Inspetor e Simulador Humano das 7 Profissões",
-            "hi" to "🕵️‍♂️⚡ 7 पेशों का वास्तविक मानव निरीक्षक और सिम्युलेटर"
-        ),
-        "persona_inspector_modal_subtitle" to mapOf(
-            "ar" to "محاكاة حية لدورة 40 يوماً وفحص آلي لتطابق الحسابات والنواقص الميدانية بلسان المهن السبع",
-            "fr" to "Simulation en direct de 40 jours et audit mathématique par les 7 professions",
-            "en" to "Live 40-day cycle simulation & automated math reconciliation across all 7 professions",
-            "es" to "Simulación en vivo de 40 días y auditoría matemática por las 7 profesiones",
-            "pt" to "Simulação ao vivo de 40 dias e auditoria matemática pelas 7 profissões",
-            "hi" to "40-दिन का लाइव सिमुलेशन और सभी 7 पेशों द्वारा गणितीय जांच"
-        ),
-        "inspector_mode_a_tab" to mapOf(
-            "ar" to "▶️ تشغيل دورة 40 يوماً حية (كل دقيقة = يوم، مع زر تسريع 10x)",
-            "fr" to "▶️ Cycle 40 jours en direct (1 min = 1 jour, vitesse 10x)",
-            "en" to "▶️ Run Live 40-Day Cycle (1 min = 1 day, with 10x speed)",
-            "es" to "▶️ Ciclo de 40 días en vivo (1 min = 1 día, velocidad 10x)",
-            "pt" to "▶️ Ciclo de 40 dias ao vivo (1 min = 1 dia, velocidade 10x)",
-            "hi" to "▶️ 40-दिन का लाइव चक्र चलाएं (1 मिनट = 1 दिन, 10x गति)"
-        ),
-        "inspector_mode_b_tab" to mapOf(
-            "ar" to "🔍 تقرير الأخطاء والنواقص المكتشفة (Live Bug & UX Gap Report)",
-            "fr" to "🔍 Rapport des Bugs & Écarts Terrain (Live Bug & UX Gap Report)",
-            "en" to "🔍 Live Bug & UX Gap Report (7 Human Personas)",
-            "es" to "🔍 Informe de Errores y Brechas (Live Bug & UX Gap Report)",
-            "pt" to "🔍 Relatório de Erros e Lacunas (Live Bug & UX Gap Report)",
-            "hi" to "🔍 लाइव बग और फील्ड गैप रिपोर्ट (Live Bug & UX Gap Report)"
-        ),
-        "sim_btn_start" to mapOf(
-            "ar" to "▶️ بدء المحاكاة الحية",
-            "fr" to "▶️ Démarrer la simulation",
-            "en" to "▶️ Start Live Simulation",
-            "es" to "▶️ Iniciar simulación",
-            "pt" to "▶️ Iniciar simulação",
-            "hi" to "▶️ लाइव सिमुलेशन शुरू करें"
-        ),
-        "sim_btn_pause" to mapOf(
-            "ar" to "⏸️ إيقاف مؤقت",
-            "fr" to "⏸️ Pause",
-            "en" to "⏸️ Pause",
-            "es" to "⏸️ Pausar",
-            "pt" to "⏸️ Pausar",
-            "hi" to "⏸️ रोकें"
-        ),
-        "sim_btn_speed_10x" to mapOf(
-            "ar" to "⚡ تسريع 10x",
-            "fr" to "⚡ Vitesse 10x",
-            "en" to "⚡ Speed 10x",
-            "es" to "⚡ Velocidad 10x",
-            "pt" to "⚡ Velocidade 10x",
-            "hi" to "⚡ 10x गति"
-        ),
-        "sim_btn_step_day" to mapOf(
-            "ar" to "⏭️ تقدم يوم (+1)",
-            "fr" to "⏭️ Jour suivant (+1)",
-            "en" to "⏭️ Step +1 Day",
-            "es" to "⏭️ Avanzar +1 Día",
-            "pt" to "⏭️ Avançar +1 Dia",
-            "hi" to "⏭️ +1 दिन आगे बढ़ें"
-        ),
-        "sim_btn_run_full_40_days" to mapOf(
-            "ar" to "🚀 إتمام فحص الـ 40 يوماً فوراً",
-            "fr" to "🚀 Compléter l'audit des 40 jours",
-            "en" to "🚀 Complete Full 40-Day Audit Now",
-            "es" to "🚀 Completar auditoría de 40 días",
-            "pt" to "🚀 Concluir auditoria de 40 dias",
-            "hi" to "🚀 पूरे 40 दिनों का ऑडिट अभी पूरा करें"
-        ),
-        "sim_btn_reset" to mapOf(
-            "ar" to "🔄 إعادة ضبط الدورة",
-            "fr" to "🔄 Réinitialiser",
-            "en" to "🔄 Reset Cycle",
-            "es" to "🔄 Reiniciar",
-            "pt" to "🔄 Reiniciar",
-            "hi" to "🔄 रीसेट करें"
-        ),
-        "reconciliation_section_title" to mapOf(
-            "ar" to "📐 فحص تطابق الأرقام والمعادلات الحية (100% Math Audit)",
-            "fr" to "📐 Vérification de la concordance des chiffres (Audit 100%)",
-            "en" to "📐 Live Math & Equation Reconciliation Check (100% Audit)",
-            "es" to "📐 Verificación de coincidencia de números (Auditoría 100%)",
-            "pt" to "📐 Verificação de reconciliação numérica (Auditoria 100%)",
-            "hi" to "📐 संख्याओं और समीकरणों की लाइव जांच (100% ऑडिट)"
-        ),
-        "reconcile_feed_title" to mapOf(
-            "ar" to "1. مطابقة العلف: مجموع الجدول مقابل المخصوم من المخزون (قنطار)",
-            "fr" to "1. Concordance Aliment : Total tableau vs Déduit du stock (q)",
-            "en" to "1. Feed Match: Table Sum vs Deducted Warehouse Stock (Quintals)",
-            "es" to "1. Coincidencia de Alimento: Suma tabla vs Stock descontado (q)",
-            "pt" to "1. Reconciliação de Ração: Soma da tabela vs Estoque deduzido (q)",
-            "hi" to "1. चारा मिलान: तालिका का योग बनाम गोदाम स्टॉक कटौती (क्विंटल)"
-        ),
-        "reconcile_birds_title" to mapOf(
-            "ar" to "2. مطابقة الطيور الحية: بعد خصم النفوق والبيع الجزئي في كل الشاشات",
-            "fr" to "2. Concordance Oiseaux Vifs : Après mortalité et ventes sur tous les écrans",
-            "en" to "2. Live Birds Match: After Mortality & Sales across all screens",
-            "es" to "2. Coincidencia de Aves Vivas: Tras mortalidad y ventas en pantallas",
-            "pt" to "2. Reconciliação de Aves Vivas: Após mortalidade e vendas nas telas",
-            "hi" to "2. जीवित पक्षी मिलान: मृत्यु और बिक्री के बाद सभी स्क्रीन पर"
-        ),
-        "reconcile_invoices_title" to mapOf(
-            "ar" to "3. مطابقة الخزنة: فواتير البيطري والمفرخة والمورد في مصاريف المالك",
-            "fr" to "3. Concordance Trésorerie : Factures vétérinaire & couvoir dans Dépenses",
-            "en" to "3. Treasury Match: Vet & Hatchery Invoices recorded in Owner Expenses",
-            "es" to "3. Coincidencia de Tesorería: Facturas vet. e incubadora en Gastos",
-            "pt" to "3. Reconciliação da Tesouraria: Faturas vet. e incubatório em Despesas",
-            "hi" to "3. खजाना मिलान: पशु चिकित्सक और हैचरी चालान मालिक के खर्चों में दर्ज"
-        ),
-        "reconcile_pharmacy_title" to mapOf(
-            "ar" to "4. مطابقة صيدلية العيادة: خصم عبوات الدواء الموصوفة آلياً من الجرد",
-            "fr" to "4. Concordance Pharmacie : Déduction auto des médicaments prescrits",
-            "en" to "4. Clinic Pharmacy Match: Prescribed medicine packs auto-deducted",
-            "es" to "4. Coincidencia Farmacia: Deducción automática de medicamentos recetados",
-            "pt" to "4. Reconciliação da Farmácia: Dedução automática de medicamentos prescritos",
-            "hi" to "4. क्लिनिक फार्मेसी मिलान: निर्धारित दवा पैक स्वचालित रूप से घटाए गए"
-        ),
-        "reconcile_status_matched" to mapOf(
-            "ar" to "✓ متطابق 100%",
-            "fr" to "✓ Conforme 100%",
-            "en" to "✓ 100% Matched",
-            "es" to "✓ 100% Coincidente",
-            "pt" to "✓ 100% Compatível",
-            "hi" to "✓ 100% मिलान"
-        ),
-        "remaining_feed_stock_quintals_label" to mapOf(
-            "ar" to "المخزون المتبقي من العلف (قنطار)",
-            "fr" to "Stock d'aliment restant (Quintaux)",
-            "en" to "Remaining Feed Stock (Quintals)",
-            "es" to "Stock restante de alimento (Quintales)",
-            "pt" to "Estoque restante de ração (Quintais)",
-            "hi" to "शेष चारा स्टॉक (क्विंटल)"
-        ),
-        "low_feed_stock_warning_badge" to mapOf(
-            "ar" to "⚠️ تنبيه نفاد مخزون العلف: المخزون أقل من الحد الآمن (10 ق)!",
-            "fr" to "⚠️ Alerte stock d'aliment bas : Inférieur au seuil de sécurité (10 q) !",
-            "en" to "⚠️ Low Feed Stock Alert: Remaining stock is below safe threshold (10 q)!",
-            "es" to "⚠️ Alerta de agotamiento de alimento: ¡Stock menor a 10 q!",
-            "pt" to "⚠️ Alerta de estoque baixo de ração: Abaixo de 10 q!",
-            "hi" to "⚠️ चारा स्टॉक समाप्त होने की चेतावनी: सुरक्षित सीमा (10 q) से कम!"
-        ),
-        "feed_stock_healthy_badge" to mapOf(
-            "ar" to "✓ مخزون العلف آمن ومتطابق مع خصم الجدول اليومي بالقنطار",
-            "fr" to "✓ Stock d'aliment sécurisé et synchronisé avec le tableau quotidien",
-            "en" to "✓ Feed stock is healthy and synced with daily table deductions",
-            "es" to "✓ Stock de alimento seguro y sincronizado con la tabla diaria",
-            "pt" to "✓ Estoque de ração seguro e sincronizado com a tabela diária",
-            "hi" to "✓ चारा स्टॉक सुरक्षित है और दैनिक तालिका से सिंक है"
-        ),
-        "btn_quick_restock_feed" to mapOf(
-            "ar" to "+ توريد شحنة علف للمستودع (40 ق)",
-            "fr" to "+ Approvisionner le stock (40 q)",
-            "en" to "+ Restock Feed Warehouse (40 q)",
-            "es" to "+ Reabastecer almacén de alimento (40 q)",
-            "pt" to "+ Reabastecer estoque de ração (40 q)",
-            "hi" to "+ गोदाम में चारा जोड़ें (40 q)"
-        ),
-        "vet_withdrawal_period_badge" to mapOf(
-            "ar" to "⏳ فترة السحب الطبية: 5 أيام قبل البيع",
-            "fr" to "⏳ Délai d'attente médical : 5 jours avant la vente",
-            "en" to "⏳ Medical Withdrawal Period: 5 Days Before Sale",
-            "es" to "⏳ Período de retiro médico: 5 días antes de la venta",
-            "pt" to "⏳ Período de carência médica: 5 dias antes da venda",
-            "hi" to "⏳ दवा निकासी अवधि: बिक्री से 5 दिन पहले"
-        ),
-        "vet_pharmacy_auto_deduct_note" to mapOf(
-            "ar" to "💊 يتم خصم العبوة تلقائياً من جرد صيدلية العيادة وتفعيل تنبيه فترة السحب (5 أيام قبل البيع).",
-            "fr" to "💊 Déduction automatique du stock de la pharmacie et activation du délai d'attente (5 jours).",
-            "en" to "💊 Pack is auto-deducted from Clinic Pharmacy inventory and triggers the 5-day withdrawal badge.",
-            "es" to "💊 Se descuenta automáticamente de la farmacia clínica y activa el retiro de 5 días.",
-            "pt" to "💊 Deduzido automaticamente da farmácia da clínica e ativa a carência de 5 dias.",
-            "hi" to "💊 क्लिनिक फार्मेसी से पैक स्वतः घटता है और 5-दिन की निकासी चेतावनी सक्रिय करता है।"
-        ),
-        "weigh_transport_mortality_label" to mapOf(
-            "ar" to "خصم نفوق الشحن عند القبان (عدد الطيور)",
-            "fr" to "Déduction mortalité transport à la bascule (oiseaux)",
-            "en" to "Deduct Transport Mortality at Weighbridge (Birds)",
-            "es" to "Descuento por mortalidad de transporte en báscula (aves)",
-            "pt" to "Desconto de mortalidade de transporte na balança (aves)",
-            "hi" to "कांटे पर परिवहन मृत्यु कटौती (पक्षी)"
-        ),
-        "weigh_transport_mortality_deducted_badge" to mapOf(
-            "ar" to "🚚 خصم نفوق الشحن عند القبان",
-            "fr" to "🚚 Mortalité transport déduite",
-            "en" to "🚚 Transport Mortality Deducted",
-            "es" to "🚚 Mortalidad de transporte descontada",
-            "pt" to "🚚 Mortalidade de transporte descontada",
-            "hi" to "🚚 परिवहन मृत्यु कटौती"
-        ),
-        "hatchery_bonus_2pct_badge" to mapOf(
-            "ar" to "🐣 بونص المفرخة المجاني (2% تعويض نفوق النقل والاستقبال)",
-            "fr" to "🐣 Bonus couvoir gratuit (2% compensation mortalité transport)",
-            "en" to "🐣 Free Hatchery Bonus (2% Transport & Arrival Replacement)",
-            "es" to "🐣 Bono gratuito de incubadora (2% reemplazo por transporte)",
-            "pt" to "🐣 Bônus gratuito do incubatório (2% reposição de transporte)",
-            "hi" to "🐣 मुफ्त हैचरी बोनस (2% परिवहन मृत्यु प्रतिस्थापन)"
-        ),
-        "importer_supply_clinic_btn" to mapOf(
-            "ar" to "📦 توريد دفعة لقاحات وأدوية لصيدلية العيادة (+10 عبوات)",
-            "fr" to "📦 Livrer lot de vaccins à la pharmacie clinique (+10 unités)",
-            "en" to "📦 Supply Vaccines & Meds to Clinic Pharmacy (+10 packs)",
-            "es" to "📦 Suministrar lote a farmacia de la clínica (+10 envases)",
-            "pt" to "📦 Fornecer lote para a farmácia da clínica (+10 unidades)",
-            "hi" to "📦 क्लिनिक फार्मेसी को टीके और दवाएं आपूर्ति करें (+10 पैक)"
-        ),
-        "persona_inspector_btn" to mapOf(
-            "ar" to "🕵️‍♂️ محاكي ومفتش المهن",
-            "fr" to "🕵️‍♂️ Simulateur & Inspecteur",
-            "en" to "🕵️‍♂️ Persona Inspector & Sim",
-            "es" to "🕵️‍♂️ Simulador e Inspector",
-            "pt" to "🕵️‍♂️ Simulador e Inspetor",
-            "hi" to "🕵️‍♂️ पेशा सिम्युलेटर और निरीक्षक"
-        ),
-        "persona_inspector_title" to mapOf(
-            "ar" to "🕵️‍♂️⚡ مفتش الأخطاء والمحاكي البشري للمهن السبع",
-            "fr" to "🕵️‍♂️⚡ Inspecteur & Simulateur Humain des 7 Professions",
-            "en" to "🕵️‍♂️⚡ Real-Human Persona Inspector & 7-Role Simulator",
-            "es" to "🕵️‍♂️⚡ Inspector y Simulador Humano de 7 Profesiones",
-            "pt" to "🕵️‍♂️⚡ Inspetor e Simulador Humano das 7 Profissões",
-            "hi" to "🕵️‍♂️⚡ 7 पेशों का वास्तविक मानव निरीक्षक और सिम्युलेटर"
-        ),
-        "persona_inspector_subtitle" to mapOf(
-            "ar" to "محاكاة حية لدورة 40 يوماً وفحص آلي لتطابق الحسابات والنواقص الميدانية بلسان المهن السبع",
-            "fr" to "Simulation en direct de 40 jours et audit mathématique par les 7 professions",
-            "en" to "Live 40-day cycle simulation & automated math reconciliation across all 7 professions",
-            "es" to "Simulación en vivo de 40 días y auditoría matemática por las 7 profesiones",
-            "pt" to "Simulação ao vivo de 40 dias e auditoria matemática pelas 7 profissões",
-            "hi" to "40-दिन का लाइव सिमुलेशन और सभी 7 पेशों द्वारा गणितीय जांच"
-        ),
-        "persona_mode_a_btn" to mapOf(
-            "ar" to "▶️ تشغيل دورة 40 يوماً حية (كل دقيقة = يوم، مع زر تسريع 10x)",
-            "fr" to "▶️ Cycle 40 jours en direct (1 min = 1 jour, vitesse 10x)",
-            "en" to "▶️ Run Live 40-Day Cycle (1 min = 1 day, with 10x speed)",
-            "es" to "▶️ Ciclo de 40 días en vivo (1 min = 1 día, velocidad 10x)",
-            "pt" to "▶️ Ciclo de 40 dias ao vivo (1 min = 1 dia, velocidade 10x)",
-            "hi" to "▶️ 40-दिन का लाइव चक्र चलाएं (1 मिनट = 1 दिन, 10x गति)"
-        ),
-        "persona_mode_b_btn" to mapOf(
-            "ar" to "🔍 تقرير الأخطاء والنواقص المكتشفة (Live Bug & UX Gap Report)",
-            "fr" to "🔍 Rapport des Bugs & Écarts Terrain (Live Bug & UX Gap Report)",
-            "en" to "🔍 Live Bug & UX Gap Report (7 Human Personas)",
-            "es" to "🔍 Informe de Errores y Brechas (Live Bug & UX Gap Report)",
-            "pt" to "🔍 Relatório de Erros e Lacunas (Live Bug & UX Gap Report)",
-            "hi" to "🔍 लाइव बग और फील्ड गैप रिपोर्ट (Live Bug & UX Gap Report)"
-        ),
-        "persona_sim_start_btn" to mapOf(
-            "ar" to "▶️ بدء المحاكاة الحية",
-            "fr" to "▶️ Démarrer la simulation",
-            "en" to "▶️ Start Live Simulation",
-            "es" to "▶️ Iniciar simulación",
-            "pt" to "▶️ Iniciar simulação",
-            "hi" to "▶️ लाइव सिमुलेशन शुरू करें"
-        ),
-        "persona_sim_pause_btn" to mapOf(
-            "ar" to "⏸️ إيقاف مؤقت",
-            "fr" to "⏸️ Pause",
-            "en" to "⏸️ Pause",
-            "es" to "⏸️ Pausar",
-            "pt" to "⏸️ Pausar",
-            "hi" to "⏸️ रोकें"
-        ),
-        "persona_sim_speed_1x" to mapOf(
-            "ar" to "⏱️ سرعة عادية (1x)",
-            "fr" to "⏱️ Vitesse normale (1x)",
-            "en" to "⏱️ Normal Speed (1x)",
-            "es" to "⏱️ Velocidad normal (1x)",
-            "pt" to "⏱️ Velocidade normal (1x)",
-            "hi" to "⏱️ सामान्य गति (1x)"
-        ),
-        "persona_sim_speed_10x" to mapOf(
-            "ar" to "⚡ تسريع 10x",
-            "fr" to "⚡ Vitesse 10x",
-            "en" to "⚡ Speed 10x",
-            "es" to "⚡ Velocidad 10x",
-            "pt" to "⚡ Velocidade 10x",
-            "hi" to "⚡ 10x गति"
-        ),
-        "persona_sim_step_next_day_btn" to mapOf(
-            "ar" to "⏭️ تقدم يوم (+1)",
-            "fr" to "⏭️ Jour suivant (+1)",
-            "en" to "⏭️ Step +1 Day",
-            "es" to "⏭️ Avanzar +1 Día",
-            "pt" to "⏭️ Avançar +1 Dia",
-            "hi" to "⏭️ +1 दिन आगे बढ़ें"
-        ),
-        "persona_sim_run_all_40_btn" to mapOf(
-            "ar" to "🚀 إتمام فحص الـ 40 يوماً فوراً",
-            "fr" to "🚀 Compléter l'audit des 40 jours",
-            "en" to "🚀 Complete Full 40-Day Audit Now",
-            "es" to "🚀 Completar auditoría de 40 días",
-            "pt" to "🚀 Concluir auditoria de 40 dias",
-            "hi" to "🚀 पूरे 40 दिनों का ऑडिट अभी पूरा करें"
-        ),
-        "persona_sim_reset_btn" to mapOf(
-            "ar" to "🔄 إعادة ضبط الدورة",
-            "fr" to "🔄 Réinitialiser",
-            "en" to "🔄 Reset Cycle",
-            "es" to "🔄 Reiniciar",
-            "pt" to "🔄 Reiniciar",
-            "hi" to "🔄 रीसेट करें"
-        ),
-        "persona_sim_day_progress" to mapOf(
-            "ar" to "تقدم دورة التسمين (40 يوماً)",
-            "fr" to "Progression du cycle (40 jours)",
-            "en" to "Broiler Cycle Progress (40 Days)",
-            "es" to "Progreso del ciclo (40 días)",
-            "pt" to "Progresso do ciclo (40 dias)",
-            "hi" to "चक्र प्रगति (40 दिन)"
-        ),
-        "persona_math_check_title" to mapOf(
-            "ar" to "📐 فحص تطابق الأرقام والمعادلات الحية (100% Math Audit)",
-            "fr" to "📐 Vérification de la concordance des chiffres (Audit 100%)",
-            "en" to "📐 Live Math & Equation Reconciliation Check (100% Audit)",
-            "es" to "📐 Verificación de coincidencia de números (Auditoría 100%)",
-            "pt" to "📐 Verificação de reconciliação numérica (Auditoria 100%)",
-            "hi" to "📐 संख्याओं और समीकरणों की लाइव जांच (100% ऑडिट)"
-        ),
-        "persona_math_feed_match" to mapOf(
-            "ar" to "✓ تطابق العلف: مجموع الجدول مقابل المخصوم من المخزون (قنطار)",
-            "fr" to "✓ Concordance Aliment : Total tableau vs Déduit du stock (q)",
-            "en" to "✓ Feed Match: Table Sum vs Deducted Warehouse Stock (Quintals)",
-            "es" to "✓ Coincidencia de Alimento: Suma tabla vs Stock descontado (q)",
-            "pt" to "✓ Reconciliação de Ração: Soma da tabela vs Estoque deduzido (q)",
-            "hi" to "✓ चारा मिलान: तालिका का योग बनाम गोदाम स्टॉक कटौती (क्विंटल)"
-        ),
-        "persona_math_birds_match" to mapOf(
-            "ar" to "✓ تطابق الطيور الحية: بعد خصم النفوق والبيع الجزئي في كل الشاشات",
-            "fr" to "✓ Concordance Oiseaux Vifs : Après mortalité et ventes sur tous les écrans",
-            "en" to "✓ Live Birds Match: After Mortality & Sales across all screens",
-            "es" to "✓ Coincidencia de Aves Vivas: Tras mortalidad y ventas en pantallas",
-            "pt" to "✓ Reconciliação de Aves Vivas: Após mortalidade e vendas nas telas",
-            "hi" to "✓ जीवित पक्षी मिलान: मृत्यु और बिक्री के बाद सभी स्क्रीन पर"
-        ),
-        "persona_math_treasury_match" to mapOf(
-            "ar" to "✓ تطابق الخزنة: فواتير البيطري والمفرخة والمورد في مصاريف المالك",
-            "fr" to "✓ Concordance Trésorerie : Factures vétérinaire & couvoir dans Dépenses",
-            "en" to "✓ Treasury Match: Vet & Hatchery Invoices recorded in Owner Expenses",
-            "es" to "✓ Coincidencia de Tesorería: Facturas vet. e incubadora en Gastos",
-            "pt" to "✓ Reconciliação da Tesouraria: Faturas vet. e incubatório em Despesas",
-            "hi" to "✓ खजाना मिलान: पशु चिकित्सक और हैचरी चालान मालिक के खर्चों में दर्ज"
-        ),
-        "persona_math_pharmacy_match" to mapOf(
-            "ar" to "✓ تطابق صيدلية العيادة: خصم عبوات الدواء الموصوفة آلياً من الجرد",
-            "fr" to "✓ Concordance Pharmacie : Déduction auto des médicaments prescrits",
-            "en" to "✓ Clinic Pharmacy Match: Prescribed medicine packs auto-deducted",
-            "es" to "✓ Coincidencia Farmacia: Deducción automática de medicamentos recetados",
-            "pt" to "✓ Reconciliação da Farmácia: Dedução automática de medicamentos prescritos",
-            "hi" to "✓ क्लिनिक फार्मेसी मिलान: निर्धारित दवा पैक स्वचालित रूप से घटाए गए"
-        ),
-        "persona_critique_section_title" to mapOf(
-            "ar" to "🗣️ ملاحظات ونقد الوكلاء السبعة كأشخاص حقيقيين (100% Human Persona Critique)",
-            "fr" to "🗣️ Critiques terrain des 7 agents professionnels (100% Humain)",
-            "en" to "🗣️ 7 Real-Human Persona Field Critiques & Gap Resolutions",
-            "es" to "🗣️ Críticas de campo de los 7 agentes profesionales (100% Humano)",
-            "pt" to "🗣️ Críticas de campo dos 7 agentes profissionais (100% Humano)",
-            "hi" to "🗣️ 7 वास्तविक पेशेवरों की मैदानी समीक्षा और समाधान"
-        ),
-        "remaining_feed_stock_quintal_label" to mapOf(
-            "ar" to "🌾 المخزون المتبقي من العلف (قنطار)",
-            "fr" to "🌾 Stock d'aliment restant (Quintaux)",
-            "en" to "🌾 Remaining Feed Stock (Quintals)",
-            "es" to "🌾 Stock restante de alimento (Quintales)",
-            "pt" to "🌾 Estoque restante de ração (Quintais)",
-            "hi" to "🌾 शेष चारा स्टॉक (क्विंटल)"
-        ),
-        "remaining_feed_stock_low_warning" to mapOf(
-            "ar" to "⚠️ تنبيه نفاد مخزون العلف: المخزون أقل من الحد الآمن (10 ق)!",
-            "fr" to "⚠️ Alerte stock d'aliment bas : Inférieur au seuil de sécurité (10 q) !",
-            "en" to "⚠️ Low Feed Stock Alert: Remaining stock is below safe threshold (10 q)!",
-            "es" to "⚠️ Alerta de agotamiento de alimento: ¡Stock menor a 10 q!",
-            "pt" to "⚠️ Alerta de estoque baixo de ração: Abaixo de 10 q!",
-            "hi" to "⚠️ चारा स्टॉक समाप्त होने की चेतावनी: सुरक्षित सीमा (10 q) से कम!"
-        ),
-        "btn_quick_restock_feed_40q" to mapOf(
-            "ar" to "+ توريد شحنة علف للمستودع (40 ق)",
-            "fr" to "+ Approvisionner le stock (40 q)",
-            "en" to "+ Restock Feed Warehouse (40 q)",
-            "es" to "+ Reabastecer almacén de alimento (40 q)",
-            "pt" to "+ Reabastecer estoque de ração (40 q)",
-            "hi" to "+ गोदाम में चारा जोड़ें (40 q)"
-        ),
-        "vet_withdrawal_period_desc" to mapOf(
-            "ar" to "يُمنع تسويق أو ذبح الطيور قبل انتهاء فترة سحب المضاد الحيوي لضمان سلامة المستهلك.",
-            "fr" to "Interdiction de vendre ou d'abattre les volailles avant la fin du délai d'attente.",
-            "en" to "Do not market or slaughter birds before the antibiotic withdrawal period expires.",
-            "es" to "No comercializar las aves antes de que finalice el período de retiro.",
-            "pt" to "Não comercializar as aves antes do término do período de carência.",
-            "hi" to "एंटीबायोटिक निकासी अवधि समाप्त होने से पहले पक्षियों की बिक्री न करें।"
-        ),
-        "trader_transport_mortality_label" to mapOf(
-            "ar" to "🚛 نفوق الشحن عند الوصول للمذبح (عدد الطيور)",
-            "fr" to "🚛 Mortalité transport à l'arrivée à l'abattoir (oiseaux)",
-            "en" to "🚛 Transport Mortality Upon Slaughterhouse Arrival (Birds)",
-            "es" to "🚛 Mortalidad de transporte al llegar al matadero (aves)",
-            "pt" to "🚛 Mortalidade no transporte ao chegar ao abatedouro (aves)",
-            "hi" to "🚛 बूचड़खाने पहुंचने पर परिवहन मृत्यु (पक्षी)"
-        ),
-        "trader_transport_mortality_hint" to mapOf(
-            "ar" to "أدخل عدد الطيور النافقة عند الوصول للمذبح (DOA)",
-            "fr" to "Nombre d'oiseaux morts à l'arrivée à l'abattoir (DOA)",
-            "en" to "Enter birds dead on arrival at slaughterhouse (DOA)",
-            "es" to "Ingrese aves muertas al llegar al matadero (DOA)",
-            "pt" to "Insira aves mortas ao chegar ao abatedouro (DOA)",
-            "hi" to "बूचड़खाने पहुंचने पर मृत पक्षियों की संख्या दर्ज करें"
-        ),
-        "trader_net_payable_after_mortality" to mapOf(
-            "ar" to "صافي التسوية المقترحة لنفوق الطريق",
-            "fr" to "Règlement net proposé pour mortalité transport",
-            "en" to "Proposed net settlement for road mortality",
-            "es" to "Liquidación neta propuesta por mortalidad en ruta",
-            "pt" to "Acerto líquido proposto por mortalidade na estrada",
-            "hi" to "सड़क मृत्यु के लिए प्रस्तावित निपटान"
-        ),
-        "trader_notify_farmer_slaughterhouse_doa_btn" to mapOf(
-            "ar" to "🚛 إشعار الفلاح بنفوق الوصول للمذبح (تسجيل نفوق الطريق)",
-            "fr" to "🚛 Notifier l'éleveur de la mortalité à l'abattoir (DOA)",
-            "en" to "🚛 Notify Farmer of Slaughterhouse Arrival DOA (Log Road Mortality)",
-            "es" to "🚛 Notificar al granjero mortalidad en matadero (DOA)",
-            "pt" to "🚛 Notificar produtor sobre mortalidade no abatedouro (DOA)",
-            "hi" to "🚛 किसान को बूचड़खाने की मृत्यु की सूचना दें (DOA)"
-        ),
-        "trader_doa_notification_sent_banner" to mapOf(
-            "ar" to "تم إرسال إشعار نفوق الوصول للمذبح إلى الفلاح وتسجيل طلب التسوية ✓",
-            "fr" to "Notification de mortalité à l'abattoir envoyée à l'éleveur ✓",
-            "en" to "Slaughterhouse DOA notification sent to Farmer & settlement logged ✓",
-            "es" to "Notificación de mortalidad en matadero enviada al granjero ✓",
-            "pt" to "Notificação de mortalidade no abatedouro enviada ao produtor ✓",
-            "hi" to "किसान को बूचड़खाने की मृत्यु की सूचना भेज दी गई ✓"
-        ),
-        "trader_doa_settlement_prefix" to mapOf(
-            "ar" to "إشعار من التاجر: تسجيل نفوق عند الوصول للمذبح",
-            "fr" to "Notification du grossiste : Mortalité à l'arrivée à l'abattoir",
-            "en" to "Trader Notice: Recorded mortality upon slaughterhouse arrival",
-            "es" to "Aviso del mayorista: Mortalidad al llegar al matadero",
-            "pt" to "Aviso do atacadista: Mortalidade ao chegar ao abatedouro",
-            "hi" to "व्यापारी सूचना: बूचड़खाने पहुंचने पर दर्ज मृत्यु"
-        ),
-        "hatchery_bonus_2pct_label" to mapOf(
-            "ar" to "🐣 بونص المفرخة المجاني (2% تعويض نفوق النقل والاستقبال)",
-            "fr" to "🐣 Bonus couvoir gratuit (2% compensation mortalité transport)",
-            "en" to "🐣 Free Hatchery Bonus (2% Transport & Arrival Replacement)",
-            "es" to "🐣 Bono gratuito de incubadora (2% reemplazo por transporte)",
-            "pt" to "🐣 Bônus gratuito do incubatório (2% reposição de transporte)",
-            "hi" to "🐣 मुफ्त हैचरी बोनस (2% परिवहन मृत्यु प्रतिस्थापन)"
-        ),
-        "importer_restock_vet_pharmacy_btn" to mapOf(
-            "ar" to "📦 توريد دفعة لقاحات وأدوية لصيدلية العيادة (+10 عبوات)",
-            "fr" to "📦 Livrer lot de vaccins à la pharmacie clinique (+10 unités)",
-            "en" to "📦 Supply Vaccines & Meds to Clinic Pharmacy (+10 packs)",
-            "es" to "📦 Suministrar lote a farmacia de la clínica (+10 envases)",
-            "pt" to "📦 Fornecer lote para a farmácia da clínica (+10 unidades)",
-            "hi" to "📦 क्लिनिक फार्मेसी को टीके और दवाएं आपूर्ति करें (+10 पैक)"
-        ),
-        "total_feed" to mapOf(
-            "ar" to "إجمالي المستهلك",
-            "fr" to "Total consommé",
-            "en" to "Total Consumed",
-            "es" to "Total consumido",
-            "pt" to "Total consumido",
-            "hi" to "कुल खपत"
-        ),
-        "vet_filter_all" to mapOf(
-            "ar" to "🖤 الكل",
-            "fr" to "🖤 Tous",
-            "en" to "🖤 All",
-            "es" to "🖤 Todos",
-            "pt" to "🖤 Todos",
-            "hi" to "🖤 सभी"
-        ),
-        "vet_filter_urgent" to mapOf(
-            "ar" to "🚨 حالات عاجلة",
-            "fr" to "🚨 Urgences",
-            "en" to "🚨 Urgent Cases",
-            "es" to "🚨 Casos Urgentes",
-            "pt" to "🚨 Casos Urgentes",
-            "hi" to "🚨 अत्यावश्यक"
-        ),
-        "vet_filter_vaccines_due" to mapOf(
-            "ar" to "💉 لقاحات مستحقة",
-            "fr" to "💉 Vaccins dus",
-            "en" to "💉 Vaccines Due",
-            "es" to "💉 Vacunas Pendientes",
-            "pt" to "💉 Vacinas Pendentes",
-            "hi" to "💉 देय टीके"
-        ),
-        "vet_filter_withdrawal" to mapOf(
-            "ar" to "⏳ فترة سحب الدواء",
-            "fr" to "⏳ Délai d'attente",
-            "en" to "⏳ Withdrawal Period",
-            "es" to "⏳ Retiro Médico",
-            "pt" to "⏳ Período de Carência",
-            "hi" to "⏳ दवा निकासी अवधि"
-        ),
-        "vet_clinical_profile_title" to mapOf(
-            "ar" to "بطاقة الملف الطبي للقطيع",
-            "fr" to "Profil Clinique du Lot",
-            "en" to "Clinical Flock Profile",
-            "es" to "Perfil Clínico del Lote",
-            "pt" to "Perfil Clínico do Lote",
-            "hi" to "झुंड क्लिनिकल प्रोफ़ाइल"
-        ),
-        "vet_status_stable" to mapOf(
-            "ar" to "🟢 مستقر",
-            "fr" to "🟢 Stable",
-            "en" to "🟢 Stable",
-            "es" to "🟢 Estable",
-            "pt" to "🟢 Estável",
-            "hi" to "🟢 स्थिर"
-        ),
-        "vet_status_monitoring" to mapOf(
-            "ar" to "🟠 تحت المراقبة",
-            "fr" to "🟠 Sous surveillance",
-            "en" to "🟠 Under Monitoring",
-            "es" to "🟠 En observación",
-            "pt" to "🟠 Sob monitoramento",
-            "hi" to "🟠 निगरानी में"
-        ),
-        "vet_metric_breed" to mapOf(
-            "ar" to "السلالة",
-            "fr" to "Souche",
-            "en" to "Breed",
-            "es" to "Estirpe",
-            "pt" to "Linhagem",
-            "hi" to "नस्ल"
-        ),
-        "vet_metric_age" to mapOf(
-            "ar" to "العمر",
-            "fr" to "Âge",
-            "en" to "Age",
-            "es" to "Edad",
-            "pt" to "Idade",
-            "hi" to "आयु"
-        ),
-        "vet_metric_livability" to mapOf(
-            "ar" to "الحيوية",
-            "fr" to "Viabilité",
-            "en" to "Livability",
-            "es" to "Viabilidad",
-            "pt" to "Viabilidade",
-            "hi" to "जीवितता"
-        ),
-        "vet_clinical_summary_title" to mapOf(
-            "ar" to "ملخص الحالة والتشخيص الميداني",
-            "fr" to "Résumé Clinique et Diagnostic Terrain",
-            "en" to "Clinical Summary & Field Diagnosis",
-            "es" to "Resumen Clínico y Diagnóstico de Campo",
-            "pt" to "Resumo Clínico e Diagnóstico de Campo",
-            "hi" to "क्लिनिकल सारांश और निदान"
-        ),
-        "vet_btn_message_owner" to mapOf(
-            "ar" to "💬 مراسلة المالك",
-            "fr" to "💬 Contacter Propriétaire",
-            "en" to "💬 Message Owner",
-            "es" to "💬 Contactar Propietario",
-            "pt" to "💬 Mensagem ao Dono",
-            "hi" to "💬 मालिक को संदेश"
-        ),
-        "vet_btn_issue_rx_invoice" to mapOf(
-            "ar" to "💉 إصدار وصفة وفاتورة",
-            "fr" to "💉 Ordonnance & Facture",
-            "en" to "💉 Issue Rx & Invoice",
-            "es" to "💉 Emitir Receta y Factura",
-            "pt" to "💉 Emitir Receita e Fatura",
-            "hi" to "💉 नुस्खा और चालान"
-        ),
-        "weigh_toggle_chip_to_crates" to mapOf(
-            "ar" to "⇄ تبديل إلى: 📦 عدد الصناديق",
-            "fr" to "⇄ Basculer vers : 📦 Nb Caisses",
-            "en" to "⇄ Switch to: 📦 Crate Count",
-            "es" to "⇄ Cambiar a: 📦 Nº Cajas",
-            "pt" to "⇄ Alternar para: 📦 Nº Caixas",
-            "hi" to "⇄ बदलें: 📦 क्रेट संख्या"
-        ),
-        "weigh_toggle_chip_to_tare" to mapOf(
-            "ar" to "⇄ تبديل إلى: 🧺 الفارغ (كغ)",
-            "fr" to "⇄ Basculer vers : 🧺 Tare (kg)",
-            "en" to "⇄ Switch to: 🧺 Tare (kg)",
-            "es" to "⇄ Cambiar a: 🧺 Tara (kg)",
-            "pt" to "⇄ Alternar para: 🧺 Tara (kg)",
-            "hi" to "⇄ बदलें: 🧺 खाली वजन (किग्रा)"
         )
     )
 
@@ -4749,10 +4093,7 @@ object Translations {
         "fin_req_cat_vet_invoice" to "Fatura de medicamentos e vacinas vet.",
         "fin_req_amount_label" to "Valor solicitado",
         "fin_req_submit_btn" to "Enviar solicitação ✓",
-        "btn_approve_vet_invoice" to "Confirmar e Aprovar Pagamento ✓",
-        "trader_notify_farmer_slaughterhouse_doa_btn" to "🚛 Notificar produtor sobre mortalidade no abatedouro (DOA)",
-        "trader_doa_notification_sent_banner" to "Notificação de mortalidade no abatedouro enviada ao produtor ✓",
-        "trader_doa_settlement_prefix" to "Aviso do atacadista: Mortalidade ao chegar ao abatedouro"
+        "btn_approve_vet_invoice" to "Confirmar e Aprovar Pagamento ✓"
     )
 
     fun hasKey(key: String): Boolean {
@@ -4845,157 +4186,27 @@ object Translations {
     }
 
     fun getLocalizedFarmName(farmId: String, lang: AppLanguage, fallbackName: String = ""): String {
-        val raw = when (farmId) {
-            "farm_1" -> if (fallbackName.isNotBlank() && fallbackName != "عنبر الخيرات والبركة 1" && !fallbackName.startsWith("عنبر البركة النموذجي")) fallbackName else tr("farm_1_name", lang)
+        return when (farmId) {
+            "farm_1" -> tr("farm_1_name", lang)
             "farm_2" -> tr("farm_2_name", lang)
             "farm_3" -> tr("farm_3_name", lang)
             else -> fallbackName.ifEmpty {
                 val farm = AgritechMockDb.farms.firstOrNull { it.id == farmId }
-                farm?.name ?: tr("farm_1_name", lang)
+                farm?.name ?: farmId
             }
-        }
-        if (lang == AppLanguage.AR) return raw
-        val digits = Regex("""(\d+)""").find(raw)?.groupValues?.get(1) ?: ""
-        return when {
-            raw.contains("عنبر البركة النموذجي") -> tr("farm_1_name", lang)
-            raw.contains("عنبر الخيرات والبركة") -> {
-                val base = tr("farm_1_name", lang)
-                if (digits.isNotEmpty() && !base.contains(digits)) "$base $digits" else base
-            }
-            raw.contains("عنبر البركة") -> {
-                val prefix = when (lang) {
-                    AppLanguage.FR -> "Poulailler Al-Baraka"
-                    AppLanguage.ES -> "Galpón Al-Baraka"
-                    AppLanguage.PT -> "Galpão Al-Baraka"
-                    else -> "Al-Baraka Barn"
-                }
-                if (digits.isNotEmpty()) "$prefix $digits" else prefix
-            }
-            raw.contains("مزرعة الهضاب") -> tr("farm_2_name", lang)
-            else -> raw
         }
     }
 
     fun getLocalizedFarmLocation(farmId: String, lang: AppLanguage, fallbackLocation: String = ""): String {
-        val raw = when (farmId) {
-            "farm_1" -> if (fallbackLocation.isNotBlank() && fallbackLocation != "المدية") fallbackLocation else tr("farm_1_location", lang)
+        return when (farmId) {
+            "farm_1" -> tr("farm_1_location", lang)
             "farm_2" -> tr("farm_2_location", lang)
             "farm_3" -> tr("farm_3_location", lang)
             else -> fallbackLocation.ifEmpty {
                 val farm = AgritechMockDb.farms.firstOrNull { it.id == farmId }
-                farm?.location ?: tr("farm_1_location", lang)
+                farm?.location ?: "الجزائر"
             }
         }
-        if (lang == AppLanguage.AR) return raw
-        return when {
-            raw.contains("المدية") -> tr("farm_1_location", lang)
-            raw.contains("البليدة") -> when (lang) {
-                AppLanguage.FR -> "Blida - Boufarik"
-                AppLanguage.ES -> "Blida - Boufarik"
-                AppLanguage.PT -> "Blida - Boufarik"
-                else -> "Blida - Boufarik"
-            }
-            raw.contains("سطيف") -> when (lang) {
-                AppLanguage.FR -> "Sétif - Aïn Arnat"
-                AppLanguage.ES -> "Sétif - Aïn Arnat"
-                AppLanguage.PT -> "Sétif - Aïn Arnat"
-                else -> "Setif - Ain Arnat"
-            }
-            raw.contains("الجزائر") -> when (lang) {
-                AppLanguage.FR -> "Algérie"
-                AppLanguage.ES -> "Argelia"
-                AppLanguage.PT -> "Argélia"
-                else -> "Algeria"
-            }
-            else -> raw
-        }
-    }
-
-    fun localizeFeedDesignation(rawDesignation: String, lang: AppLanguage): String {
-        val clean = rawDesignation.removePrefix("🌾").trim()
-        if (clean.isEmpty()) return tr("feed_designation_default", lang)
-        if (lang == AppLanguage.AR) return clean
-        return when {
-            clean.contains("علف بادئ ونامي متوازن") || clean.contains("علف بادئ/نامي") -> tr("feed_designation_default", lang)
-            clean.contains("رصيد العلف الأساسي") -> tr("feed_initial_baseline_designation", lang)
-            clean.contains("شراء الأعلاف") || clean.contains("شراء علف") -> tr("tx_feed", lang)
-            clean.contains("علف بادئ") -> when (lang) {
-                AppLanguage.FR -> "Aliment Démarrage"
-                AppLanguage.ES -> "Pienso Iniciador"
-                AppLanguage.PT -> "Ração Inicial"
-                else -> "Starter Feed"
-            }
-            clean.contains("علف نامي") -> when (lang) {
-                AppLanguage.FR -> "Aliment Croissance"
-                AppLanguage.ES -> "Pienso Crecimiento"
-                AppLanguage.PT -> "Ração Crescimento"
-                else -> "Grower Feed"
-            }
-            clean.contains("علف ناهي") -> when (lang) {
-                AppLanguage.FR -> "Aliment Finition"
-                AppLanguage.ES -> "Pienso Acabado"
-                AppLanguage.PT -> "Ração Final"
-                else -> "Finisher Feed"
-            }
-            else -> clean
-        }
-    }
-
-    fun localizePartnerOrderClient(rawClient: String, lang: AppLanguage): String {
-        if (lang == AppLanguage.AR) return rawClient
-        return when {
-            rawClient.contains("عنبر الخيرات والبركة") -> when (lang) {
-                AppLanguage.FR -> "Poulailler Al-Baraka 1 - Hadj Mourad"
-                AppLanguage.ES -> "Galpón Al-Baraka 1 - Hadj Mourad"
-                AppLanguage.PT -> "Galpão Al-Baraka 1 - Hadj Mourad"
-                else -> "Al-Baraka Barn 1 - Hadj Mourad"
-            }
-            rawClient.contains("مزرعة الهضاب") -> tr("farm_2_name", lang)
-            rawClient.contains("عيادة د. كمال") -> when (lang) {
-                AppLanguage.FR -> "Clinique Vétérinaire Dr. Kamal"
-                AppLanguage.ES -> "Clínica Veterinaria Dr. Kamal"
-                AppLanguage.PT -> "Clínica Veterinária Dr. Kamal"
-                else -> "Dr. Kamal Vet Clinic"
-            }
-            else -> getLocalizedFarmName("", lang, rawClient)
-        }
-    }
-
-    fun localizePartnerOrderSummary(rawSummary: String, rawQty: String, lang: AppLanguage): String {
-        val localizedQty = if (lang == AppLanguage.AR) {
-            rawQty
-        } else {
-            rawQty
-                .replace("ق", tr("quintal_short", lang))
-                .replace("طائر", tr("birds_unit_short", lang))
-                .replace("صندوق", tr("crates_short_unit", lang))
-                .replace("قارورة", "vials")
-                .replace("عبوة", "packs")
-        }
-        if (lang == AppLanguage.AR) return "$rawSummary • $localizedQty"
-        val localizedSum = when {
-            rawSummary.contains("علف بادئ ونامي متوازن") -> tr("feed_designation_default", lang)
-            rawSummary.contains("صيصان تسمين") -> when (lang) {
-                AppLanguage.FR -> "Poussins de chair Ross 308 vaccinés (J1)"
-                AppLanguage.ES -> "Pollitos de engorde Ross 308 vacunados (Día 1)"
-                AppLanguage.PT -> "Pintinhos de corte Ross 308 vacinados (Dia 1)"
-                else -> "Vaccinated Day-Old Ross 308 Broiler Chicks"
-            }
-            rawSummary.contains("شحنة دجاج لحم حي") -> when (lang) {
-                AppLanguage.FR -> "Lot de poulets de chair vifs prêts à la vente (moy. 2.8 - 3.0 kg)"
-                AppLanguage.ES -> "Lote de pollos de engorde vivos listos (prom. 2.8 - 3.0 kg)"
-                AppLanguage.PT -> "Lote de frangos de corte vivos prontos (méd. 2.8 - 3.0 kg)"
-                else -> "Live Broiler Flock Ready for Market (avg. 2.8 - 3.0 kg)"
-            }
-            rawSummary.contains("توريد لقاحات") -> when (lang) {
-                AppLanguage.FR -> "Vaccins Newcastle & Gumboro + Antibiotiques respiratoires"
-                AppLanguage.ES -> "Vacunas Newcastle y Gumboro + Antibióticos respiratorios"
-                AppLanguage.PT -> "Vacinas Newcastle e Gumboro + Antibióticos respiratórios"
-                else -> "Newcastle & Gumboro Vaccines + Respiratory Antibiotics"
-            }
-            else -> localizeFeedDesignation(rawSummary, lang)
-        }
-        return "$localizedSum • $localizedQty"
     }
 
     fun getLocalizedVentilation(status: String, lang: AppLanguage): String {
@@ -5011,13 +4222,12 @@ object Translations {
         lang: AppLanguage,
         unitPref: FeedUnitPreference = FeedUnitPreference.QUINTAL
     ): String {
-        if (cat.contains("علف") || cat.contains("Feed", true) || cat.contains("Aliment", true) || cat.contains("Pienso", true) || cat.contains("Ração", true)) {
+        if (cat.contains("علف") || cat.contains("Feed", true) || cat.contains("Aliment", true) || cat.contains("Pienso", true)) {
             val rawCat = cat.removePrefix("🌾").trim()
             val parenStart = rawCat.indexOf('(')
             val parenEnd = rawCat.lastIndexOf(')')
             if (parenStart > 0 && parenEnd > parenStart) {
-                val rawDesignation = rawCat.substring(0, parenStart).trim()
-                val designation = localizeFeedDesignation(rawDesignation, lang)
+                val designation = rawCat.substring(0, parenStart).trim()
                 val insideParen = rawCat.substring(parenStart + 1, parenEnd).trim()
                 val numericVal = Regex("""(\d+(\.\d+)?)""").find(insideParen)?.groupValues?.get(1)?.toDoubleOrNull()
                 if (numericVal != null) {
@@ -5031,7 +4241,7 @@ object Translations {
                     val formattedQty = formatBulkFeedPurchaseQuantity(estimatedKg, lang, unitPref)
                     return "🌾 $designation ($formattedQty)"
                 }
-                return "🌾 $designation"
+                return "🌾 $rawCat"
             }
             return tr("tx_feed", lang)
         }

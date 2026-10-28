@@ -149,7 +149,7 @@ data class CycleModel(
     val status: String = "active",
     val startDate: String = "2026-03-01",
     val chickPrice: Double = 120.0,
-    val feedInventoryKg: Double = 8000.0,
+    val feedInventoryKg: Double = 0.0,
     val cumulativeBirdsSold: Int = 0,
     val cumulativeSoldWeightKg: Double = 0.0,
     val currencyCode: String = "DZD"
@@ -268,8 +268,7 @@ data class TransactionModel(
     val currency: String = "دج",
     val date: String,
     val invoiceData: SalesInvoiceModel? = null,
-    val status: String = "APPROVED",
-    val notes: String = ""
+    val status: String = "APPROVED"
 )
 
 data class WeighingRecord(

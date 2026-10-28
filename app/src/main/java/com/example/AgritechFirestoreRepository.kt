@@ -66,76 +66,6 @@ data class TreasurySummary(
 
 class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
 
-    companion object {
-        /**
-         * OWASP MASVS Input Sanitization:
-         * Guards numeric values against NaN, Infinity, negative numbers, and overflow.
-         */
-        fun sanitizeNonNegativeDouble(value: Double, maxAllowed: Double = 1_000_000_000.0): Double {
-            if (value.isNaN() || value.isInfinite() || value < 0.0) return 0.0
-            return value.coerceIn(0.0, maxAllowed)
-        }
-
-        fun sanitizePositiveDouble(value: Double, fallback: Double = 0.01, maxAllowed: Double = 1_000_000_000.0): Double {
-            if (value.isNaN() || value.isInfinite() || value <= 0.0) return fallback
-            return value.coerceIn(fallback, maxAllowed)
-        }
-
-        fun sanitizeNonNegativeInt(value: Int, maxAllowed: Int = 10_000_000): Int {
-            if (value < 0) return 0
-            return value.coerceIn(0, maxAllowed)
-        }
-
-        /**
-         * Role-Based Access Control (RBAC):
-         * WORKER and VETERINARIAN / VET_CLINIC sessions joined via QR code cannot delete approved
-         * treasury records or modify finalized sale invoices (`INV-...`).
-         */
-        fun canDeleteOrModifyApprovedTreasuryRecord(role: AppRole): Boolean {
-            return role == AppRole.OWNER || role == AppRole.OWNER_BARN
-        }
-
-        fun canApprovePendingTransaction(role: AppRole): Boolean {
-            return role == AppRole.OWNER || role == AppRole.OWNER_BARN
-        }
-
-        fun isImmutableFinalizedSaleInvoice(tx: TransactionModel): Boolean {
-            val invNo = tx.invoiceData?.invoiceNumber.orEmpty()
-            return invNo.startsWith("INV-", ignoreCase = true) && tx.status.equals("APPROVED", ignoreCase = true)
-        }
-
-        /**
-         * Ensures third-party requests/invoices (Worker, Vet, Trader, Supplier, Hatchery, Importer)
-         * always enter the Owner's treasury as `PENDING` until approved by `OWNER` / `OWNER_BARN`.
-         */
-        fun enforceInitialStatusForRole(requestedStatus: String, actorRole: AppRole): String {
-            return if (actorRole == AppRole.OWNER || actorRole == AppRole.OWNER_BARN) {
-                requestedStatus.ifBlank { "APPROVED" }
-            } else {
-                "PENDING"
-            }
-        }
-
-        fun calculateNetBalanceFromTransactions(transactions: List<TransactionModel>): TreasurySummary {
-            val approvedTxs = transactions.filter { it.status == "APPROVED" }
-            val totalIncome = approvedTxs
-                .filter { it.type == TransactionType.INCOME }
-                .sumOf { it.amount }
-            val totalExpenses = approvedTxs
-                .filter { it.type == TransactionType.EXPENSE }
-                .sumOf { it.amount }
-            val pendingExpenses = transactions
-                .filter { it.type == TransactionType.EXPENSE && it.status == "PENDING" }
-                .sumOf { it.amount }
-            return TreasurySummary(
-                totalIncome = totalIncome,
-                totalExpenses = totalExpenses,
-                netBalance = totalIncome - totalExpenses,
-                pendingExpenses = pendingExpenses
-            )
-        }
-    }
-
     constructor(context: Context) : this(
         FirebaseFirestore.getInstance(
             context.applicationContext.getString(R.string.firestore_database_id)
@@ -969,6 +899,27 @@ class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
      */
     fun calculateNetBalanceFromTransactions(transactions: List<TransactionModel>): TreasurySummary =
         Companion.calculateNetBalanceFromTransactions(transactions)
+
+    companion object {
+        fun calculateNetBalanceFromTransactions(transactions: List<TransactionModel>): TreasurySummary {
+            val approvedTxs = transactions.filter { it.status == "APPROVED" }
+            val totalIncome = approvedTxs
+                .filter { it.type == TransactionType.INCOME }
+                .sumOf { it.amount }
+            val totalExpenses = approvedTxs
+                .filter { it.type == TransactionType.EXPENSE }
+                .sumOf { it.amount }
+            val pendingExpenses = transactions
+                .filter { it.type == TransactionType.EXPENSE && it.status == "PENDING" }
+                .sumOf { it.amount }
+            return TreasurySummary(
+                totalIncome = totalIncome,
+                totalExpenses = totalExpenses,
+                netBalance = totalIncome - totalExpenses,
+                pendingExpenses = pendingExpenses
+            )
+        }
+    }
 
     fun observeTransactions(farmId: String = "farm_1"): Flow<List<TransactionModel>> {
         val colRef = farmTransactionsRef(farmId)
