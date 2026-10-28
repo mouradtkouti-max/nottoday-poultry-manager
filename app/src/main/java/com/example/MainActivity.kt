@@ -765,7 +765,6 @@ fun AgritechRootApp() {
         }
         val savedFarmId = SaasPreferencesManager.getSavedActiveFarmId(context)
         val savedUid = AgritechAuthHelper.currentUserUid() ?: SaasPreferencesManager.getSavedUserUid(context)
-        val professionSelectedDone = SaasPreferencesManager.hasSelectedInitialProfession(context)
 
         Translations.globalCountryCode = savedCountry
         Translations.globalCurrencyCode = savedCurrency
@@ -784,8 +783,7 @@ fun AgritechRootApp() {
             initialRole = savedRole,
             initialHasLinkedBarns = savedLinkedBarns,
             initialActiveFarmId = savedFarmId,
-            initialUserUid = savedUid,
-            initialProfessionSelected = professionSelectedDone
+            initialUserUid = savedUid
         )
     }
 
@@ -835,17 +833,6 @@ fun AgritechRootApp() {
                     currentLanguage = sessionState.currentLanguage,
                     onOpenSettings = { showSettingsDialog = true }
                 )
-
-                if (!sessionState.hasSelectedInitialProfession) {
-                    ProfessionOnboardingDialog(
-                        lang = sessionState.currentLanguage,
-                        currentTheme = sessionState.currentTheme,
-                        initialRole = sessionState.currentRole ?: AppRole.OWNER_BARN,
-                        onConfirmProfession = { chosenRole ->
-                            sessionState.completeInitialProfessionSelection(context, chosenRole)
-                        }
-                    )
-                }
 
                 if (showSettingsDialog) {
                     SettingsDialog(
@@ -1979,6 +1966,34 @@ fun AgritechOwnerDashboard(
                                 }
                             }
                         }
+                    } else if (activeRole.isVetRole) {
+                        FloatingActionButton(
+                            onClick = {
+                                targetFarmForVetInvoice = farms.firstOrNull()
+                                    ?: AgritechMockDb.supervisedVetFarms.firstOrNull()
+                            },
+                            containerColor = primaryButtonAccent,
+                            contentColor = Color.White,
+                            shape = RoundedCornerShape(activeCornerRadius),
+                            elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 4.dp),
+                            modifier = Modifier
+                                .padding(bottom = 78.dp)
+                                .testTag("fab_vet_dashboard_send_invoice")
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Default.ReceiptLong, contentDescription = null, tint = Color.White)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    Translations.tr("btn_send_vet_invoice", lang),
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White,
+                                    fontSize = 13.5.sp
+                                )
+                            }
+                        }
                     }
                 }
                 GlobalDashboardTab.MARKET -> {
@@ -2475,302 +2490,532 @@ fun ManagementHubScreen(
                     val supervisedBarns = remember(farms.size, AgritechMockDb.supervisedVetFarms.size) {
                         (farms + AgritechMockDb.supervisedVetFarms).distinctBy { it.id }
                     }
-                    val vetTransactions = AgritechMockDb.transactions.filter {
-                        it.category.contains("أدوية") ||
-                            it.category.contains("لقاح") ||
-                            it.category.contains("بيطر") ||
-                            it.category.contains("MEDICATION", ignoreCase = true) ||
-                            it.category.contains("Vet", ignoreCase = true)
-                    }
-                    val collectedTotal = vetTransactions
-                        .filter { it.status.equals("APPROVED", ignoreCase = true) }
-                        .sumOf { it.amount }
-                    val pendingTotal = vetTransactions
-                        .filter { it.status.equals("PENDING", ignoreCase = true) }
-                        .sumOf { it.amount }
-                    val totalClinicTreasury = collectedTotal + pendingTotal
-                    val alertsCount = AgritechMockDb.vetEpidemicAlerts.size
-                    val defaultWorkspaceFarm = supervisedBarns.firstOrNull()
-                        ?: FarmModel("farm_1", "عنبر البركة النموذجي", "المدية", 10000, "worker_1")
-
-                    // Single Main Bottom Bar Only: On the main dashboard (💼 الإدارة), show the Vet Clinic ID Card
-                    // with "🏥 فتح مكتب العيادة البيطرية" button followed by supervised barns (matching Owner's "فتح دفتر المزرعة" workflow)
-                    LazyColumn(
+                    val vetBottomNavItems = listOf(
+                        Triple(0, Translations.tr("vet_bottom_tab_barns", lang), Icons.Default.HomeWork),
+                        Triple(1, Translations.tr("vet_bottom_tab_treasury", lang), Icons.Default.AccountBalanceWallet),
+                        Triple(2, Translations.tr("vet_bottom_tab_epidemics", lang), Icons.Default.Science),
+                        Triple(3, Translations.tr("vet_bottom_tab_pharmacy", lang), Icons.Default.Medication)
+                    )
+                    Column(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(horizontal = 16.dp, vertical = 10.dp)
-                            .testTag("vet_clinic_management_hub"),
-                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                            .testTag("vet_clinic_management_hub")
                     ) {
-                        // 1. Sleek Vet Clinic ID Card (بطاقة العيادة البيطرية)
-                        item {
-                            Card(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .testTag("vet_clinic_id_card"),
-                                shape = cardCornerShape,
-                                colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
-                                border = BorderStroke(1.5.dp, activeAccent.copy(alpha = 0.45f)),
-                                elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
-                            ) {
-                                Column(
-                                    modifier = Modifier.padding(18.dp),
-                                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                                ) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f)
+                        ) {
+                            when (selectedVetHubTab) {
+                                0 -> {
+                                    // Bottom Tab 1: 🏥 العنابر (Supervised Barns across farms/owners)
+                                    LazyColumn(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .padding(horizontal = 16.dp, vertical = 10.dp)
+                                            .testTag("vet_hub_supervised_barns_content"),
+                                        verticalArrangement = Arrangement.spacedBy(12.dp)
                                     ) {
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                            modifier = Modifier.weight(1f)
-                                        ) {
-                                            Surface(
-                                                shape = CircleShape,
-                                                color = accentBadgeBg,
-                                                modifier = Modifier.size(48.dp)
+                                        item {
+                                            Text(
+                                                Translations.tr("vet_hub_supervised_subtitle", lang),
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = secondaryTextColor
+                                            )
+                                        }
+                                        items(supervisedBarns, key = { it.id }) { farm ->
+                                            val cycle = AgritechMockDb.cycles.firstOrNull { it.farmId == farm.id }
+                                            val farmReports = AgritechMockDb.dailyReports.filter { it.farmId == farm.id }
+                                            val totalMort = farmReports.sumOf { it.mortalityCount }
+                                            val initialBirds = cycle?.totalBirdsPlaced ?: farm.capacity
+                                            val livability = if (initialBirds > 0) {
+                                                ((initialBirds - totalMort).coerceAtLeast(0).toDouble() / initialBirds) * 100.0
+                                            } else {
+                                                100.0
+                                            }
+
+                                            Card(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .testTag("vet_supervised_barn_card_${farm.id}"),
+                                                shape = cardCornerShape,
+                                                colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
+                                                border = BorderStroke(1.dp, activeAccent.copy(alpha = 0.25f)),
+                                                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                                             ) {
-                                                Box(contentAlignment = Alignment.Center) {
-                                                    Text("🩺", fontSize = 24.sp)
+                                                Column(modifier = Modifier.padding(16.dp)) {
+                                                    Row(
+                                                        modifier = Modifier.fillMaxWidth(),
+                                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                                        verticalAlignment = Alignment.CenterVertically
+                                                    ) {
+                                                        Column(modifier = Modifier.weight(1f)) {
+                                                            Text(
+                                                                Translations.getLocalizedFarmName(farm.id, lang, farm.name),
+                                                                fontWeight = FontWeight.ExtraBold,
+                                                                fontSize = 15.sp,
+                                                                color = primaryTextColor,
+                                                                maxLines = 1,
+                                                                overflow = TextOverflow.Ellipsis
+                                                            )
+                                                            Text(
+                                                                Translations.getLocalizedFarmLocation(farm.id, lang, farm.location),
+                                                                fontSize = 12.sp,
+                                                                color = secondaryTextColor,
+                                                                maxLines = 1
+                                                            )
+                                                        }
+                                                        Surface(
+                                                            shape = pillShape,
+                                                            color = accentBadgeBg
+                                                        ) {
+                                                            Text(
+                                                                "${Translations.tr("liveability", lang)}: ${String.format(java.util.Locale.US, "%.1f", livability)}%",
+                                                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                                                                fontSize = 11.5.sp,
+                                                                fontWeight = FontWeight.ExtraBold,
+                                                                color = activeAccent,
+                                                                maxLines = 1,
+                                                                softWrap = false
+                                                            )
+                                                        }
+                                                    }
+                                                    Spacer(modifier = Modifier.height(12.dp))
+                                                    Row(
+                                                        modifier = Modifier.fillMaxWidth(),
+                                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                                    ) {
+                                                        Button(
+                                                            onClick = { onOpenNotebook(farm) },
+                                                            modifier = Modifier
+                                                                .weight(1f)
+                                                                .height(46.dp)
+                                                                .testTag("btn_vet_open_records_${farm.id}"),
+                                                            shape = pillShape,
+                                                            colors = ButtonDefaults.buttonColors(containerColor = primaryButtonAccent)
+                                                        ) {
+                                                            Text(
+                                                                Translations.tr("open_medical_records", lang),
+                                                                fontWeight = FontWeight.Bold,
+                                                                fontSize = 12.sp,
+                                                                color = Color.White,
+                                                                maxLines = 1
+                                                            )
+                                                        }
+                                                        OutlinedButton(
+                                                            onClick = { onIssueVetInvoiceForFarm(farm) },
+                                                            modifier = Modifier
+                                                                .weight(1f)
+                                                                .height(46.dp)
+                                                                .testTag("btn_vet_card_invoice_${farm.id}"),
+                                                            shape = pillShape,
+                                                            border = BorderStroke(1.5.dp, activeAccent),
+                                                            colors = ButtonDefaults.outlinedButtonColors(contentColor = activeAccent)
+                                                        ) {
+                                                            Text(
+                                                                Translations.tr("btn_send_vet_invoice", lang),
+                                                                fontWeight = FontWeight.Bold,
+                                                                fontSize = 12.sp,
+                                                                color = activeAccent,
+                                                                maxLines = 1
+                                                            )
+                                                        }
+                                                    }
                                                 }
                                             }
-                                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                                Text(
-                                                    Translations.tr("vet_clinic_id_card_title", lang),
-                                                    fontWeight = FontWeight.ExtraBold,
-                                                    fontSize = 15.5.sp,
-                                                    color = primaryTextColor,
-                                                    maxLines = 1,
-                                                    overflow = TextOverflow.Ellipsis
-                                                )
-                                                Text(
-                                                    Translations.tr("vet_clinic_id_card_subtitle", lang),
-                                                    fontSize = 11.5.sp,
-                                                    color = secondaryTextColor,
-                                                    maxLines = 2
-                                                )
-                                            }
                                         }
+                                        item { Spacer(modifier = Modifier.height(90.dp)) }
                                     }
-
-                                    // 3 Summary Stat Boxes (Active Barns | Clinic Treasury | Vaccine Alerts)
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        Surface(
-                                            modifier = Modifier.weight(1f),
-                                            shape = pillShape,
-                                            color = accentBadgeBg
-                                        ) {
-                                            Column(
-                                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-                                                horizontalAlignment = Alignment.CenterHorizontally
-                                            ) {
-                                                Text(
-                                                    Translations.tr("vet_clinic_stat_barns", lang),
-                                                    fontSize = 10.5.sp,
-                                                    color = secondaryTextColor,
-                                                    maxLines = 1
-                                                )
-                                                Text(
-                                                    "${supervisedBarns.size} 🏥",
-                                                    fontWeight = FontWeight.ExtraBold,
-                                                    fontSize = 13.5.sp,
-                                                    color = activeAccent,
-                                                    maxLines = 1
-                                                )
-                                            }
-                                        }
-
-                                        Surface(
-                                            modifier = Modifier.weight(1f),
-                                            shape = pillShape,
-                                            color = accentBadgeBg
-                                        ) {
-                                            Column(
-                                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-                                                horizontalAlignment = Alignment.CenterHorizontally
-                                            ) {
-                                                Text(
-                                                    Translations.tr("vet_clinic_stat_treasury", lang),
-                                                    fontSize = 10.5.sp,
-                                                    color = secondaryTextColor,
-                                                    maxLines = 1
-                                                )
-                                                Text(
-                                                    "${String.format(java.util.Locale.US, "%,.0f", totalClinicTreasury)} $curr",
-                                                    fontWeight = FontWeight.ExtraBold,
-                                                    fontSize = 12.5.sp,
-                                                    color = activeAccent,
-                                                    maxLines = 1,
-                                                    softWrap = false
-                                                )
-                                            }
-                                        }
-
-                                        Surface(
-                                            modifier = Modifier.weight(1f),
-                                            shape = pillShape,
-                                            color = if (isDark) Color(0xFF78350F).copy(alpha = 0.35f) else Color(0xFFFEF3C7)
-                                        ) {
-                                            Column(
-                                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-                                                horizontalAlignment = Alignment.CenterHorizontally
-                                            ) {
-                                                Text(
-                                                    Translations.tr("vet_clinic_stat_alerts", lang),
-                                                    fontSize = 10.5.sp,
-                                                    color = secondaryTextColor,
-                                                    maxLines = 1
-                                                )
-                                                Text(
-                                                    "$alertsCount 🧬",
-                                                    fontWeight = FontWeight.ExtraBold,
-                                                    fontSize = 13.5.sp,
-                                                    color = Color(0xFFD97706),
-                                                    maxLines = 1
-                                                )
-                                            }
-                                        }
+                                }
+                                1 -> {
+                                    // Bottom Tab 2: 💰 الخزنة (Vet Clinic Financial Wallet & Dues)
+                                    val vetTransactions = AgritechMockDb.transactions.filter {
+                                        it.category.contains("أدوية") ||
+                                            it.category.contains("لقاح") ||
+                                            it.category.contains("بيطر") ||
+                                            it.category.contains("MEDICATION", ignoreCase = true) ||
+                                            it.category.contains("Vet", ignoreCase = true)
                                     }
+                                    val collectedTotal = vetTransactions
+                                        .filter { it.status.equals("APPROVED", ignoreCase = true) }
+                                        .sumOf { it.amount }
+                                    val pendingTotal = vetTransactions
+                                        .filter { it.status.equals("PENDING", ignoreCase = true) }
+                                        .sumOf { it.amount }
+                                    val totalInvoiced = collectedTotal + pendingTotal
 
-                                    // Primary Full-Width Button: "🏥 فتح مكتب العيادة البيطرية"
-                                    Button(
-                                        onClick = { onOpenNotebook(defaultWorkspaceFarm) },
+                                    LazyColumn(
                                         modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(48.dp)
-                                            .testTag("btn_open_vet_clinic_workspace"),
-                                        shape = pillShape,
-                                        colors = ButtonDefaults.buttonColors(containerColor = primaryButtonAccent)
+                                            .fillMaxSize()
+                                            .padding(horizontal = 16.dp, vertical = 10.dp)
+                                            .testTag("vet_hub_wallet_content"),
+                                        verticalArrangement = Arrangement.spacedBy(12.dp)
                                     ) {
-                                        Text(
-                                            Translations.tr("open_vet_clinic_workspace_btn", lang),
-                                            fontWeight = FontWeight.ExtraBold,
-                                            fontSize = 13.5.sp,
-                                            color = Color.White,
-                                            maxLines = 1
+                                        item {
+                                            Card(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                shape = cardCornerShape,
+                                                colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
+                                                border = BorderStroke(1.2.dp, activeAccent.copy(alpha = 0.35f))
+                                            ) {
+                                                Column(
+                                                    modifier = Modifier.padding(16.dp),
+                                                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                                                ) {
+                                                    Text(
+                                                        Translations.tr("vet_hub_tab_wallet", lang),
+                                                        fontWeight = FontWeight.ExtraBold,
+                                                        fontSize = 15.sp,
+                                                        color = primaryTextColor
+                                                    )
+                                                    Row(
+                                                        modifier = Modifier.fillMaxWidth(),
+                                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                                    ) {
+                                                        Surface(
+                                                            modifier = Modifier.weight(1f),
+                                                            shape = pillShape,
+                                                            color = accentBadgeBg
+                                                        ) {
+                                                            Column(modifier = Modifier.padding(10.dp)) {
+                                                                Text(
+                                                                    Translations.tr("vet_hub_wallet_collected", lang),
+                                                                    fontSize = 11.sp,
+                                                                    color = secondaryTextColor,
+                                                                    maxLines = 1
+                                                                )
+                                                                Text(
+                                                                    "${String.format(java.util.Locale.US, "%,.0f", collectedTotal)} $curr",
+                                                                    fontWeight = FontWeight.ExtraBold,
+                                                                    fontSize = 13.5.sp,
+                                                                    color = activeAccent,
+                                                                    maxLines = 1,
+                                                                    softWrap = false
+                                                                )
+                                                            }
+                                                        }
+                                                        Surface(
+                                                            modifier = Modifier.weight(1f),
+                                                            shape = pillShape,
+                                                            color = if (isDark) Color(0xFF78350F).copy(alpha = 0.35f) else Color(0xFFFEF3C7)
+                                                        ) {
+                                                            Column(modifier = Modifier.padding(10.dp)) {
+                                                                Text(
+                                                                    Translations.tr("vet_hub_wallet_pending", lang),
+                                                                    fontSize = 11.sp,
+                                                                    color = secondaryTextColor,
+                                                                    maxLines = 1
+                                                                )
+                                                                Text(
+                                                                    "${String.format(java.util.Locale.US, "%,.0f", pendingTotal)} $curr",
+                                                                    fontWeight = FontWeight.ExtraBold,
+                                                                    fontSize = 13.5.sp,
+                                                                    color = Color(0xFFD97706),
+                                                                    maxLines = 1,
+                                                                    softWrap = false
+                                                                )
+                                                            }
+                                                        }
+                                                    }
+                                                    Text(
+                                                        "${Translations.tr("vet_hub_wallet_total", lang)}: ${String.format(java.util.Locale.US, "%,.0f", totalInvoiced)} $curr",
+                                                        fontSize = 12.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = primaryTextColor
+                                                    )
+                                                }
+                                            }
+                                        }
+                                        items(vetTransactions.reversed(), key = { it.id }) { tx ->
+                                            val isPending = tx.status.equals("PENDING", ignoreCase = true)
+                                            Card(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                shape = cardCornerShape,
+                                                colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
+                                                border = BorderStroke(
+                                                    1.dp,
+                                                    if (isPending) Color(0xFFF59E0B) else activeAccent.copy(alpha = 0.25f)
+                                                )
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .padding(14.dp),
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Column(
+                                                        modifier = Modifier
+                                                            .weight(1f)
+                                                            .padding(end = 8.dp)
+                                                    ) {
+                                                        Text(
+                                                            tx.category,
+                                                            fontWeight = FontWeight.Bold,
+                                                            fontSize = 13.5.sp,
+                                                            color = primaryTextColor,
+                                                            maxLines = 2,
+                                                            overflow = TextOverflow.Ellipsis
+                                                        )
+                                                        Text(
+                                                            if (isPending) Translations.tr("fin_req_status_pending", lang)
+                                                            else Translations.tr("fin_req_status_approved", lang),
+                                                            fontSize = 11.5.sp,
+                                                            color = if (isPending) Color(0xFFD97706) else activeAccent
+                                                        )
+                                                    }
+                                                    Text(
+                                                        "${String.format(java.util.Locale.US, "%,.0f", tx.amount)} $curr",
+                                                        fontWeight = FontWeight.ExtraBold,
+                                                        fontSize = 14.sp,
+                                                        color = if (isPending) Color(0xFFD97706) else activeAccent,
+                                                        maxLines = 1,
+                                                        softWrap = false
+                                                    )
+                                                }
+                                            }
+                                        }
+                                        item { Spacer(modifier = Modifier.height(90.dp)) }
+                                    }
+                                }
+                                2 -> {
+                                    // Bottom Tab 3: 🧬 اللقاحات والأوبئة (Epidemiology & Vaccination Analytics)
+                                    LazyColumn(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .padding(horizontal = 16.dp, vertical = 10.dp)
+                                            .testTag("vet_hub_epidemics_content"),
+                                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                                    ) {
+                                        item {
+                                            Text(
+                                                Translations.tr("vet_hub_epidemics_subtitle", lang),
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = secondaryTextColor
+                                            )
+                                        }
+                                        items(AgritechMockDb.vetEpidemicAlerts, key = { it.id }) { alert ->
+                                            val riskColor = when (alert.riskLevel) {
+                                                "HIGH" -> Color(0xFFDC2626)
+                                                "MEDIUM" -> Color(0xFFD97706)
+                                                else -> activeAccent
+                                            }
+                                            Card(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .testTag("vet_epidemic_card_${alert.id}"),
+                                                shape = cardCornerShape,
+                                                colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
+                                                border = BorderStroke(1.2.dp, riskColor.copy(alpha = 0.45f))
+                                            ) {
+                                                Column(
+                                                    modifier = Modifier.padding(16.dp),
+                                                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                                                ) {
+                                                    Row(
+                                                        modifier = Modifier.fillMaxWidth(),
+                                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                                        verticalAlignment = Alignment.CenterVertically
+                                                    ) {
+                                                        Text(
+                                                            "🧬 ${alert.virusName}",
+                                                            fontWeight = FontWeight.ExtraBold,
+                                                            fontSize = 14.5.sp,
+                                                            color = primaryTextColor,
+                                                            modifier = Modifier.weight(1f)
+                                                        )
+                                                        Surface(
+                                                            shape = pillShape,
+                                                            color = riskColor.copy(alpha = 0.14f)
+                                                        ) {
+                                                            Text(
+                                                                alert.riskLevel,
+                                                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                                                fontSize = 11.sp,
+                                                                fontWeight = FontWeight.ExtraBold,
+                                                                color = riskColor
+                                                            )
+                                                        }
+                                                    }
+                                                    Text(
+                                                        "📍 ${alert.regionName}",
+                                                        fontSize = 12.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = activeAccent
+                                                    )
+                                                    Text(
+                                                        "💉 ${alert.recommendedVaccine} • 🗓️ ${alert.scheduleDayText}",
+                                                        fontSize = 12.sp,
+                                                        fontWeight = FontWeight.SemiBold,
+                                                        color = primaryTextColor
+                                                    )
+                                                    Text(
+                                                        alert.clinicalGuidance,
+                                                        fontSize = 11.5.sp,
+                                                        color = secondaryTextColor
+                                                    )
+                                                }
+                                            }
+                                        }
+                                        item { Spacer(modifier = Modifier.height(90.dp)) }
+                                    }
+                                }
+                                else -> {
+                                    // Bottom Tab 4: 💊 الصيدلية (Personal Vet Pharmacy Inventory & Drug Importers)
+                                    LazyColumn(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .padding(horizontal = 16.dp, vertical = 10.dp)
+                                            .testTag("vet_hub_pharmacy_content"),
+                                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                                    ) {
+                                        item {
+                                            Text(
+                                                Translations.tr("vet_hub_pharmacy_subtitle", lang),
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = secondaryTextColor
+                                            )
+                                        }
+                                        items(AgritechMockDb.vetPharmacyInventory, key = { it.id }) { medItem ->
+                                            Card(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .testTag("vet_pharmacy_item_${medItem.id}"),
+                                                shape = cardCornerShape,
+                                                colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
+                                                border = BorderStroke(1.dp, activeAccent.copy(alpha = 0.25f))
+                                            ) {
+                                                Column(
+                                                    modifier = Modifier.padding(15.dp),
+                                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                                ) {
+                                                    Row(
+                                                        modifier = Modifier.fillMaxWidth(),
+                                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                                        verticalAlignment = Alignment.CenterVertically
+                                                    ) {
+                                                        Column(modifier = Modifier.weight(1f)) {
+                                                            Text(
+                                                                medItem.name,
+                                                                fontWeight = FontWeight.ExtraBold,
+                                                                fontSize = 14.sp,
+                                                                color = primaryTextColor
+                                                            )
+                                                            Text(
+                                                                "${medItem.category} • ${medItem.importerName}",
+                                                                fontSize = 11.5.sp,
+                                                                color = secondaryTextColor
+                                                            )
+                                                        }
+                                                        Surface(
+                                                            shape = pillShape,
+                                                            color = accentBadgeBg
+                                                        ) {
+                                                            Text(
+                                                                "${medItem.stockUnits} ${medItem.unitLabel}",
+                                                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                                                                fontSize = 11.5.sp,
+                                                                fontWeight = FontWeight.ExtraBold,
+                                                                color = activeAccent,
+                                                                maxLines = 1,
+                                                                softWrap = false
+                                                            )
+                                                        }
+                                                    }
+                                                    Row(
+                                                        modifier = Modifier.fillMaxWidth(),
+                                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                                        verticalAlignment = Alignment.CenterVertically
+                                                    ) {
+                                                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                                            OutlinedButton(
+                                                                onClick = { AgritechMockDb.adjustVetPharmacyStock(medItem.id, -1) },
+                                                                modifier = Modifier
+                                                                    .height(38.dp)
+                                                                    .testTag("btn_dec_stock_${medItem.id}"),
+                                                                shape = pillShape,
+                                                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                                                            ) {
+                                                                Text("-1", fontWeight = FontWeight.ExtraBold, color = primaryTextColor)
+                                                            }
+                                                            OutlinedButton(
+                                                                onClick = { AgritechMockDb.adjustVetPharmacyStock(medItem.id, +5) },
+                                                                modifier = Modifier
+                                                                    .height(38.dp)
+                                                                    .testTag("btn_inc_stock_${medItem.id}"),
+                                                                shape = pillShape,
+                                                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                                                            ) {
+                                                                Text("+5", fontWeight = FontWeight.ExtraBold, color = activeAccent)
+                                                            }
+                                                        }
+                                                        Button(
+                                                            onClick = { onOpenImporterChat(medItem.importerName, medItem.importerPhone) },
+                                                            modifier = Modifier
+                                                                .height(38.dp)
+                                                                .testTag("btn_contact_importer_${medItem.id}"),
+                                                            shape = pillShape,
+                                                            colors = ButtonDefaults.buttonColors(containerColor = primaryButtonAccent),
+                                                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                                                        ) {
+                                                            Text(
+                                                                Translations.tr("vet_hub_contact_importer_btn", lang),
+                                                                fontSize = 11.5.sp,
+                                                                fontWeight = FontWeight.Bold,
+                                                                color = Color.White,
+                                                                maxLines = 1
+                                                            )
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        item { Spacer(modifier = Modifier.height(90.dp)) }
+                                    }
+                                }
+                            }
+                        }
+
+                        // 4-Tab Bottom Navigation Bar for Veterinarian Clinic Hub (Matching Owner Notebook Style)
+                        NavigationBar(
+                            containerColor = currentTheme.cardColor,
+                            contentColor = activeAccent,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("vet_clinic_bottom_nav")
+                        ) {
+                            vetBottomNavItems.forEach { (idx, label, icon) ->
+                                val isTabSelected = selectedVetHubTab == idx
+                                NavigationBarItem(
+                                    modifier = Modifier.testTag("vet_hub_tab_$idx"),
+                                    selected = isTabSelected,
+                                    onClick = { selectedVetHubTab = idx },
+                                    icon = {
+                                        Icon(
+                                            icon,
+                                            contentDescription = label,
+                                            tint = if (isTabSelected) activeAccent else secondaryTextColor
                                         )
-                                    }
-                                }
+                                    },
+                                    label = {
+                                        Text(
+                                            label,
+                                            color = if (isTabSelected) activeAccent else secondaryTextColor,
+                                            fontWeight = if (isTabSelected) FontWeight.Bold else FontWeight.Normal,
+                                            fontSize = 10.sp,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    },
+                                    colors = NavigationBarItemDefaults.colors(
+                                        indicatorColor = accentBadgeBg
+                                    )
+                                )
                             }
                         }
-
-                        // 2. Supervised Barns List Header & Cards
-                        item {
-                            Text(
-                                Translations.tr("vet_hub_supervised_subtitle", lang),
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = secondaryTextColor
-                            )
-                        }
-
-                        items(supervisedBarns, key = { it.id }) { farm ->
-                            val cycle = AgritechMockDb.cycles.firstOrNull { it.farmId == farm.id }
-                            val farmReports = AgritechMockDb.dailyReports.filter { it.farmId == farm.id }
-                            val totalMort = farmReports.sumOf { it.mortalityCount }
-                            val initialBirds = cycle?.totalBirdsPlaced ?: farm.capacity
-                            val livability = if (initialBirds > 0) {
-                                ((initialBirds - totalMort).coerceAtLeast(0).toDouble() / initialBirds) * 100.0
-                            } else {
-                                100.0
-                            }
-
-                            Card(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .testTag("vet_supervised_barn_card_${farm.id}"),
-                                shape = cardCornerShape,
-                                colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
-                                border = BorderStroke(1.dp, activeAccent.copy(alpha = 0.25f)),
-                                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                            ) {
-                                Column(modifier = Modifier.padding(16.dp)) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(
-                                                Translations.getLocalizedFarmName(farm.id, lang, farm.name),
-                                                fontWeight = FontWeight.ExtraBold,
-                                                fontSize = 15.sp,
-                                                color = primaryTextColor,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
-                                            Text(
-                                                Translations.getLocalizedFarmLocation(farm.id, lang, farm.location),
-                                                fontSize = 12.sp,
-                                                color = secondaryTextColor,
-                                                maxLines = 1
-                                            )
-                                        }
-                                        Surface(
-                                            shape = pillShape,
-                                            color = accentBadgeBg
-                                        ) {
-                                            Text(
-                                                "${Translations.tr("liveability", lang)}: ${String.format(java.util.Locale.US, "%.1f", livability)}%",
-                                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                                                fontSize = 11.5.sp,
-                                                fontWeight = FontWeight.ExtraBold,
-                                                color = activeAccent,
-                                                maxLines = 1,
-                                                softWrap = false
-                                            )
-                                        }
-                                    }
-                                    Spacer(modifier = Modifier.height(12.dp))
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                                    ) {
-                                        Button(
-                                            onClick = { onOpenNotebook(farm) },
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .height(46.dp)
-                                                .testTag("btn_vet_open_records_${farm.id}"),
-                                            shape = pillShape,
-                                            colors = ButtonDefaults.buttonColors(containerColor = primaryButtonAccent)
-                                        ) {
-                                            Text(
-                                                Translations.tr("open_medical_records", lang),
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 12.sp,
-                                                color = Color.White,
-                                                maxLines = 1
-                                            )
-                                        }
-                                        OutlinedButton(
-                                            onClick = { onIssueVetInvoiceForFarm(farm) },
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .height(46.dp)
-                                                .testTag("btn_vet_card_invoice_${farm.id}"),
-                                            shape = pillShape,
-                                            border = BorderStroke(1.5.dp, activeAccent),
-                                            colors = ButtonDefaults.outlinedButtonColors(contentColor = activeAccent)
-                                        ) {
-                                            Text(
-                                                Translations.tr("btn_send_vet_invoice", lang),
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 12.sp,
-                                                color = activeAccent,
-                                                maxLines = 1
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        item { Spacer(modifier = Modifier.height(24.dp)) }
                     }
                 }
                 AppRole.WORKER -> {
@@ -11121,17 +11366,11 @@ fun AgritechVetNotebookScreen(
     onBack: () -> Unit
 ) {
     val appearance = LocalAppAppearanceState.current
-    val isDark = currentTheme.isDark
-    val primaryTextColor = if (isDark) Color(0xFFFFFFFF) else currentTheme.headingColor
-    val secondaryTextColor = if (isDark) Color(0xFFCBD5E1) else Color(0xFF475569)
     val activeAccent = appearance.accentColor
-    val accentBadgeBg = appearance.accentContainerColor
     val primaryButtonAccent = appearance.accentOption.primaryColor
     val cardShape = RoundedCornerShape(appearance.cornerRadiusDp.dp)
-    val pillShape = RoundedCornerShape((appearance.cornerRadiusDp - 4).coerceAtLeast(8).dp)
-    val curr = Translations.tr("currency", lang)
+    val btnShape = RoundedCornerShape((appearance.cornerRadiusDp - 6).coerceAtLeast(4).dp)
 
-    var selectedVetWorkspaceTab by remember { mutableStateOf(0) }
     var showVetMedicineInvoiceDialog by remember { mutableStateOf(false) }
     var selectedDayReportForDetails by remember { mutableStateOf<DailyReportModel?>(null) }
 
@@ -11141,13 +11380,6 @@ fun AgritechVetNotebookScreen(
     val totalFeed = reports.sumOf { it.feedIntakeKg }
     val totalWater = reports.sumOf { it.waterIntakeLiters }
     val totalMortality = reports.sumOf { it.mortalityCount }
-
-    val vetBottomNavItems = listOf(
-        Triple(0, Translations.tr("vet_bottom_tab_barns", lang), Icons.Default.HomeWork),
-        Triple(1, Translations.tr("vet_bottom_tab_treasury", lang), Icons.Default.AccountBalanceWallet),
-        Triple(2, Translations.tr("vet_bottom_tab_epidemics", lang), Icons.Default.Science),
-        Triple(3, Translations.tr("vet_bottom_tab_pharmacy", lang), Icons.Default.Medication)
-    )
 
     if (showVetMedicineInvoiceDialog) {
         VetMedicineInvoiceDialog(
@@ -11192,665 +11424,285 @@ fun AgritechVetNotebookScreen(
                             Translations.getLocalizedFarmName(farm.id, lang, farm.name),
                             fontWeight = FontWeight.Bold,
                             fontSize = 16.sp,
-                            color = primaryTextColor,
+                            color = currentTheme.headingColor,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
                         Text(
-                            "${Translations.tr("vet_workspace_title", lang)} • ${Translations.tr("cycle_label", lang)}: ${cycle.id}",
-                            fontSize = 11.5.sp,
-                            color = secondaryTextColor,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                            "${Translations.tr("cycle_label", lang)}: ${cycle.id}",
+                            fontSize = 12.sp,
+                            color = currentTheme.headingColor.copy(alpha = 0.85f),
+                            maxLines = 1
                         )
                     }
                 },
                 navigationIcon = {
-                    IconButton(
-                        onClick = onBack,
-                        modifier = Modifier.testTag("btn_vet_workspace_back")
-                    ) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = primaryTextColor)
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = currentTheme.headingColor)
                     }
                 },
                 actions = {
-                    IconButton(onClick = { showVetMedicineInvoiceDialog = true }) {
-                        Icon(Icons.Default.ReceiptLong, contentDescription = Translations.tr("vet_invoice_btn", lang), tint = activeAccent)
-                    }
                     IconButton(onClick = onOpenSettings) {
-                        Icon(Icons.Default.Settings, contentDescription = "Settings", tint = primaryTextColor)
+                        Icon(Icons.Default.Settings, contentDescription = "Settings", tint = currentTheme.headingColor)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = currentTheme.bgColor)
             )
         },
-        bottomBar = {
-            // ONLY ONE 4-Tab Bottom Navigation Bar in Full-Screen Vet Clinic Workspace
-            NavigationBar(
-                containerColor = currentTheme.cardColor,
-                contentColor = activeAccent,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("vet_clinic_bottom_nav")
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = { showVetMedicineInvoiceDialog = true },
+                containerColor = primaryButtonAccent,
+                contentColor = Color.White,
+                shape = cardShape,
+                modifier = Modifier.testTag("fab_vet_portal_invoice")
             ) {
-                vetBottomNavItems.forEach { (idx, label, icon) ->
-                    val isTabSelected = selectedVetWorkspaceTab == idx
-                    NavigationBarItem(
-                        modifier = Modifier.testTag("vet_hub_tab_$idx"),
-                        selected = isTabSelected,
-                        onClick = { selectedVetWorkspaceTab = idx },
-                        icon = {
-                            Icon(
-                                icon,
-                                contentDescription = label,
-                                tint = if (isTabSelected) activeAccent else secondaryTextColor
-                            )
-                        },
-                        label = {
-                            Text(
-                                label,
-                                color = if (isTabSelected) activeAccent else secondaryTextColor,
-                                fontWeight = if (isTabSelected) FontWeight.Bold else FontWeight.Normal,
-                                fontSize = 10.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        },
-                        colors = NavigationBarItemDefaults.colors(
-                            indicatorColor = accentBadgeBg
-                        )
+                Row(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.ReceiptLong, contentDescription = null, tint = Color.White)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        Translations.tr("vet_invoice_btn", lang),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.5.sp,
+                        color = Color.White
                     )
                 }
             }
         }
     ) { padding ->
-        Box(
+        LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                .padding(horizontal = 16.dp, vertical = 10.dp)
+                .testTag("vet_notebook_lazy_column"),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            when (selectedVetWorkspaceTab) {
-                0 -> {
-                    // Tab 0: 🏥 العنابر & Interactive Medical Ledger Table
-                    LazyColumn(
+            if (farms.size > 1 && onSwitchFarm != null) {
+                item {
+                    FarmSwitcherRow(
+                        farms = farms,
+                        selectedFarmId = farm.id,
+                        lang = lang,
+                        currentTheme = currentTheme,
+                        onSelectFarm = onSwitchFarm
+                    )
+                }
+            }
+
+            // 1. Compact Interactive Daily Medical Ledger Table (`جدول السجل الطبي التفاعلي`)
+            item {
+                Text(
+                    Translations.tr("vet_interactive_table_title", lang),
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 14.sp,
+                    color = currentTheme.headingColor
+                )
+            }
+
+            item {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("vet_interactive_medical_table"),
+                    shape = cardShape,
+                    colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                ) {
+                    Box(
                         modifier = Modifier
-                            .fillMaxSize()
-                            .padding(horizontal = 16.dp, vertical = 10.dp)
-                            .testTag("vet_notebook_lazy_column"),
-                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState())
+                            .padding(8.dp)
                     ) {
-                        if (farms.size > 1 && onSwitchFarm != null) {
-                            item {
-                                FarmSwitcherRow(
-                                    farms = farms,
-                                    selectedFarmId = farm.id,
-                                    lang = lang,
-                                    currentTheme = currentTheme,
-                                    onSelectFarm = onSwitchFarm
-                                )
-                            }
-                        }
-
-                        // 1. Compact Interactive Daily Medical Ledger Table (`جدول السجل الطبي التفاعلي`)
-                        item {
-                            Text(
-                                Translations.tr("vet_interactive_table_title", lang),
-                                fontWeight = FontWeight.ExtraBold,
-                                fontSize = 14.sp,
-                                color = primaryTextColor
-                            )
-                        }
-
-                        item {
-                            Card(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .testTag("vet_interactive_medical_table"),
-                                shape = cardShape,
-                                colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
-                                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .horizontalScroll(rememberScrollState())
-                                        .padding(8.dp)
-                                ) {
-                                    Column {
-                                        // Table Header matching Owner's Daily Ledger table (`اليوم` | `العلف (ق)` | `الماء (لتر)` | `النفوق 💀` | `الحرارة °C` | `الغاز`)
-                                        Row(
-                                            modifier = Modifier
-                                                .background(currentTheme.bgColor, RoundedCornerShape(8.dp))
-                                                .padding(vertical = 11.dp, horizontal = 6.dp),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            CalmTableCell(Translations.tr("th_day", lang), 108.dp, isHeader = true, headingColor = primaryTextColor)
-                                            CalmTableCell(Translations.tr("th_feed", lang), 90.dp, isHeader = true, headingColor = primaryTextColor)
-                                            CalmTableCell(Translations.tr("th_water", lang), 86.dp, isHeader = true, headingColor = primaryTextColor)
-                                            CalmTableCell(Translations.tr("th_mortality", lang), 82.dp, isHeader = true, headingColor = primaryTextColor)
-                                            CalmTableCell(Translations.tr("th_temp", lang), 78.dp, isHeader = true, headingColor = primaryTextColor)
-                                            CalmTableCell(Translations.tr("th_gas", lang), 68.dp, isHeader = true, headingColor = primaryTextColor)
-                                        }
-
-                                        Spacer(modifier = Modifier.height(4.dp))
-
-                                        reports.sortedBy { it.dayNumber }.forEach { r ->
-                                            val hasMedNoteForDay = vetNotes.any { it.dayNumber == r.dayNumber }
-                                            val isUrgentDay = vetNotes.any { it.dayNumber == r.dayNumber && it.isUrgent }
-                                            val rowBgColor = when {
-                                                isUrgentDay -> if (currentTheme.isDark) Color(0xFF450A0A).copy(alpha = 0.45f) else Color(0xFFFEF2F2)
-                                                hasMedNoteForDay -> appearance.accentContainerColor.copy(alpha = 0.45f)
-                                                else -> Color.Transparent
-                                            }
-
-                                            Row(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .clip(RoundedCornerShape(10.dp))
-                                                    .background(rowBgColor)
-                                                    .clickable { selectedDayReportForDetails = r }
-                                                    .padding(vertical = 10.dp, horizontal = 6.dp)
-                                                    .testTag("vet_medical_day_row_${r.dayNumber}"),
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                Column(
-                                                    modifier = Modifier
-                                                        .width(108.dp)
-                                                        .padding(horizontal = 4.dp),
-                                                    horizontalAlignment = Alignment.CenterHorizontally
-                                                ) {
-                                                    Text(
-                                                        "${Translations.tr("day_prefix", lang)} ${r.dayNumber}",
-                                                        fontWeight = FontWeight.ExtraBold,
-                                                        fontSize = 12.sp,
-                                                        color = activeAccent,
-                                                        textAlign = TextAlign.Center,
-                                                        maxLines = 1
-                                                    )
-                                                    if (hasMedNoteForDay) {
-                                                        Spacer(modifier = Modifier.height(2.dp))
-                                                        Text(
-                                                            if (isUrgentDay) "🚨 💊" else "🩺 💊",
-                                                            fontSize = 10.sp
-                                                        )
-                                                    }
-                                                }
-
-                                                val cellTextColor = if (currentTheme.isDark) Color.White else Color(0xFF212121)
-                                                CalmTableCell(
-                                                    "${Translations.formatQuintalNumber(r.feedIntakeKg / 100.0)} $qShort",
-                                                    90.dp,
-                                                    isBold = true,
-                                                    textColor = cellTextColor
-                                                )
-                                                CalmTableCell(
-                                                    String.format(java.util.Locale.US, "%.0f", r.waterIntakeLiters),
-                                                    86.dp,
-                                                    textColor = cellTextColor
-                                                )
-                                                CalmTableCell(
-                                                    "${r.mortalityCount}",
-                                                    82.dp,
-                                                    textColor = if (r.mortalityCount > 3) ActionRed else cellTextColor,
-                                                    isBold = r.mortalityCount > 3
-                                                )
-                                                CalmTableCell(
-                                                    String.format(java.util.Locale.US, "%.1f°", r.temperature),
-                                                    78.dp,
-                                                    textColor = cellTextColor
-                                                )
-                                                CalmTableCell(
-                                                    String.format(java.util.Locale.US, "%.1f", r.gasUnits),
-                                                    68.dp,
-                                                    textColor = cellTextColor
-                                                )
-                                            }
-                                            HorizontalDivider(
-                                                color = if (currentTheme.isDark) Color(0xFF334155) else Color(0xFFF1F5F9),
-                                                thickness = 1.dp
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        // Summary Row under the Interactive Table
-                        item {
-                            Surface(
-                                shadowElevation = 2.dp,
-                                color = currentTheme.cardColor,
-                                shape = cardShape,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .padding(horizontal = 16.dp, vertical = 12.dp)
-                                        .fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceAround
-                                ) {
-                                    val mortColor = if (totalMortality > 5) ActionRed else primaryTextColor
-                                    CalmSummaryItem(
-                                        label = Translations.tr("sum_feed", lang),
-                                        value = "${Translations.formatQuintalNumber(totalFeed / 100.0)} $qShort",
-                                        headingColor = activeAccent
-                                    )
-                                    CalmSummaryItem(
-                                        label = Translations.tr("sum_water", lang),
-                                        value = "${String.format(java.util.Locale.US, "%.0f", totalWater)} $literUnit",
-                                        headingColor = activeAccent
-                                    )
-                                    CalmSummaryItem(
-                                        label = Translations.tr("sum_mortality", lang),
-                                        value = "$totalMortality",
-                                        isAlert = totalMortality > 5,
-                                        headingColor = mortColor
-                                    )
-                                }
-                            }
-                        }
-
-                        // 2. Recorded Veterinary Prescriptions & Notes Section
-                        item {
+                        Column {
+                            // Table Header matching Owner's Daily Ledger table (`اليوم` | `العلف (ق)` | `الماء (لتر)` | `النفوق 💀` | `الحرارة °C` | `الغاز`)
                             Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
+                                modifier = Modifier
+                                    .background(currentTheme.bgColor, RoundedCornerShape(8.dp))
+                                    .padding(vertical = 11.dp, horizontal = 6.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(
-                                    Translations.tr("vet_records_title", lang),
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 15.sp,
-                                    color = primaryTextColor
-                                )
-                                OutlinedButton(
-                                    onClick = { showVetMedicineInvoiceDialog = true },
-                                    shape = pillShape,
-                                    border = BorderStroke(1.2.dp, activeAccent),
-                                    modifier = Modifier.testTag("btn_vet_workspace_send_invoice")
-                                ) {
-                                    Text(
-                                        Translations.tr("vet_invoice_btn", lang),
-                                        fontSize = 11.5.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = activeAccent
-                                    )
-                                }
+                                CalmTableCell(Translations.tr("th_day", lang), 108.dp, isHeader = true, headingColor = currentTheme.headingColor)
+                                CalmTableCell(Translations.tr("th_feed", lang), 90.dp, isHeader = true, headingColor = currentTheme.headingColor)
+                                CalmTableCell(Translations.tr("th_water", lang), 86.dp, isHeader = true, headingColor = currentTheme.headingColor)
+                                CalmTableCell(Translations.tr("th_mortality", lang), 82.dp, isHeader = true, headingColor = currentTheme.headingColor)
+                                CalmTableCell(Translations.tr("th_temp", lang), 78.dp, isHeader = true, headingColor = currentTheme.headingColor)
+                                CalmTableCell(Translations.tr("th_gas", lang), 68.dp, isHeader = true, headingColor = currentTheme.headingColor)
                             }
-                        }
-                        items(vetNotes, key = { it.id }) { vn ->
-                            Card(
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = cardShape,
-                                colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
-                                border = BorderStroke(1.dp, activeAccent.copy(alpha = 0.25f))
-                            ) {
-                                Column(modifier = Modifier.padding(14.dp)) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(
-                                            Translations.getLocalizedMedicine(vn.id, vn.medicineName, lang),
-                                            fontWeight = FontWeight.Bold,
-                                            color = primaryTextColor,
-                                            modifier = Modifier.weight(1f)
-                                        )
-                                        Text(
-                                            "${Translations.tr("day_prefix", lang)} ${vn.dayNumber}",
-                                            fontSize = 11.5.sp,
-                                            fontWeight = FontWeight.ExtraBold,
-                                            color = activeAccent
-                                        )
-                                    }
-                                    Text(
-                                        "${Translations.tr("dosage_label", lang)}: ${Translations.getLocalizedDosage(vn.id, vn.dosage, lang)}",
-                                        fontSize = 12.sp,
-                                        color = secondaryTextColor
-                                    )
-                                    Text(
-                                        Translations.getLocalizedVetNote(vn.id, vn.note, lang),
-                                        fontSize = 12.5.sp,
-                                        color = primaryTextColor
-                                    )
-                                }
-                            }
-                        }
-                        item {
-                            Spacer(modifier = Modifier.height(24.dp))
-                        }
-                    }
-                }
-                1 -> {
-                    // Tab 1: 💰 الخزنة (Vet Clinic Financial Wallet & Dues)
-                    val vetTransactions = AgritechMockDb.transactions.filter {
-                        it.category.contains("أدوية") ||
-                            it.category.contains("لقاح") ||
-                            it.category.contains("بيطر") ||
-                            it.category.contains("MEDICATION", ignoreCase = true) ||
-                            it.category.contains("Vet", ignoreCase = true)
-                    }
-                    val collectedTotal = vetTransactions
-                        .filter { it.status.equals("APPROVED", ignoreCase = true) }
-                        .sumOf { it.amount }
-                    val pendingTotal = vetTransactions
-                        .filter { it.status.equals("PENDING", ignoreCase = true) }
-                        .sumOf { it.amount }
-                    val totalInvoiced = collectedTotal + pendingTotal
 
-                    LazyColumn(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(horizontal = 16.dp, vertical = 10.dp)
-                            .testTag("vet_hub_wallet_content"),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        item {
-                            Card(
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = cardShape,
-                                colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
-                                border = BorderStroke(1.2.dp, activeAccent.copy(alpha = 0.35f))
-                            ) {
-                                Column(
-                                    modifier = Modifier.padding(16.dp),
-                                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                                ) {
-                                    Text(
-                                        Translations.tr("vet_hub_tab_wallet", lang),
-                                        fontWeight = FontWeight.ExtraBold,
-                                        fontSize = 15.sp,
-                                        color = primaryTextColor
-                                    )
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        Surface(
-                                            modifier = Modifier.weight(1f),
-                                            shape = pillShape,
-                                            color = accentBadgeBg
-                                        ) {
-                                            Column(modifier = Modifier.padding(10.dp)) {
-                                                Text(
-                                                    Translations.tr("vet_hub_wallet_collected", lang),
-                                                    fontSize = 11.sp,
-                                                    color = secondaryTextColor,
-                                                    maxLines = 1
-                                                )
-                                                Text(
-                                                    "${String.format(java.util.Locale.US, "%,.0f", collectedTotal)} $curr",
-                                                    fontWeight = FontWeight.ExtraBold,
-                                                    fontSize = 13.5.sp,
-                                                    color = activeAccent,
-                                                    maxLines = 1,
-                                                    softWrap = false
-                                                )
-                                            }
-                                        }
-                                        Surface(
-                                            modifier = Modifier.weight(1f),
-                                            shape = pillShape,
-                                            color = if (isDark) Color(0xFF78350F).copy(alpha = 0.35f) else Color(0xFFFEF3C7)
-                                        ) {
-                                            Column(modifier = Modifier.padding(10.dp)) {
-                                                Text(
-                                                    Translations.tr("vet_hub_wallet_pending", lang),
-                                                    fontSize = 11.sp,
-                                                    color = secondaryTextColor,
-                                                    maxLines = 1
-                                                )
-                                                Text(
-                                                    "${String.format(java.util.Locale.US, "%,.0f", pendingTotal)} $curr",
-                                                    fontWeight = FontWeight.ExtraBold,
-                                                    fontSize = 13.5.sp,
-                                                    color = Color(0xFFD97706),
-                                                    maxLines = 1,
-                                                    softWrap = false
-                                                )
-                                            }
-                                        }
-                                    }
-                                    Text(
-                                        "${Translations.tr("vet_hub_wallet_total", lang)}: ${String.format(java.util.Locale.US, "%,.0f", totalInvoiced)} $curr",
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = primaryTextColor
-                                    )
+                            Spacer(modifier = Modifier.height(4.dp))
+
+                            reports.sortedBy { it.dayNumber }.forEach { r ->
+                                val hasMedNoteForDay = vetNotes.any { it.dayNumber == r.dayNumber }
+                                val isUrgentDay = vetNotes.any { it.dayNumber == r.dayNumber && it.isUrgent }
+                                val rowBgColor = when {
+                                    isUrgentDay -> if (currentTheme.isDark) Color(0xFF450A0A).copy(alpha = 0.45f) else Color(0xFFFEF2F2)
+                                    hasMedNoteForDay -> appearance.accentContainerColor.copy(alpha = 0.45f)
+                                    else -> Color.Transparent
                                 }
-                            }
-                        }
-                        items(vetTransactions.reversed(), key = { it.id }) { tx ->
-                            val isPending = tx.status.equals("PENDING", ignoreCase = true)
-                            Card(
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = cardShape,
-                                colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
-                                border = BorderStroke(
-                                    1.dp,
-                                    if (isPending) Color(0xFFF59E0B) else activeAccent.copy(alpha = 0.25f)
-                                )
-                            ) {
+
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(14.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(rowBgColor)
+                                        .clickable { selectedDayReportForDetails = r }
+                                        .padding(vertical = 10.dp, horizontal = 6.dp)
+                                        .testTag("vet_medical_day_row_${r.dayNumber}"),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
+                                    // Clickable Day Cell + Medical Indicator Badge
                                     Column(
                                         modifier = Modifier
-                                            .weight(1f)
-                                            .padding(end = 8.dp)
+                                            .width(108.dp)
+                                            .padding(horizontal = 4.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally
                                     ) {
                                         Text(
-                                            tx.category,
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 13.5.sp,
-                                            color = primaryTextColor,
-                                            maxLines = 2,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                        Text(
-                                            if (isPending) Translations.tr("fin_req_status_pending", lang)
-                                            else Translations.tr("fin_req_status_approved", lang),
-                                            fontSize = 11.5.sp,
-                                            color = if (isPending) Color(0xFFD97706) else activeAccent
-                                        )
-                                    }
-                                    Text(
-                                        "${String.format(java.util.Locale.US, "%,.0f", tx.amount)} $curr",
-                                        fontWeight = FontWeight.ExtraBold,
-                                        fontSize = 14.sp,
-                                        color = if (isPending) Color(0xFFD97706) else activeAccent,
-                                        maxLines = 1,
-                                        softWrap = false
-                                    )
-                                }
-                            }
-                        }
-                        item { Spacer(modifier = Modifier.height(24.dp)) }
-                    }
-                }
-                2 -> {
-                    // Tab 2: 🧬 اللقاحات والأوبئة (Epidemiology & Vaccination Analytics)
-                    LazyColumn(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(horizontal = 16.dp, vertical = 10.dp)
-                            .testTag("vet_hub_epidemics_content"),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        item {
-                            Text(
-                                Translations.tr("vet_hub_epidemics_subtitle", lang),
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = secondaryTextColor
-                            )
-                        }
-                        items(AgritechMockDb.vetEpidemicAlerts, key = { it.id }) { alert ->
-                            val riskColor = when (alert.riskLevel) {
-                                "HIGH" -> Color(0xFFDC2626)
-                                "MEDIUM" -> Color(0xFFD97706)
-                                else -> activeAccent
-                            }
-                            Card(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .testTag("vet_epidemic_card_${alert.id}"),
-                                shape = cardShape,
-                                colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
-                                border = BorderStroke(1.2.dp, riskColor.copy(alpha = 0.45f))
-                            ) {
-                                Column(
-                                    modifier = Modifier.padding(16.dp),
-                                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(
-                                            "🧬 ${alert.virusName}",
+                                            "${Translations.tr("day_prefix", lang)} ${r.dayNumber}",
                                             fontWeight = FontWeight.ExtraBold,
-                                            fontSize = 14.5.sp,
-                                            color = primaryTextColor,
-                                            modifier = Modifier.weight(1f)
+                                            fontSize = 12.sp,
+                                            color = activeAccent,
+                                            textAlign = TextAlign.Center,
+                                            maxLines = 1
                                         )
-                                        Surface(
-                                            shape = pillShape,
-                                            color = riskColor.copy(alpha = 0.14f)
-                                        ) {
+                                        if (hasMedNoteForDay) {
+                                            Spacer(modifier = Modifier.height(2.dp))
                                             Text(
-                                                alert.riskLevel,
-                                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                                                fontSize = 11.sp,
-                                                fontWeight = FontWeight.ExtraBold,
-                                                color = riskColor
+                                                if (isUrgentDay) "🚨 💊" else "🩺 💊",
+                                                fontSize = 10.sp
                                             )
                                         }
                                     }
-                                    Text(
-                                        "📍 ${alert.regionName}",
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = activeAccent
+
+                                    val cellTextColor = if (currentTheme.isDark) Color.White else Color(0xFF212121)
+                                    CalmTableCell(
+                                        "${Translations.formatQuintalNumber(r.feedIntakeKg / 100.0)} $qShort",
+                                        90.dp,
+                                        isBold = true,
+                                        textColor = cellTextColor
                                     )
-                                    Text(
-                                        "💉 ${alert.recommendedVaccine} • 🗓️ ${alert.scheduleDayText}",
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = primaryTextColor
+                                    CalmTableCell(
+                                        String.format(java.util.Locale.US, "%.0f", r.waterIntakeLiters),
+                                        86.dp,
+                                        textColor = cellTextColor
                                     )
-                                    Text(
-                                        alert.clinicalGuidance,
-                                        fontSize = 11.5.sp,
-                                        color = secondaryTextColor
+                                    CalmTableCell(
+                                        "${r.mortalityCount}",
+                                        82.dp,
+                                        textColor = if (r.mortalityCount > 3) ActionRed else cellTextColor,
+                                        isBold = r.mortalityCount > 3
+                                    )
+                                    CalmTableCell(
+                                        String.format(java.util.Locale.US, "%.1f°", r.temperature),
+                                        78.dp,
+                                        textColor = cellTextColor
+                                    )
+                                    CalmTableCell(
+                                        String.format(java.util.Locale.US, "%.1f", r.gasUnits),
+                                        68.dp,
+                                        textColor = cellTextColor
                                     )
                                 }
+                                HorizontalDivider(
+                                    color = if (currentTheme.isDark) Color(0xFF334155) else Color(0xFFF1F5F9),
+                                    thickness = 1.dp
+                                )
                             }
                         }
-                        item { Spacer(modifier = Modifier.height(24.dp)) }
                     }
                 }
-                else -> {
-                    // Tab 3: 💊 الصيدلية (Personal Vet Pharmacy Inventory & Drug Importers)
-                    LazyColumn(
+            }
+
+            // Summary Row under the Interactive Table
+            item {
+                Surface(
+                    shadowElevation = 2.dp,
+                    color = currentTheme.cardColor,
+                    shape = cardShape,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
                         modifier = Modifier
-                            .fillMaxSize()
-                            .padding(horizontal = 16.dp, vertical = 10.dp)
-                            .testTag("vet_hub_pharmacy_content"),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                            .padding(horizontal = 16.dp, vertical = 12.dp)
+                            .fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceAround
                     ) {
-                        item {
+                        val mortColor = if (totalMortality > 5) ActionRed else currentTheme.headingColor
+                        CalmSummaryItem(
+                            label = Translations.tr("sum_feed", lang),
+                            value = "${Translations.formatQuintalNumber(totalFeed / 100.0)} $qShort",
+                            headingColor = activeAccent
+                        )
+                        CalmSummaryItem(
+                            label = Translations.tr("sum_water", lang),
+                            value = "${String.format(java.util.Locale.US, "%.0f", totalWater)} $literUnit",
+                            headingColor = activeAccent
+                        )
+                        CalmSummaryItem(
+                            label = Translations.tr("sum_mortality", lang),
+                            value = "$totalMortality",
+                            isAlert = totalMortality > 5,
+                            headingColor = mortColor
+                        )
+                    }
+                }
+            }
+
+            // 2. Recorded Veterinary Prescriptions & Notes Section
+            item {
+                Text(
+                    Translations.tr("vet_records_title", lang),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp,
+                    color = currentTheme.headingColor
+                )
+            }
+            items(vetNotes, key = { it.id }) { vn ->
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = cardShape,
+                    colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
+                    border = BorderStroke(1.dp, activeAccent.copy(alpha = 0.25f))
+                ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             Text(
-                                Translations.tr("vet_hub_pharmacy_subtitle", lang),
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = secondaryTextColor
+                                Translations.getLocalizedMedicine(vn.id, vn.medicineName, lang),
+                                fontWeight = FontWeight.Bold,
+                                color = currentTheme.headingColor,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Text(
+                                "${Translations.tr("day_prefix", lang)} ${vn.dayNumber}",
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = activeAccent
                             )
                         }
-                        items(AgritechMockDb.vetPharmacyInventory, key = { it.id }) { medItem ->
-                            Card(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .testTag("vet_pharmacy_item_${medItem.id}"),
-                                shape = cardShape,
-                                colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
-                                border = BorderStroke(1.dp, activeAccent.copy(alpha = 0.25f))
-                            ) {
-                                Column(
-                                    modifier = Modifier.padding(15.dp),
-                                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(
-                                                medItem.name,
-                                                fontWeight = FontWeight.ExtraBold,
-                                                fontSize = 14.sp,
-                                                color = primaryTextColor
-                                            )
-                                            Text(
-                                                "${medItem.category} • ${medItem.importerName}",
-                                                fontSize = 11.5.sp,
-                                                color = secondaryTextColor
-                                            )
-                                        }
-                                        Surface(
-                                            shape = pillShape,
-                                            color = accentBadgeBg
-                                        ) {
-                                            Text(
-                                                "${medItem.stockUnits} ${medItem.unitLabel}",
-                                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                                                fontSize = 11.5.sp,
-                                                fontWeight = FontWeight.ExtraBold,
-                                                color = activeAccent,
-                                                maxLines = 1,
-                                                softWrap = false
-                                            )
-                                        }
-                                    }
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        OutlinedButton(
-                                            onClick = { AgritechMockDb.adjustVetPharmacyStock(medItem.id, -1) },
-                                            modifier = Modifier
-                                                .height(38.dp)
-                                                .testTag("btn_dec_stock_${medItem.id}"),
-                                            shape = pillShape,
-                                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
-                                        ) {
-                                            Text("-1", fontWeight = FontWeight.ExtraBold, color = primaryTextColor)
-                                        }
-                                        OutlinedButton(
-                                            onClick = { AgritechMockDb.adjustVetPharmacyStock(medItem.id, +5) },
-                                            modifier = Modifier
-                                                .height(38.dp)
-                                                .testTag("btn_inc_stock_${medItem.id}"),
-                                            shape = pillShape,
-                                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
-                                        ) {
-                                            Text("+5", fontWeight = FontWeight.ExtraBold, color = activeAccent)
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        item { Spacer(modifier = Modifier.height(24.dp)) }
+                        Text(
+                            "${Translations.tr("dosage_label", lang)}: ${Translations.getLocalizedDosage(vn.id, vn.dosage, lang)}",
+                            fontSize = 12.sp,
+                            color = if (currentTheme.isDark) Color(0xFFCBD5E1) else Color.Gray
+                        )
+                        Text(
+                            Translations.getLocalizedVetNote(vn.id, vn.note, lang),
+                            fontSize = 12.5.sp,
+                            color = currentTheme.headingColor
+                        )
                     }
                 }
+            }
+            item {
+                Spacer(modifier = Modifier.height(88.dp))
             }
         }
     }

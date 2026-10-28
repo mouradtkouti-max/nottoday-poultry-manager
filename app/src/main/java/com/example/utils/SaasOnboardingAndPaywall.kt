@@ -260,7 +260,6 @@ object SaasPreferencesManager {
     private const val KEY_HAS_LINKED_BARNS = "session_has_linked_barns"
     private const val KEY_ACTIVE_FARM_ID = "session_active_farm_id"
     private const val KEY_CURRENT_USER_UID = "session_current_user_uid"
-    private const val KEY_PROFESSION_ONBOARDING_DONE = "profession_onboarding_completed"
 
     fun hasCompletedOnboarding(context: Context): Boolean {
         return try {
@@ -269,25 +268,6 @@ object SaasPreferencesManager {
         } catch (_: Exception) {
             false
         }
-    }
-
-    fun hasSelectedInitialProfession(context: Context): Boolean {
-        return try {
-            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-                .getBoolean(KEY_PROFESSION_ONBOARDING_DONE, false)
-        } catch (_: Exception) {
-            false
-        }
-    }
-
-    fun saveInitialProfessionSelected(context: Context, role: AppRole) {
-        try {
-            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-                .edit()
-                .putBoolean(KEY_PROFESSION_ONBOARDING_DONE, true)
-                .putString(KEY_USER_ROLE, role.name)
-                .apply()
-        } catch (_: Exception) {}
     }
 
     fun getSavedLanguage(context: Context): AppLanguage {
@@ -537,11 +517,9 @@ class AgritechAppSessionState(
     initialUserUid: String?,
     initialAccentColor: AppAccentColorOption = AppAccentColorOption.FOREST_GREEN,
     initialTextScale: AppTextScaleOption = AppTextScaleOption.DEFAULT,
-    initialCornerStyle: AppCornerStyleOption = AppCornerStyleOption.ROUNDED,
-    initialProfessionSelected: Boolean = true
+    initialCornerStyle: AppCornerStyleOption = AppCornerStyleOption.ROUNDED
 ) {
     var hasCompletedOnboarding by mutableStateOf(initialOnboardingCompleted)
-    var hasSelectedInitialProfession by mutableStateOf(initialProfessionSelected)
     var currentTheme by mutableStateOf(initialTheme)
     var currentLanguage by mutableStateOf(initialLanguage)
     var currentCountryCode by mutableStateOf(initialCountryCode)
@@ -566,25 +544,6 @@ class AgritechAppSessionState(
     var selectedFarmForOwner by mutableStateOf<FarmModel?>(null)
     var selectedFarmForVet by mutableStateOf<FarmModel?>(null)
     var selectedFarmForWorker by mutableStateOf<FarmModel?>(null)
-
-    fun completeInitialProfessionSelection(context: Context, chosenRole: AppRole) {
-        hasSelectedInitialProfession = true
-        currentRole = chosenRole
-        selectedFarmForOwner = null
-        selectedFarmForVet = null
-        selectedFarmForWorker = null
-        SaasPreferencesManager.saveInitialProfessionSelected(context, chosenRole)
-        if (isLoggedIn) {
-            SaasPreferencesManager.saveAuthSession(
-                context = context,
-                isLoggedIn = true,
-                role = chosenRole,
-                hasLinkedBarns = hasLinkedBarns,
-                activeFarmId = activeFarmId,
-                userUid = currentUserUid
-            )
-        }
-    }
 
     fun markAuthenticated(
         context: Context,
@@ -1221,7 +1180,6 @@ fun PremiumSettingsModal(
     }
 
     var activeStudioTab by remember { mutableStateOf(SettingsStudioTab.MAIN_HUB) }
-    var showProfessionSelectorSubScreen by remember { mutableStateOf(false) }
     var showCurrencyBottomSheet by remember { mutableStateOf(false) }
     var showPaywallFromSettings by remember { mutableStateOf(false) }
     var showQrPreviewBanner by remember { mutableStateOf(false) }
@@ -1255,9 +1213,7 @@ fun PremiumSettingsModal(
 
     Dialog(
         onDismissRequest = {
-            if (showProfessionSelectorSubScreen) {
-                showProfessionSelectorSubScreen = false
-            } else if (activeStudioTab != SettingsStudioTab.MAIN_HUB) {
+            if (activeStudioTab != SettingsStudioTab.MAIN_HUB) {
                 activeStudioTab = SettingsStudioTab.MAIN_HUB
             } else {
                 onDismiss()
@@ -1266,9 +1222,7 @@ fun PremiumSettingsModal(
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
         androidx.activity.compose.BackHandler {
-            if (showProfessionSelectorSubScreen) {
-                showProfessionSelectorSubScreen = false
-            } else if (activeStudioTab != SettingsStudioTab.MAIN_HUB) {
+            if (activeStudioTab != SettingsStudioTab.MAIN_HUB) {
                 activeStudioTab = SettingsStudioTab.MAIN_HUB
             } else {
                 onDismiss()
@@ -1303,12 +1257,9 @@ fun PremiumSettingsModal(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
-                                if (showProfessionSelectorSubScreen || activeStudioTab != SettingsStudioTab.MAIN_HUB) {
+                                if (activeStudioTab != SettingsStudioTab.MAIN_HUB) {
                                     IconButton(
-                                        onClick = {
-                                            showProfessionSelectorSubScreen = false
-                                            activeStudioTab = SettingsStudioTab.MAIN_HUB
-                                        },
+                                        onClick = { activeStudioTab = SettingsStudioTab.MAIN_HUB },
                                         modifier = Modifier
                                             .size(38.dp)
                                             .testTag("btn_back_to_settings_hub")
@@ -1338,26 +1289,18 @@ fun PremiumSettingsModal(
 
                                 Column {
                                     Text(
-                                        text = if (showProfessionSelectorSubScreen) {
-                                            Translations.tr("settings_hub_row_profession_title", selectedLang)
-                                        } else {
-                                            when (activeStudioTab) {
-                                                SettingsStudioTab.MAIN_HUB -> Translations.tr("settings_dialog_title", selectedLang)
-                                                SettingsStudioTab.APPEARANCE -> Translations.tr("settings_hub_row_appearance_title", selectedLang)
-                                                SettingsStudioTab.LANGUAGE -> Translations.tr("settings_hub_row_language_title", selectedLang)
-                                                SettingsStudioTab.REGION_CURRENCY -> Translations.tr("settings_hub_row_region_title", selectedLang)
-                                            }
+                                        text = when (activeStudioTab) {
+                                            SettingsStudioTab.MAIN_HUB -> Translations.tr("settings_dialog_title", selectedLang)
+                                            SettingsStudioTab.APPEARANCE -> Translations.tr("settings_hub_row_appearance_title", selectedLang)
+                                            SettingsStudioTab.LANGUAGE -> Translations.tr("settings_hub_row_language_title", selectedLang)
+                                            SettingsStudioTab.REGION_CURRENCY -> Translations.tr("settings_hub_row_region_title", selectedLang)
                                         },
                                         fontWeight = FontWeight.ExtraBold,
                                         fontSize = 17.sp,
                                         color = textPrimary
                                     )
                                     Text(
-                                        text = if (showProfessionSelectorSubScreen) {
-                                            Translations.tr("hub_subtitle_select_role", selectedLang)
-                                        } else {
-                                            Translations.tr("settings_studio_subtitle", selectedLang)
-                                        },
+                                        text = Translations.tr("settings_studio_subtitle", selectedLang),
                                         fontSize = 11.sp,
                                         color = textSecondary,
                                         maxLines = 1
@@ -1537,377 +1480,403 @@ fun PremiumSettingsModal(
                 }
             }
         ) { innerPadding ->
-            if (showProfessionSelectorSubScreen) {
-                val activeHubRole = (sessionState.currentRole ?: AppRole.OWNER_BARN).normalizedHubRole
-                ProfessionSelectorSubScreen(
-                    activeRole = activeHubRole,
-                    lang = selectedLang,
-                    isDark = isDark,
-                    cardBg = cardBg,
-                    subtleSurfaceBg = subtleSurfaceBg,
-                    borderCol = borderCol,
-                    textPrimary = textPrimary,
-                    textSecondary = textSecondary,
-                    activeAccent = activeAccent,
-                    activeAccentContainer = activeAccentContainer,
-                    previewShape = previewShape,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(innerPadding),
-                    onSelectProfession = { chosenRole ->
-                        sessionState.selectedFarmForOwner = null
-                        sessionState.selectedFarmForVet = null
-                        sessionState.selectedFarmForWorker = null
-                        sessionState.completeInitialProfessionSelection(context, chosenRole)
-                        sessionState.markAuthenticated(
-                            context = context,
-                            role = chosenRole,
-                            linkedBarns = true
-                        )
-                        showProfessionSelectorSubScreen = false
-                    }
-                )
-            } else {
-                AnimatedContent(
-                    targetState = activeStudioTab,
-                    transitionSpec = {
-                        fadeIn(animationSpec = tween(220)) togetherWith fadeOut(animationSpec = tween(180))
-                    },
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(innerPadding),
-                    label = "SettingsStudioTabTransition"
-                ) { currentTab ->
-                    when (currentTab) {
-                        SettingsStudioTab.MAIN_HUB -> {
-                            // WhatsApp-Style Clean Vertical List of Full-Width Horizontal Rows
-                            Column(
+            AnimatedContent(
+                targetState = activeStudioTab,
+                transitionSpec = {
+                    fadeIn(animationSpec = tween(220)) togetherWith fadeOut(animationSpec = tween(180))
+                },
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+                label = "SettingsStudioTabTransition"
+            ) { currentTab ->
+                when (currentTab) {
+                    SettingsStudioTab.MAIN_HUB -> {
+                        // WhatsApp-Style Clean Vertical List of Full-Width Horizontal Rows
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .verticalScroll(rememberScrollState())
+                                .padding(horizontal = 18.dp, vertical = 14.dp)
+                                .testTag("whatsapp_settings_main_hub"),
+                            verticalArrangement = Arrangement.spacedBy(14.dp)
+                        ) {
+                            val activeHubRole = (sessionState.currentRole ?: AppRole.OWNER_BARN).normalizedHubRole
+                            val roleOptions = listOf(
+                                AppRole.OWNER_BARN to Translations.tr("role_badge_owner_barn", selectedLang),
+                                AppRole.VET_CLINIC to Translations.tr("role_badge_vet_clinic", selectedLang),
+                                AppRole.WORKER to Translations.tr("role_badge_worker", selectedLang),
+                                AppRole.FEED_SUPPLIER to Translations.tr("role_badge_feed_supplier", selectedLang),
+                                AppRole.CHICK_HATCHERY to Translations.tr("role_badge_chick_hatchery", selectedLang),
+                                AppRole.WHOLESALE_TRADER to Translations.tr("role_badge_wholesale_trader", selectedLang),
+                                AppRole.VET_IMPORTER to Translations.tr("role_badge_vet_importer", selectedLang)
+                            )
+                            val activeRoleEmoji = when (activeHubRole) {
+                                AppRole.VET_CLINIC -> "🩺"
+                                AppRole.WORKER -> "👷"
+                                AppRole.FEED_SUPPLIER -> "🌾"
+                                AppRole.CHICK_HATCHERY -> "🐣"
+                                AppRole.WHOLESALE_TRADER -> "🚚"
+                                AppRole.VET_IMPORTER -> "🧬"
+                                else -> "👨‍🌾"
+                            }
+                            val activeRoleTitle = roleOptions.firstOrNull { it.first == activeHubRole }?.second
+                                ?: Translations.tr("role_owner", selectedLang)
+
+                            // 1) Top Profile Header Card: Avatar, Active Profession/Role, Email, and quick QR Invite icon button
+                            Surface(
+                                shape = previewShape,
+                                color = cardBg,
+                                border = BorderStroke(1.dp, borderCol),
+                                shadowElevation = 1.dp,
                                 modifier = Modifier
-                                    .fillMaxSize()
-                                    .verticalScroll(rememberScrollState())
-                                    .padding(horizontal = 18.dp, vertical = 14.dp)
-                                    .testTag("whatsapp_settings_main_hub"),
-                                verticalArrangement = Arrangement.spacedBy(14.dp)
+                                    .fillMaxWidth()
+                                    .testTag("settings_profile_header_card")
                             ) {
-                                val activeHubRole = (sessionState.currentRole ?: AppRole.OWNER_BARN).normalizedHubRole
-                                val roleOptions = listOf(
-                                    AppRole.OWNER_BARN to Translations.tr("role_badge_owner_barn", selectedLang),
-                                    AppRole.VET_CLINIC to Translations.tr("role_badge_vet_clinic", selectedLang),
-                                    AppRole.WORKER to Translations.tr("role_badge_worker", selectedLang),
-                                    AppRole.FEED_SUPPLIER to Translations.tr("role_badge_feed_supplier", selectedLang),
-                                    AppRole.CHICK_HATCHERY to Translations.tr("role_badge_chick_hatchery", selectedLang),
-                                    AppRole.WHOLESALE_TRADER to Translations.tr("role_badge_wholesale_trader", selectedLang),
-                                    AppRole.VET_IMPORTER to Translations.tr("role_badge_vet_importer", selectedLang)
-                                )
-                                val activeRoleEmoji = when (activeHubRole) {
-                                    AppRole.VET_CLINIC -> "🩺"
-                                    AppRole.WORKER -> "👷"
-                                    AppRole.FEED_SUPPLIER -> "🌾"
-                                    AppRole.CHICK_HATCHERY -> "🐣"
-                                    AppRole.WHOLESALE_TRADER -> "🚚"
-                                    AppRole.VET_IMPORTER -> "🧬"
-                                    else -> "👨‍🌾"
-                                }
-                                val activeRoleTitle = roleOptions.firstOrNull { it.first == activeHubRole }?.second
-                                    ?: Translations.tr("role_owner", selectedLang)
-
-                                // 1) Top Profile Header Card: Avatar, Active Profession/Role, Email, and quick QR Invite icon button
-                                Surface(
-                                    shape = previewShape,
-                                    color = cardBg,
-                                    border = BorderStroke(1.dp, borderCol),
-                                    shadowElevation = 1.dp,
+                                Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .testTag("settings_profile_header_card")
+                                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(horizontal = 16.dp, vertical = 14.dp),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                        modifier = Modifier.weight(1f)
                                     ) {
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                            modifier = Modifier.weight(1f)
-                                        ) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(52.dp)
-                                                    .clip(CircleShape)
-                                                    .background(activeAccentContainer)
-                                                    .border(2.dp, activeAccent, CircleShape),
-                                                contentAlignment = Alignment.Center
-                                            ) {
-                                                Text(activeRoleEmoji, fontSize = 24.sp)
-                                            }
-
-                                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                                Text(
-                                                    text = activeRoleTitle,
-                                                    fontWeight = FontWeight.ExtraBold,
-                                                    fontSize = 14.5.sp,
-                                                    color = textPrimary,
-                                                    maxLines = 1
-                                                )
-                                                Text(
-                                                    text = "mouradtkouti@gmail.com • ${selectedCountry.flag} ${selectedCurrency.code}",
-                                                    fontSize = 11.5.sp,
-                                                    color = textSecondary,
-                                                    maxLines = 1
-                                                )
-                                            }
-                                        }
-
-                                        Surface(
-                                            shape = RoundedCornerShape(12.dp),
-                                            color = activeAccentContainer,
-                                            border = BorderStroke(1.dp, activeAccent.copy(alpha = 0.5f)),
+                                        Box(
                                             modifier = Modifier
-                                                .clip(RoundedCornerShape(12.dp))
-                                                .clickable { showQrPreviewBanner = !showQrPreviewBanner }
-                                                .testTag("btn_settings_qr_invite")
+                                                .size(52.dp)
+                                                .clip(CircleShape)
+                                                .background(activeAccentContainer)
+                                                .border(2.dp, activeAccent, CircleShape),
+                                            contentAlignment = Alignment.Center
                                         ) {
-                                            Row(
-                                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                            ) {
-                                                Icon(
-                                                    Icons.Default.QrCode2,
-                                                    contentDescription = "QR Invite",
-                                                    tint = activeAccent,
-                                                    modifier = Modifier.size(18.dp)
-                                                )
-                                                Text(
-                                                    text = "QR",
-                                                    fontSize = 11.5.sp,
-                                                    fontWeight = FontWeight.ExtraBold,
-                                                    color = activeAccent
-                                                )
-                                            }
+                                            Text(activeRoleEmoji, fontSize = 24.sp)
                                         }
-                                    }
-                                }
 
-                                if (showQrPreviewBanner) {
-                                    Surface(
-                                        shape = previewShape,
-                                        color = activeAccentContainer,
-                                        border = BorderStroke(1.dp, activeAccent),
-                                        modifier = Modifier.fillMaxWidth()
-                                    ) {
-                                        Row(
-                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
+                                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                             Text(
-                                                text = "📲 AGRITECH_JOIN|farmId=${sessionState.activeFarmId.ifBlank { "farm_1" }}|role=WORKER",
-                                                fontSize = 11.sp,
-                                                fontWeight = FontWeight.Bold,
+                                                text = activeRoleTitle,
+                                                fontWeight = FontWeight.ExtraBold,
+                                                fontSize = 14.5.sp,
                                                 color = textPrimary,
-                                                modifier = Modifier.weight(1f)
+                                                maxLines = 1
                                             )
-                                            TextButton(onClick = { showQrPreviewBanner = false }) {
-                                                Text("✓", color = activeAccent, fontWeight = FontWeight.ExtraBold)
-                                            }
+                                            Text(
+                                                text = "mouradtkouti@gmail.com • ${selectedCountry.flag} ${selectedCurrency.code}",
+                                                fontSize = 11.5.sp,
+                                                color = textSecondary,
+                                                maxLines = 1
+                                            )
                                         }
                                     }
-                                }
 
-                                // 2) Direct Dark/Light Mode Toggle Row with animated Sun ☀️ / Moon 🌙 icon
-                                Card(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(previewShape)
-                                        .clickable {
-                                            val toggled = if (draftTheme.isDark) AppThemeOption.ICE_BLUE else AppThemeOption.NIGHT_MODE
-                                            draftTheme = toggled
-                                            sessionState.updateTheme(context, toggled)
-                                            onSelectTheme(toggled)
-                                        }
-                                        .testTag("card_toggle_dark_light_mode"),
-                                    shape = previewShape,
-                                    colors = CardDefaults.cardColors(containerColor = cardBg),
-                                    border = BorderStroke(1.5.dp, activeAccent.copy(alpha = 0.55f)),
-                                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-                                ) {
-                                    Row(
+                                    Surface(
+                                        shape = RoundedCornerShape(12.dp),
+                                        color = activeAccentContainer,
+                                        border = BorderStroke(1.dp, activeAccent.copy(alpha = 0.5f)),
                                         modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(horizontal = 16.dp, vertical = 14.dp),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .clickable { showQrPreviewBanner = !showQrPreviewBanner }
+                                            .testTag("btn_settings_qr_invite")
                                     ) {
                                         Row(
+                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
                                             verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(14.dp),
-                                            modifier = Modifier.weight(1f)
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
                                         ) {
-                                            AnimatedContent(
-                                                targetState = isDark,
-                                                transitionSpec = {
-                                                    fadeIn(tween(220)) togetherWith fadeOut(tween(180))
-                                                },
-                                                label = "HubSunMoonIconTransition"
-                                            ) { darkActive ->
-                                                Surface(
-                                                    shape = CircleShape,
-                                                    color = if (darkActive) Color(0xFF312E81) else Color(0xFFFEF3C7),
-                                                    modifier = Modifier.size(44.dp)
-                                                ) {
-                                                    Box(contentAlignment = Alignment.Center) {
-                                                        Text(
-                                                            text = if (darkActive) "🌙" else "☀️",
-                                                            fontSize = 22.sp
-                                                        )
-                                                    }
-                                                }
-                                            }
-
-                                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                                Text(
-                                                    text = if (isDark) {
-                                                        Translations.tr("appearance_dark_mode_title", selectedLang)
-                                                    } else {
-                                                        Translations.tr("appearance_light_mode_title", selectedLang)
-                                                    },
-                                                    fontWeight = FontWeight.ExtraBold,
-                                                    fontSize = 14.5.sp,
-                                                    color = textPrimary
-                                                )
-                                                Text(
-                                                    text = if (isDark) {
-                                                        Translations.tr("appearance_dark_mode_subtitle", selectedLang)
-                                                    } else {
-                                                        Translations.tr("appearance_light_mode_subtitle", selectedLang)
-                                                    },
-                                                    fontSize = 11.5.sp,
-                                                    color = textSecondary
-                                                )
-                                            }
-                                        }
-
-                                        Switch(
-                                            checked = isDark,
-                                            onCheckedChange = { checked ->
-                                                val nextTheme = if (checked) AppThemeOption.NIGHT_MODE else AppThemeOption.ICE_BLUE
-                                                draftTheme = nextTheme
-                                                sessionState.updateTheme(context, nextTheme)
-                                                onSelectTheme(nextTheme)
-                                            },
-                                            colors = SwitchDefaults.colors(
-                                                checkedThumbColor = Color.White,
-                                                checkedTrackColor = activeAccent
+                                            Icon(
+                                                Icons.Default.QrCode2,
+                                                contentDescription = "QR Invite",
+                                                tint = activeAccent,
+                                                modifier = Modifier.size(18.dp)
                                             )
-                                        )
-                                    }
-                                }
-
-                                // 3) WhatsApp-Style Full-Width Horizontal Navigation Rows Card
-                                Card(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    shape = previewShape,
-                                    colors = CardDefaults.cardColors(containerColor = cardBg),
-                                    border = BorderStroke(1.dp, borderCol),
-                                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-                                ) {
-                                    Column(modifier = Modifier.fillMaxWidth()) {
-                                        // Row 0: 💼 الصفة المهنية ونوع الحساب (Clean WhatsApp-style horizontal row)
-                                        WhatsAppSettingsHubRow(
-                                            iconEmoji = "💼",
-                                            iconBg = activeAccentContainer,
-                                            title = Translations.tr("settings_hub_row_profession_title", selectedLang),
-                                            subtitle = activeRoleTitle,
-                                            textPrimary = textPrimary,
-                                            textSecondary = textSecondary,
-                                            accentColor = activeAccent,
-                                            testTag = "settings_row_profession",
-                                            secondaryTestTag = "settings_nav_profession",
-                                            onClick = { showProfessionSelectorSubScreen = true }
-                                        )
-
-                                        HorizontalDivider(color = borderCol, thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp))
-
-                                        // Row 1: 🎨 الشكل والمظهر (Appearance & Theme)
-                                        val textScaleLabelKey = when (draftTextScale) {
-                                            AppTextScaleOption.SMALL -> "text_size_small"
-                                            AppTextScaleOption.DEFAULT -> "text_size_default"
-                                            AppTextScaleOption.LARGE -> "text_size_large"
-                                            AppTextScaleOption.EXTRA_LARGE -> "text_size_extra_large"
+                                            Text(
+                                                text = "QR",
+                                                fontSize = 11.5.sp,
+                                                fontWeight = FontWeight.ExtraBold,
+                                                color = activeAccent
+                                            )
                                         }
-                                        val cornerStyleLabelKey = when (draftCornerStyle) {
-                                            AppCornerStyleOption.ROUNDED -> "corner_style_rounded"
-                                            AppCornerStyleOption.SOFT -> "corner_style_soft"
-                                            AppCornerStyleOption.CRISP -> "corner_style_crisp"
-                                        }
-                                        WhatsAppSettingsHubRow(
-                                            iconEmoji = "🎨",
-                                            iconBg = activeAccentContainer,
-                                            title = Translations.tr("settings_hub_row_appearance_title", selectedLang),
-                                            subtitle = "${draftAccent.hexCode} • ${Translations.tr(textScaleLabelKey, selectedLang)} • ${Translations.tr(cornerStyleLabelKey, selectedLang)}",
-                                            textPrimary = textPrimary,
-                                            textSecondary = textSecondary,
-                                            accentColor = activeAccent,
-                                            testTag = "settings_row_appearance",
-                                            secondaryTestTag = "settings_nav_appearance",
-                                            onClick = { activeStudioTab = SettingsStudioTab.APPEARANCE }
-                                        )
-
-                                        HorizontalDivider(color = borderCol, thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp))
-
-                                        // Row 2: 🌐 لغة التطبيق (App Language)
-                                        WhatsAppSettingsHubRow(
-                                            iconEmoji = "🌐",
-                                            iconBg = if (isDark) Color(0xFF1E3A8A).copy(alpha = 0.4f) else Color(0xFFDBEAFE),
-                                            title = Translations.tr("settings_hub_row_language_title", selectedLang),
-                                            subtitle = "${selectedLang.label} • ${selectedLang.greeting}",
-                                            textPrimary = textPrimary,
-                                            textSecondary = textSecondary,
-                                            accentColor = activeAccent,
-                                            testTag = "settings_row_language",
-                                            secondaryTestTag = "settings_nav_language",
-                                            onClick = { activeStudioTab = SettingsStudioTab.LANGUAGE }
-                                        )
-
-                                        HorizontalDivider(color = borderCol, thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp))
-
-                                        // Row 3: 💱 الدولة والعملة المعتمدة (Country & Currency)
-                                        WhatsAppSettingsHubRow(
-                                            iconEmoji = "💱",
-                                            iconBg = if (isDark) Color(0xFF064E3B).copy(alpha = 0.5f) else Color(0xFFD1FAE5),
-                                            title = Translations.tr("settings_hub_row_region_title", selectedLang),
-                                            subtitle = "${selectedCountry.flag} ${selectedCountry.localizedName(selectedLang)} • ${selectedCurrency.code} (${selectedCurrency.localizedName(selectedLang)})",
-                                            textPrimary = textPrimary,
-                                            textSecondary = textSecondary,
-                                            accentColor = activeAccent,
-                                            testTag = "settings_row_region_currency",
-                                            secondaryTestTag = "settings_nav_region_currency",
-                                            onClick = { activeStudioTab = SettingsStudioTab.REGION_CURRENCY }
-                                        )
-
-                                        HorizontalDivider(color = borderCol, thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp))
-
-                                        // Row 4: 💎 باقة الاشتراك (SaaS Pro - $4.99 / 2 Months)
-                                        WhatsAppSettingsHubRow(
-                                            iconEmoji = "💎",
-                                            iconBg = if (isDark) Color(0xFF78350F).copy(alpha = 0.5f) else Color(0xFFFEF3C7),
-                                            title = Translations.tr("settings_hub_row_subscription_title", selectedLang),
-                                            subtitle = Translations.tr("paywall_price_badge", selectedLang),
-                                            textPrimary = textPrimary,
-                                            textSecondary = if (isDark) Color(0xFFFDE68A) else Color(0xFFB45309),
-                                            accentColor = Color(0xFFF59E0B),
-                                            testTag = "settings_row_subscription",
-                                            secondaryTestTag = "settings_nav_subscription",
-                                            onClick = { showPaywallFromSettings = true }
-                                        )
                                     }
                                 }
                             }
+
+                            if (showQrPreviewBanner) {
+                                Surface(
+                                    shape = previewShape,
+                                    color = activeAccentContainer,
+                                    border = BorderStroke(1.dp, activeAccent),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = "📲 AGRITECH_JOIN|farmId=${sessionState.activeFarmId.ifBlank { "farm_1" }}|role=WORKER",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = textPrimary,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        TextButton(onClick = { showQrPreviewBanner = false }) {
+                                            Text("✓", color = activeAccent, fontWeight = FontWeight.ExtraBold)
+                                        }
+                                    }
+                                }
+                            }
+
+                            // 1B) Profession & Account Mode Switcher ("⚙️ الإعدادات -> الصفة المهنية ونوع الحساب")
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("settings_profession_card"),
+                                shape = previewShape,
+                                colors = CardDefaults.cardColors(containerColor = cardBg),
+                                border = BorderStroke(1.dp, borderCol),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Text(
+                                        text = Translations.tr("settings_profession_section_title", selectedLang),
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontSize = 14.sp,
+                                        color = textPrimary
+                                    )
+                                    Text(
+                                        text = Translations.tr("hub_subtitle_select_role", selectedLang),
+                                        fontSize = 11.5.sp,
+                                        color = textSecondary
+                                    )
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .horizontalScroll(rememberScrollState())
+                                            .testTag("settings_profession_selector_row"),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        roleOptions.forEach { (roleOpt, label) ->
+                                            val isRoleSelected = activeHubRole == roleOpt
+                                            val rolePillShape = RoundedCornerShape((draftCornerStyle.cornerRadiusDp - 4).coerceAtLeast(8).dp)
+                                            Surface(
+                                                modifier = Modifier
+                                                    .clip(rolePillShape)
+                                                    .clickable {
+                                                        sessionState.selectedFarmForOwner = null
+                                                        sessionState.selectedFarmForVet = null
+                                                        sessionState.selectedFarmForWorker = null
+                                                        sessionState.markAuthenticated(
+                                                            context = context,
+                                                            role = roleOpt,
+                                                            linkedBarns = true
+                                                        )
+                                                    }
+                                                    .testTag("role_chip_${roleOpt.name.lowercase()}"),
+                                                shape = rolePillShape,
+                                                color = if (isRoleSelected) draftAccent.primaryColor else activeAccentContainer,
+                                                border = BorderStroke(
+                                                    1.dp,
+                                                    if (isRoleSelected) draftAccent.primaryColor else activeAccent.copy(alpha = 0.4f)
+                                                )
+                                            ) {
+                                                Text(
+                                                    text = label,
+                                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                                    fontSize = 12.sp,
+                                                    fontWeight = if (isRoleSelected) FontWeight.ExtraBold else FontWeight.SemiBold,
+                                                    color = if (isRoleSelected) Color.White else activeAccent,
+                                                    maxLines = 1
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // 2) Direct Dark/Light Mode Toggle Row with animated Sun ☀️ / Moon 🌙 icon
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(previewShape)
+                                    .clickable {
+                                        val toggled = if (draftTheme.isDark) AppThemeOption.ICE_BLUE else AppThemeOption.NIGHT_MODE
+                                        draftTheme = toggled
+                                        sessionState.updateTheme(context, toggled)
+                                        onSelectTheme(toggled)
+                                    }
+                                    .testTag("card_toggle_dark_light_mode"),
+                                shape = previewShape,
+                                colors = CardDefaults.cardColors(containerColor = cardBg),
+                                border = BorderStroke(1.5.dp, activeAccent.copy(alpha = 0.55f)),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(14.dp),
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        AnimatedContent(
+                                            targetState = isDark,
+                                            transitionSpec = {
+                                                fadeIn(tween(220)) togetherWith fadeOut(tween(180))
+                                            },
+                                            label = "HubSunMoonIconTransition"
+                                        ) { darkActive ->
+                                            Surface(
+                                                shape = CircleShape,
+                                                color = if (darkActive) Color(0xFF312E81) else Color(0xFFFEF3C7),
+                                                modifier = Modifier.size(44.dp)
+                                            ) {
+                                                Box(contentAlignment = Alignment.Center) {
+                                                    Text(
+                                                        text = if (darkActive) "🌙" else "☀️",
+                                                        fontSize = 22.sp
+                                                    )
+                                                }
+                                            }
+                                        }
+
+                                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                            Text(
+                                                text = if (isDark) {
+                                                    Translations.tr("appearance_dark_mode_title", selectedLang)
+                                                } else {
+                                                    Translations.tr("appearance_light_mode_title", selectedLang)
+                                                },
+                                                fontWeight = FontWeight.ExtraBold,
+                                                fontSize = 14.5.sp,
+                                                color = textPrimary
+                                            )
+                                            Text(
+                                                text = if (isDark) {
+                                                    Translations.tr("appearance_dark_mode_subtitle", selectedLang)
+                                                } else {
+                                                    Translations.tr("appearance_light_mode_subtitle", selectedLang)
+                                                },
+                                                fontSize = 11.5.sp,
+                                                color = textSecondary
+                                            )
+                                        }
+                                    }
+
+                                    Switch(
+                                        checked = isDark,
+                                        onCheckedChange = { checked ->
+                                            val nextTheme = if (checked) AppThemeOption.NIGHT_MODE else AppThemeOption.ICE_BLUE
+                                            draftTheme = nextTheme
+                                            sessionState.updateTheme(context, nextTheme)
+                                            onSelectTheme(nextTheme)
+                                        },
+                                        colors = SwitchDefaults.colors(
+                                            checkedThumbColor = Color.White,
+                                            checkedTrackColor = activeAccent
+                                        )
+                                    )
+                                }
+                            }
+
+                            // 3) WhatsApp-Style Full-Width Horizontal Navigation Rows Card
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = previewShape,
+                                colors = CardDefaults.cardColors(containerColor = cardBg),
+                                border = BorderStroke(1.dp, borderCol),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                            ) {
+                                Column(modifier = Modifier.fillMaxWidth()) {
+                                    // Row 1: 🎨 الشكل والمظهر (Appearance & Theme)
+                                    val textScaleLabelKey = when (draftTextScale) {
+                                        AppTextScaleOption.SMALL -> "text_size_small"
+                                        AppTextScaleOption.DEFAULT -> "text_size_default"
+                                        AppTextScaleOption.LARGE -> "text_size_large"
+                                        AppTextScaleOption.EXTRA_LARGE -> "text_size_extra_large"
+                                    }
+                                    val cornerStyleLabelKey = when (draftCornerStyle) {
+                                        AppCornerStyleOption.ROUNDED -> "corner_style_rounded"
+                                        AppCornerStyleOption.SOFT -> "corner_style_soft"
+                                        AppCornerStyleOption.CRISP -> "corner_style_crisp"
+                                    }
+                                    WhatsAppSettingsHubRow(
+                                        iconEmoji = "🎨",
+                                        iconBg = activeAccentContainer,
+                                        title = Translations.tr("settings_hub_row_appearance_title", selectedLang),
+                                        subtitle = "${draftAccent.hexCode} • ${Translations.tr(textScaleLabelKey, selectedLang)} • ${Translations.tr(cornerStyleLabelKey, selectedLang)}",
+                                        textPrimary = textPrimary,
+                                        textSecondary = textSecondary,
+                                        accentColor = activeAccent,
+                                        testTag = "settings_row_appearance",
+                                        secondaryTestTag = "settings_nav_appearance",
+                                        onClick = { activeStudioTab = SettingsStudioTab.APPEARANCE }
+                                    )
+
+                                    HorizontalDivider(color = borderCol, thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp))
+
+                                    // Row 2: 🌐 لغة التطبيق (App Language)
+                                    WhatsAppSettingsHubRow(
+                                        iconEmoji = "🌐",
+                                        iconBg = if (isDark) Color(0xFF1E3A8A).copy(alpha = 0.4f) else Color(0xFFDBEAFE),
+                                        title = Translations.tr("settings_hub_row_language_title", selectedLang),
+                                        subtitle = "${selectedLang.label} • ${selectedLang.greeting}",
+                                        textPrimary = textPrimary,
+                                        textSecondary = textSecondary,
+                                        accentColor = activeAccent,
+                                        testTag = "settings_row_language",
+                                        secondaryTestTag = "settings_nav_language",
+                                        onClick = { activeStudioTab = SettingsStudioTab.LANGUAGE }
+                                    )
+
+                                    HorizontalDivider(color = borderCol, thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp))
+
+                                    // Row 3: 💱 الدولة والعملة المعتمدة (Country & Currency)
+                                    WhatsAppSettingsHubRow(
+                                        iconEmoji = "💱",
+                                        iconBg = if (isDark) Color(0xFF064E3B).copy(alpha = 0.5f) else Color(0xFFD1FAE5),
+                                        title = Translations.tr("settings_hub_row_region_title", selectedLang),
+                                        subtitle = "${selectedCountry.flag} ${selectedCountry.localizedName(selectedLang)} • ${selectedCurrency.code} (${selectedCurrency.localizedName(selectedLang)})",
+                                        textPrimary = textPrimary,
+                                        textSecondary = textSecondary,
+                                        accentColor = activeAccent,
+                                        testTag = "settings_row_region_currency",
+                                        secondaryTestTag = "settings_nav_region_currency",
+                                        onClick = { activeStudioTab = SettingsStudioTab.REGION_CURRENCY }
+                                    )
+
+                                    HorizontalDivider(color = borderCol, thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp))
+
+                                    // Row 4: 💎 باقة الاشتراك (SaaS Pro - $4.99 / 2 Months)
+                                    WhatsAppSettingsHubRow(
+                                        iconEmoji = "💎",
+                                        iconBg = if (isDark) Color(0xFF78350F).copy(alpha = 0.5f) else Color(0xFFFEF3C7),
+                                        title = Translations.tr("settings_hub_row_subscription_title", selectedLang),
+                                        subtitle = Translations.tr("paywall_price_badge", selectedLang),
+                                        textPrimary = textPrimary,
+                                        textSecondary = if (isDark) Color(0xFFFDE68A) else Color(0xFFB45309),
+                                        accentColor = Color(0xFFF59E0B),
+                                        testTag = "settings_row_subscription",
+                                        secondaryTestTag = "settings_nav_subscription",
+                                        onClick = { showPaywallFromSettings = true }
+                                    )
+                                }
+                            }
                         }
+                    }
 
                     SettingsStudioTab.APPEARANCE -> {
                         Column(
@@ -2300,7 +2269,6 @@ fun PremiumSettingsModal(
                         )
                     }
                 }
-            }
             }
         }
     }
@@ -3818,315 +3786,4 @@ fun BarnClimateAndStatsDialog(
         }
     }
 }
-
-// ============================================================================
-// PROFESSION SELECTOR SUB-SCREEN & FIRST-LAUNCH PROFESSION ONBOARDING MODAL
-// ============================================================================
-
-data class ProfessionCardItem(
-    val role: AppRole,
-    val emoji: String,
-    val titleKey: String,
-    val descKey: String
-)
-
-val sevenProfessionCatalog: List<ProfessionCardItem> = listOf(
-    ProfessionCardItem(
-        role = AppRole.OWNER_BARN,
-        emoji = "🏡",
-        titleKey = "profession_card_owner_title",
-        descKey = "profession_card_owner_desc"
-    ),
-    ProfessionCardItem(
-        role = AppRole.VET_CLINIC,
-        emoji = "🩺",
-        titleKey = "profession_card_vet_title",
-        descKey = "profession_card_vet_desc"
-    ),
-    ProfessionCardItem(
-        role = AppRole.WORKER,
-        emoji = "👷",
-        titleKey = "profession_card_worker_title",
-        descKey = "profession_card_worker_desc"
-    ),
-    ProfessionCardItem(
-        role = AppRole.FEED_SUPPLIER,
-        emoji = "🌾",
-        titleKey = "profession_card_feed_title",
-        descKey = "profession_card_feed_desc"
-    ),
-    ProfessionCardItem(
-        role = AppRole.CHICK_HATCHERY,
-        emoji = "🐣",
-        titleKey = "profession_card_hatchery_title",
-        descKey = "profession_card_hatchery_desc"
-    ),
-    ProfessionCardItem(
-        role = AppRole.WHOLESALE_TRADER,
-        emoji = "🚚",
-        titleKey = "profession_card_trader_title",
-        descKey = "profession_card_trader_desc"
-    ),
-    ProfessionCardItem(
-        role = AppRole.VET_IMPORTER,
-        emoji = "📦",
-        titleKey = "profession_card_importer_title",
-        descKey = "profession_card_importer_desc"
-    )
-)
-
-@Composable
-fun ProfessionSelectorSubScreen(
-    activeRole: AppRole,
-    lang: AppLanguage,
-    isDark: Boolean,
-    cardBg: Color,
-    subtleSurfaceBg: Color,
-    borderCol: Color,
-    textPrimary: Color,
-    textSecondary: Color,
-    activeAccent: Color,
-    activeAccentContainer: Color,
-    previewShape: RoundedCornerShape,
-    modifier: Modifier = Modifier,
-    onSelectProfession: (AppRole) -> Unit
-) {
-    val normalizedActive = activeRole.normalizedHubRole
-    Column(
-        modifier = modifier
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 18.dp, vertical = 14.dp)
-            .testTag("profession_selector_sub_screen"),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        sevenProfessionCatalog.forEach { item ->
-            val isSelected = normalizedActive == item.role
-            Surface(
-                shape = previewShape,
-                color = if (isSelected) activeAccentContainer else cardBg,
-                border = BorderStroke(
-                    width = if (isSelected) 2.dp else 1.dp,
-                    color = if (isSelected) activeAccent else borderCol
-                ),
-                shadowElevation = if (isSelected) 2.dp else 0.dp,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(previewShape)
-                    .clickable { onSelectProfession(item.role) }
-                    .testTag("role_chip_${item.role.name.lowercase()}")
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 14.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(
-                        modifier = Modifier.weight(1f),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Surface(
-                            shape = CircleShape,
-                            color = if (isSelected) activeAccent.copy(alpha = 0.2f) else subtleSurfaceBg,
-                            modifier = Modifier.size(44.dp)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Text(item.emoji, fontSize = 22.sp)
-                            }
-                        }
-                        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                            Text(
-                                text = Translations.tr(item.titleKey, lang),
-                                fontWeight = FontWeight.ExtraBold,
-                                fontSize = 14.sp,
-                                color = if (isSelected) activeAccent else textPrimary
-                            )
-                            Text(
-                                text = Translations.tr(item.descKey, lang),
-                                fontSize = 11.5.sp,
-                                color = textSecondary
-                            )
-                        }
-                    }
-                    RadioButton(
-                        selected = isSelected,
-                        onClick = { onSelectProfession(item.role) },
-                        colors = RadioButtonDefaults.colors(
-                            selectedColor = activeAccent,
-                            unselectedColor = textSecondary
-                        )
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun ProfessionOnboardingDialog(
-    lang: AppLanguage,
-    currentTheme: AppThemeOption,
-    initialRole: AppRole = AppRole.OWNER_BARN,
-    onConfirmProfession: (AppRole) -> Unit
-) {
-    val appearance = LocalAppAppearanceState.current
-    val isDark = currentTheme.isDark
-    val screenBg = if (isDark) Color(0xFF0F172A) else currentTheme.bgColor
-    val cardBg = if (isDark) Color(0xFF1E293B) else Color.White
-    val subtleSurfaceBg = if (isDark) Color(0xFF0F172A) else Color(0xFFF8FAFC)
-    val borderCol = if (isDark) Color(0xFF334155) else Color(0xFFE2E8F0)
-    val textPrimary = if (isDark) Color(0xFFFFFFFF) else Color(0xFF0F172A)
-    val textSecondary = if (isDark) Color(0xFFCBD5E1) else Color(0xFF475569)
-    val activeAccent = appearance.accentColor
-    val primaryButtonAccent = appearance.accentOption.primaryColor
-    val activeAccentContainer = appearance.accentContainerColor
-    val cardShape = RoundedCornerShape(appearance.cornerRadiusDp.dp)
-
-    var selectedRole by remember(initialRole) { mutableStateOf(initialRole.normalizedHubRole) }
-
-    Dialog(
-        onDismissRequest = { onConfirmProfession(selectedRole) },
-        properties = DialogProperties(usePlatformDefaultWidth = false)
-    ) {
-        Scaffold(
-            containerColor = screenBg,
-            modifier = Modifier
-                .fillMaxSize()
-                .testTag("profession_onboarding_dialog"),
-            bottomBar = {
-                Surface(
-                    color = cardBg,
-                    shadowElevation = 8.dp,
-                    border = BorderStroke(1.dp, borderCol),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .navigationBarsPadding()
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 20.dp, vertical = 14.dp)
-                    ) {
-                        Button(
-                            onClick = { onConfirmProfession(selectedRole) },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(50.dp)
-                                .testTag("btn_confirm_initial_profession"),
-                            shape = cardShape,
-                            colors = ButtonDefaults.buttonColors(containerColor = primaryButtonAccent)
-                        ) {
-                            Text(
-                                text = Translations.tr("profession_onboarding_confirm_btn", lang),
-                                fontWeight = FontWeight.ExtraBold,
-                                fontSize = 15.sp,
-                                color = Color.White
-                            )
-                        }
-                    }
-                }
-            }
-        ) { innerPadding ->
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding)
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 18.dp, vertical = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Surface(
-                    shape = cardShape,
-                    color = cardBg,
-                    border = BorderStroke(1.dp, borderCol),
-                    shadowElevation = 1.dp,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(
-                        modifier = Modifier.padding(18.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Text(
-                            text = Translations.tr("profession_onboarding_title", lang),
-                            fontWeight = FontWeight.ExtraBold,
-                            fontSize = 17.5.sp,
-                            color = textPrimary
-                        )
-                        Text(
-                            text = Translations.tr("profession_onboarding_subtitle", lang),
-                            fontSize = 12.sp,
-                            color = textSecondary
-                        )
-                    }
-                }
-
-                sevenProfessionCatalog.forEach { item ->
-                    val isSelected = selectedRole == item.role
-                    Surface(
-                        shape = cardShape,
-                        color = if (isSelected) activeAccentContainer else cardBg,
-                        border = BorderStroke(
-                            width = if (isSelected) 2.dp else 1.dp,
-                            color = if (isSelected) activeAccent else borderCol
-                        ),
-                        shadowElevation = if (isSelected) 2.dp else 0.dp,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(cardShape)
-                            .clickable { selectedRole = item.role }
-                            .testTag("onboarding_profession_card_${item.role.name.lowercase()}")
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 14.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(
-                                modifier = Modifier.weight(1f),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                Surface(
-                                    shape = CircleShape,
-                                    color = if (isSelected) activeAccent.copy(alpha = 0.2f) else subtleSurfaceBg,
-                                    modifier = Modifier.size(46.dp)
-                                ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Text(item.emoji, fontSize = 22.sp)
-                                    }
-                                }
-                                Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                                    Text(
-                                        text = Translations.tr(item.titleKey, lang),
-                                        fontWeight = FontWeight.ExtraBold,
-                                        fontSize = 14.5.sp,
-                                        color = if (isSelected) activeAccent else textPrimary
-                                    )
-                                    Text(
-                                        text = Translations.tr(item.descKey, lang),
-                                        fontSize = 11.5.sp,
-                                        color = textSecondary
-                                    )
-                                }
-                            }
-                            RadioButton(
-                                selected = isSelected,
-                                onClick = { selectedRole = item.role },
-                                colors = RadioButtonDefaults.colors(
-                                    selectedColor = activeAccent,
-                                    unselectedColor = textSecondary
-                                )
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
 
