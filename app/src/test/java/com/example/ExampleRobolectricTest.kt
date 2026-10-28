@@ -752,6 +752,85 @@ class ExampleRobolectricTest {
             }
         }
     }
+
+    @Test
+    fun testPhase6VetWorkspaceOnboardingAndSettingsProfessionRow() {
+        // 1. Verify all Phase 6 translation keys (Vet Clinic ID Card, Onboarding, Settings Profession Row)
+        val phase6Keys = listOf(
+            "vet_clinic_id_card_title",
+            "vet_clinic_id_card_subtitle",
+            "vet_clinic_stat_barns",
+            "vet_clinic_stat_treasury",
+            "vet_clinic_stat_alerts",
+            "open_vet_clinic_workspace_btn",
+            "vet_workspace_title",
+            "profession_onboarding_title",
+            "profession_onboarding_subtitle",
+            "profession_onboarding_confirm_btn",
+            "profession_card_owner_title",
+            "profession_card_owner_desc",
+            "profession_card_vet_title",
+            "profession_card_vet_desc",
+            "profession_card_worker_title",
+            "profession_card_worker_desc",
+            "profession_card_feed_title",
+            "profession_card_feed_desc",
+            "profession_card_hatchery_title",
+            "profession_card_hatchery_desc",
+            "profession_card_trader_title",
+            "profession_card_trader_desc",
+            "profession_card_importer_title",
+            "profession_card_importer_desc",
+            "settings_hub_row_profession_title"
+        )
+        for (key in phase6Keys) {
+            assertTrue("Key '$key' must be explicitly registered in Translations dictionary", Translations.hasKey(key))
+            for (lang in listOf(AppLanguage.AR, AppLanguage.FR, AppLanguage.EN, AppLanguage.ES, AppLanguage.PT, AppLanguage.HI)) {
+                val translated = Translations.tr(key, lang)
+                assertTrue("Key '$key' in ${lang.name} must not be blank or raw", translated.isNotBlank() && translated != key)
+            }
+        }
+
+        // 2. Verify sevenProfessionCatalog has all 7 distinct roles
+        assertEquals(7, sevenProfessionCatalog.size)
+        assertEquals(
+            setOf(
+                AppRole.OWNER_BARN,
+                AppRole.VET_CLINIC,
+                AppRole.WORKER,
+                AppRole.FEED_SUPPLIER,
+                AppRole.CHICK_HATCHERY,
+                AppRole.WHOLESALE_TRADER,
+                AppRole.VET_IMPORTER
+            ),
+            sevenProfessionCatalog.map { it.role }.toSet()
+        )
+
+        // 3. Verify First-Launch Profession Onboarding persistence via SaasPreferencesManager & AgritechAppSessionState
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        assertTrue(!SaasPreferencesManager.hasSelectedInitialProfession(context))
+
+        val sessionState = AgritechAppSessionState(
+            initialOnboardingCompleted = true,
+            initialTheme = AppThemeOption.ICE_BLUE,
+            initialLanguage = AppLanguage.AR,
+            initialCountryCode = "DZ",
+            initialCurrencyCode = "DZD",
+            initialIsLoggedIn = true,
+            initialRole = AppRole.OWNER_BARN,
+            initialHasLinkedBarns = true,
+            initialActiveFarmId = "farm_1",
+            initialUserUid = "owner_1",
+            initialProfessionSelected = SaasPreferencesManager.hasSelectedInitialProfession(context)
+        )
+        assertTrue(!sessionState.hasSelectedInitialProfession)
+
+        sessionState.completeInitialProfessionSelection(context, AppRole.VET_CLINIC)
+        assertTrue(sessionState.hasSelectedInitialProfession)
+        assertEquals(AppRole.VET_CLINIC, sessionState.currentRole)
+        assertTrue(SaasPreferencesManager.hasSelectedInitialProfession(context))
+        assertEquals(AppRole.VET_CLINIC, SaasPreferencesManager.getSavedUserRole(context))
+    }
 }
 
 
