@@ -48,9 +48,16 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -60,6 +67,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.credentials.CredentialManager
@@ -82,7 +90,21 @@ object AgritechMockDb {
 
     val cycles = mutableStateListOf<CycleModel>()
 
-    val dailyReports = mutableStateListOf(
+    val countedFeedTxIds = mutableSetOf<String>()
+
+    private var boundAppContext: android.content.Context? = null
+
+    fun bindContext(context: android.content.Context) {
+        boundAppContext = context.applicationContext
+    }
+
+    fun persistLocalState() {
+        boundAppContext?.let { ctx ->
+            LocalFarmPersistence.saveAll(ctx)
+        }
+    }
+
+    private val initialDailyReportsSeed = listOf(
         DailyReportModel("rep_1", "farm_1", "cycle_2026_01", 1, 240.0, 500.0, 2, 33.0, 4.0, "جيدة", "طبيعية"),
         DailyReportModel("rep_2", "farm_1", "cycle_2026_01", 2, 280.0, 580.0, 1, 32.5, 3.8, "جيدة", "طبيعية"),
         DailyReportModel("rep_3", "farm_1", "cycle_2026_01", 3, 340.0, 680.0, 3, 32.0, 3.5, "جيدة", "طبيعية"),
@@ -95,11 +117,19 @@ object AgritechMockDb {
         DailyReportModel("rep_f2_7", "farm_2", "cycle_2026_02", 7, 740.0, 1450.0, 3, 29.8, 2.6, "جيدة", "طبيعية")
     )
 
-    val vetNotes = mutableStateListOf(
+    val dailyReports = mutableStateListOf<DailyReportModel>().apply {
+        addAll(initialDailyReportsSeed)
+    }
+
+    private val initialVetNotesSeed = listOf(
         VetNoteModel("vet_1", "farm_1", "cycle_2026_01", 1, "فيتامين AD3E + إلكترولايت", "1 مل / لتر لمدة 3 أيام", "تحصين استقبال الكتاكيت وتفادي إجهاد النقل", false),
         VetNoteModel("vet_2", "farm_1", "cycle_2026_01", 4, "مضاد حيوي تنفسي وقائي", "0.5 غرام / لتر", "ملاحظة صوت خفيف في التهوية الليلية", true),
         VetNoteModel("vet_3", "farm_1", "cycle_2026_01", 7, "لقاح نيوكاسل (Clone 30 + IB)", "تقطير عيني / رش صباحي", "جرعة التحصين الفيروسي الأولى لليوم السابع", false)
     )
+
+    val vetNotes = mutableStateListOf<VetNoteModel>().apply {
+        addAll(initialVetNotesSeed)
+    }
 
     val supervisedVetFarms = mutableStateListOf(
         FarmModel("farm_1", "عنبر الخيرات والبركة 1 (الحاج مراد)", "البليدة - بوفاريك", 8000, "worker_1"),
@@ -232,14 +262,14 @@ object AgritechMockDb {
         }
     }
 
-    val transactions = mutableStateListOf(
+    private val initialTransactionsSeed = listOf(
         TransactionModel("tx_1", "farm_1", "cycle_2026_01", TransactionType.EXPENSE, "🐣 كتاكيت (Ross 308)", 1440000.0, "دج", "اليوم 1"),
-        TransactionModel("tx_2", "farm_1", "cycle_2026_01", TransactionType.EXPENSE, "🌾 علف بادئ (25 ق)", 200000.0, "دج", "اليوم 1"),
-        TransactionModel("tx_2b", "farm_1", "cycle_2026_01", TransactionType.EXPENSE, "🌾 علف نامي (15 ق)", 120000.0, "دج", "اليوم 3"),
+        TransactionModel("tx_2", "farm_1", "cycle_2026_01", TransactionType.EXPENSE, "🌾 علف بادئ (25 ق)", 200000.0, "دج", "اليوم 1", quantityQuintals = 25.0),
+        TransactionModel("tx_2b", "farm_1", "cycle_2026_01", TransactionType.EXPENSE, "🌾 علف نامي (15 ق)", 120000.0, "دج", "اليوم 3", quantityQuintals = 15.0),
         TransactionModel("tx_3", "farm_1", "cycle_2026_01", TransactionType.EXPENSE, "🔥 غاز وتدفئة", 35000.0, "دج", "اليوم 2"),
         TransactionModel("tx_4", "farm_1", "cycle_2026_01", TransactionType.EXPENSE, "💊 أدوية وتحصين", 48000.0, "دج", "اليوم 4"),
         TransactionModel("tx_5", "farm_1", "cycle_2026_01", TransactionType.INCOME, "🚜 بيع سماد عضوي", 60000.0, "دج", "اليوم 5"),
-        TransactionModel("tx_f2_1", "farm_2", "cycle_2026_02", TransactionType.EXPENSE, "🌾 علف بادئ (30 ق)", 240000.0, "دج", "اليوم 1"),
+        TransactionModel("tx_f2_1", "farm_2", "cycle_2026_02", TransactionType.EXPENSE, "🌾 علف بادئ (30 ق)", 240000.0, "دج", "اليوم 1", quantityQuintals = 30.0),
         TransactionModel(
             "tx_sales_01",
             "farm_1",
@@ -272,6 +302,13 @@ object AgritechMockDb {
             )
         )
     )
+
+    val transactions = mutableStateListOf<TransactionModel>().apply {
+        addAll(initialTransactionsSeed)
+    }
+
+    val sharedTransactions: MutableList<TransactionModel>
+        get() = transactions
 
     val chatMessages = mutableStateListOf(
         // 1. Contextual Worker Chat Messages (Ledger Tab)
@@ -559,9 +596,11 @@ object AgritechMockDb {
                 linkedTransactionId = pendingTx.id,
                 requestCategory = pendingNote.medicineName,
                 requestAmount = pendingTx.amount,
-                requestCurrency = pendingTx.currency
+                requestCurrency = pendingTx.currency,
+                status = "PENDING"
             )
         )
+        persistLocalState()
     }
 
     /**
@@ -577,7 +616,10 @@ object AgritechMockDb {
         senderRole: String,
         chatChannelId: String
     ) {
-        val pendingTx = tx.copy(status = "PENDING")
+        val pendingTx = tx.copy(
+            status = "PENDING",
+            notes = noteText.ifBlank { tx.notes }
+        )
         val existingTxIdx = transactions.indexOfFirst { it.id == pendingTx.id }
         if (existingTxIdx >= 0) {
             transactions[existingTxIdx] = pendingTx
@@ -605,9 +647,11 @@ object AgritechMockDb {
                 linkedTransactionId = pendingTx.id,
                 requestCategory = pendingTx.category,
                 requestAmount = pendingTx.amount,
-                requestCurrency = pendingTx.currency
+                requestCurrency = pendingTx.currency,
+                status = "PENDING"
             )
         )
+        persistLocalState()
     }
 
     /**
@@ -641,10 +685,14 @@ object AgritechMockDb {
 
     /**
      * Owner Approval Action ("تأكيد واعتماد الصرف ✓"):
-     * Updates the Vet Invoice Transaction and VetNote status from "PENDING" to "APPROVED"
-     * so the expense is officially deducted from the Treasury.
+     * Updates the Vet Invoice / Financial Request Transaction, VetNote, and ChatMessage status from "PENDING" to "APPROVED"
+     * with the Owner's signature tag, and updates feed stock without duplication if it is a feed purchase.
      */
-    fun approveVetInvoice(transactionId: String, vetNoteId: String = "") {
+    fun approveVetInvoice(
+        transactionId: String,
+        vetNoteId: String = "",
+        signatureTag: String = "Signed_By_Owner_${System.currentTimeMillis()}"
+    ) {
         var resolvedTxId = transactionId
         if (vetNoteId.isNotBlank()) {
             val vnIdx = vetNotes.indexOfFirst { it.id == vetNoteId }
@@ -659,14 +707,58 @@ object AgritechMockDb {
         if (resolvedTxId.isNotBlank()) {
             val txIdx = transactions.indexOfFirst { it.id == resolvedTxId }
             if (txIdx >= 0) {
-                transactions[txIdx] = transactions[txIdx].copy(status = "APPROVED")
+                val currentTx = transactions[txIdx]
+                val updatedTx = currentTx.copy(
+                    status = "APPROVED",
+                    approvedBySignature = signatureTag
+                )
+                transactions[txIdx] = updatedTx
+
+                val isFeedCat = updatedTx.category.contains("علف") ||
+                    updatedTx.category.contains("Feed", ignoreCase = true) ||
+                    updatedTx.category.contains("Aliment", ignoreCase = true) ||
+                    updatedTx.category.contains("Pienso", ignoreCase = true)
+                if (isFeedCat && !countedFeedTxIds.contains(updatedTx.id)) {
+                    val addedFeedKg = parseFeedTransaction(updatedTx, AppLanguage.AR).estimatedKg
+                    if (addedFeedKg > 0.0) {
+                        countedFeedTxIds.add(updatedTx.id)
+                        val cycleIdx = cycles.indexOfFirst {
+                            it.id == updatedTx.cycleId || (it.farmId == updatedTx.farmId && it.status.equals("active", ignoreCase = true))
+                        }
+                        if (cycleIdx >= 0) {
+                            val c = cycles[cycleIdx]
+                            cycles[cycleIdx] = c.copy(feedInventoryKg = c.feedInventoryKg + addedFeedKg)
+                        }
+                    }
+                }
             }
             for (i in vetNotes.indices) {
                 if (vetNotes[i].linkedTransactionId == resolvedTxId && vetNotes[i].status != "APPROVED") {
                     vetNotes[i] = vetNotes[i].copy(status = "APPROVED")
                 }
             }
+            for (i in chatMessages.indices) {
+                if (chatMessages[i].linkedTransactionId == resolvedTxId && chatMessages[i].status != "APPROVED") {
+                    chatMessages[i] = chatMessages[i].copy(status = "APPROVED")
+                }
+            }
         }
+        persistLocalState()
+    }
+
+    /**
+     * Resets user-authored in-memory state when the user explicitly clicks Logout.
+     */
+    fun clearOnExplicitLogout() {
+        farms.clear()
+        cycles.clear()
+        countedFeedTxIds.clear()
+        dailyReports.clear()
+        dailyReports.addAll(initialDailyReportsSeed)
+        vetNotes.clear()
+        vetNotes.addAll(initialVetNotesSeed)
+        transactions.clear()
+        transactions.addAll(initialTransactionsSeed)
     }
 
     /**
@@ -716,6 +808,7 @@ object AgritechMockDb {
             }
             report
         }
+        persistLocalState()
         return finalReport
     }
 }
@@ -745,6 +838,8 @@ class MainActivity : ComponentActivity() {
 fun AgritechRootApp() {
     val context = LocalContext.current
     val sessionState = remember {
+        AgritechMockDb.bindContext(context)
+        LocalFarmPersistence.loadIntoMockDb(context)
         val onboardingDone = SaasPreferencesManager.hasCompletedOnboarding(context)
         val detectedLocale = detectInitialLocaleAndCurrency(context)
         val savedLang = if (onboardingDone) SaasPreferencesManager.getSavedLanguage(context) else detectedLocale.language
@@ -1044,7 +1139,11 @@ fun AgritechMainApp(
                                             it.id == report.id || (it.farmId == report.farmId && it.dayNumber == report.dayNumber)
                                         }
                                         if (idx >= 0) {
-                                            AgritechMockDb.dailyReports[idx] = report
+                                            val existingLocal = AgritechMockDb.dailyReports[idx]
+                                            AgritechMockDb.dailyReports[idx] = report.copy(
+                                                medicineGiven = report.medicineGiven || existingLocal.medicineGiven,
+                                                medicineSummary = report.medicineSummary.ifBlank { existingLocal.medicineSummary }
+                                            )
                                         } else {
                                             AgritechMockDb.dailyReports.add(report)
                                         }
@@ -1200,10 +1299,15 @@ fun AgritechMainApp(
                 transactions = AgritechMockDb.transactions.filter { it.farmId == farm.id },
                 onAddTransaction = { tx, addedFeedKg ->
                     if (AgritechMockDb.transactions.none { it.id == tx.id }) {
-                        AgritechMockDb.transactions.add(tx)
-                        val invoice = tx.invoiceData
-                        if (invoice != null && tx.type == TransactionType.INCOME) {
-                            val cycleIdx = AgritechMockDb.cycles.indexOfFirst { it.id == tx.cycleId }
+                        val normalizedTx = if (addedFeedKg > 0.0 && tx.quantityQuintals <= 0.0) {
+                            tx.copy(quantityQuintals = addedFeedKg / 100.0)
+                        } else {
+                            tx
+                        }
+                        AgritechMockDb.transactions.add(normalizedTx)
+                        val invoice = normalizedTx.invoiceData
+                        if (invoice != null && normalizedTx.type == TransactionType.INCOME) {
+                            val cycleIdx = AgritechMockDb.cycles.indexOfFirst { it.id == normalizedTx.cycleId }
                             if (cycleIdx >= 0) {
                                 val c = AgritechMockDb.cycles[cycleIdx]
                                 AgritechMockDb.cycles[cycleIdx] = c.copy(
@@ -1212,31 +1316,33 @@ fun AgritechMainApp(
                                 )
                             }
                         } else if (addedFeedKg > 0.0) {
-                            val cycleIdx = AgritechMockDb.cycles.indexOfFirst { it.id == tx.cycleId }
+                            AgritechMockDb.countedFeedTxIds.add(normalizedTx.id)
+                            val cycleIdx = AgritechMockDb.cycles.indexOfFirst { it.id == normalizedTx.cycleId }
                             if (cycleIdx >= 0) {
                                 val c = AgritechMockDb.cycles[cycleIdx]
                                 AgritechMockDb.cycles[cycleIdx] = c.copy(feedInventoryKg = c.feedInventoryKg + addedFeedKg)
                             }
                         }
+                        LocalFarmPersistence.saveAll(context)
                         scope.launch {
-                            if (invoice != null && tx.type == TransactionType.INCOME) {
+                            if (invoice != null && normalizedTx.type == TransactionType.INCOME) {
                                 firestoreRepo?.saveSalesInvoiceAndMigrateIdempotent(
-                                    farmId = tx.farmId,
-                                    cycleId = tx.cycleId,
-                                    idempotencyKey = tx.id,
-                                    dateText = tx.date,
+                                    farmId = normalizedTx.farmId,
+                                    cycleId = normalizedTx.cycleId,
+                                    idempotencyKey = normalizedTx.id,
+                                    dateText = normalizedTx.date,
                                     invoice = invoice
                                 )
-                            } else if (addedFeedKg > 0.0 && tx.type == TransactionType.EXPENSE) {
+                            } else if (addedFeedKg > 0.0 && normalizedTx.type == TransactionType.EXPENSE) {
                                 firestoreRepo?.recordFeedPurchaseAndExpenseIdempotent(
-                                    idempotencyKey = tx.id,
-                                    tx = tx,
+                                    idempotencyKey = normalizedTx.id,
+                                    tx = normalizedTx,
                                     addedFeedKg = addedFeedKg
                                 )
                             } else {
                                 firestoreRepo?.recordTransactionIdempotent(
-                                    idempotencyKey = tx.id,
-                                    tx = tx
+                                    idempotencyKey = normalizedTx.id,
+                                    tx = normalizedTx
                                 )
                             }
                         }
@@ -1244,17 +1350,21 @@ fun AgritechMainApp(
                 },
                 onSaveOrUpdateDailyReport = { report ->
                     val savedReport = AgritechMockDb.upsertDailyReportWithAudit(report)
+                    LocalFarmPersistence.saveAll(context)
                     scope.launch {
                         firestoreRepo?.saveDailyReport(savedReport)
                     }
                 },
                 onApproveVetInvoice = { txId, vnId ->
-                    AgritechMockDb.approveVetInvoice(txId, vnId)
+                    val sigTag = "Signed_By_Owner_${System.currentTimeMillis()}"
+                    AgritechMockDb.approveVetInvoice(txId, vnId, sigTag)
+                    LocalFarmPersistence.saveAll(context)
                     scope.launch {
                         firestoreRepo?.approveVetInvoiceTransaction(
                             farmId = farm.id,
                             transactionId = txId,
-                            vetNoteId = vnId
+                            vetNoteId = vnId,
+                            approvedBySignature = sigTag
                         )
                     }
                 },
@@ -1285,6 +1395,7 @@ fun AgritechMainApp(
                 onAddNote = { note ->
                     if (AgritechMockDb.vetNotes.none { it.id == note.id }) {
                         AgritechMockDb.vetNotes.add(note)
+                        LocalFarmPersistence.saveAll(context)
                         scope.launch {
                             firestoreRepo?.saveVetNote(note)
                         }
@@ -1311,6 +1422,7 @@ fun AgritechMainApp(
                 onSwitchFarm = { sessionState.selectedFarmForWorker = it },
                 onSubmitReport = { report ->
                     val savedReport = AgritechMockDb.upsertDailyReportWithAudit(report)
+                    LocalFarmPersistence.saveAll(context)
                     scope.launch {
                         firestoreRepo?.saveDailyReport(savedReport)
                     }
@@ -1375,6 +1487,7 @@ fun AgritechMainApp(
                     if (AgritechMockDb.transactions.none { it.id == initialTx.id }) {
                         AgritechMockDb.transactions.add(initialTx)
                     }
+                    LocalFarmPersistence.saveAll(context)
                     // Creating a farm automatically links the user as an Owner and reveals the 🏠 Barns tab
                     sessionState.markAuthenticated(
                         context = context,
@@ -1390,6 +1503,7 @@ fun AgritechMainApp(
                 },
                 onSubmitWorkerReport = { report ->
                     val savedReport = AgritechMockDb.upsertDailyReportWithAudit(report)
+                    LocalFarmPersistence.saveAll(context)
                     scope.launch {
                         firestoreRepo?.saveDailyReport(savedReport)
                     }
@@ -1805,10 +1919,16 @@ fun AgritechOwnerDashboard(
     }
 
     if (showQrJoinSheetFromDashboard) {
-        QrScannerJoinBottomSheet(
+        PersonalAccountWhatsAppQrBottomSheet(
             currentTheme = currentTheme,
             lang = lang,
+            activeRole = activeRole,
             onDismiss = { showQrJoinSheetFromDashboard = false },
+            onContactScanned = { addedConv ->
+                showQrJoinSheetFromDashboard = false
+                selectedChatConversation = addedConv
+                selectedGlobalTab = GlobalDashboardTab.CHAT
+            },
             onJoinRole = { joinedRole ->
                 showQrJoinSheetFromDashboard = false
                 onUpdateUserProfileMode(joinedRole, true)
@@ -2110,6 +2230,9 @@ fun AgritechOwnerDashboard(
                             lang = lang,
                             onSelectConversation = { conv ->
                                 selectedChatConversation = conv
+                            },
+                            onOpenPersonalQr = {
+                                showQrJoinSheetFromDashboard = true
                             }
                         )
                     } else {
@@ -2147,7 +2270,7 @@ fun AgritechOwnerDashboard(
                 }
                 GlobalDashboardTab.AI_VET -> {
                     // 🤖 AI بيطري (AI Vet Assistant Screen)
-                    OwnerGlobalAiVetPlaceholderScreen(currentTheme = currentTheme)
+                    OwnerGlobalAiVetPlaceholderScreen(currentTheme = currentTheme, lang = lang)
                 }
             }
         }
@@ -2351,6 +2474,7 @@ fun AgritechOwnerDashboard(
                                 status = "active",
                                 startDate = todayStr,
                                 chickPrice = price,
+                                feedInventoryKg = 0.0,
                                 currencyCode = updatedOrNewFarm.currencyCode
                             )
                             val initialTx = TransactionModel(
@@ -2455,6 +2579,30 @@ fun ManagementHubScreen(
             lang = lang,
             currentTheme = currentTheme,
             firestoreRepo = firestoreRepo,
+            onOrderSubmitted = { amt, chosenCat, noteStr ->
+                if (normalizedRole in listOf(
+                        AppRole.FEED_SUPPLIER,
+                        AppRole.CHICK_HATCHERY,
+                        AppRole.WHOLESALE_TRADER,
+                        AppRole.VET_IMPORTER
+                    )
+                ) {
+                    val detailsSummary = if (noteStr.isNotBlank()) "$chosenCat — $noteStr" else chosenCat
+                    AgritechMockDb.roleBusinessOrders.add(
+                        0,
+                        RoleBusinessOrderModel(
+                            id = "ord_${normalizedRole.name.lowercase()}_${System.currentTimeMillis()}",
+                            role = normalizedRole,
+                            clientName = Translations.getLocalizedFarmName(defaultFarm.id, lang, defaultFarm.name),
+                            clientPhone = "+213 550 10 20 30",
+                            itemSummary = detailsSummary,
+                            quantityText = "${Translations.tr("day_prefix", lang)} 5",
+                            totalAmountDzd = amt,
+                            status = "PENDING"
+                        )
+                    )
+                }
+            },
             onDismiss = { showPartnerFinancialReqDialog = false }
         )
     }
@@ -2895,7 +3043,9 @@ fun ManagementHubScreen(
                                     fontWeight = FontWeight.ExtraBold,
                                     fontSize = 14.5.sp,
                                     color = primaryTextColor,
-                                    modifier = Modifier.weight(1f)
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .padding(end = 8.dp)
                                 )
                                 Button(
                                     onClick = { showPartnerFinancialReqDialog = true },
@@ -2903,13 +3053,16 @@ fun ManagementHubScreen(
                                         .height(42.dp)
                                         .testTag("btn_partner_hub_send_invoice"),
                                     shape = pillShape,
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
                                     colors = ButtonDefaults.buttonColors(containerColor = primaryButtonAccent)
                                 ) {
                                     Text(
                                         Translations.tr("partner_hub_send_invoice_btn", lang),
                                         fontSize = 11.5.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = Color.White
+                                        color = Color.White,
+                                        maxLines = 1,
+                                        softWrap = false
                                     )
                                 }
                             }
@@ -2971,6 +3124,27 @@ fun ManagementHubScreen(
                     // OWNER / OWNER_BARN: Barn Management & Pending Financial Approvals
                     val pendingRequests = AgritechMockDb.transactions.filter {
                         it.status.equals("PENDING", ignoreCase = true)
+                    }
+                    var pendingHubTxForSignature by remember { mutableStateOf<TransactionModel?>(null) }
+                    if (pendingHubTxForSignature != null) {
+                        val targetTx = pendingHubTxForSignature!!
+                        InvoiceApprovalSignatureDialog(
+                            categoryOrTitle = Translations.getLocalizedTxCategory(targetTx.category, lang),
+                            dateOrDayText = targetTx.date,
+                            amount = targetTx.amount,
+                            currency = targetTx.currency,
+                            currentTheme = currentTheme,
+                            lang = lang,
+                            onDismiss = { pendingHubTxForSignature = null },
+                            onConfirmSignedApproval = {
+                                val linkedNote = AgritechMockDb.vetNotes.firstOrNull {
+                                    it.linkedTransactionId == targetTx.id ||
+                                        (it.farmId == targetTx.farmId && it.cycleId == targetTx.cycleId && it.status.equals("PENDING", ignoreCase = true))
+                                }
+                                AgritechMockDb.approveVetInvoice(targetTx.id, linkedNote?.id ?: "")
+                                pendingHubTxForSignature = null
+                            }
+                        )
                     }
                     if (farms.isEmpty()) {
                         Box(
@@ -3104,7 +3278,7 @@ fun ManagementHubScreen(
                                                         )
                                                     }
                                                     Button(
-                                                        onClick = { AgritechMockDb.approveVetInvoice(reqTx.id) },
+                                                        onClick = { pendingHubTxForSignature = reqTx },
                                                         modifier = Modifier
                                                             .height(36.dp)
                                                             .testTag("btn_hub_approve_tx_${reqTx.id}"),
@@ -3168,7 +3342,8 @@ fun ChatListScreen(
     conversations: List<ChatConversationModel>,
     currentTheme: AppThemeOption,
     lang: AppLanguage = AppLanguage.AR,
-    onSelectConversation: (ChatConversationModel) -> Unit
+    onSelectConversation: (ChatConversationModel) -> Unit,
+    onOpenPersonalQr: (() -> Unit)? = null
 ) {
     val appearance = LocalAppAppearanceState.current
     val isDark = currentTheme.isDark
@@ -3180,6 +3355,7 @@ fun ChatListScreen(
     val avatarBgTint = appearance.accentContainerColor
     val tileShape = RoundedCornerShape(appearance.cornerRadiusDp.dp)
     var showAddPhoneContactDialog by remember { mutableStateOf(false) }
+    var showLocalPersonalQrSheet by remember { mutableStateOf(false) }
 
     if (showAddPhoneContactDialog) {
         AddPhoneContactDialog(
@@ -3193,6 +3369,22 @@ fun ChatListScreen(
         )
     }
 
+    if (showLocalPersonalQrSheet) {
+        PersonalAccountWhatsAppQrBottomSheet(
+            currentTheme = currentTheme,
+            lang = lang,
+            activeRole = AppRole.OWNER,
+            onDismiss = { showLocalPersonalQrSheet = false },
+            onContactScanned = { newConv ->
+                showLocalPersonalQrSheet = false
+                onSelectConversation(newConv)
+            },
+            onJoinRole = { _ ->
+                showLocalPersonalQrSheet = false
+            }
+        )
+    }
+
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -3201,57 +3393,90 @@ fun ChatListScreen(
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         item {
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(tileShape)
-                    .clickable { showAddPhoneContactDialog = true }
-                    .testTag("btn_add_phone_contact"),
-                shape = tileShape,
-                color = avatarBgTint,
-                border = BorderStroke(1.2.dp, activeAccent.copy(alpha = 0.45f))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
+                Surface(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 14.dp, vertical = 11.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                        .weight(1f)
+                        .clip(tileShape)
+                        .clickable { showAddPhoneContactDialog = true }
+                        .testTag("btn_add_phone_contact"),
+                    shape = tileShape,
+                    color = avatarBgTint,
+                    border = BorderStroke(1.2.dp, activeAccent.copy(alpha = 0.45f))
                 ) {
                     Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 11.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        modifier = Modifier.weight(1f)
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Surface(
-                            modifier = Modifier.size(36.dp),
-                            shape = CircleShape,
-                            color = primaryButtonAccent
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            modifier = Modifier.weight(1f)
                         ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    Icons.Default.PersonAdd,
-                                    contentDescription = null,
-                                    tint = Color.White,
-                                    modifier = Modifier.size(18.dp)
-                                )
+                            Surface(
+                                modifier = Modifier.size(36.dp),
+                                shape = CircleShape,
+                                color = primaryButtonAccent
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        Icons.Default.PersonAdd,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
                             }
+                            Text(
+                                Translations.tr("btn_add_phone_contact", lang),
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 13.sp,
+                                color = activeAccent,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
                         }
-                        Text(
-                            Translations.tr("btn_add_phone_contact", lang),
-                            fontWeight = FontWeight.ExtraBold,
-                            fontSize = 13.sp,
-                            color = activeAccent,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                        Icon(
+                            Icons.Default.ChevronRight,
+                            contentDescription = null,
+                            tint = activeAccent,
+                            modifier = Modifier.size(20.dp)
                         )
                     }
-                    Icon(
-                        Icons.Default.ChevronRight,
-                        contentDescription = null,
-                        tint = activeAccent,
-                        modifier = Modifier.size(20.dp)
-                    )
+                }
+
+                // WhatsApp-style Personal QR Code Icon Button next to "+ صديق برقم الهاتف"
+                Surface(
+                    modifier = Modifier
+                        .size(58.dp)
+                        .clip(tileShape)
+                        .clickable {
+                            if (onOpenPersonalQr != null) {
+                                onOpenPersonalQr()
+                            } else {
+                                showLocalPersonalQrSheet = true
+                            }
+                        }
+                        .testTag("btn_chat_personal_qr"),
+                    shape = tileShape,
+                    color = avatarBgTint,
+                    border = BorderStroke(1.2.dp, activeAccent.copy(alpha = 0.45f))
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            Icons.Default.QrCodeScanner,
+                            contentDescription = Translations.tr("personal_qr_tab_my_code", lang),
+                            tint = activeAccent,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
                 }
             }
         }
@@ -3725,6 +3950,7 @@ fun UniversalFinancialRequestDialog(
     lang: AppLanguage,
     currentTheme: AppThemeOption,
     firestoreRepo: AgritechFirestoreRepository? = null,
+    onOrderSubmitted: ((amount: Double, category: String, note: String) -> Unit)? = null,
     onDismiss: () -> Unit
 ) {
     val scope = rememberCoroutineScope()
@@ -3873,6 +4099,7 @@ fun UniversalFinancialRequestDialog(
                                 )
                             }
                         }
+                        onOrderSubmitted?.invoke(amt, chosenCat, noteText.trim())
                         onDismiss()
                     }
                 },
@@ -4430,326 +4657,65 @@ fun OwnerGlobalAiVetPlaceholderScreen(
     currentTheme: AppThemeOption,
     lang: AppLanguage = AppLanguage.AR
 ) {
-    val scope = rememberCoroutineScope()
-    var messageInput by remember { mutableStateOf("") }
-    var isGenerating by remember { mutableStateOf(false) }
+    val appearance = LocalAppAppearanceState.current
+    val isDark = currentTheme.isDark
+    val aiAccent = appearance.accentColor
+    val aiAccentContainer = appearance.accentContainerColor
+    val aiCardShape = RoundedCornerShape(appearance.cornerRadiusDp.dp)
+    val primaryText = if (isDark) Color(0xFFFFFFFF) else currentTheme.headingColor
+    val secondaryText = if (isDark) Color(0xFFCBD5E1) else Color(0xFF475569)
 
-    val aiVetMessages = remember {
-        mutableStateListOf(
-            AiVetChatMessage(
-                id = "ai_welcome_1",
-                senderName = "المساعد البيطري الذكي (Gemini AI Vet)",
-                isUser = false,
-                text = "مرحباً بك في الاستشاري البيطري الذكي لسلالة Ross 308 🩺🐥\n" +
-                    "يمكنك سؤالي عن الأعراض التنفسية، جدول التحصينات والفيتامينات، أو تحسين معامل التحويل الغذائي (FCR).",
-                timestamp = "الآن"
-            )
-        )
-    }
-
-    val quickPrompts = remember {
-        listOf(
-            "🫁 حشرجة ليلية وتهوية العنبر",
-            "💧 جدول تحصينات Ross 308",
-            "⚖️ تحسين معامل التحويل FCR"
-        )
-    }
-
-    val sendPrompt: (String) -> Unit = { rawText ->
-        val trimmed = rawText.trim()
-        if (trimmed.isNotEmpty() && !isGenerating) {
-            val nowTime = try {
-                java.time.LocalTime.now().format(
-                    java.time.format.DateTimeFormatter.ofPattern("hh:mm a", java.util.Locale("ar"))
-                )
-            } catch (_: Exception) {
-                "الآن"
-            }
-            aiVetMessages.add(
-                AiVetChatMessage(
-                    id = "usr_${System.currentTimeMillis()}",
-                    senderName = "مدير المزرعة 👨‍🌾",
-                    isUser = true,
-                    text = trimmed,
-                    timestamp = nowTime
-                )
-            )
-            messageInput = ""
-            isGenerating = true
-            scope.launch {
-                val aiReply = AiVetGeminiService.generateVetResponse(trimmed, lang)
-                val replyTime = try {
-                    java.time.LocalTime.now().format(
-                        java.time.format.DateTimeFormatter.ofPattern("hh:mm a", java.util.Locale("ar"))
-                    )
-                } catch (_: Exception) {
-                    "الآن"
-                }
-                aiVetMessages.add(
-                    AiVetChatMessage(
-                        id = "ai_${System.currentTimeMillis()}",
-                        senderName = "المساعد البيطري الذكي 🤖",
-                        isUser = false,
-                        text = aiReply,
-                        timestamp = replyTime
-                    )
-                )
-                isGenerating = false
-            }
-        }
-    }
-
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .background(currentTheme.bgColor)
-            .padding(16.dp)
+            .padding(20.dp)
             .testTag("global_ai_vet_screen"),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        contentAlignment = Alignment.Center
     ) {
-        // Header Card (Dynamic Theme Accent & Corner Style)
-        val appearance = LocalAppAppearanceState.current
-        val aiAccent = appearance.accentColor
-        val aiAccentContainer = appearance.accentContainerColor
-        val aiCardShape = RoundedCornerShape(appearance.cornerRadiusDp.dp)
         Card(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .widthIn(max = 460.dp)
+                .testTag("ai_vet_coming_soon_card"),
             shape = aiCardShape,
             colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            border = BorderStroke(1.2.dp, aiAccent.copy(alpha = 0.35f)),
+            elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Surface(
-                            modifier = Modifier.size(44.dp),
-                            shape = CircleShape,
-                            color = aiAccentContainer
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Text("🤖", fontSize = 20.sp)
-                            }
-                        }
-                        Column {
-                            Text(
-                                "المساعد البيطري الذكي (Gemini AI Vet)",
-                                fontWeight = FontWeight.ExtraBold,
-                                fontSize = 15.5.sp,
-                                color = aiAccent
-                            )
-                            Text(
-                                "تشخيص إرشادي فوري وبروتوكولات Ross 308",
-                                fontSize = 12.sp,
-                                color = Color(0xFF64748B)
-                            )
-                        }
-                    }
-
-                    Surface(
-                        shape = RoundedCornerShape(50),
-                        color = aiAccentContainer,
-                        border = BorderStroke(1.dp, aiAccent.copy(alpha = 0.4f))
-                    ) {
-                        Text(
-                            text = if (isGenerating) "يفكر..." else "متصل ✓",
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = aiAccent
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                // Quick Clinical Prompt Chips
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    quickPrompts.forEachIndexed { idx, promptChip ->
-                        SuggestionChip(
-                            onClick = { sendPrompt(promptChip) },
-                            label = {
-                                Text(
-                                    promptChip,
-                                    fontSize = 11.5.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = aiAccent
-                                )
-                            },
-                            shape = RoundedCornerShape(50),
-                            colors = SuggestionChipDefaults.suggestionChipColors(
-                                containerColor = aiAccentContainer.copy(alpha = 0.55f)
-                            ),
-                            border = BorderStroke(1.dp, aiAccent.copy(alpha = 0.35f)),
-                            modifier = Modifier.testTag("ai_vet_quick_chip_$idx")
-                        )
-                    }
-                }
-            }
-        }
-
-        val isDark = currentTheme.isDark
-        val primaryText = if (isDark) Color(0xFFFFFFFF) else Color(0xFF1E293B)
-        val secondaryText = if (isDark) Color(0xFFCBD5E1) else Color.Gray
-
-        // Chat Messages LazyColumn
-        LazyColumn(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-                .testTag("ai_vet_messages_list"),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-            contentPadding = PaddingValues(vertical = 4.dp)
-        ) {
-            items(aiVetMessages, key = { it.id }) { msg ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = if (msg.isUser) Arrangement.End else Arrangement.Start
-                ) {
-                    Surface(
-                        shape = RoundedCornerShape(
-                            topStart = 18.dp,
-                            topEnd = 18.dp,
-                            bottomStart = if (msg.isUser) 18.dp else 4.dp,
-                            bottomEnd = if (msg.isUser) 4.dp else 18.dp
-                        ),
-                        color = if (msg.isUser) appearance.accentOption.primaryColor else currentTheme.cardColor,
-                        shadowElevation = 1.5.dp,
-                        border = if (msg.isUser) null else BorderStroke(1.dp, if (isDark) Color(0xFF334155) else Color(0xFFE2E8F0)),
-                        modifier = Modifier.widthIn(max = 320.dp)
-                    ) {
-                        Column(modifier = Modifier.padding(14.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = msg.senderName,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (msg.isUser) Color.White.copy(alpha = 0.9f) else aiAccent
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = msg.timestamp,
-                                    fontSize = 10.sp,
-                                    color = if (msg.isUser) Color.White.copy(alpha = 0.75f) else secondaryText
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Text(
-                                text = msg.text,
-                                fontSize = 13.5.sp,
-                                color = if (msg.isUser) Color.White else primaryText,
-                                lineHeight = 20.sp
-                            )
-                        }
-                    }
-                }
-            }
-
-            if (isGenerating) {
-                item {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.Start
-                    ) {
-                        Surface(
-                            shape = RoundedCornerShape(16.dp),
-                            color = currentTheme.cardColor,
-                            border = BorderStroke(1.dp, aiAccent.copy(alpha = 0.4f))
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(16.dp),
-                                    strokeWidth = 2.dp,
-                                    color = aiAccent
-                                )
-                                Text(
-                                    "جاري تحليل الحالة البيطرية عبر Gemini...",
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = aiAccent
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // Chat Input Bar (TextField + Send Button)
-        Surface(
-            shape = RoundedCornerShape(18.dp),
-            color = currentTheme.cardColor,
-            shadowElevation = 2.dp,
-            border = BorderStroke(1.dp, if (isDark) Color(0xFF334155) else Color(0xFFCBD5E1)),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Row(
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 10.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    .padding(horizontal = 24.dp, vertical = 32.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                OutlinedTextField(
-                    value = messageInput,
-                    onValueChange = { messageInput = it },
-                    placeholder = {
-                        Text(
-                            "اسأل الطبيب البيطري الذكي عن الأعراض أو الجرعات...",
-                            fontSize = 12.5.sp,
-                            color = secondaryText
-                        )
-                    },
-                    modifier = Modifier
-                        .weight(1f)
-                        .testTag("ai_vet_chat_input"),
-                    shape = RoundedCornerShape(14.dp),
-                    singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = aiAccent,
-                        unfocusedBorderColor = if (isDark) Color(0xFF334155) else Color(0xFFE2E8F0)
-                    )
+                Surface(
+                    modifier = Modifier.size(72.dp),
+                    shape = CircleShape,
+                    color = aiAccentContainer,
+                    border = BorderStroke(1.5.dp, aiAccent.copy(alpha = 0.45f))
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text("🤖⏳", fontSize = 28.sp)
+                    }
+                }
+
+                Text(
+                    text = Translations.tr("ai_vet_coming_soon_title", lang),
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 16.5.sp,
+                    color = primaryText,
+                    textAlign = TextAlign.Center
                 )
 
-                Button(
-                    onClick = { sendPrompt(messageInput) },
-                    enabled = messageInput.isNotBlank() && !isGenerating,
-                    shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = appearance.accentOption.primaryColor,
-                        disabledContainerColor = Color(0xFFCBD5E1)
-                    ),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-                    modifier = Modifier
-                        .height(50.dp)
-                        .testTag("ai_vet_chat_send_btn")
-                ) {
-                    Icon(
-                        Icons.Default.Send,
-                        contentDescription = "إرسال",
-                        tint = Color.White,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
+                Text(
+                    text = Translations.tr("ai_vet_coming_soon_subtitle", lang),
+                    fontSize = 13.5.sp,
+                    color = secondaryText,
+                    textAlign = TextAlign.Center,
+                    lineHeight = 20.sp
+                )
             }
         }
     }
@@ -4833,6 +4799,17 @@ fun FarmCard(
                     it.farmId == farm.id && (it.cycleId == activeCycle.id || it.cycleId.isBlank())
                 }
                 val totalMortality = reportsForCycle.sumOf { it.mortalityCount }
+                val totalFeed = reportsForCycle.sumOf { it.feedIntakeKg }
+                val totalPurchasedFeedKg = txsForCycle.filter {
+                    it.type == TransactionType.EXPENSE &&
+                        it.status.equals("APPROVED", true) &&
+                        (it.category.contains("علف") || it.category.contains("Feed", true) || it.category.contains("Aliment", true))
+                }.sumOf { parseFeedTransaction(it, lang).estimatedKg }
+                val effectiveFeedInventoryKg = if (totalPurchasedFeedKg > 0.0 || reportsForCycle.isNotEmpty()) {
+                    (totalPurchasedFeedKg - totalFeed).coerceAtLeast(0.0)
+                } else {
+                    activeCycle.feedInventoryKg.coerceAtLeast(0.0)
+                }
                 val totalSold = PoultryCalculators.resolveCumulativeBirdsSold(activeCycle, txsForCycle)
 
                 val liveBirds = PoultryCalculators.calculateLiveBirds(
@@ -4848,7 +4825,11 @@ fun FarmCard(
                 }
                 val maxReportDay = reportsForCycle.maxOfOrNull { it.dayNumber } ?: 1
                 val calculatedDay = PoultryCalculators.calculateCycleDay(activeCycle.startDate, maxReportDay)
-                val estimatedWeightKg = PoultryCalculators.getRoss308StandardWeightKg(calculatedDay)
+                val estimatedWeightKg = PoultryCalculators.resolveActualAvgBirdWeightKg(
+                    reports = reportsForCycle,
+                    cycleTransactions = txsForCycle,
+                    cycleId = activeCycle.id
+                ) ?: PoultryCalculators.getRoss308StandardWeightKg(calculatedDay)
                 val formattedStartDate = PoultryCalculators.formatDateDdMmYyyy(activeCycle.startDate)
                 val kgUnit = Translations.tr("kg_unit", lang)
 
@@ -4856,7 +4837,7 @@ fun FarmCard(
                 if (showCardFeedLedger) {
                     FeedOrdersLedgerBottomSheet(
                         farmName = Translations.getLocalizedFarmName(farm.id, lang, farm.name),
-                        cycle = activeCycle,
+                        cycle = activeCycle.copy(feedInventoryKg = effectiveFeedInventoryKg),
                         transactions = txsForCycle,
                         lang = lang,
                         onDismiss = { showCardFeedLedger = false }
@@ -4932,7 +4913,7 @@ fun FarmCard(
                 Spacer(modifier = Modifier.height(14.dp))
 
                 // b) ID Body: Structured bordered container with Active Live Birds + full-width Start Date + 3 equal-width mini stat boxes (NO horizontal scrolling)
-                val isFeedLow = activeCycle.feedInventoryKg < 500.0
+                val isFeedLow = effectiveFeedInventoryKg < 500.0
                 val feedInventoryColor = if (isFeedLow) {
                     if (isDark) Color(0xFFFCA5A5) else Color(0xFFD32F2F)
                 } else accentEmerald
@@ -5105,7 +5086,7 @@ fun FarmCard(
                                     )
                                     Spacer(modifier = Modifier.height(3.dp))
                                     Text(
-                                        Translations.formatBulkFeedPurchaseQuantity(activeCycle.feedInventoryKg, lang, preferredFeedUnit),
+                                        Translations.formatBulkFeedPurchaseQuantity(effectiveFeedInventoryKg, lang, preferredFeedUnit),
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.ExtraBold,
                                         color = feedInventoryColor,
@@ -5468,16 +5449,16 @@ fun TeamQrInviteBottomSheet(
                             )
                             // Center Role Badge
                             Surface(
-                                shape = RoundedCornerShape(10.dp),
+                                shape = RoundedCornerShape(8.dp),
                                 color = Color.White,
-                                border = BorderStroke(2.dp, TextForestGreen),
+                                border = BorderStroke(1.5.dp, TextForestGreen),
                                 shadowElevation = 2.dp,
-                                modifier = Modifier.size(40.dp)
+                                modifier = Modifier.size(28.dp)
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
                                     Text(
                                         if (selectedInviteRole == AppRole.WORKER) "👷" else "👨‍⚕️",
-                                        fontSize = 20.sp
+                                        fontSize = 14.sp
                                     )
                                 }
                             }
@@ -5524,74 +5505,40 @@ fun TeamQrInviteBottomSheet(
 }
 
 /**
- * Custom deterministic QR Code Painter using Jetpack Compose Canvas.
- * Renders a crisp 21x21 QR matrix with finder patterns, timing patterns, and payload modules.
+ * Genuine ISO/IEC 18004 QR Code Painter using `com.google.zxing.qrcode.QRCodeWriter` (`BitMatrix`).
+ * Renders exact QR modules with standard quiet zone margin so `RealQrCameraScannerView` (ML Kit)
+ * can immediately scan and decode the QR code from another phone.
  */
 @Composable
 fun CustomQrCodeCanvas(
     payload: String,
     modifier: Modifier = Modifier
 ) {
-    val gridSize = 21
-    val seed = remember(payload) { payload.hashCode() }
+    val bitMatrix = remember(payload) {
+        try {
+            PoultryCalculators.encodeQrBitMatrix(payload, size = 1)
+        } catch (_: Exception) {
+            null
+        }
+    }
 
     Canvas(modifier = modifier) {
-        val cellSize = size.minDimension / gridSize
+        drawRect(color = Color.White, size = size)
+        val matrix = bitMatrix ?: return@Canvas
+        val matrixWidth = matrix.width.coerceAtLeast(1)
+        val matrixHeight = matrix.height.coerceAtLeast(1)
+        val cellSize = size.minDimension / maxOf(matrixWidth, matrixHeight).toFloat()
+        val offsetX = (size.width - matrixWidth * cellSize) / 2f
+        val offsetY = (size.height - matrixHeight * cellSize) / 2f
         val darkColor = Color(0xFF0F172A)
 
-        fun isFinderPattern(r: Int, c: Int): Boolean {
-            val inTopLeft = r in 0..6 && c in 0..6
-            val inTopRight = r in 0..6 && c in (gridSize - 7) until gridSize
-            val inBottomLeft = r in (gridSize - 7) until gridSize && c in 0..6
-            return inTopLeft || inTopRight || inBottomLeft
-        }
-
-        fun drawFinder(startRow: Int, startCol: Int) {
-            for (r in 0..6) {
-                for (c in 0..6) {
-                    val isBorder = r == 0 || r == 6 || c == 0 || c == 6
-                    val isInner = r in 2..4 && c in 2..4
-                    if (isBorder || isInner) {
-                        drawRoundRect(
-                            color = darkColor,
-                            topLeft = Offset((startCol + c) * cellSize, (startRow + r) * cellSize),
-                            size = Size(cellSize * 0.94f, cellSize * 0.94f),
-                            cornerRadius = CornerRadius(cellSize * 0.2f, cellSize * 0.2f)
-                        )
-                    }
-                }
-            }
-        }
-
-        drawFinder(0, 0)
-        drawFinder(0, gridSize - 7)
-        drawFinder(gridSize - 7, 0)
-
-        for (r in 0 until gridSize) {
-            for (c in 0 until gridSize) {
-                // Skip finder pattern + 1-module quiet separator around finders and center logo zone
-                val nearTopLeft = r <= 7 && c <= 7
-                val nearTopRight = r <= 7 && c >= gridSize - 8
-                val nearBottomLeft = r >= gridSize - 8 && c <= 7
-                val inCenterLogo = r in 8..12 && c in 8..12
-                if (nearTopLeft || nearTopRight || nearBottomLeft || inCenterLogo || isFinderPattern(r, c)) {
-                    continue
-                }
-
-                // Timing patterns on row 6 and col 6
-                val isFilled = if (r == 6 || c == 6) {
-                    (r + c) % 2 == 0
-                } else {
-                    val hash = (r * 31 + c * 17 + seed) xor (seed ushr ((r + c) % 16))
-                    (hash and 1) == 0 || ((r * c + seed) % 5 == 0)
-                }
-
-                if (isFilled) {
-                    drawRoundRect(
+        for (y in 0 until matrixHeight) {
+            for (x in 0 until matrixWidth) {
+                if (matrix.get(x, y)) {
+                    drawRect(
                         color = darkColor,
-                        topLeft = Offset(c * cellSize, r * cellSize),
-                        size = Size(cellSize * 0.9f, cellSize * 0.9f),
-                        cornerRadius = CornerRadius(cellSize * 0.18f, cellSize * 0.18f)
+                        topLeft = Offset(offsetX + x * cellSize, offsetY + y * cellSize),
+                        size = Size(cellSize + 0.4f, cellSize + 0.4f)
                     )
                 }
             }
@@ -5764,6 +5711,746 @@ fun QrScannerJoinBottomSheet(
     }
 }
 
+/**
+ * WhatsApp-Style Personal Account QR & Live Scanner BottomSheet (`PersonalAccountWhatsAppQrBottomSheet`):
+ * - Tab 1 ("رمزي الشخصي QR"): Displays user's profile card (Name, Profession Role badge, Phone/Email)
+ *   and a scannable `CustomQrCodeCanvas` encoding `"MYBUSINESS_CONTACT|name=...|role=...|phone=..."`
+ *   with subtitle `"امسح هذا الرمز عبر الكاميرا لإضافتي مباشرة في الدردشة (مثل واتساب)"`.
+ * - Tab 2 ("مسح رمز QR 📷"): Uses the live camera scanner (`RealQrCameraScannerView` / ML Kit)
+ *   to scan either a Personal Contact QR (automatically adds the contact to `AgritechMockDb.chatConversations`
+ *   and opens the chat) or a Barn Team QR.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun PersonalAccountWhatsAppQrBottomSheet(
+    currentTheme: AppThemeOption,
+    lang: AppLanguage,
+    activeRole: AppRole = AppRole.OWNER,
+    onDismiss: () -> Unit,
+    onContactScanned: (ChatConversationModel) -> Unit,
+    onJoinRole: (AppRole) -> Unit,
+    onJoinFarmWithRole: ((String, AppRole) -> Unit)? = null
+) {
+    val appearance = LocalAppAppearanceState.current
+    val isDark = currentTheme.isDark
+    val sheetBg = if (isDark) Color(0xFF1E293B) else Color.White
+    val primaryText = if (isDark) Color.White else currentTheme.headingColor
+    val secondaryText = if (isDark) Color(0xFFCBD5E1) else Color(0xFF475569)
+    val activeAccent = appearance.accentColor
+    val accentContainer = appearance.accentContainerColor
+    val primaryButtonAccent = appearance.accentOption.primaryColor
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    var selectedTab by remember { mutableStateOf(0) }
+    var scannedRole by remember { mutableStateOf(AppRole.WORKER) }
+    var scannedFarmId by remember { mutableStateOf("farm_1") }
+    var detectedQrBanner by remember { mutableStateOf<String?>(null) }
+
+    val currentUser = try {
+        FirebaseAuth.getInstance().currentUser
+    } catch (_: Exception) {
+        null
+    }
+    val userDisplayName = currentUser?.displayName?.takeIf { it.isNotBlank() }
+        ?: "الحاج مراد (مزرعة البركة)"
+    val userPhoneOrEmail = currentUser?.phoneNumber?.takeIf { it.isNotBlank() }
+        ?: currentUser?.email?.takeIf { it.isNotBlank() }
+        ?: "+213 550 12 34 56"
+    val roleBadgeLabel = when (activeRole.normalizedHubRole) {
+        AppRole.VET_CLINIC -> Translations.tr("role_badge_vet_clinic", lang)
+        AppRole.WORKER -> Translations.tr("role_badge_worker", lang)
+        AppRole.FEED_SUPPLIER -> Translations.tr("role_badge_feed_supplier", lang)
+        AppRole.CHICK_HATCHERY -> Translations.tr("role_badge_chick_hatchery", lang)
+        AppRole.WHOLESALE_TRADER -> Translations.tr("role_badge_wholesale_trader", lang)
+        AppRole.VET_IMPORTER -> Translations.tr("role_badge_vet_importer", lang)
+        else -> Translations.tr("role_badge_owner_barn", lang)
+    }
+    val personalQrPayload = "MYBUSINESS_CONTACT|name=$userDisplayName|role=$roleBadgeLabel|phone=$userPhoneOrEmail"
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = sheetBg,
+        shape = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp),
+        modifier = Modifier.testTag("personal_whatsapp_qr_bottom_sheet")
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 28.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            // Top Header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Surface(
+                        shape = CircleShape,
+                        color = accentContainer,
+                        modifier = Modifier.size(42.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                Icons.Default.QrCode,
+                                contentDescription = null,
+                                tint = activeAccent,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        Translations.tr("personal_qr_sheet_title", lang),
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 15.5.sp,
+                        color = primaryText
+                    )
+                }
+                IconButton(onClick = onDismiss) {
+                    Icon(Icons.Default.Close, contentDescription = "Close", tint = secondaryText)
+                }
+            }
+
+            // Two-Tab Switcher: [ رمزي الشخصي QR | مسح رمز QR 📷 ]
+            Surface(
+                shape = RoundedCornerShape(14.dp),
+                color = if (isDark) Color(0xFF0F172A) else Color(0xFFF1F5F9),
+                border = BorderStroke(1.dp, activeAccent.copy(alpha = 0.35f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(5.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    val tabs = listOf(
+                        Triple(0, Translations.tr("personal_qr_tab_my_code", lang), "personal_qr_tab_0"),
+                        Triple(1, Translations.tr("personal_qr_tab_scan", lang), "personal_qr_tab_1")
+                    )
+                    tabs.forEach { (idx, label, tag) ->
+                        val isSel = selectedTab == idx
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(if (isSel) primaryButtonAccent else Color.Transparent)
+                                .clickable { selectedTab = idx }
+                                .padding(vertical = 10.dp)
+                                .testTag(tag),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                label,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.5.sp,
+                                color = if (isSel) Color.White else primaryText,
+                                maxLines = 1
+                            )
+                        }
+                    }
+                }
+            }
+
+            if (selectedTab == 0) {
+                // Tab 1: رمزي الشخصي QR (WhatsApp-style Personal Contact QR Card)
+                Surface(
+                    shape = RoundedCornerShape(22.dp),
+                    color = if (isDark) Color(0xFF0F172A) else Color(0xFFF8FAFC),
+                    border = BorderStroke(1.5.dp, activeAccent.copy(alpha = 0.4f)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("personal_qr_profile_card")
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(20.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        // User Profile Header
+                        Surface(
+                            shape = CircleShape,
+                            color = accentContainer,
+                            border = BorderStroke(1.5.dp, activeAccent),
+                            modifier = Modifier.size(56.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Text("👤", fontSize = 26.sp)
+                            }
+                        }
+                        Text(
+                            userDisplayName,
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 16.sp,
+                            color = primaryText,
+                            textAlign = TextAlign.Center
+                        )
+                        Surface(
+                            shape = RoundedCornerShape(50),
+                            color = accentContainer,
+                            border = BorderStroke(1.dp, activeAccent.copy(alpha = 0.4f))
+                        ) {
+                            Text(
+                                roleBadgeLabel,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = activeAccent
+                            )
+                        }
+                        Text(
+                            userPhoneOrEmail,
+                            fontSize = 12.5.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = secondaryText
+                        )
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        // Scannable CustomQrCodeCanvas
+                        Surface(
+                            shape = RoundedCornerShape(20.dp),
+                            color = Color.White,
+                            shadowElevation = 3.dp,
+                            border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                            modifier = Modifier
+                                .size(210.dp)
+                                .testTag("personal_qr_canvas_box")
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(16.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                CustomQrCodeCanvas(
+                                    payload = personalQrPayload,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = Color.White,
+                                    border = BorderStroke(1.5.dp, activeAccent),
+                                    shadowElevation = 2.dp,
+                                    modifier = Modifier.size(28.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Text("💬", fontSize = 14.sp)
+                                    }
+                                }
+                            }
+                        }
+
+                        Text(
+                            Translations.tr("personal_qr_whatsapp_subtitle", lang),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = activeAccent,
+                            textAlign = TextAlign.Center,
+                            lineHeight = 18.sp
+                        )
+                    }
+                }
+            } else {
+                // Tab 2: مسح رمز QR 📷 (Live Camera Scanner for Personal Contact QR like WhatsApp)
+                RealQrCameraScannerView(
+                    selectedRoleFallback = scannedRole,
+                    onQrCodeScanned = { inviteData ->
+                        val contactParsed = parsePersonalContactQr(inviteData.rawPayload)
+                        if (contactParsed != null) {
+                            val newConv = AgritechMockDb.addPhoneContact(
+                                name = contactParsed.name,
+                                phone = contactParsed.phone,
+                                roleLabel = contactParsed.roleLabel,
+                                avatarEmoji = "🤝"
+                            )
+                            detectedQrBanner = "تمت إضافة جهة الاتصال (${contactParsed.name}) في الدردشة ✓"
+                            onContactScanned(newConv)
+                        } else {
+                            scannedFarmId = inviteData.farmId
+                            scannedRole = inviteData.role
+                            detectedQrBanner = "تمت قراءة رمز العنبر (${inviteData.farmId}) • الدور: ${inviteData.role.name}"
+                            onJoinFarmWithRole?.invoke(inviteData.farmId, inviteData.role)
+                            onJoinRole(inviteData.role)
+                        }
+                    }
+                )
+
+                if (detectedQrBanner != null) {
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = accentContainer,
+                        border = BorderStroke(1.dp, activeAccent),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = detectedQrBanner!!,
+                            modifier = Modifier.padding(10.dp),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = activeAccent,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+
+                Text(
+                    Translations.tr("personal_qr_scan_whatsapp_desc", lang),
+                    fontSize = 12.sp,
+                    color = secondaryText,
+                    textAlign = TextAlign.Center,
+                    lineHeight = 18.sp
+                )
+
+                Button(
+                    onClick = {
+                        val newConv = AgritechMockDb.addPhoneContact(
+                            name = "شريك أعمال (مسح QR)",
+                            phone = "0550998877",
+                            roleLabel = roleBadgeLabel,
+                            avatarEmoji = "🤝"
+                        )
+                        detectedQrBanner = "تمت إضافة جهة الاتصال (${newConv.userName}) في الدردشة ✓"
+                        onContactScanned(newConv)
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp)
+                        .testTag("btn_confirm_qr_scan_join"),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = primaryButtonAccent)
+                ) {
+                    Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        Translations.tr("personal_qr_scan_add_contact_btn", lang),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.5.sp,
+                        color = Color.White
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Mandatory Review & Digital Finger Signature Dialog before approving pending invoices or expenses.
+ */
+@Composable
+fun InvoiceApprovalSignatureDialog(
+    categoryOrTitle: String,
+    dateOrDayText: String,
+    amount: Double,
+    currency: String,
+    currentTheme: AppThemeOption,
+    lang: AppLanguage,
+    onDismiss: () -> Unit,
+    onConfirmSignedApproval: () -> Unit
+) {
+    val appearance = LocalAppAppearanceState.current
+    val isDark = currentTheme.isDark
+    val dialogBg = if (isDark) Color(0xFF1E293B) else Color.White
+    val primaryText = if (isDark) Color.White else Color(0xFF0F172A)
+    val secondaryText = if (isDark) Color(0xFFCBD5E1) else Color(0xFF475569)
+    val activeAccent = appearance.accentColor
+    val primaryButtonAccent = appearance.accentOption.primaryColor
+
+    val strokes = remember { mutableStateListOf<List<Offset>>() }
+    var currentStroke by remember { mutableStateOf<List<Offset>>(emptyList()) }
+    val signaturePointsCount = strokes.sumOf { it.size } + currentStroke.size
+    val hasSignature = signaturePointsCount > 3
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = dialogBg,
+        shape = RoundedCornerShape(appearance.cornerRadiusDp.dp),
+        modifier = Modifier.testTag("invoice_approval_signature_dialog"),
+        title = {
+            Text(
+                Translations.tr("invoice_sig_dialog_title", lang),
+                fontWeight = FontWeight.ExtraBold,
+                fontSize = 16.sp,
+                color = primaryText
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // Full Invoice Summary Card
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = if (isDark) Color(0xFF0F172A) else Color(0xFFF8FAFC),
+                    border = BorderStroke(1.dp, activeAccent.copy(alpha = 0.35f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            categoryOrTitle,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                            color = primaryText
+                        )
+                        Text(
+                            dateOrDayText,
+                            fontSize = 12.sp,
+                            color = secondaryText
+                        )
+                        HorizontalDivider(color = if (isDark) Color(0xFF334155) else Color(0xFFE2E8F0))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                Translations.tr("amount_label", lang),
+                                fontSize = 12.5.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = secondaryText
+                            )
+                            Text(
+                                "${String.format(java.util.Locale.US, "%,.0f", amount)} $currency",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Color(0xFFD97706)
+                            )
+                        }
+                    }
+                }
+
+                // Official Treasury Deduction Notice
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = if (isDark) Color(0xFF78350F).copy(alpha = 0.35f) else Color(0xFFFEF3C7),
+                    border = BorderStroke(1.dp, Color(0xFFF59E0B)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        Translations.tr("invoice_sig_deduction_notice", lang),
+                        modifier = Modifier.padding(10.dp),
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isDark) Color(0xFFFDE68A) else Color(0xFF92400E),
+                        lineHeight = 17.sp
+                    )
+                }
+
+                // Finger Signature Pad Header + Clear Button
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        Translations.tr("invoice_sig_pad_label", lang),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = primaryText,
+                        modifier = Modifier.weight(1f)
+                    )
+                    TextButton(
+                        onClick = {
+                            strokes.clear()
+                            currentStroke = emptyList()
+                        },
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                        modifier = Modifier.testTag("btn_clear_approval_signature")
+                    ) {
+                        Text(
+                            Translations.tr("invoice_sig_clear_btn", lang),
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = ActionRed
+                        )
+                    }
+                }
+
+                // Interactive Finger Signature Canvas
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = if (isDark) Color(0xFF0F172A) else Color(0xFFFFFFFF),
+                    border = BorderStroke(
+                        1.5.dp,
+                        if (hasSignature) activeAccent else Color(0xFF94A3B8)
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(110.dp)
+                ) {
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        Canvas(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .testTag("invoice_approval_signature_canvas")
+                                .pointerInput(Unit) {
+                                    detectTapGestures { offset ->
+                                        strokes.add(
+                                            listOf(
+                                                offset,
+                                                Offset(offset.x + 12f, offset.y - 6f),
+                                                Offset(offset.x + 24f, offset.y + 6f),
+                                                Offset(offset.x + 36f, offset.y - 4f)
+                                            )
+                                        )
+                                    }
+                                }
+                                .pointerInput(Unit) {
+                                    detectDragGestures(
+                                        onDragStart = { startOffset ->
+                                            currentStroke = listOf(startOffset)
+                                        },
+                                        onDrag = { change, _ ->
+                                            change.consume()
+                                            currentStroke = currentStroke + change.position
+                                        },
+                                        onDragEnd = {
+                                            if (currentStroke.isNotEmpty()) {
+                                                strokes.add(currentStroke)
+                                                currentStroke = emptyList()
+                                            }
+                                        }
+                                    )
+                                }
+                        ) {
+                            val strokeColor = if (isDark) Color(0xFF38BDF8) else Color(0xFF0F172A)
+                            val allStrokes = if (currentStroke.isNotEmpty()) strokes + listOf(currentStroke) else strokes
+                            allStrokes.forEach { pts ->
+                                if (pts.size >= 2) {
+                                    val path = Path().apply {
+                                        moveTo(pts.first().x, pts.first().y)
+                                        for (i in 1 until pts.size) {
+                                            lineTo(pts[i].x, pts[i].y)
+                                        }
+                                    }
+                                    drawPath(
+                                        path = path,
+                                        color = strokeColor,
+                                        style = Stroke(width = 5f, cap = StrokeCap.Round, join = StrokeJoin.Round)
+                                    )
+                                } else if (pts.size == 1) {
+                                    drawCircle(color = strokeColor, radius = 4f, center = pts.first())
+                                }
+                            }
+                        }
+
+                        if (!hasSignature) {
+                            Box(
+                                modifier = Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    "✍️",
+                                    fontSize = 24.sp,
+                                    color = secondaryText.copy(alpha = 0.35f)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onConfirmSignedApproval,
+                enabled = hasSignature,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(46.dp)
+                    .testTag("btn_confirm_signed_invoice_approval"),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = primaryButtonAccent,
+                    disabledContainerColor = Color.LightGray
+                )
+            ) {
+                Text(
+                    Translations.tr("invoice_sig_confirm_btn", lang),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp,
+                    color = Color.White
+                )
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(Translations.tr("btn_cancel", lang), color = secondaryText)
+            }
+        }
+    )
+}
+
+/**
+ * Interactive Finger Signature Box for Official Sales Invoice (`ProfessionalSalesInvoiceModal`).
+ */
+@Composable
+fun DigitalSignaturePadBox(
+    title: String,
+    subtitle: String,
+    signedBadgeText: String,
+    clearText: String,
+    isDark: Boolean,
+    accentColor: Color,
+    accentContainerColor: Color,
+    primaryText: Color,
+    testTagPrefix: String,
+    modifier: Modifier = Modifier
+) {
+    val strokes = remember { mutableStateListOf<List<Offset>>() }
+    var currentStroke by remember { mutableStateOf<List<Offset>>(emptyList()) }
+    val isSigned = strokes.isNotEmpty() || currentStroke.isNotEmpty()
+
+    Surface(
+        color = if (isDark) Color(0xFF0F172A) else Color(0xFFF8FAFC),
+        shape = RoundedCornerShape(8.dp),
+        border = BorderStroke(1.dp, if (isSigned) accentColor else (if (isDark) Color(0xFF334155) else Color(0xFFCBD5E1))),
+        modifier = modifier
+    ) {
+        Column(
+            modifier = Modifier.padding(8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    title,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 10.5.sp,
+                    color = primaryText,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+                if (isSigned) {
+                    Text(
+                        text = clearText,
+                        fontSize = 9.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = ActionRed,
+                        modifier = Modifier
+                            .clickable {
+                                strokes.clear()
+                                currentStroke = emptyList()
+                            }
+                            .padding(horizontal = 4.dp, vertical = 2.dp)
+                            .testTag("${testTagPrefix}_clear")
+                    )
+                }
+            }
+            Text(subtitle, fontSize = 9.5.sp, color = Color.Gray, maxLines = 1, overflow = TextOverflow.Ellipsis)
+
+            Surface(
+                shape = RoundedCornerShape(6.dp),
+                color = if (isDark) Color(0xFF1E293B) else Color.White,
+                border = BorderStroke(1.dp, if (isSigned) accentColor.copy(alpha = 0.6f) else Color(0xFFE2E8F0)),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(74.dp)
+            ) {
+                Box(modifier = Modifier.fillMaxSize()) {
+                    Canvas(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .testTag("${testTagPrefix}_canvas")
+                            .pointerInput(Unit) {
+                                detectTapGestures { offset ->
+                                    strokes.add(
+                                        listOf(
+                                            offset,
+                                            Offset(offset.x + 16f, offset.y - 6f),
+                                            Offset(offset.x + 32f, offset.y + 4f)
+                                        )
+                                    )
+                                }
+                            }
+                            .pointerInput(Unit) {
+                                detectDragGestures(
+                                    onDragStart = { startOffset ->
+                                        currentStroke = listOf(startOffset)
+                                    },
+                                    onDrag = { change, _ ->
+                                        change.consume()
+                                        currentStroke = currentStroke + change.position
+                                    },
+                                    onDragEnd = {
+                                        if (currentStroke.isNotEmpty()) {
+                                            strokes.add(currentStroke)
+                                            currentStroke = emptyList()
+                                        }
+                                    }
+                                )
+                            }
+                    ) {
+                        val inkColor = if (isDark) Color(0xFF38BDF8) else Color(0xFF0F172A)
+                        val allStrokes = if (currentStroke.isNotEmpty()) strokes + listOf(currentStroke) else strokes
+                        allStrokes.forEach { pts ->
+                            if (pts.size >= 2) {
+                                val path = Path().apply {
+                                    moveTo(pts.first().x, pts.first().y)
+                                    for (i in 1 until pts.size) {
+                                        lineTo(pts[i].x, pts[i].y)
+                                    }
+                                }
+                                drawPath(
+                                    path = path,
+                                    color = inkColor,
+                                    style = Stroke(width = 4f, cap = StrokeCap.Round, join = StrokeJoin.Round)
+                                )
+                            } else if (pts.size == 1) {
+                                drawCircle(color = inkColor, radius = 3.5f, center = pts.first())
+                            }
+                        }
+                    }
+
+                    if (!isSigned) {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                "✍️ وقّع بإصبعك",
+                                fontSize = 10.sp,
+                                color = Color.Gray.copy(alpha = 0.65f)
+                            )
+                        }
+                    }
+                }
+            }
+
+            if (isSigned) {
+                Surface(
+                    color = accentContainerColor,
+                    shape = RoundedCornerShape(4.dp)
+                ) {
+                    Text(
+                        signedBadgeText,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                        fontSize = 9.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = accentColor
+                    )
+                }
+            }
+        }
+    }
+}
+
 // ============================================================================
 // 3. دفتر المزرعة (TABLE, TREASURY, ANALYTICS, VET)
 // ============================================================================
@@ -5791,12 +6478,19 @@ fun AgritechFarmNotebookScreen(
     var showExpenseDialog by remember { mutableStateOf(false) }
     var showIncomeDialog by remember { mutableStateOf(false) }
     var showFeedLedgerBottomSheet by remember { mutableStateOf(false) }
+    var showMedicineLedgerBottomSheet by remember { mutableStateOf(false) }
+    var selectedMedicineTxForLedger by remember { mutableStateOf<TransactionModel?>(null) }
     var showVetMedicineInvoiceDialog by remember { mutableStateOf(false) }
     var vetInvoiceSuccessBanner by remember { mutableStateOf<String?>(null) }
     var showOwnerDailyReportDialog by remember { mutableStateOf(false) }
     var editingDailyReport by remember { mutableStateOf<DailyReportModel?>(null) }
+    var selectedOwnerDayReportForMedicalDetails by remember { mutableStateOf<DailyReportModel?>(null) }
     var activeContextualChatChannel by remember { mutableStateOf<String?>(null) }
     var activeContextualChatTitle by remember { mutableStateOf("") }
+    var pendingSignatureApprovalRequest by remember { mutableStateOf< (()->Unit)? >(null) }
+    var pendingSignatureTitle by remember { mutableStateOf("") }
+    var pendingSignatureDate by remember { mutableStateOf("") }
+    var pendingSignatureAmount by remember { mutableStateOf(0.0) }
 
     // Stream the active ProductionCycle from Firestore when entering AgritechFarmNotebookScreen
     val streamedCycles by produceState<List<CycleModel>>(initialValue = emptyList(), farm.id, cycle.id, firestoreRepo) {
@@ -5813,17 +6507,22 @@ fun AgritechFarmNotebookScreen(
             } catch (_: Exception) {}
         }
     }
-    val activeCycle = streamedCycles.firstOrNull { it.id == cycle.id }
-        ?: streamedCycles.firstOrNull()
-        ?: AgritechMockDb.cycles.firstOrNull { it.id == cycle.id }
+    val activeCycle = AgritechMockDb.cycles.firstOrNull { it.id == cycle.id }
+        ?: streamedCycles.firstOrNull { it.id == cycle.id }
         ?: cycle
 
-    val reportsForCycle = reports.filter {
+    val liveReportsForFarm = (AgritechMockDb.dailyReports.filter { it.farmId == farm.id } + reports.filter { it.farmId == farm.id })
+        .distinctBy { it.dayNumber }
+    val reportsForCycle = liveReportsForFarm.filter {
         it.farmId == farm.id && (it.cycleId == activeCycle.id || it.cycleId.isBlank())
     }
-    val txsForCycle = transactions.filter {
-        it.farmId == farm.id && (it.cycleId == activeCycle.id || it.cycleId.isBlank())
-    }
+    val liveVetNotesForFarm = (AgritechMockDb.vetNotes.filter { it.farmId == farm.id } + vetNotes.filter { it.farmId == farm.id })
+        .distinctBy { it.id }
+    val txsForCycle = (AgritechMockDb.transactions.filter { it.farmId == farm.id } + transactions.filter { it.farmId == farm.id })
+        .distinctBy { it.id }
+        .filter {
+            it.farmId == farm.id && (it.cycleId == activeCycle.id || it.cycleId.isBlank())
+        }
 
     val calculatedCycleDay = remember(activeCycle.startDate, reportsForCycle) {
         val reportMax = reportsForCycle.maxOfOrNull { it.dayNumber } ?: 1
@@ -5861,10 +6560,20 @@ fun AgritechFarmNotebookScreen(
     val totalFeed = reportsForCycle.sumOf { it.feedIntakeKg }
     val totalWater = reportsForCycle.sumOf { it.waterIntakeLiters }
     val totalMortality = reportsForCycle.sumOf { it.mortalityCount }
+    val totalPurchasedFeedKg = txsForCycle.filter {
+        it.type == TransactionType.EXPENSE &&
+            it.status.equals("APPROVED", true) &&
+            (it.category.contains("علف") || it.category.contains("Feed", true) || it.category.contains("Aliment", true))
+    }.sumOf { parseFeedTransaction(it, lang).estimatedKg }
+    val effectiveFeedInventoryKg = if (totalPurchasedFeedKg > 0.0 || reportsForCycle.isNotEmpty()) {
+        (totalPurchasedFeedKg - totalFeed).coerceAtLeast(0.0)
+    } else {
+        activeCycle.feedInventoryKg.coerceAtLeast(0.0)
+    }
 
-    // Idempotency & Single Source of Truth Treasury Balance (Only APPROVED transactions affect Treasury)
+    // Idempotency & Single Source of Truth Treasury Balance (Only APPROVED transactions for active cycle affect Treasury)
     var lastSubmittedIdempotencyKey by remember { mutableStateOf("") }
-    val approvedTransactions = transactions.filter { it.status.equals("APPROVED", ignoreCase = true) }
+    val approvedTransactions = txsForCycle.filter { it.status.equals("APPROVED", ignoreCase = true) }
     val totalExpenses = approvedTransactions.filter { it.type == TransactionType.EXPENSE && it.amount > 0.0 }.sumOf { it.amount }
     val totalIncome = approvedTransactions.filter { it.type == TransactionType.INCOME && it.amount > 0.0 }.sumOf { it.amount }
     val netBalance = totalIncome - totalExpenses
@@ -5936,19 +6645,20 @@ fun AgritechFarmNotebookScreen(
             onDismiss = { showExpenseDialog = false },
             onConfirm = { cat, amt, addedFeedKg ->
                 if (amt > 0.0) {
-                    val idempKey = "tx_exp_${farm.id}_${cycle.id}_$expenseDialogIdempUuid"
+                    val idempKey = "tx_exp_${farm.id}_${activeCycle.id}_$expenseDialogIdempUuid"
                     if (idempKey != lastSubmittedIdempotencyKey) {
                         lastSubmittedIdempotencyKey = idempKey
                         onAddTransaction(
                             TransactionModel(
                                 id = idempKey,
                                 farmId = farm.id,
-                                cycleId = cycle.id,
+                                cycleId = activeCycle.id,
                                 type = TransactionType.EXPENSE,
                                 category = cat,
                                 amount = amt,
                                 currency = curr,
-                                date = "${Translations.tr("day_prefix", lang)} $ageInDays"
+                                date = "${Translations.tr("day_prefix", lang)} $ageInDays",
+                                quantityQuintals = if (addedFeedKg > 0.0) addedFeedKg / 100.0 else 0.0
                             ),
                             addedFeedKg
                         )
@@ -6052,6 +6762,7 @@ fun AgritechFarmNotebookScreen(
                 farm = farm,
                 cycle = cycle,
                 ageInDays = ageInDays,
+                liveBirds = liveBirds,
                 buyerName = buyerNameInput,
                 onBuyerNameChange = { buyerNameInput = it },
                 truckPlate = truckPlateInput,
@@ -6077,6 +6788,7 @@ fun AgritechFarmNotebookScreen(
                 farm = farm,
                 cycle = cycle,
                 ageInDays = ageInDays,
+                liveBirds = liveBirds,
                 buyerName = buyerNameInput,
                 truckPlate = truckPlateInput,
                 birdsPerCrate = parsedBirdsPerCrate,
@@ -6100,7 +6812,7 @@ fun AgritechFarmNotebookScreen(
                     }
                 },
                 onFinalizeAndMigrate = {
-                    if (totalSalesValue > 0.0 && totalNetKg > 0.0 && totalBirdsSold > 0) {
+                    if (totalSalesValue > 0.0 && totalNetKg > 0.0 && totalBirdsSold in 1..liveBirds) {
                         val invoiceNumber = "INV-${farm.id.takeLast(1).uppercase()}-${String.format(java.util.Locale.US, "%04d", transactions.count { it.type == TransactionType.INCOME } + 1)}"
                         val invoiceIdempKey = "tx_sale_${farm.id}_${cycle.id}_${invoiceNumber}"
                         if (invoiceIdempKey != lastSubmittedIdempotencyKey) {
@@ -6166,10 +6878,26 @@ fun AgritechFarmNotebookScreen(
         SalesFlowStep.NONE -> {
             val appearance = LocalAppAppearanceState.current
             val preferredFeedUnit = LocalFeedUnitPreference.current
-            val isLowFeedInventory = activeCycle.feedInventoryKg < 500.0
+            val isLowFeedInventory = effectiveFeedInventoryKg < 500.0
             val feedAlertRed = Color(0xFFD32F2F)
             val feedStatusColor = if (isLowFeedInventory) feedAlertRed else appearance.accentColor
             var showBarnClimateAndStatsDialog by remember { mutableStateOf(false) }
+
+            if (pendingSignatureApprovalRequest != null) {
+                InvoiceApprovalSignatureDialog(
+                    categoryOrTitle = pendingSignatureTitle,
+                    dateOrDayText = pendingSignatureDate,
+                    amount = pendingSignatureAmount,
+                    currency = curr,
+                    currentTheme = currentTheme,
+                    lang = lang,
+                    onDismiss = { pendingSignatureApprovalRequest = null },
+                    onConfirmSignedApproval = {
+                        pendingSignatureApprovalRequest?.invoke()
+                        pendingSignatureApprovalRequest = null
+                    }
+                )
+            }
 
             val latestReportForHeader = reportsForCycle.maxByOrNull { it.dayNumber }
             val liveTempC = latestReportForHeader?.temperature ?: 29.0
@@ -6187,7 +6915,7 @@ fun AgritechFarmNotebookScreen(
                     ventilationStatus = liveVentStatus,
                     liveBirds = liveBirds,
                     livabilityPct = liveabilityPct,
-                    feedInventoryKg = activeCycle.feedInventoryKg,
+                    feedInventoryKg = effectiveFeedInventoryKg,
                     fcr = accurateFcr,
                     estimatedWeightKg = effectiveAvgWeightKg,
                     netBalance = netBalance,
@@ -6202,10 +6930,71 @@ fun AgritechFarmNotebookScreen(
             if (showFeedLedgerBottomSheet) {
                 FeedOrdersLedgerBottomSheet(
                     farmName = Translations.getLocalizedFarmName(farm.id, lang, farm.name),
-                    cycle = activeCycle,
+                    cycle = activeCycle.copy(feedInventoryKg = effectiveFeedInventoryKg),
                     transactions = transactions,
                     lang = lang,
                     onDismiss = { showFeedLedgerBottomSheet = false }
+                )
+            }
+
+            if (showMedicineLedgerBottomSheet) {
+                MedicineOrdersLedgerBottomSheet(
+                    farmName = Translations.getLocalizedFarmName(farm.id, lang, farm.name),
+                    cycle = activeCycle,
+                    transactions = txsForCycle,
+                    vetNotes = liveVetNotesForFarm.filter { it.cycleId == activeCycle.id || it.cycleId.isBlank() },
+                    reports = reportsForCycle,
+                    initialSelectedTransaction = selectedMedicineTxForLedger,
+                    lang = lang,
+                    onSelectTransactionForReceipt = { tx ->
+                        showMedicineLedgerBottomSheet = false
+                        selectedMedicineTxForLedger = null
+                        selectedTransactionForReceipt = tx
+                    },
+                    onDismiss = {
+                        showMedicineLedgerBottomSheet = false
+                        selectedMedicineTxForLedger = null
+                    }
+                )
+            }
+
+            if (selectedOwnerDayReportForMedicalDetails != null) {
+                val activeReport = reportsForCycle.firstOrNull { it.dayNumber == selectedOwnerDayReportForMedicalDetails!!.dayNumber }
+                    ?: selectedOwnerDayReportForMedicalDetails!!
+                val matchingVetNotes = liveVetNotesForFarm.filter { it.dayNumber == activeReport.dayNumber }
+                val effectiveDayVetNotes = if (matchingVetNotes.isNotEmpty()) {
+                    matchingVetNotes
+                } else if (activeReport.medicineGiven || activeReport.medicineSummary.isNotBlank()) {
+                    listOf(
+                        VetNoteModel(
+                            id = "vn_confirmed_day_${activeReport.dayNumber}",
+                            farmId = farm.id,
+                            cycleId = activeCycle.id,
+                            dayNumber = activeReport.dayNumber,
+                            medicineName = activeReport.medicineSummary.ifBlank { "دواء / فيتامين في مياه الشرب" },
+                            dosage = "1 مل / لتر في مياه الشرب",
+                            note = Translations.tr("confirm_medicine_water_today_label", lang),
+                            isUrgent = false
+                        )
+                    )
+                } else {
+                    emptyList()
+                }
+                DayMedicalDetailsBottomSheet(
+                    farm = farm,
+                    cycle = activeCycle,
+                    report = activeReport,
+                    dayVetNotes = effectiveDayVetNotes,
+                    currentTheme = currentTheme,
+                    lang = lang,
+                    onAddMedicalNoteForDay = { newNote ->
+                        AgritechMockDb.vetNotes.add(0, newNote)
+                    },
+                    onOpenInvoiceForDay = {
+                        selectedOwnerDayReportForMedicalDetails = null
+                        showVetMedicineInvoiceDialog = true
+                    },
+                    onDismiss = { selectedOwnerDayReportForMedicalDetails = null }
                 )
             }
 
@@ -6216,6 +7005,7 @@ fun AgritechFarmNotebookScreen(
                     cycle = activeCycle,
                     initialReport = editingDailyReport,
                     suggestedDayNumber = suggestedNextDay.coerceAtLeast(1),
+                    vetNotes = vetNotes.filter { it.farmId == farm.id },
                     lang = lang,
                     currentTheme = currentTheme,
                     onDismiss = {
@@ -6282,12 +7072,14 @@ fun AgritechFarmNotebookScreen(
 
                     Surface(
                         color = currentTheme.bgColor,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .statusBarsPadding()
                     ) {
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 8.dp, vertical = 6.dp)
+                                .padding(start = 8.dp, end = 8.dp, top = 8.dp, bottom = 6.dp)
                         ) {
                             // Row 1: Back Button + Full Barn Name & Day/Live Birds + Settings Icon
                             Row(
@@ -6400,7 +7192,7 @@ fun AgritechFarmNotebookScreen(
                                             Spacer(modifier = Modifier.width(3.dp))
                                         }
                                         Text(
-                                            Translations.formatDualFeedInventoryBadge(activeCycle.feedInventoryKg, lang, preferredFeedUnit),
+                                            Translations.formatDualFeedInventoryBadge(effectiveFeedInventoryKg, lang, preferredFeedUnit),
                                             fontSize = 11.sp,
                                             fontWeight = FontWeight.ExtraBold,
                                             color = feedStatusColor,
@@ -6597,145 +7389,205 @@ fun AgritechFarmNotebookScreen(
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(16.dp),
+                                .padding(horizontal = 12.dp, vertical = 14.dp),
                             shape = notebookShape,
                             colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
                             elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                         ) {
-                            Box(
+                            Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .horizontalScroll(rememberScrollState())
-                                    .padding(8.dp)
+                                    .padding(horizontal = 6.dp, vertical = 8.dp)
                             ) {
-                                Column {
-                                    // Table Header with Edit Column
-                                    Row(
-                                        modifier = Modifier
-                                            .background(currentTheme.bgColor, RoundedCornerShape(8.dp))
-                                            .padding(vertical = 12.dp, horizontal = 6.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        CalmTableCell(Translations.tr("th_day", lang), 115.dp, isHeader = true, headingColor = currentTheme.headingColor)
-                                        CalmTableCell(Translations.tr("th_feed", lang), 92.dp, isHeader = true, headingColor = currentTheme.headingColor)
-                                        CalmTableCell(Translations.tr("th_water", lang), 88.dp, isHeader = true, headingColor = currentTheme.headingColor)
-                                        CalmTableCell(Translations.tr("th_mortality", lang), 82.dp, isHeader = true, headingColor = currentTheme.headingColor)
-                                        CalmTableCell(Translations.tr("th_temp", lang), 78.dp, isHeader = true, headingColor = currentTheme.headingColor)
-                                        CalmTableCell(Translations.tr("th_gas", lang), 65.dp, isHeader = true, headingColor = currentTheme.headingColor)
-                                        CalmTableCell(Translations.tr("th_vent", lang), 105.dp, isHeader = true, headingColor = currentTheme.headingColor)
-                                        CalmTableCell(Translations.tr("th_edit", lang), 64.dp, isHeader = true, headingColor = currentTheme.headingColor)
+                                // 4-Column Responsive Table Header (📅 اليوم | 🌾 طعام (ق) | 💧 ماء (لتر) | 💀 نافق) — 100% visible without clipping
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(currentTheme.bgColor, RoundedCornerShape(8.dp))
+                                        .padding(vertical = 11.dp, horizontal = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    CalmTableCell(
+                                        Translations.tr("th_day", lang),
+                                        modifier = Modifier.weight(1.15f),
+                                        isHeader = true,
+                                        headingColor = currentTheme.headingColor,
+                                        fontSize = 11.sp
+                                    )
+                                    CalmTableCell(
+                                        Translations.tr("th_feed", lang),
+                                        modifier = Modifier.weight(1.0f),
+                                        isHeader = true,
+                                        headingColor = currentTheme.headingColor,
+                                        fontSize = 11.sp
+                                    )
+                                    CalmTableCell(
+                                        Translations.tr("th_water", lang),
+                                        modifier = Modifier.weight(1.0f),
+                                        isHeader = true,
+                                        headingColor = currentTheme.headingColor,
+                                        fontSize = 11.sp
+                                    )
+                                    CalmTableCell(
+                                        Translations.tr("th_mortality", lang),
+                                        modifier = Modifier.weight(0.85f),
+                                        isHeader = true,
+                                        headingColor = currentTheme.headingColor,
+                                        fontSize = 11.sp
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(4.dp))
+
+                                reportsForCycle.sortedBy { it.dayNumber }.forEach { r ->
+                                    val isRowEdited = r.isEdited
+                                    val dayMeds = liveVetNotesForFarm.filter { it.dayNumber == r.dayNumber }
+                                    val hasMedForDay = r.medicineGiven || r.medicineSummary.isNotBlank() || dayMeds.isNotEmpty()
+                                    val editedRowBg = when {
+                                        isRowEdited -> if (currentTheme.isDark) Color(0xFF78350F).copy(alpha = 0.42f) else Color(0xFFFEF3C7)
+                                        hasMedForDay -> appearance.accentContainerColor.copy(alpha = 0.45f)
+                                        else -> Color.Transparent
                                     }
+                                    val editedBorderColor = if (isRowEdited) Color(0xFFF59E0B) else Color.Transparent
 
-                                    Spacer(modifier = Modifier.height(4.dp))
-
-                                    reports.sortedBy { it.dayNumber }.forEach { r ->
-                                        val isRowEdited = r.isEdited
-                                        val editedRowBg = if (isRowEdited) {
-                                            if (currentTheme.isDark) Color(0xFF78350F).copy(alpha = 0.42f) else Color(0xFFFEF3C7)
-                                        } else {
-                                            Color.Transparent
-                                        }
-                                        val editedBorderColor = if (isRowEdited) Color(0xFFF59E0B) else Color.Transparent
-
-                                        Column(
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .background(editedRowBg, RoundedCornerShape(10.dp))
+                                            .then(
+                                                if (isRowEdited) Modifier.border(1.dp, editedBorderColor.copy(alpha = 0.65f), RoundedCornerShape(10.dp))
+                                                else Modifier
+                                            )
+                                            .clickable { selectedOwnerDayReportForMedicalDetails = r }
+                                            .testTag("daily_report_row_${r.dayNumber}")
+                                    ) {
+                                        Row(
                                             modifier = Modifier
                                                 .fillMaxWidth()
-                                                .background(editedRowBg, RoundedCornerShape(10.dp))
-                                                .then(
-                                                    if (isRowEdited) Modifier.border(1.dp, editedBorderColor.copy(alpha = 0.65f), RoundedCornerShape(10.dp))
-                                                    else Modifier
-                                                )
-                                                .testTag("daily_report_row_${r.dayNumber}")
+                                                .clickable { selectedOwnerDayReportForMedicalDetails = r }
+                                                .padding(vertical = 8.dp, horizontal = 4.dp),
+                                            verticalAlignment = Alignment.CenterVertically
                                         ) {
-                                            Row(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .padding(vertical = 8.dp, horizontal = 6.dp),
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                val dayColor = notebookAccent
-                                                val qShort = Translations.tr("quintal_short", lang)
+                                            val dayColor = notebookAccent
+                                            val qShort = Translations.tr("quintal_short", lang)
+                                            val rowTextColor = if (currentTheme.isDark) Color.White else Color(0xFF212121)
 
-                                                // Day Number + Yellow Audit Warning Badge ("⚠️ معدّل") if edited
-                                                Column(
-                                                    modifier = Modifier
-                                                        .width(115.dp)
-                                                        .padding(horizontal = 4.dp),
-                                                    horizontalAlignment = Alignment.CenterHorizontally
+                                            // Col 1: 📅 اليوم + Compact Medicine Badge ("💊 دواء") + Edit Icon
+                                            Column(
+                                                modifier = Modifier
+                                                    .weight(1.15f)
+                                                    .clickable { selectedOwnerDayReportForMedicalDetails = r }
+                                                    .padding(horizontal = 2.dp),
+                                                horizontalAlignment = Alignment.CenterHorizontally
+                                            ) {
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.Center
                                                 ) {
                                                     Text(
                                                         "${Translations.tr("day_prefix", lang)} ${r.dayNumber}",
                                                         fontWeight = FontWeight.Bold,
-                                                        fontSize = 12.sp,
+                                                        fontSize = 11.5.sp,
                                                         color = dayColor,
-                                                        textAlign = TextAlign.Center
+                                                        textAlign = TextAlign.Center,
+                                                        maxLines = 1
                                                     )
-                                                    if (isRowEdited) {
-                                                        Spacer(modifier = Modifier.height(3.dp))
-                                                        Surface(
-                                                            shape = RoundedCornerShape(6.dp),
-                                                            color = Color(0xFFF59E0B).copy(alpha = 0.22f),
-                                                            border = BorderStroke(1.dp, Color(0xFFD97706)),
-                                                            modifier = Modifier.testTag("badge_edited_day_${r.dayNumber}")
-                                                        ) {
-                                                            Text(
-                                                                Translations.tr("badge_report_edited", lang),
-                                                                fontSize = 9.5.sp,
-                                                                fontWeight = FontWeight.ExtraBold,
-                                                                color = if (currentTheme.isDark) Color(0xFFFDE68A) else Color(0xFFB45309),
-                                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                                            )
-                                                        }
-                                                    }
-                                                }
-
-                                                CalmTableCell("${Translations.formatQuintalNumber(r.feedIntakeKg / 100.0)} $qShort", 92.dp, isBold = true, textColor = if (currentTheme.isDark) Color.White else Color(0xFF212121))
-                                                CalmTableCell(String.format(java.util.Locale.US, "%.0f", r.waterIntakeLiters), 88.dp, textColor = if (currentTheme.isDark) Color.White else Color(0xFF212121))
-                                                CalmTableCell(
-                                                    "${r.mortalityCount}",
-                                                    82.dp,
-                                                    textColor = if (r.mortalityCount > 3) ActionRed else if (currentTheme.isDark) Color.White else Color(0xFF212121),
-                                                    isBold = r.mortalityCount > 3
-                                                )
-                                                CalmTableCell(String.format(java.util.Locale.US, "%.1f°", r.temperature), 78.dp, textColor = if (currentTheme.isDark) Color.White else Color(0xFF212121))
-                                                CalmTableCell(String.format(java.util.Locale.US, "%.1f", r.gasUnits), 65.dp, textColor = if (currentTheme.isDark) Color.White else Color(0xFF212121))
-                                                CalmTableCell(Translations.getLocalizedVentilation(r.ventilationStatus, lang), 105.dp, textColor = if (currentTheme.isDark) Color.White else Color(0xFF212121))
-
-                                                Box(
-                                                    modifier = Modifier.width(64.dp),
-                                                    contentAlignment = Alignment.Center
-                                                ) {
-                                                    IconButton(
-                                                        onClick = {
-                                                            editingDailyReport = r
-                                                            showOwnerDailyReportDialog = true
-                                                        },
+                                                    Spacer(modifier = Modifier.width(3.dp))
+                                                    Box(
                                                         modifier = Modifier
-                                                            .size(36.dp)
-                                                            .testTag("btn_edit_daily_report_${r.dayNumber}")
+                                                            .size(20.dp)
+                                                            .clip(CircleShape)
+                                                            .clickable {
+                                                                editingDailyReport = r
+                                                                showOwnerDailyReportDialog = true
+                                                            }
+                                                            .testTag("btn_edit_daily_report_${r.dayNumber}"),
+                                                        contentAlignment = Alignment.Center
                                                     ) {
                                                         Icon(
                                                             Icons.Default.Edit,
                                                             contentDescription = Translations.tr("th_edit", lang),
-                                                            tint = if (isRowEdited) Color(0xFFD97706) else notebookAccent,
-                                                            modifier = Modifier.size(18.dp)
+                                                            tint = if (isRowEdited) Color(0xFFD97706) else notebookAccent.copy(alpha = 0.75f),
+                                                            modifier = Modifier.size(13.dp)
+                                                        )
+                                                    }
+                                                }
+                                                if (hasMedForDay) {
+                                                    Spacer(modifier = Modifier.height(3.dp))
+                                                    Surface(
+                                                        shape = RoundedCornerShape(6.dp),
+                                                        color = appearance.accentContainerColor,
+                                                        border = BorderStroke(1.dp, notebookAccent.copy(alpha = 0.5f)),
+                                                        modifier = Modifier
+                                                            .clickable { selectedOwnerDayReportForMedicalDetails = r }
+                                                            .testTag("owner_ledger_med_badge_day_${r.dayNumber}")
+                                                    ) {
+                                                        Text(
+                                                            Translations.tr("badge_day_med_pill", lang),
+                                                            fontSize = 9.sp,
+                                                            fontWeight = FontWeight.ExtraBold,
+                                                            color = notebookAccent,
+                                                            maxLines = 1,
+                                                            textAlign = TextAlign.Center,
+                                                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.5.dp)
+                                                        )
+                                                    }
+                                                }
+                                                if (isRowEdited) {
+                                                    Spacer(modifier = Modifier.height(3.dp))
+                                                    Surface(
+                                                        shape = RoundedCornerShape(6.dp),
+                                                        color = Color(0xFFF59E0B).copy(alpha = 0.22f),
+                                                        border = BorderStroke(1.dp, Color(0xFFD97706)),
+                                                        modifier = Modifier.testTag("badge_edited_day_${r.dayNumber}")
+                                                    ) {
+                                                        Text(
+                                                            Translations.tr("badge_report_edited", lang),
+                                                            fontSize = 9.sp,
+                                                            fontWeight = FontWeight.ExtraBold,
+                                                            color = if (currentTheme.isDark) Color(0xFFFDE68A) else Color(0xFFB45309),
+                                                            maxLines = 1,
+                                                            textAlign = TextAlign.Center,
+                                                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.5.dp)
                                                         )
                                                     }
                                                 }
                                             }
 
-                                            if (isRowEdited && r.previousSummary.isNotBlank()) {
-                                                Text(
-                                                    text = "${Translations.tr("audit_previous_values_prefix", lang)} ${Translations.localizeAuditSummary(r.previousSummary, lang)}",
-                                                    fontSize = 10.sp,
-                                                    fontWeight = FontWeight.SemiBold,
-                                                    color = if (currentTheme.isDark) Color(0xFFFDE68A) else Color(0xFF92400E),
-                                                    modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 6.dp)
-                                                )
-                                            }
+                                            // Col 2: 🌾 طعام (ق)
+                                            CalmTableCell(
+                                                "${Translations.formatQuintalNumber(r.feedIntakeKg / 100.0)} $qShort",
+                                                modifier = Modifier.weight(1.0f),
+                                                isBold = true,
+                                                textColor = rowTextColor
+                                            )
+                                            // Col 3: 💧 ماء (لتر)
+                                            CalmTableCell(
+                                                String.format(java.util.Locale.US, "%.0f", r.waterIntakeLiters),
+                                                modifier = Modifier.weight(1.0f),
+                                                textColor = rowTextColor
+                                            )
+                                            // Col 4: 💀 نافق
+                                            CalmTableCell(
+                                                "${r.mortalityCount}",
+                                                modifier = Modifier.weight(0.85f),
+                                                textColor = if (r.mortalityCount > 3) ActionRed else rowTextColor,
+                                                isBold = r.mortalityCount > 3
+                                            )
                                         }
-                                        HorizontalDivider(color = if (currentTheme.isDark) Color(0xFF334155) else Color(0xFFF1F5F9), thickness = 1.dp)
+
+                                        if (isRowEdited && r.previousSummary.isNotBlank()) {
+                                            Text(
+                                                text = "${Translations.tr("audit_previous_values_prefix", lang)} ${Translations.localizeAuditSummary(r.previousSummary, lang)}",
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = if (currentTheme.isDark) Color(0xFFFDE68A) else Color(0xFF92400E),
+                                                modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 6.dp)
+                                            )
+                                        }
                                     }
+                                    HorizontalDivider(color = if (currentTheme.isDark) Color(0xFF334155) else Color(0xFFF1F5F9), thickness = 1.dp)
                                 }
                             }
                         }
@@ -6747,11 +7599,11 @@ fun AgritechFarmNotebookScreen(
                             shape = notebookShape,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 16.dp)
+                                .padding(horizontal = 12.dp)
                         ) {
                             Row(
                                 modifier = Modifier
-                                    .padding(horizontal = 16.dp, vertical = 14.dp)
+                                    .padding(horizontal = 12.dp, vertical = 14.dp)
                                     .fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceAround
                             ) {
@@ -6768,13 +7620,13 @@ fun AgritechFarmNotebookScreen(
                             }
                         }
 
-                        // SizedBox(height: 80) equivalent so the user can scroll the summary bar above the FAB
+                        // Bottom spacing so the floating button "👷‍♂️ محادثة مشرف العنبر" never covers the water or mortality totals when scrolled down
                         Spacer(modifier = Modifier.height(88.dp))
                     }
                 }
                 1 -> {
                     // TAB 1: الخزنة (Treasury) with Vet Invoice Approval Workflow
-                    val pendingVetTransactions = transactions.filter { it.status.equals("PENDING", ignoreCase = true) }
+                    val pendingVetTransactions = txsForCycle.filter { it.status.equals("PENDING", ignoreCase = true) }
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
@@ -6871,15 +7723,29 @@ fun AgritechFarmNotebookScreen(
                             modifier = Modifier.weight(1f),
                             verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            items(transactions.reversed()) { tx ->
+                            items(txsForCycle.reversed()) { tx ->
                                 val isPendingTx = tx.status.equals("PENDING", ignoreCase = true)
                                 val isChickenSale = tx.type == TransactionType.INCOME && (tx.category == "tx_chicken_sale" || tx.category.contains("دجاج") || tx.category.contains("Chicken", true) || tx.category.contains("Poulets", true) || tx.invoiceData != null)
+                                val isMedicineTx = tx.category.equals("MEDICATION", ignoreCase = true) ||
+                                    tx.category == Translations.tr("tx_meds", lang) ||
+                                    tx.category.contains("أدوية") ||
+                                    tx.category.contains("لقاح") ||
+                                    tx.category.contains("دواء") ||
+                                    tx.category.contains("تحصين") ||
+                                    tx.category.contains("فيتامين") ||
+                                    tx.category.contains("Med", ignoreCase = true) ||
+                                    tx.category.contains("Vaccin", ignoreCase = true)
                                 Card(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .testTag("tx_card_${tx.id}")
                                         .clickable {
-                                            selectedTransactionForReceipt = tx
+                                            if (isMedicineTx) {
+                                                selectedMedicineTxForLedger = tx
+                                                showMedicineLedgerBottomSheet = true
+                                            } else {
+                                                selectedTransactionForReceipt = tx
+                                            }
                                         },
                                     shape = notebookShape,
                                     colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
@@ -6953,7 +7819,12 @@ fun AgritechFarmNotebookScreen(
                                                                 it.linkedTransactionId == tx.id ||
                                                                     (it.farmId == tx.farmId && it.cycleId == tx.cycleId && it.status.equals("PENDING", ignoreCase = true))
                                                             }
-                                                            onApproveVetInvoice(tx.id, linkedNote?.id ?: "")
+                                                            pendingSignatureTitle = Translations.getLocalizedTxCategory(tx.category, lang, preferredFeedUnit)
+                                                            pendingSignatureDate = tx.date
+                                                            pendingSignatureAmount = tx.amount
+                                                            pendingSignatureApprovalRequest = {
+                                                                onApproveVetInvoice(tx.id, linkedNote?.id ?: "")
+                                                            }
                                                         },
                                                         modifier = Modifier
                                                             .fillMaxWidth()
@@ -7073,14 +7944,26 @@ fun AgritechFarmNotebookScreen(
                                     darkValueColor
                                 )
 
-                                // 4. 🥣 استهلاك الدجاجة الواحدة من العلف (كغ وغرام)
+                                // 4. 🥣 استهلاك الدجاجة الواحدة من العلف (وحدة ذكية تلقائية: غرام تحت 1000غ، وكغ من 1000غ فما فوق)
+                                val formattedFeedPerBird = if (feedPerBirdG < 1000.0) {
+                                    "${kotlin.math.round(feedPerBirdG).toInt()} ${Translations.tr("gram_unit", lang)}"
+                                } else {
+                                    "${String.format(java.util.Locale.US, "%.2f", feedPerBirdG / 1000.0)} $kgUnit"
+                                }
                                 CalmMetricRow(
                                     Translations.tr("feed_per_bird", lang),
-                                    "${String.format(java.util.Locale.US, "%.2f", feedPerBirdKg)} $kgUnit (${String.format(java.util.Locale.US, "%,.0f", feedPerBirdG)} g)",
+                                    formattedFeedPerBird,
                                     darkValueColor
                                 )
 
-                                // 5. ⚖️ معامل التحويل (FCR)
+                                // 5. 🐥 متوسط وزن الطائر (الفعلي المسجل أو منحنى Ross 308)
+                                CalmMetricRow(
+                                    Translations.tr("est_weight", lang),
+                                    "${String.format(java.util.Locale.US, "%.3f", effectiveAvgWeightKg)} $kgUnit",
+                                    positiveGreen
+                                )
+
+                                // 6. ⚖️ معامل التحويل (FCR)
                                 CalmMetricRow(
                                     Translations.tr("fcr", lang),
                                     String.format(java.util.Locale.US, "%.3f", accurateFcr),
@@ -7542,7 +8425,12 @@ fun AgritechFarmNotebookScreen(
                                                                     it.farmId == vn.farmId && it.cycleId == vn.cycleId && it.status.equals("PENDING", ignoreCase = true)
                                                                 }?.id ?: ""
                                                             }
-                                                            onApproveVetInvoice(matchedTxId, vn.id)
+                                                            pendingSignatureTitle = Translations.getLocalizedMedicine(vn.id, vn.medicineName, lang)
+                                                            pendingSignatureDate = "${Translations.tr("day_prefix", lang)} ${vn.dayNumber}"
+                                                            pendingSignatureAmount = vn.invoiceAmount
+                                                            pendingSignatureApprovalRequest = {
+                                                                onApproveVetInvoice(matchedTxId, vn.id)
+                                                            }
                                                         },
                                                         modifier = Modifier
                                                             .fillMaxWidth()
@@ -7591,6 +8479,7 @@ fun OwnerDailyReportDialog(
     cycle: CycleModel,
     initialReport: DailyReportModel?,
     suggestedDayNumber: Int,
+    vetNotes: List<VetNoteModel> = emptyList(),
     lang: AppLanguage,
     currentTheme: AppThemeOption,
     onDismiss: () -> Unit,
@@ -7633,6 +8522,31 @@ fun OwnerDailyReportDialog(
             if (initialReport != null) String.format(java.util.Locale.US, "%.1f", initialReport.gasUnits)
             else "1.5"
         )
+    }
+    var actualWeightGramsInput by remember(initialReport) {
+        mutableStateOf(
+            if (initialReport != null && initialReport.actualAvgWeightKg > 0.0) {
+                kotlin.math.round(initialReport.actualAvgWeightKg * 1000.0).toInt().toString()
+            } else {
+                ""
+            }
+        )
+    }
+
+    val parsedCurrentDay = dayNumberInput.toIntOrNull() ?: suggestedDayNumber
+    val activeDayOrFarmVetNote = vetNotes.firstOrNull { it.dayNumber == parsedCurrentDay }
+        ?: vetNotes.lastOrNull()
+        ?: AgritechMockDb.vetNotes.firstOrNull { it.farmId == farm.id && it.dayNumber == parsedCurrentDay }
+        ?: AgritechMockDb.vetNotes.lastOrNull { it.farmId == farm.id }
+    val defaultActiveMedName = initialReport?.medicineSummary?.takeIf { it.isNotBlank() }
+        ?: activeDayOrFarmVetNote?.medicineName
+        ?: "فيتامين AD3E + رافع مناعة"
+
+    var medicineGivenToggle by remember(initialReport, activeDayOrFarmVetNote) {
+        mutableStateOf(initialReport?.medicineGiven ?: (activeDayOrFarmVetNote != null))
+    }
+    var medicineSummaryInput by remember(initialReport, activeDayOrFarmVetNote) {
+        mutableStateOf(defaultActiveMedName)
     }
 
     AlertDialog(
@@ -7726,6 +8640,23 @@ fun OwnerDailyReportDialog(
                         .testTag("input_owner_report_mortality")
                 )
 
+                OutlinedTextField(
+                    value = actualWeightGramsInput,
+                    onValueChange = { actualWeightGramsInput = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    label = { Text(Translations.tr("field_actual_bird_weight_grams_optional", lang), fontSize = 11.5.sp, color = secondaryText) },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = primaryText,
+                        unfocusedTextColor = primaryText,
+                        focusedBorderColor = accentEmerald
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("input_owner_report_actual_weight_grams")
+                )
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -7764,6 +8695,66 @@ fun OwnerDailyReportDialog(
                             .testTag("input_owner_report_gas")
                     )
                 }
+
+                // Medicine in water confirmation switch row ("💊 تأكيد إعطاء الدواء في الماء اليوم (شرب الدواء ✓)")
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = if (medicineGivenToggle) appearance.accentContainerColor.copy(alpha = 0.65f)
+                    else if (isDark) Color(0xFF0F172A) else Color(0xFFF8FAFC),
+                    border = BorderStroke(
+                        1.dp,
+                        if (medicineGivenToggle) accentEmerald.copy(alpha = 0.55f)
+                        else if (isDark) Color(0xFF334155) else Color(0xFFE2E8F0)
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                Translations.tr("confirm_medicine_water_today_label", lang),
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (medicineGivenToggle) accentEmerald else primaryText,
+                                modifier = Modifier.weight(1f).padding(end = 8.dp)
+                            )
+                            Switch(
+                                checked = medicineGivenToggle,
+                                onCheckedChange = { medicineGivenToggle = it },
+                                modifier = Modifier.testTag("switch_owner_report_medicine_given")
+                            )
+                        }
+                        if (medicineGivenToggle) {
+                            OutlinedTextField(
+                                value = medicineSummaryInput,
+                                onValueChange = { medicineSummaryInput = it },
+                                label = {
+                                    Text(
+                                        Translations.tr("medicine_water_name_input_label", lang),
+                                        fontSize = 11.sp,
+                                        color = secondaryText
+                                    )
+                                },
+                                singleLine = true,
+                                shape = RoundedCornerShape(10.dp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedTextColor = primaryText,
+                                    unfocusedTextColor = primaryText,
+                                    focusedBorderColor = accentEmerald
+                                ),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("input_owner_report_medicine_name")
+                            )
+                        }
+                    }
+                }
             }
         },
         confirmButton = {
@@ -7775,6 +8766,17 @@ fun OwnerDailyReportDialog(
                     val parsedMortality = (mortalityInput.toIntOrNull() ?: 0).coerceAtLeast(0)
                     val parsedTemp = tempInput.toDoubleOrNull() ?: 29.0
                     val parsedGas = (gasAmmoniaInput.toDoubleOrNull() ?: 0.0).coerceAtLeast(0.0)
+                    val parsedWeightGrams = actualWeightGramsInput.trim().replace(',', '.').toDoubleOrNull() ?: 0.0
+                    val resolvedActualWeightKg = if (parsedWeightGrams > 0.0) {
+                        parsedWeightGrams / 1000.0
+                    } else {
+                        0.0
+                    }
+                    val resolvedMedName = if (medicineGivenToggle) {
+                        medicineSummaryInput.trim().ifBlank { defaultActiveMedName }
+                    } else {
+                        ""
+                    }
 
                     val reportId = initialReport?.id ?: "rep_${farm.id}_${cycle.id}_d$parsedDay"
                     val reportToSave = DailyReportModel(
@@ -7788,8 +8790,11 @@ fun OwnerDailyReportDialog(
                         temperature = parsedTemp,
                         gasUnits = parsedGas,
                         ventilationStatus = initialReport?.ventilationStatus ?: "جيدة",
+                        actualAvgWeightKg = resolvedActualWeightKg,
                         isEdited = isEditMode,
-                        previousSummary = initialReport?.previousSummary ?: ""
+                        previousSummary = initialReport?.previousSummary ?: "",
+                        medicineGiven = medicineGivenToggle,
+                        medicineSummary = resolvedMedName
                     )
                     onSaveReport(reportToSave)
                 },
@@ -7861,10 +8866,10 @@ fun ContextualChatBottomSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = 480.dp, max = 680.dp)
+                .height(540.dp)
                 .testTag("contextual_chat_bottom_sheet")
         ) {
-            // Contextual Chat Header Bar
+            // Contextual Chat Header Bar (100% identical layout for both Worker Chat and Vet Consultation Chat)
             val appearance = LocalAppAppearanceState.current
             val isDark = currentTheme.isDark
             val headerBg = if (isDark) Color(0xFF1E293B) else Color.White
@@ -7903,18 +8908,22 @@ fun ContextualChatBottomSheet(
                                 )
                             }
                         }
-                        Column {
+                        Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 title,
                                 fontWeight = FontWeight.ExtraBold,
                                 fontSize = 15.5.sp,
-                                color = primaryText
+                                color = primaryText,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                             Text(
                                 subtitle,
                                 fontSize = 11.5.sp,
                                 color = secondaryText,
-                                fontWeight = FontWeight.Medium
+                                fontWeight = FontWeight.Medium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                     }
@@ -7937,36 +8946,12 @@ fun ContextualChatBottomSheet(
                                     Translations.tr("btn_send_financial_request", lang),
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = accentEmerald
+                                    color = accentEmerald,
+                                    maxLines = 1
                                 )
                             }
                         }
                         Spacer(modifier = Modifier.width(4.dp))
-
-                        if (onOpenVetInvoice != null) {
-                            Surface(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .testTag("btn_contextual_chat_vet_invoice")
-                                    .clickable { onOpenVetInvoice() },
-                                shape = RoundedCornerShape(10.dp),
-                                color = appearance.accentContainerColor,
-                                border = BorderStroke(1.dp, accentEmerald.copy(alpha = 0.4f))
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        Translations.tr("vet_invoice_btn", lang),
-                                        fontSize = 10.5.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = accentEmerald
-                                    )
-                                }
-                            }
-                            Spacer(modifier = Modifier.width(4.dp))
-                        }
 
                         IconButton(onClick = onDismiss) {
                             Icon(
@@ -8286,6 +9271,7 @@ fun TeamChatTab(
     val scope = rememberCoroutineScope()
     val messages = AgritechMockDb.streamChatMessages(channelId)
     var messageInput by remember { mutableStateOf("") }
+    var pendingChatApprovalMsg by remember { mutableStateOf<ChatMessageModel?>(null) }
     val currentUserId = "owner_1"
     val appearance = LocalAppAppearanceState.current
     val sendBtnAccent = appearance.accentOption.primaryColor
@@ -8293,6 +9279,47 @@ fun TeamChatTab(
     val primaryText = if (isDark) Color(0xFFFFFFFF) else Color(0xDD000000)
     val secondaryText = if (isDark) Color(0xFFCBD5E1) else Color(0xFF64748B)
     val accentEmerald = appearance.accentColor
+
+    pendingChatApprovalMsg?.let { targetMsg ->
+        val targetTx = AgritechMockDb.transactions.firstOrNull { it.id == targetMsg.linkedTransactionId }
+        val displayTitle = targetMsg.requestCategory.ifBlank {
+            targetTx?.category ?: Translations.tr("fin_req_dialog_title", lang)
+        }
+        val displayAmt = if (targetMsg.requestAmount > 0.0) targetMsg.requestAmount else (targetTx?.amount ?: 0.0)
+        val displayCurr = targetMsg.requestCurrency.ifBlank {
+            targetTx?.currency ?: Translations.tr("currency", lang)
+        }
+        val displayDate = targetTx?.date ?: targetMsg.timestamp
+
+        InvoiceApprovalSignatureDialog(
+            categoryOrTitle = displayTitle,
+            dateOrDayText = displayDate,
+            amount = displayAmt,
+            currency = displayCurr,
+            currentTheme = currentTheme,
+            lang = lang,
+            onDismiss = { pendingChatApprovalMsg = null },
+            onConfirmSignedApproval = {
+                val targetTxId = targetMsg.linkedTransactionId
+                val sigTag = "Signed_By_Owner_${System.currentTimeMillis()}"
+                AgritechMockDb.approveVetInvoice(
+                    transactionId = targetTxId,
+                    signatureTag = sigTag
+                )
+                val targetFarmId = targetTx?.farmId ?: "farm_1"
+                if (firestoreRepo != null) {
+                    scope.launch {
+                        firestoreRepo.approveVetInvoiceTransaction(
+                            farmId = targetFarmId,
+                            transactionId = targetTxId,
+                            approvedBySignature = sigTag
+                        )
+                    }
+                }
+                pendingChatApprovalMsg = null
+            }
+        )
+    }
 
     Column(
         modifier = Modifier
@@ -8348,7 +9375,8 @@ fun TeamChatTab(
                     AgritechMockDb.transactions.firstOrNull { it.id == msg.linkedTransactionId }
                 } else null
                 val isPendingRequest = linkedTx != null && linkedTx.status.equals("PENDING", ignoreCase = true)
-                val isApprovedRequest = linkedTx != null && linkedTx.status.equals("APPROVED", ignoreCase = true)
+                val isApprovedRequest = (linkedTx != null && linkedTx.status.equals("APPROVED", ignoreCase = true)) ||
+                    msg.status.equals("APPROVED", ignoreCase = true)
 
                 Box(
                     modifier = Modifier.fillMaxWidth(),
@@ -8441,20 +9469,10 @@ fun TeamChatTab(
                                             fontWeight = FontWeight.Bold,
                                             color = if (isApprovedRequest) accentEmerald else Color(0xFFD97706)
                                         )
-                                        if (isPendingRequest) {
+                                        if (isPendingRequest && !isApprovedRequest) {
                                             Button(
                                                 onClick = {
-                                                    val targetTxId = msg.linkedTransactionId
-                                                    AgritechMockDb.approveVetInvoice(targetTxId)
-                                                    val targetFarmId = linkedTx?.farmId ?: "farm_1"
-                                                    if (firestoreRepo != null) {
-                                                        scope.launch {
-                                                            firestoreRepo.approveVetInvoiceTransaction(
-                                                                farmId = targetFarmId,
-                                                                transactionId = targetTxId
-                                                            )
-                                                        }
-                                                    }
+                                                    pendingChatApprovalMsg = msg
                                                 },
                                                 modifier = Modifier
                                                     .fillMaxWidth()
@@ -8598,6 +9616,7 @@ fun BatchShipmentInfoScreen(
     farm: FarmModel,
     cycle: CycleModel,
     ageInDays: Int,
+    liveBirds: Int = cycle.totalBirdsPlaced,
     buyerName: String,
     onBuyerNameChange: (String) -> Unit,
     truckPlate: String,
@@ -8614,6 +9633,10 @@ fun BatchShipmentInfoScreen(
     onBack: () -> Unit
 ) {
     BackHandler { onBack() }
+    val parsedCrateBirds = birdsPerCrate.trim().toIntOrNull() ?: 0
+    val isCrateCountExceedingLiveBirds = parsedCrateBirds > liveBirds
+    val liveBirdsExceededWarningText = Translations.tr("sales_exceeds_live_birds_warning", lang)
+        .replace("{liveBirds}", "$liveBirds")
 
     Scaffold(
         containerColor = currentTheme.bgColor,
@@ -8759,7 +9782,7 @@ fun BatchShipmentInfoScreen(
                             Spacer(modifier = Modifier.width(12.dp))
                             Column {
                                 Text(
-                                    "${Translations.tr("bird_age_auto_calculated_title", lang)}: $ageInDays ${Translations.tr("days_unit", lang)}",
+                                    Translations.tr("bird_age_auto_calculated_title", lang).replace("{days}", "$ageInDays"),
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 13.5.sp,
                                     color = shipAccent
@@ -8798,17 +9821,32 @@ fun BatchShipmentInfoScreen(
                         onValueChange = onBirdsPerCrateChange,
                         label = { Text(Translations.tr("birds_per_crate_label", lang), fontSize = 13.sp) },
                         placeholder = { Text("10") },
-                        supportingText = { Text(Translations.tr("birds_per_crate_free_hint", lang), fontSize = 11.5.sp, color = Color.Gray) },
+                        isError = isCrateCountExceedingLiveBirds,
+                        supportingText = {
+                            if (isCrateCountExceedingLiveBirds) {
+                                Text(
+                                    liveBirdsExceededWarningText,
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = ActionRed,
+                                    modifier = Modifier.testTag("sales_stage1_live_birds_exceeded_warning")
+                                )
+                            } else {
+                                Text(Translations.tr("birds_per_crate_free_hint", lang), fontSize = 11.5.sp, color = Color.Gray)
+                            }
+                        },
                         leadingIcon = {
-                            Icon(Icons.Default.Inbox, contentDescription = null, tint = shipAccent)
+                            Icon(Icons.Default.Inbox, contentDescription = null, tint = if (isCrateCountExceedingLiveBirds) ActionRed else shipAccent)
                         },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("input_sales_birds_per_crate"),
                         shape = shipFieldShape,
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = shipAccent,
-                            focusedLabelColor = shipAccent
+                            focusedBorderColor = if (isCrateCountExceedingLiveBirds) ActionRed else shipAccent,
+                            focusedLabelColor = if (isCrateCountExceedingLiveBirds) ActionRed else shipAccent
                         )
                     )
 
@@ -8925,10 +9963,16 @@ fun BatchShipmentInfoScreen(
 
             // زر عريض في الأسفل: [حفظ وبدء تسجيل الوزنات ➡️]
             Button(
-                onClick = onProceedToWeighing,
+                onClick = {
+                    if (!isCrateCountExceedingLiveBirds) {
+                        onProceedToWeighing()
+                    }
+                },
+                enabled = !isCrateCountExceedingLiveBirds,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(54.dp),
+                    .height(54.dp)
+                    .testTag("btn_proceed_to_weighing"),
                 shape = shipFieldShape,
                 colors = ButtonDefaults.buttonColors(containerColor = appearance.accentOption.primaryColor),
                 elevation = ButtonDefaults.buttonElevation(defaultElevation = 3.dp)
@@ -8958,6 +10002,7 @@ fun BatchQuickWeighingScreen(
     farm: FarmModel,
     cycle: CycleModel,
     ageInDays: Int,
+    liveBirds: Int = cycle.totalBirdsPlaced,
     buyerName: String,
     truckPlate: String,
     birdsPerCrate: Int,
@@ -9039,6 +10084,9 @@ fun BatchQuickWeighingScreen(
     val totalBirdsSold = grossWeights.sumOf { it.cratesCount * birdsPerCrate }
     val avgBirdWeightKg = if (totalBirdsSold > 0) totalNetKg / totalBirdsSold else 0.0
     val totalSalesValue = totalNetKg * pricePerKg
+    val isBirdsSoldExceedingLive = totalBirdsSold > liveBirds
+    val liveBirdsExceededWarningText = Translations.tr("sales_exceeds_live_birds_warning", lang)
+        .replace("{liveBirds}", "$liveBirds")
 
     val curr = Translations.tr("currency", lang)
     val kgUnit = Translations.tr("kg_unit", lang)
@@ -9092,6 +10140,25 @@ fun BatchQuickWeighingScreen(
                     val positiveGreen = weighAccent
                     val darkColor = if (currentTheme.isDark) Color.White else Color(0xFF0F172A)
 
+                    if (isBirdsSoldExceedingLive) {
+                        Surface(
+                            color = if (currentTheme.isDark) Color(0xFF450A0A) else Color(0xFFFEF2F2),
+                            shape = RoundedCornerShape(10.dp),
+                            border = BorderStroke(1.dp, ActionRed.copy(alpha = 0.6f)),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("sales_live_birds_exceeded_warning")
+                        ) {
+                            Text(
+                                liveBirdsExceededWarningText,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (currentTheme.isDark) Color(0xFFFCA5A5) else ActionRed,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                            )
+                        }
+                    }
+
                     // لا يتم حساب وإظهار الصافي إلا في الأسفل من المجموع الكلي
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -9106,7 +10173,12 @@ fun BatchQuickWeighingScreen(
                         // إجمالي عدد الطيور المباعة
                         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
                             Text(Translations.tr("weigh_total_birds_label", lang), fontSize = 10.sp, color = Color.Gray, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text("${String.format(java.util.Locale.US, "%,d", totalBirdsSold)} ${Translations.tr("birds_unit_short", lang)}", fontWeight = FontWeight.Bold, fontSize = 12.5.sp, color = darkColor)
+                            Text(
+                                "${String.format(java.util.Locale.US, "%,d", totalBirdsSold)} ${Translations.tr("birds_unit_short", lang)}",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.5.sp,
+                                color = if (isBirdsSoldExceedingLive) ActionRed else darkColor
+                            )
                         }
                         // معدل وزن الدجاجة الواحدة = (الصافي الكلي ÷ إجمالي الطيور)
                         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
@@ -9125,7 +10197,7 @@ fun BatchQuickWeighingScreen(
                     val saveScope = rememberCoroutineScope()
                     Button(
                         onClick = {
-                            if (!isSavingInvoice && totalSalesValue > 0) {
+                            if (!isSavingInvoice && totalSalesValue > 0 && !isBirdsSoldExceedingLive) {
                                 isSavingInvoice = true
                                 saveScope.launch {
                                     delay(350)
@@ -9134,10 +10206,11 @@ fun BatchQuickWeighingScreen(
                                 }
                             }
                         },
-                        enabled = totalSalesValue > 0 && !isSavingInvoice,
+                        enabled = totalSalesValue > 0 && !isBirdsSoldExceedingLive && !isSavingInvoice,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(52.dp),
+                            .height(52.dp)
+                            .testTag("btn_save_invoice_and_migrate"),
                         shape = RoundedCornerShape((appearance.cornerRadiusDp - 4).coerceAtLeast(4).dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = weighButtonAccent,
@@ -9188,8 +10261,8 @@ fun BatchQuickWeighingScreen(
                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
             ) {
                 Column(
-                    modifier = Modifier.padding(18.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    modifier = Modifier.padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -9295,7 +10368,7 @@ fun BatchQuickWeighingScreen(
                         OutlinedTextField(
                             value = tareInput,
                             onValueChange = { tareInput = it },
-                            label = { Text("${Translations.tr("weigh_tare_input_label", lang)} ($kgUnit)", fontSize = 11.sp) },
+                            label = { Text(Translations.tr("weigh_tare_input_label", lang), fontSize = 11.sp) },
                             placeholder = { Text(Translations.tr("weigh_tare_placeholder", lang), color = Color.Gray, fontSize = 11.sp) },
                             modifier = Modifier
                                 .weight(1f)
@@ -9325,7 +10398,7 @@ fun BatchQuickWeighingScreen(
                         OutlinedTextField(
                             value = grossInput,
                             onValueChange = { grossInput = it },
-                            label = { Text("${Translations.tr("weigh_gross_input_label", lang)} ($kgUnit)", fontSize = 11.sp) },
+                            label = { Text(Translations.tr("weigh_gross_input_label", lang), fontSize = 11.sp) },
                             placeholder = { Text(Translations.tr("weigh_gross_placeholder", lang), color = Color.Gray, fontSize = 11.sp) },
                             modifier = Modifier
                                 .weight(1f)
@@ -9378,8 +10451,7 @@ fun BatchQuickWeighingScreen(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(1f)
-                    .heightIn(min = 220.dp, max = 320.dp),
+                    .weight(1f),
                 shape = weighCardShape,
                 colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
@@ -9402,8 +10474,8 @@ fun BatchQuickWeighingScreen(
                     ) {
                         val headerColor = if (currentTheme.isDark) Color.White else weighAccent
                         CalmTableCell("#", 64.dp, isHeader = true, headingColor = headerColor)
-                        CalmTableCell("${Translations.tr("weigh_tare_input_label", lang)} ($kgUnit)", width = 0.dp, modifier = Modifier.weight(1f), isHeader = true, headingColor = headerColor)
-                        CalmTableCell("${Translations.tr("weigh_gross_input_label", lang)} ($kgUnit)", width = 0.dp, modifier = Modifier.weight(1.2f), isHeader = true, headingColor = headerColor)
+                        CalmTableCell(Translations.tr("weigh_tare_input_label", lang), width = 0.dp, modifier = Modifier.weight(1f), isHeader = true, headingColor = headerColor)
+                        CalmTableCell(Translations.tr("weigh_gross_input_label", lang), width = 0.dp, modifier = Modifier.weight(1.2f), isHeader = true, headingColor = headerColor)
                         Box(modifier = Modifier.width(48.dp), contentAlignment = Alignment.Center) {
                             Text("🗑️", fontSize = 12.sp)
                         }
@@ -9471,7 +10543,7 @@ fun BatchQuickWeighingScreen(
                                         // 3. 📦 الممتلئ (كغ) مع تفصيل الصناديق والطيور
                                         val grossText = if (idx < grossWeights.size) {
                                             val entry = grossWeights[idx]
-                                            "${String.format(java.util.Locale.US, "%.1f", entry.weightKg)} (${entry.cratesCount}$crateShortUnit•${entry.cratesCount * birdsPerCrate}🐥)"
+                                            "${String.format(java.util.Locale.US, "%.1f", entry.weightKg)} (${entry.cratesCount}$crateShortUnit•${entry.cratesCount * birdsPerCrate} ${Translations.tr("bird_unit", lang)})"
                                         } else {
                                             "—"
                                         }
@@ -9480,7 +10552,9 @@ fun BatchQuickWeighingScreen(
                                             width = 0.dp,
                                             modifier = Modifier.weight(1.2f),
                                             isBold = idx < grossWeights.size,
-                                            textColor = if (idx < grossWeights.size) cellNumberColor else Color.Gray
+                                            textColor = if (idx < grossWeights.size) cellNumberColor else Color.Gray,
+                                            fontSize = 11.sp,
+                                            softWrap = false
                                         )
 
                                         // 4. 🗑️
@@ -9628,7 +10702,9 @@ fun CalmTableCell(
     isHeader: Boolean = false,
     isBold: Boolean = false,
     textColor: Color = DarkTextColor,
-    headingColor: Color = TextForestGreen
+    headingColor: Color = TextForestGreen,
+    fontSize: TextUnit = if (isHeader) 11.5.sp else 12.sp,
+    softWrap: Boolean = true
 ) {
     val finalModifier = if (width > 0.dp) modifier.width(width) else modifier
     Box(
@@ -9638,10 +10714,11 @@ fun CalmTableCell(
         Text(
             text = text,
             fontWeight = if (isHeader || isBold) FontWeight.Bold else FontWeight.Normal,
-            fontSize = if (isHeader) 11.5.sp else 12.sp,
+            fontSize = fontSize,
             color = if (isHeader) headingColor else textColor,
             textAlign = TextAlign.Center,
-            maxLines = 1
+            maxLines = 1,
+            softWrap = softWrap
         )
     }
 }
@@ -9883,7 +10960,7 @@ data class FeedOrderParsedRow(
     val currency: String
 )
 
-private fun parseFeedTransaction(
+internal fun parseFeedTransaction(
     tx: TransactionModel,
     lang: AppLanguage,
     unitPref: FeedUnitPreference = FeedUnitPreference.QUINTAL
@@ -9902,11 +10979,20 @@ private fun parseFeedTransaction(
         ""
     }
     val numericInParen = Regex("""(\d+(\.\d+)?)""").find(insideParen)?.groupValues?.get(1)?.toDoubleOrNull()
+    val combinedText = "${tx.category} ${tx.notes}"
+    val inlineTonMatch = Regex("""(\d+(\.\d+)?)\s*(طن|ton)""", RegexOption.IGNORE_CASE).find(combinedText)?.groupValues?.get(1)?.toDoubleOrNull()
+    val inlineKgMatch = Regex("""(\d+(\.\d+)?)\s*(كغ|كيلو|kg)""", RegexOption.IGNORE_CASE).find(combinedText)?.groupValues?.get(1)?.toDoubleOrNull()
+    val inlineQuintalMatch = Regex("""(\d+(\.\d+)?)\s*(قنطار|ق|q)\b""", RegexOption.IGNORE_CASE).find(combinedText)?.groupValues?.get(1)?.toDoubleOrNull()
+
     val estimatedKg = when {
+        tx.quantityQuintals > 0.0 -> tx.quantityQuintals * 100.0
         numericInParen != null && (insideParen.contains("طن") || insideParen.contains("ton", ignoreCase = true)) -> numericInParen * 1000.0
         numericInParen != null && (insideParen.contains("كغ") || insideParen.contains("kg", ignoreCase = true)) -> numericInParen
         numericInParen != null -> numericInParen * 100.0
-        else -> (tx.amount / 8000.0) * 100.0
+        inlineTonMatch != null -> inlineTonMatch * 1000.0
+        inlineKgMatch != null -> inlineKgMatch
+        inlineQuintalMatch != null -> inlineQuintalMatch * 100.0
+        else -> 0.0
     }
     val quantityText = Translations.formatBulkFeedPurchaseQuantity(estimatedKg, lang, unitPref)
     return FeedOrderParsedRow(
@@ -9942,6 +11028,7 @@ fun FeedOrdersLedgerBottomSheet(
     val feedTransactions = remember(transactions, cycle.id, lang) {
         transactions.filter { tx ->
             tx.type == TransactionType.EXPENSE &&
+                tx.status.equals("APPROVED", ignoreCase = true) &&
                 (tx.cycleId == cycle.id || tx.cycleId.isBlank()) &&
                 (
                     tx.category.equals("feed", ignoreCase = true) ||
@@ -10219,6 +11306,436 @@ fun FeedOrdersLedgerBottomSheet(
             }
         }
     }
+}
+
+private data class MedicineLedgerRowItem(
+    val id: String,
+    val dayText: String,
+    val medicineName: String,
+    val dosageText: String,
+    val isApproved: Boolean,
+    val amountDzd: Double,
+    val currency: String,
+    val linkedTransaction: TransactionModel?
+)
+
+/**
+ * Unified Medicine & Prescriptions Ledger BottomSheet (`MedicineOrdersLedgerBottomSheet`),
+ * modeled directly after `FeedOrdersLedgerBottomSheet` (`سجل طلبيات العلف`).
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun MedicineOrdersLedgerBottomSheet(
+    farmName: String,
+    cycle: CycleModel,
+    transactions: List<TransactionModel>,
+    vetNotes: List<VetNoteModel>,
+    reports: List<DailyReportModel> = emptyList(),
+    initialSelectedTransaction: TransactionModel? = null,
+    lang: AppLanguage,
+    onSelectTransactionForReceipt: ((TransactionModel) -> Unit)? = null,
+    onDismiss: () -> Unit
+) {
+    val appearance = LocalAppAppearanceState.current
+    val isDark = appearance.isDark
+    val dialogBg = if (isDark) Color(0xFF1E293B) else Color.White
+    val primaryText = if (isDark) Color.White else Color(0xDD000000)
+    val secondaryText = if (isDark) Color(0xFFCBD5E1) else Color.Gray
+    val accentEmerald = appearance.accentColor
+    val primaryButtonAccent = appearance.accentOption.primaryColor
+    val curr = Translations.tr("currency", lang)
+    val dayPrefix = Translations.tr("day_prefix", lang)
+
+    val medicineTransactions = remember(transactions, cycle.id, lang) {
+        transactions.filter { tx ->
+            tx.type == TransactionType.EXPENSE &&
+                (tx.cycleId == cycle.id || tx.cycleId.isBlank()) &&
+                (
+                    tx.category.equals("MEDICATION", ignoreCase = true) ||
+                        tx.category == Translations.tr("tx_meds", lang) ||
+                        tx.category.contains("أدوية") ||
+                        tx.category.contains("لقاح") ||
+                        tx.category.contains("دواء") ||
+                        tx.category.contains("تحصين") ||
+                        tx.category.contains("فيتامين") ||
+                        tx.category.contains("Med", ignoreCase = true) ||
+                        tx.category.contains("Vaccin", ignoreCase = true)
+                    )
+        }
+    }
+
+    val ledgerRows = remember(medicineTransactions, vetNotes, reports, lang, curr) {
+        val rows = mutableListOf<MedicineLedgerRowItem>()
+        val matchedTxIds = mutableSetOf<String>()
+        val coveredDays = mutableSetOf<Int>()
+
+        vetNotes.forEach { vn ->
+            val linkedTx = medicineTransactions.firstOrNull { tx ->
+                tx.id == vn.linkedTransactionId ||
+                    (vn.medicineName.isNotBlank() && tx.category.contains(vn.medicineName, ignoreCase = true))
+            }
+            if (linkedTx != null) {
+                matchedTxIds.add(linkedTx.id)
+            }
+            coveredDays.add(vn.dayNumber)
+            val effectiveAmount = linkedTx?.amount ?: vn.invoiceAmount
+            val effectiveStatus = linkedTx?.status ?: vn.status
+            rows.add(
+                MedicineLedgerRowItem(
+                    id = vn.id,
+                    dayText = "$dayPrefix ${vn.dayNumber}",
+                    medicineName = Translations.getLocalizedMedicine(vn.id, vn.medicineName, lang),
+                    dosageText = Translations.getLocalizedDosage(vn.id, vn.dosage, lang),
+                    isApproved = effectiveStatus.equals("APPROVED", ignoreCase = true),
+                    amountDzd = effectiveAmount,
+                    currency = curr,
+                    linkedTransaction = linkedTx
+                )
+            )
+        }
+
+        medicineTransactions.filter { it.id !in matchedTxIds }.forEach { tx ->
+            val dayDigits = tx.date.filter { it.isDigit() }.ifEmpty { "1" }
+            val cleanMedName = tx.category
+                .removePrefix("💊")
+                .replace("الأدوية واللقاحات -", "")
+                .replace("فاتورة دواء:", "")
+                .replace("MEDICATION", Translations.tr("tx_meds", lang), ignoreCase = true)
+                .trim()
+                .ifEmpty { Translations.tr("tx_meds", lang) }
+            rows.add(
+                MedicineLedgerRowItem(
+                    id = tx.id,
+                    dayText = "$dayPrefix $dayDigits",
+                    medicineName = cleanMedName,
+                    dosageText = Translations.tr("tx_meds", lang),
+                    isApproved = tx.status.equals("APPROVED", ignoreCase = true),
+                    amountDzd = tx.amount,
+                    currency = curr,
+                    linkedTransaction = tx
+                )
+            )
+        }
+
+        reports.filter { (it.medicineGiven || it.medicineSummary.isNotBlank()) && it.dayNumber !in coveredDays }
+            .forEach { rep ->
+                rows.add(
+                    MedicineLedgerRowItem(
+                        id = "rep_med_${rep.dayNumber}",
+                        dayText = "$dayPrefix ${rep.dayNumber}",
+                        medicineName = rep.medicineSummary.ifBlank { Translations.tr("tx_meds", lang) },
+                        dosageText = Translations.tr("day_med_drunk_confirmed_prefix", lang),
+                        isApproved = true,
+                        amountDzd = 0.0,
+                        currency = curr,
+                        linkedTransaction = null
+                    )
+                )
+            }
+
+        rows
+    }
+
+    val totalApprovedMedicineDzd = remember(medicineTransactions, ledgerRows) {
+        val fromTx = medicineTransactions
+            .filter { it.status.equals("APPROVED", ignoreCase = true) }
+            .sumOf { it.amount }
+        if (fromTx > 0.0) fromTx else ledgerRows.filter { it.isApproved }.sumOf { it.amountDzd }
+    }
+    val prescriptionsCount = ledgerRows.size
+    val receiptTargetTx = initialSelectedTransaction ?: medicineTransactions.lastOrNull()
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = dialogBg,
+        shape = RoundedCornerShape(appearance.cornerRadiusDp.dp),
+        modifier = Modifier.testTag("medicine_orders_ledger_bottom_sheet"),
+        title = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Surface(
+                        shape = CircleShape,
+                        color = appearance.accentContainerColor,
+                        modifier = Modifier.size(38.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text("💊", fontSize = 18.sp)
+                        }
+                    }
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column {
+                        Text(
+                            Translations.tr("medicine_orders_ledger_title", lang),
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 15.5.sp,
+                            color = accentEmerald
+                        )
+                        Text(
+                            "$farmName • ${cycle.id}",
+                            fontSize = 11.5.sp,
+                            color = secondaryText
+                        )
+                    }
+                }
+
+                IconButton(onClick = onDismiss) {
+                    Icon(Icons.Default.Close, contentDescription = "Close", tint = secondaryText)
+                }
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                // Top Summary Card (2 columns):
+                // 1. "إجمالي مصاريف الأدوية واللقاحات"
+                // 2. "عدد الوصفات المسجلة"
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(appearance.cornerRadiusDp.dp),
+                    color = appearance.accentContainerColor,
+                    border = BorderStroke(1.dp, accentEmerald.copy(alpha = 0.35f))
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(14.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                Translations.tr("total_medicine_expenses_label", lang),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = primaryText
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                "${String.format(java.util.Locale.US, "%,.0f", totalApprovedMedicineDzd)} $curr",
+                                fontSize = 14.5.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = accentEmerald
+                            )
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .width(1.dp)
+                                .height(40.dp)
+                                .background(accentEmerald.copy(alpha = 0.3f))
+                        )
+
+                        Spacer(modifier = Modifier.width(12.dp))
+
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            horizontalAlignment = Alignment.End
+                        ) {
+                            Text(
+                                Translations.tr("total_prescriptions_count_label", lang),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = primaryText
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                "$prescriptionsCount ${Translations.tr("prescriptions_unit_short", lang)} 🩺",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = accentEmerald
+                            )
+                        }
+                    }
+                }
+
+                // Medicine & Prescriptions Table: [ اليوم | الدواء والوصفة (الجرعة) | الحالة | السعر الإجمالي ]
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(appearance.cornerRadiusDp.dp),
+                    color = if (isDark) Color(0xFF0F172A) else Color(0xFFF8FAFC),
+                    border = BorderStroke(1.dp, if (isDark) Color(0xFF334155) else Color(0xFFE2E8F0))
+                ) {
+                    Column(modifier = Modifier.fillMaxWidth().padding(10.dp)) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(appearance.accentContainerColor, RoundedCornerShape(10.dp))
+                                .padding(vertical = 9.dp, horizontal = 6.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                Translations.tr("th_med_day", lang),
+                                modifier = Modifier.weight(0.75f),
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 10.5.sp,
+                                color = accentEmerald
+                            )
+                            Text(
+                                Translations.tr("th_med_prescription_dosage", lang),
+                                modifier = Modifier.weight(1.45f),
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 10.5.sp,
+                                color = accentEmerald
+                            )
+                            Text(
+                                Translations.tr("th_med_status", lang),
+                                modifier = Modifier.weight(0.85f),
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 10.5.sp,
+                                color = accentEmerald,
+                                textAlign = TextAlign.Center
+                            )
+                            Text(
+                                Translations.tr("th_med_total_price", lang),
+                                modifier = Modifier.weight(1.0f),
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 10.5.sp,
+                                color = accentEmerald,
+                                textAlign = TextAlign.End
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        if (ledgerRows.isEmpty()) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 20.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    Translations.tr("no_medicine_orders_yet", lang),
+                                    fontSize = 12.sp,
+                                    color = secondaryText,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        } else {
+                            ledgerRows.forEachIndexed { idx, row ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .then(
+                                            if (row.linkedTransaction != null && onSelectTransactionForReceipt != null) {
+                                                Modifier.clickable { onSelectTransactionForReceipt(row.linkedTransaction) }
+                                            } else {
+                                                Modifier
+                                            }
+                                        )
+                                        .padding(vertical = 9.dp, horizontal = 6.dp)
+                                        .testTag("medicine_ledger_row_${row.id}"),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        row.dayText,
+                                        modifier = Modifier.weight(0.75f),
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = primaryText
+                                    )
+                                    Column(
+                                        modifier = Modifier
+                                            .weight(1.45f)
+                                            .padding(end = 4.dp)
+                                    ) {
+                                        Text(
+                                            "💊 ${row.medicineName}",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = primaryText,
+                                            maxLines = 2,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        if (row.dosageText.isNotBlank()) {
+                                            Text(
+                                                row.dosageText,
+                                                fontSize = 9.5.sp,
+                                                color = secondaryText,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
+                                    }
+                                    Text(
+                                        if (row.isApproved) Translations.tr("med_status_approved_short", lang)
+                                        else Translations.tr("med_status_pending_short", lang),
+                                        modifier = Modifier.weight(0.85f),
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = if (row.isApproved) accentEmerald else Color(0xFFD97706),
+                                        textAlign = TextAlign.Center
+                                    )
+                                    Text(
+                                        "${String.format(java.util.Locale.US, "%,.0f", row.amountDzd)} ${row.currency}",
+                                        modifier = Modifier.weight(1.0f),
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = if (row.isApproved) accentEmerald else Color(0xFFD97706),
+                                        textAlign = TextAlign.End,
+                                        maxLines = 1,
+                                        softWrap = false
+                                    )
+                                }
+                                if (idx < ledgerRows.lastIndex) {
+                                    HorizontalDivider(color = if (isDark) Color(0xFF334155) else Color(0xFFE2E8F0))
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Button at the bottom of the dialog to open the shareable digital receipt for the tapped transaction
+                if (receiptTargetTx != null && onSelectTransactionForReceipt != null) {
+                    OutlinedButton(
+                        onClick = { onSelectTransactionForReceipt(receiptTargetTx) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(44.dp)
+                            .testTag("btn_open_medicine_tx_receipt"),
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.2.dp, accentEmerald)
+                    ) {
+                        Text(
+                            Translations.tr("btn_view_share_tx_receipt", lang),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = accentEmerald,
+                            maxLines = 1
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onDismiss,
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = primaryButtonAccent),
+                modifier = Modifier.testTag("btn_close_medicine_ledger_dialog")
+            ) {
+                Text(
+                    Translations.tr("btn_close", lang),
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+            }
+        }
+    )
 }
 
 /**
@@ -10900,70 +12417,38 @@ fun ProfessionalSalesInvoiceModal(
                     }
                 }
 
-                // 6. خانة توقيع واعتماد الطرفين (توقيع المربي وتوقيع المشتري ✍️)
+                // 6. خانة توقيع واعتماد الطرفين التفاعلية بالإصبع (توقيع المربي وتوقيع المشتري ✍️)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    // توقيع واعتماد المربي
-                    Surface(
-                        color = if (isDark) Color(0xFF0F172A) else Color(0xFFF8FAFC),
-                        shape = RoundedCornerShape(8.dp),
-                        border = BorderStroke(1.dp, if (isDark) Color(0xFF334155) else Color(0xFFCBD5E1)),
+                    // Box 1: توقيع واعتماد المربي ✍️
+                    DigitalSignaturePadBox(
+                        title = "توقيع واعتماد المربي ✍️",
+                        subtitle = "إدارة المزرعة والإنتاج",
+                        signedBadgeText = Translations.tr("sig_breeder_signed_badge", lang),
+                        clearText = Translations.tr("sig_clear_short", lang),
+                        isDark = isDark,
+                        accentColor = accentEmerald,
+                        accentContainerColor = appearance.accentContainerColor,
+                        primaryText = primaryText,
+                        testTagPrefix = "sales_invoice_breeder_sig",
                         modifier = Modifier.weight(1f)
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(10.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            Text("توقيع واعتماد المربي ✍️", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = primaryText)
-                            Text("إدارة المزرعة والإنتاج", fontSize = 9.5.sp, color = Color.Gray)
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Surface(
-                                color = appearance.accentContainerColor,
-                                shape = RoundedCornerShape(4.dp)
-                            ) {
-                                Text(
-                                    "معتمد ومسجل ✓",
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = accentEmerald
-                                )
-                            }
-                        }
-                    }
+                    )
 
-                    // توقيع واستلام المشتري
-                    Surface(
-                        color = if (isDark) Color(0xFF0F172A) else Color(0xFFF8FAFC),
-                        shape = RoundedCornerShape(8.dp),
-                        border = BorderStroke(1.dp, if (isDark) Color(0xFF334155) else Color(0xFFCBD5E1)),
+                    // Box 2: توقيع واستلام المشتري ✍️
+                    DigitalSignaturePadBox(
+                        title = "توقيع واستلام المشتري ✍️",
+                        subtitle = invoice.buyerName.ifEmpty { "تاجر الجملة" },
+                        signedBadgeText = Translations.tr("sig_buyer_signed_badge", lang),
+                        clearText = Translations.tr("sig_clear_short", lang),
+                        isDark = isDark,
+                        accentColor = accentEmerald,
+                        accentContainerColor = appearance.accentContainerColor,
+                        primaryText = primaryText,
+                        testTagPrefix = "sales_invoice_buyer_sig",
                         modifier = Modifier.weight(1f)
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(10.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            Text("توقيع واستلام المشتري ✍️", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = primaryText)
-                            Text(invoice.buyerName.ifEmpty { "تاجر الجملة" }, fontSize = 9.5.sp, color = Color.Gray, maxLines = 1)
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Surface(
-                                color = if (isDark) Color(0xFF334155) else Color(0xFFE2E8F0),
-                                shape = RoundedCornerShape(4.dp)
-                            ) {
-                                Text(
-                                    "استلمت الشحنة كاملة 🚚",
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = primaryText
-                                )
-                            }
-                        }
-                    }
+                    )
                 }
 
                 if (isPrintedOrShared) {
@@ -11135,12 +12620,17 @@ fun AgritechVetNotebookScreen(
     var showVetMedicineInvoiceDialog by remember { mutableStateOf(false) }
     var selectedDayReportForDetails by remember { mutableStateOf<DailyReportModel?>(null) }
 
-    val dayNumber = (reports.maxOfOrNull { it.dayNumber } ?: 1)
+    val liveReports = (AgritechMockDb.dailyReports.filter { it.farmId == farm.id } + reports.filter { it.farmId == farm.id })
+        .distinctBy { it.dayNumber }
+    val liveVetNotes = (AgritechMockDb.vetNotes.filter { it.farmId == farm.id } + vetNotes.filter { it.farmId == farm.id })
+        .distinctBy { it.id }
+
+    val dayNumber = (liveReports.maxOfOrNull { it.dayNumber } ?: 1)
     val qShort = Translations.tr("quintal_short", lang)
     val literUnit = Translations.tr("liter_unit", lang)
-    val totalFeed = reports.sumOf { it.feedIntakeKg }
-    val totalWater = reports.sumOf { it.waterIntakeLiters }
-    val totalMortality = reports.sumOf { it.mortalityCount }
+    val totalFeed = liveReports.sumOf { it.feedIntakeKg }
+    val totalWater = liveReports.sumOf { it.waterIntakeLiters }
+    val totalMortality = liveReports.sumOf { it.mortalityCount }
 
     val vetBottomNavItems = listOf(
         Triple(0, Translations.tr("vet_bottom_tab_barns", lang), Icons.Default.HomeWork),
@@ -11163,12 +12653,32 @@ fun AgritechVetNotebookScreen(
     }
 
     if (selectedDayReportForDetails != null) {
-        val activeReport = selectedDayReportForDetails!!
+        val activeReport = liveReports.firstOrNull { it.dayNumber == selectedDayReportForDetails!!.dayNumber }
+            ?: selectedDayReportForDetails!!
+        val matchingVetNotes = liveVetNotes.filter { it.dayNumber == activeReport.dayNumber }
+        val effectiveDayVetNotes = if (matchingVetNotes.isNotEmpty()) {
+            matchingVetNotes
+        } else if (activeReport.medicineGiven || activeReport.medicineSummary.isNotBlank()) {
+            listOf(
+                VetNoteModel(
+                    id = "vn_confirmed_day_${activeReport.dayNumber}",
+                    farmId = farm.id,
+                    cycleId = cycle.id,
+                    dayNumber = activeReport.dayNumber,
+                    medicineName = activeReport.medicineSummary.ifBlank { "دواء / فيتامين في مياه الشرب" },
+                    dosage = "1 مل / لتر في مياه الشرب",
+                    note = Translations.tr("confirm_medicine_water_today_label", lang),
+                    isUrgent = false
+                )
+            )
+        } else {
+            emptyList()
+        }
         DayMedicalDetailsBottomSheet(
             farm = farm,
             cycle = cycle,
             report = activeReport,
-            dayVetNotes = vetNotes.filter { it.dayNumber == activeReport.dayNumber },
+            dayVetNotes = effectiveDayVetNotes,
             currentTheme = currentTheme,
             lang = lang,
             onAddMedicalNoteForDay = { newNote ->
@@ -11334,76 +12844,97 @@ fun AgritechVetNotebookScreen(
 
                                         Spacer(modifier = Modifier.height(4.dp))
 
-                                        reports.sortedBy { it.dayNumber }.forEach { r ->
-                                            val hasMedNoteForDay = vetNotes.any { it.dayNumber == r.dayNumber }
-                                            val isUrgentDay = vetNotes.any { it.dayNumber == r.dayNumber && it.isUrgent }
+                                        liveReports.sortedBy { it.dayNumber }.forEach { r ->
+                                            val dayMeds = liveVetNotes.filter { it.dayNumber == r.dayNumber }
+                                            val hasMedNoteForDay = r.medicineGiven || r.medicineSummary.isNotBlank() || dayMeds.isNotEmpty()
+                                            val isUrgentDay = dayMeds.any { it.isUrgent }
                                             val rowBgColor = when {
                                                 isUrgentDay -> if (currentTheme.isDark) Color(0xFF450A0A).copy(alpha = 0.45f) else Color(0xFFFEF2F2)
                                                 hasMedNoteForDay -> appearance.accentContainerColor.copy(alpha = 0.45f)
                                                 else -> Color.Transparent
                                             }
 
-                                            Row(
+                                            Column(
                                                 modifier = Modifier
                                                     .fillMaxWidth()
                                                     .clip(RoundedCornerShape(10.dp))
                                                     .background(rowBgColor)
                                                     .clickable { selectedDayReportForDetails = r }
-                                                    .padding(vertical = 10.dp, horizontal = 6.dp)
-                                                    .testTag("vet_medical_day_row_${r.dayNumber}"),
-                                                verticalAlignment = Alignment.CenterVertically
+                                                    .testTag("vet_medical_day_row_${r.dayNumber}")
                                             ) {
-                                                Column(
+                                                Row(
                                                     modifier = Modifier
-                                                        .width(108.dp)
-                                                        .padding(horizontal = 4.dp),
-                                                    horizontalAlignment = Alignment.CenterHorizontally
+                                                        .fillMaxWidth()
+                                                        .clickable { selectedDayReportForDetails = r }
+                                                        .padding(vertical = 10.dp, horizontal = 6.dp),
+                                                    verticalAlignment = Alignment.CenterVertically
                                                 ) {
-                                                    Text(
-                                                        "${Translations.tr("day_prefix", lang)} ${r.dayNumber}",
-                                                        fontWeight = FontWeight.ExtraBold,
-                                                        fontSize = 12.sp,
-                                                        color = activeAccent,
-                                                        textAlign = TextAlign.Center,
-                                                        maxLines = 1
-                                                    )
-                                                    if (hasMedNoteForDay) {
-                                                        Spacer(modifier = Modifier.height(2.dp))
+                                                    Column(
+                                                        modifier = Modifier
+                                                            .width(108.dp)
+                                                            .clickable { selectedDayReportForDetails = r }
+                                                            .padding(horizontal = 4.dp),
+                                                        horizontalAlignment = Alignment.CenterHorizontally
+                                                    ) {
                                                         Text(
-                                                            if (isUrgentDay) "🚨 💊" else "🩺 💊",
-                                                            fontSize = 10.sp
+                                                            "${Translations.tr("day_prefix", lang)} ${r.dayNumber}",
+                                                            fontWeight = FontWeight.ExtraBold,
+                                                            fontSize = 12.sp,
+                                                            color = activeAccent,
+                                                            textAlign = TextAlign.Center,
+                                                            maxLines = 1
                                                         )
+                                                        if (hasMedNoteForDay) {
+                                                            Spacer(modifier = Modifier.height(3.dp))
+                                                            Surface(
+                                                                shape = RoundedCornerShape(6.dp),
+                                                                color = appearance.accentContainerColor,
+                                                                border = BorderStroke(1.dp, activeAccent.copy(alpha = 0.5f)),
+                                                                modifier = Modifier
+                                                                    .clickable { selectedDayReportForDetails = r }
+                                                                    .testTag("vet_ledger_med_badge_day_${r.dayNumber}")
+                                                            ) {
+                                                                Text(
+                                                                    if (isUrgentDay) "🚨 ${Translations.tr("badge_day_med_pill", lang)}" else Translations.tr("badge_day_med_pill", lang),
+                                                                    fontSize = 9.5.sp,
+                                                                    fontWeight = FontWeight.ExtraBold,
+                                                                    color = if (isUrgentDay) ActionRed else activeAccent,
+                                                                    maxLines = 1,
+                                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                                )
+                                                            }
+                                                        }
                                                     }
-                                                }
 
-                                                val cellTextColor = if (currentTheme.isDark) Color.White else Color(0xFF212121)
-                                                CalmTableCell(
-                                                    "${Translations.formatQuintalNumber(r.feedIntakeKg / 100.0)} $qShort",
-                                                    90.dp,
-                                                    isBold = true,
-                                                    textColor = cellTextColor
-                                                )
-                                                CalmTableCell(
-                                                    String.format(java.util.Locale.US, "%.0f", r.waterIntakeLiters),
-                                                    86.dp,
-                                                    textColor = cellTextColor
-                                                )
-                                                CalmTableCell(
-                                                    "${r.mortalityCount}",
-                                                    82.dp,
-                                                    textColor = if (r.mortalityCount > 3) ActionRed else cellTextColor,
-                                                    isBold = r.mortalityCount > 3
-                                                )
-                                                CalmTableCell(
-                                                    String.format(java.util.Locale.US, "%.1f°", r.temperature),
-                                                    78.dp,
-                                                    textColor = cellTextColor
-                                                )
-                                                CalmTableCell(
-                                                    String.format(java.util.Locale.US, "%.1f", r.gasUnits),
-                                                    68.dp,
-                                                    textColor = cellTextColor
-                                                )
+                                                    val cellTextColor = if (currentTheme.isDark) Color.White else Color(0xFF212121)
+                                                    CalmTableCell(
+                                                        "${Translations.formatQuintalNumber(r.feedIntakeKg / 100.0)} $qShort",
+                                                        90.dp,
+                                                        isBold = true,
+                                                        textColor = cellTextColor
+                                                    )
+                                                    CalmTableCell(
+                                                        String.format(java.util.Locale.US, "%.0f", r.waterIntakeLiters),
+                                                        86.dp,
+                                                        textColor = cellTextColor
+                                                    )
+                                                    CalmTableCell(
+                                                        "${r.mortalityCount}",
+                                                        82.dp,
+                                                        textColor = if (r.mortalityCount > 3) ActionRed else cellTextColor,
+                                                        isBold = r.mortalityCount > 3
+                                                    )
+                                                    CalmTableCell(
+                                                        String.format(java.util.Locale.US, "%.1f°", r.temperature),
+                                                        78.dp,
+                                                        textColor = cellTextColor
+                                                    )
+                                                    CalmTableCell(
+                                                        String.format(java.util.Locale.US, "%.1f", r.gasUnits),
+                                                        68.dp,
+                                                        textColor = cellTextColor
+                                                    )
+                                                }
                                             }
                                             HorizontalDivider(
                                                 color = if (currentTheme.isDark) Color(0xFF334155) else Color(0xFFF1F5F9),
@@ -11411,41 +12942,6 @@ fun AgritechVetNotebookScreen(
                                             )
                                         }
                                     }
-                                }
-                            }
-                        }
-
-                        // Summary Row under the Interactive Table
-                        item {
-                            Surface(
-                                shadowElevation = 2.dp,
-                                color = currentTheme.cardColor,
-                                shape = cardShape,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .padding(horizontal = 16.dp, vertical = 12.dp)
-                                        .fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceAround
-                                ) {
-                                    val mortColor = if (totalMortality > 5) ActionRed else primaryTextColor
-                                    CalmSummaryItem(
-                                        label = Translations.tr("sum_feed", lang),
-                                        value = "${Translations.formatQuintalNumber(totalFeed / 100.0)} $qShort",
-                                        headingColor = activeAccent
-                                    )
-                                    CalmSummaryItem(
-                                        label = Translations.tr("sum_water", lang),
-                                        value = "${String.format(java.util.Locale.US, "%.0f", totalWater)} $literUnit",
-                                        headingColor = activeAccent
-                                    )
-                                    CalmSummaryItem(
-                                        label = Translations.tr("sum_mortality", lang),
-                                        value = "$totalMortality",
-                                        isAlert = totalMortality > 5,
-                                        headingColor = mortColor
-                                    )
                                 }
                             }
                         }
@@ -11461,24 +12957,30 @@ fun AgritechVetNotebookScreen(
                                     Translations.tr("vet_records_title", lang),
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 15.sp,
-                                    color = primaryTextColor
+                                    color = primaryTextColor,
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .padding(end = 8.dp)
                                 )
                                 OutlinedButton(
                                     onClick = { showVetMedicineInvoiceDialog = true },
                                     shape = pillShape,
                                     border = BorderStroke(1.2.dp, activeAccent),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
                                     modifier = Modifier.testTag("btn_vet_workspace_send_invoice")
                                 ) {
                                     Text(
                                         Translations.tr("vet_invoice_btn", lang),
                                         fontSize = 11.5.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = activeAccent
+                                        color = activeAccent,
+                                        maxLines = 1,
+                                        softWrap = false
                                     )
                                 }
                             }
                         }
-                        items(vetNotes, key = { it.id }) { vn ->
+                        items(liveVetNotes, key = { it.id }) { vn ->
                             Card(
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = cardShape,
@@ -11910,9 +13412,9 @@ fun DayMedicalDetailsBottomSheet(
         title = {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
-                    "${Translations.tr("vet_day_details_title", lang)} ${report.dayNumber}",
+                    "📅 ${Translations.tr("vet_day_details_title", lang)} ${report.dayNumber} — ${Translations.getLocalizedFarmName(farm.id, lang, farm.name)}",
                     fontWeight = FontWeight.ExtraBold,
-                    fontSize = 16.sp,
+                    fontSize = 15.5.sp,
                     color = primaryText
                 )
                 Text(
@@ -12000,15 +13502,46 @@ fun DayMedicalDetailsBottomSheet(
                     }
                 }
 
-                // 3) Prescribed Medications & Vet Notes for this specific day
+                // 3) Medicine Drunk Section ("💊 الأدوية والفيتامينات المعطاة في هذا اليوم")
                 Text(
-                    Translations.tr("vet_day_prescribed_meds_title", lang),
+                    Translations.tr("day_meds_given_section_title", lang),
                     fontWeight = FontWeight.ExtraBold,
                     fontSize = 13.sp,
                     color = primaryText
                 )
 
-                if (dayVetNotes.isEmpty()) {
+                if (report.medicineGiven || report.medicineSummary.isNotBlank()) {
+                    val confirmedMedLabel = report.medicineSummary.ifBlank {
+                        dayVetNotes.firstOrNull()?.medicineName ?: Translations.tr("tx_meds", lang)
+                    }
+                    Surface(
+                        shape = pillShape,
+                        color = appearance.accentContainerColor,
+                        border = BorderStroke(1.2.dp, activeAccent),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("day_details_confirmed_med_banner")
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(10.dp),
+                            verticalArrangement = Arrangement.spacedBy(3.dp)
+                        ) {
+                            Text(
+                                "${Translations.tr("day_med_drunk_confirmed_prefix", lang)} $confirmedMedLabel",
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 12.5.sp,
+                                color = activeAccent
+                            )
+                            Text(
+                                Translations.tr("confirm_medicine_water_today_label", lang),
+                                fontSize = 11.sp,
+                                color = secondaryText
+                            )
+                        }
+                    }
+                }
+
+                if (dayVetNotes.isEmpty() && !report.medicineGiven && report.medicineSummary.isBlank()) {
                     Text(
                         Translations.tr("vet_day_no_meds_yet", lang),
                         fontSize = 12.sp,
@@ -12223,6 +13756,14 @@ fun AgritechWorkerDashboard(
     var tempText by remember { mutableStateOf("") }
     var gasText by remember { mutableStateOf("") }
 
+    val activePrescriptionNote = urgentNotes.firstOrNull { it.dayNumber == currentDay }
+        ?: urgentNotes.lastOrNull()
+        ?: AgritechMockDb.vetNotes.firstOrNull { it.farmId == farm.id && it.dayNumber == currentDay }
+        ?: AgritechMockDb.vetNotes.lastOrNull { it.farmId == farm.id }
+    val defaultWorkerMedName = activePrescriptionNote?.medicineName ?: "فيتامين AD3E + رافع مناعة"
+    var workerMedicineGiven by remember(activePrescriptionNote) { mutableStateOf(activePrescriptionNote != null) }
+    var workerMedicineName by remember(activePrescriptionNote) { mutableStateOf(defaultWorkerMedName) }
+
     var ventilationSelected by remember { mutableStateOf("Good") }
     var generalStatusSelected by remember { mutableStateOf("Normal") }
     val qShort = Translations.tr("quintal_short", lang)
@@ -12360,6 +13901,55 @@ fun AgritechWorkerDashboard(
                             OutlinedTextField(value = tempText, onValueChange = { tempText = it }, label = { Text(Translations.tr("th_temp", lang)) }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
                             OutlinedTextField(value = gasText, onValueChange = { gasText = it }, label = { Text(Translations.tr("th_gas", lang)) }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
 
+                            // Supervisor Medicine in Water Confirmation Row ("💊 تأكيد إعطاء الدواء في الماء اليوم (شرب الدواء ✓)")
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = if (workerMedicineGiven) appearance.accentContainerColor.copy(alpha = 0.65f)
+                                else if (currentTheme.isDark) Color(0xFF0F172A) else Color(0xFFF8FAFC),
+                                border = BorderStroke(
+                                    1.dp,
+                                    if (workerMedicineGiven) appearance.accentColor.copy(alpha = 0.55f)
+                                    else if (currentTheme.isDark) Color(0xFF334155) else Color(0xFFE2E8F0)
+                                ),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(12.dp),
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(
+                                            Translations.tr("confirm_medicine_water_today_label", lang),
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (workerMedicineGiven) appearance.accentColor else currentTheme.headingColor,
+                                            modifier = Modifier.weight(1f).padding(end = 8.dp)
+                                        )
+                                        Switch(
+                                            checked = workerMedicineGiven,
+                                            onCheckedChange = { workerMedicineGiven = it },
+                                            modifier = Modifier.testTag("switch_worker_report_medicine_given")
+                                        )
+                                    }
+                                    if (workerMedicineGiven) {
+                                        OutlinedTextField(
+                                            value = workerMedicineName,
+                                            onValueChange = { workerMedicineName = it },
+                                            label = { Text(Translations.tr("medicine_water_name_input_label", lang), fontSize = 11.sp) },
+                                            singleLine = true,
+                                            shape = RoundedCornerShape(10.dp),
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .testTag("input_worker_report_medicine_name")
+                                        )
+                                    }
+                                }
+                            }
+
                             Spacer(modifier = Modifier.height(8.dp))
 
                             var isSavingReport by remember { mutableStateOf(false) }
@@ -12374,6 +13964,11 @@ fun AgritechWorkerDashboard(
                                         val mort = mortalityText.toIntOrNull() ?: 1
                                         val temp = tempText.toDoubleOrNull() ?: 31.5
                                         val gas = gasText.toDoubleOrNull() ?: 3.5
+                                        val resolvedWorkerMed = if (workerMedicineGiven) {
+                                            workerMedicineName.trim().ifBlank { defaultWorkerMedName }
+                                        } else {
+                                            ""
+                                        }
 
                                         workerScope.launch {
                                             delay(350)
@@ -12390,7 +13985,9 @@ fun AgritechWorkerDashboard(
                                                     gasUnits = gas,
                                                     ventilationStatus = ventilationSelected,
                                                     generalStatus = generalStatusSelected,
-                                                    isLocked = true
+                                                    isLocked = true,
+                                                    medicineGiven = workerMedicineGiven,
+                                                    medicineSummary = resolvedWorkerMed
                                                 )
                                             )
                                             isSavingReport = false

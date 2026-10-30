@@ -15,7 +15,7 @@ enum class AppThemeOption(
     ICE_BLUE(Color(0xFFE8F4FD), Color.White, Color(0xFF1B5E20), false),
     NATURE_GREEN(Color(0xFFE8F5E9), Color.White, Color(0xFF1B5E20), false),
     CRISP_WHITE(Color(0xFFF8FAFC), Color.White, Color(0xFF1B5E20), false),
-    NIGHT_MODE(Color(0xFF0F172A), Color(0xFF1E293B), Color(0xFFF8FAFC), true)
+    NIGHT_MODE(Color(0xFF0E121A), Color(0xFF161B26), Color(0xFFFFFFFF), true)
 }
 
 enum class AppAccentColorOption(
@@ -172,7 +172,9 @@ data class DailyReportModel(
     val isLocked: Boolean = true,
     val isEdited: Boolean = false,
     val previousSummary: String = "",
-    val actualAvgWeightKg: Double = 0.0
+    val actualAvgWeightKg: Double = 0.0,
+    val medicineGiven: Boolean = false,
+    val medicineSummary: String = ""
 )
 
 data class VetNoteModel(
@@ -201,7 +203,8 @@ data class ChatMessageModel(
     val linkedTransactionId: String = "",
     val requestCategory: String = "",
     val requestAmount: Double = 0.0,
-    val requestCurrency: String = "دج"
+    val requestCurrency: String = "دج",
+    val status: String = "PENDING"
 )
 
 data class ChatConversationModel(
@@ -268,7 +271,10 @@ data class TransactionModel(
     val currency: String = "دج",
     val date: String,
     val invoiceData: SalesInvoiceModel? = null,
-    val status: String = "APPROVED"
+    val status: String = "APPROVED",
+    val notes: String = "",
+    val quantityQuintals: Double = 0.0,
+    val approvedBySignature: String = ""
 )
 
 data class WeighingRecord(

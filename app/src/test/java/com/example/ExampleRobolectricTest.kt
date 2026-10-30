@@ -831,6 +831,288 @@ class ExampleRobolectricTest {
         assertTrue(SaasPreferencesManager.hasSelectedInitialProfession(context))
         assertEquals(AppRole.VET_CLINIC, SaasPreferencesManager.getSavedUserRole(context))
     }
-}
 
+    @Test
+    fun testSurgical7UpdatesVerification() {
+        // 1. Verify all new translation keys for the 7 surgical updates across AR, FR, EN, ES, PT, HI
+        val surgical7Keys = listOf(
+            "ai_vet_coming_soon_title",
+            "ai_vet_coming_soon_subtitle",
+            "personal_qr_sheet_title",
+            "personal_qr_tab_my_code",
+            "personal_qr_tab_scan",
+            "personal_qr_whatsapp_subtitle",
+            "invoice_sig_dialog_title",
+            "invoice_sig_deduction_notice",
+            "invoice_sig_pad_label",
+            "invoice_sig_clear_btn",
+            "invoice_sig_confirm_btn",
+            "sig_clear_short",
+            "sig_breeder_signed_badge",
+            "sig_buyer_signed_badge",
+            "med_drinking_badge_prefix"
+        )
+        for (key in surgical7Keys) {
+            assertTrue("Key '$key' must be registered in Translations", Translations.hasKey(key))
+            for (lang in listOf(AppLanguage.AR, AppLanguage.FR, AppLanguage.EN, AppLanguage.ES, AppLanguage.PT, AppLanguage.HI)) {
+                val translated = Translations.tr(key, lang)
+                assertTrue("Key '$key' in ${lang.name} must not be blank or raw", translated.isNotBlank() && translated != key)
+            }
+        }
+
+        // 2. Verify WhatsApp-style Personal Contact QR parsing
+        val contactPayload = "MYBUSINESS_CONTACT|name=د. مراد تكوتي|role=طبيب بيطري|phone=0550112233"
+        val parsedContact = parsePersonalContactQr(contactPayload)
+        assertTrue("Personal contact QR payload must parse cleanly", parsedContact != null)
+        assertEquals("د. مراد تكوتي", parsedContact!!.name)
+        assertEquals("طبيب بيطري", parsedContact.roleLabel)
+        assertEquals("0550112233", parsedContact.phone)
+
+        // 3. Verify Shipment Info {days} placeholder replacement leaves no raw {days} token
+        for (lang in listOf(AppLanguage.AR, AppLanguage.FR, AppLanguage.EN, AppLanguage.ES, AppLanguage.PT)) {
+            val formattedAge = Translations.tr("bird_age_auto_calculated_title", lang).replace("{days}", "36")
+            assertTrue("Formatted age in ${lang.name} must contain 36 and no {days}: $formattedAge", formattedAge.contains("36") && !formattedAge.contains("{days}"))
+        }
+
+        // 4. Verify CycleModel default feedInventoryKg starts at 0.0 (0 ق)
+        val newCycle = CycleModel(
+            id = "cycle_zero_feed_test",
+            farmId = "farm_zero_feed_test",
+            startDate = "2025-10-26",
+            totalBirdsPlaced = 5000
+        )
+        assertEquals(0.0, newCycle.feedInventoryKg, 0.001)
+
+        // 5. Verify DailyReportModel medicineGiven & medicineSummary confirmation and MedicineOrdersLedger keys
+        val medLedgerKeys = listOf(
+            "confirm_medicine_water_today_label",
+            "medicine_water_name_input_label",
+            "badge_day_med_pill",
+            "medicine_orders_ledger_title",
+            "total_medicine_expenses_label",
+            "total_prescriptions_count_label",
+            "th_med_day",
+            "th_med_prescription_dosage",
+            "th_med_status",
+            "th_med_total_price",
+            "med_status_approved_short",
+            "med_status_pending_short",
+            "no_medicine_orders_yet",
+            "prescriptions_unit_short"
+        )
+        for (key in medLedgerKeys) {
+            assertTrue("Key '$key' must be registered in Translations", Translations.hasKey(key))
+            for (lang in listOf(AppLanguage.AR, AppLanguage.FR, AppLanguage.EN, AppLanguage.ES, AppLanguage.PT, AppLanguage.HI)) {
+                val translated = Translations.tr(key, lang)
+                assertTrue("Key '$key' in ${lang.name} must not be blank or raw", translated.isNotBlank() && translated != key)
+            }
+        }
+
+        val medConfirmedReport = DailyReportModel(
+            id = "rep_med_given_d10",
+            farmId = "farm_1",
+            cycleId = "cycle_2025_1",
+            dayNumber = 10,
+            feedIntakeKg = 350.0,
+            waterIntakeLiters = 700.0,
+            mortalityCount = 1,
+            temperature = 29.0,
+            medicineGiven = true,
+            medicineSummary = "إنروفلوكساسين 10% + فيتامين C"
+        )
+        val savedMedReport = AgritechMockDb.upsertDailyReportWithAudit(medConfirmedReport)
+        assertTrue(savedMedReport.medicineGiven)
+        assertEquals("إنروفلوكساسين 10% + فيتامين C", savedMedReport.medicineSummary)
+    }
+
+    @Test
+    fun testSurgical4ReliabilityFixesVerification() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+
+        // 1. Verify Accurate Feed Quintal Parsing (No fabricated amount / 8000 fallback)
+        val txExplicitQuintals = TransactionModel(
+            id = "tx_feed_explicit_q",
+            farmId = "farm_1",
+            cycleId = "cycle_2026_01",
+            type = TransactionType.EXPENSE,
+            category = "🌾 علف ناهي",
+            amount = 500000.0,
+            currency = "دج",
+            date = "اليوم 10",
+            quantityQuintals = 18.5
+        )
+        assertEquals(1850.0, parseFeedTransaction(txExplicitQuintals, AppLanguage.AR).estimatedKg, 0.001)
+
+        val txNoQuantity = TransactionModel(
+            id = "tx_feed_no_qty",
+            farmId = "farm_1",
+            cycleId = "cycle_2026_01",
+            type = TransactionType.EXPENSE,
+            category = "🌾 فاتورة علف بدون وزن",
+            amount = 320000.0,
+            currency = "دج",
+            date = "اليوم 11",
+            quantityQuintals = 0.0
+        )
+        assertEquals(0.0, parseFeedTransaction(txNoQuantity, AppLanguage.AR).estimatedKg, 0.001)
+
+        // 2. Verify Chat Financial Request Signed Approval + Non-Duplicating Feed Stock Sync
+        val testCycle = CycleModel(
+            id = "cycle_chat_feed_sync",
+            farmId = "farm_chat_sync",
+            totalBirdsPlaced = 6000,
+            feedInventoryKg = 500.0
+        )
+        AgritechMockDb.cycles.add(testCycle)
+
+        val chatFeedReqTx = TransactionModel(
+            id = "tx_chat_feed_req_1",
+            farmId = "farm_chat_sync",
+            cycleId = "cycle_chat_feed_sync",
+            type = TransactionType.EXPENSE,
+            category = "🌾 فاتورة علف نامي (20 ق)",
+            amount = 160000.0,
+            currency = "دج",
+            date = "اليوم 8",
+            status = "PENDING",
+            quantityQuintals = 20.0
+        )
+        AgritechMockDb.recordUniversalFinancialRequest(
+            tx = chatFeedReqTx,
+            noteText = "شحنة 20 قنطار علف نامي",
+            senderId = "trader_1",
+            senderName = "كمال - تاجر أعلاف",
+            senderRole = "تاجر أعلاف 🌾",
+            chatChannelId = "conv_feed_trader"
+        )
+
+        val sigValue = "Signed_By_Owner_1730000000000"
+        AgritechMockDb.approveVetInvoice(
+            transactionId = "tx_chat_feed_req_1",
+            signatureTag = sigValue
+        )
+        val approvedChatTx = AgritechMockDb.transactions.first { it.id == "tx_chat_feed_req_1" }
+        val approvedChatMsg = AgritechMockDb.chatMessages.first { it.linkedTransactionId == "tx_chat_feed_req_1" }
+        val updatedCycleAfterFirstApprove = AgritechMockDb.cycles.first { it.id == "cycle_chat_feed_sync" }
+
+        assertEquals("APPROVED", approvedChatTx.status)
+        assertEquals(sigValue, approvedChatTx.approvedBySignature)
+        assertEquals("APPROVED", approvedChatMsg.status)
+        assertEquals(2500.0, updatedCycleAfterFirstApprove.feedInventoryKg, 0.001)
+
+        // Calling approveVetInvoice a second time for the same transaction MUST NOT duplicate feedInventoryKg
+        AgritechMockDb.approveVetInvoice(
+            transactionId = "tx_chat_feed_req_1",
+            signatureTag = sigValue
+        )
+        val updatedCycleAfterSecondApprove = AgritechMockDb.cycles.first { it.id == "cycle_chat_feed_sync" }
+        assertEquals(2500.0, updatedCycleAfterSecondApprove.feedInventoryKg, 0.001)
+
+        // 3. Verify LocalFarmPersistence saveAll / loadIntoMockDb / clear on explicit logout
+        LocalFarmPersistence.saveAll(context)
+        assertTrue(LocalFarmPersistence.hasSavedData(context))
+
+        val session = AgritechAppSessionState(
+            initialOnboardingCompleted = true,
+            initialTheme = AppThemeOption.ICE_BLUE,
+            initialLanguage = AppLanguage.AR,
+            initialCountryCode = "DZ",
+            initialCurrencyCode = "DZD",
+            initialIsLoggedIn = true,
+            initialRole = AppRole.OWNER,
+            initialHasLinkedBarns = true,
+            initialActiveFarmId = "farm_chat_sync",
+            initialUserUid = "owner_1"
+        )
+        session.performExplicitLogout(context)
+        assertEquals(0, AgritechMockDb.farms.size)
+        assertEquals(0, AgritechMockDb.cycles.size)
+        assertEquals(false, LocalFarmPersistence.hasSavedData(context))
+
+        // 4. Verify gram_unit translation key across AR, FR, EN, ES, PT, HI
+        assertTrue(Translations.hasKey("gram_unit"))
+        assertEquals("غرام", Translations.tr("gram_unit", AppLanguage.AR))
+        assertEquals("g", Translations.tr("gram_unit", AppLanguage.FR))
+        assertEquals("g", Translations.tr("gram_unit", AppLanguage.EN))
+        assertEquals("g", Translations.tr("gram_unit", AppLanguage.ES))
+        assertEquals("g", Translations.tr("gram_unit", AppLanguage.PT))
+    }
+
+    @Test
+    fun cycleDayAbove60_actualBirdWeightPersistence_andRealZxingQrEncoding_workCorrectly() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+
+        // 1. Verify calculateCycleDay works accurately above day 60 (no 60-day cap)
+        val sdf = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+        val seventyFourDaysAgoMillis = System.currentTimeMillis() - (74L * 86_400_000L)
+        val startDate75 = sdf.format(java.util.Date(seventyFourDaysAgoMillis))
+        val calculatedDayFromDate = com.example.utils.PoultryCalculators.calculateCycleDay(startDate75, maxReportDay = 1)
+        assertTrue("calculateCycleDay must count above 60 days (got $calculatedDayFromDate)", calculatedDayFromDate >= 74)
+
+        val calculatedDayFromReport = com.example.utils.PoultryCalculators.calculateCycleDay("2026-10-29", maxReportDay = 78)
+        assertEquals(78, calculatedDayFromReport)
+
+        // 2. Verify actualAvgWeightKg (grams -> kg) persistence and resolution
+        val d12Report = DailyReportModel(
+            id = "rep_weight_d12",
+            farmId = "farm_w_1",
+            cycleId = "cycle_w_1",
+            dayNumber = 12,
+            feedIntakeKg = 300.0,
+            waterIntakeLiters = 600.0,
+            mortalityCount = 2,
+            temperature = 28.0,
+            actualAvgWeightKg = 0.420 // 420g
+        )
+        val d25Report = DailyReportModel(
+            id = "rep_weight_d25",
+            farmId = "farm_w_1",
+            cycleId = "cycle_w_1",
+            dayNumber = 25,
+            feedIntakeKg = 650.0,
+            waterIntakeLiters = 1300.0,
+            mortalityCount = 1,
+            temperature = 25.0,
+            actualAvgWeightKg = 1.250 // 1250g
+        )
+        AgritechMockDb.upsertDailyReportWithAudit(d12Report)
+        AgritechMockDb.upsertDailyReportWithAudit(d25Report)
+        LocalFarmPersistence.saveAll(context)
+        LocalFarmPersistence.loadIntoMockDb(context)
+
+        val reloadedReports = AgritechMockDb.dailyReports.filter { it.cycleId == "cycle_w_1" }
+        val resolvedActualWeightKg = com.example.utils.PoultryCalculators.resolveActualAvgBirdWeightKg(
+            reports = reloadedReports,
+            cycleTransactions = emptyList(),
+            cycleId = "cycle_w_1"
+        )
+        assertEquals(1.250, resolvedActualWeightKg ?: 0.0, 0.001)
+
+        // 3. Verify real ISO/IEC 18004 ZXing QR BitMatrix generation for personal and farm invite payloads
+        val personalPayload = "MYBUSINESS_CONTACT|name=مراد|role=مالك المزرعة|phone=0550123456"
+        val farmInvitePayload = "AGRITECH_JOIN|farmId=farm_1|farmName=عنبر النور|role=WORKER"
+
+        val personalMatrix = com.example.utils.PoultryCalculators.encodeQrBitMatrix(personalPayload, size = 1)
+        val farmMatrix = com.example.utils.PoultryCalculators.encodeQrBitMatrix(farmInvitePayload, size = 1)
+
+        assertTrue("Personal QR matrix must have valid dimensions (> 21x21)", personalMatrix.width >= 21 && personalMatrix.height >= 21)
+        assertTrue("Farm Invite QR matrix must have valid dimensions (> 21x21)", farmMatrix.width >= 21 && farmMatrix.height >= 21)
+
+        var personalBlackModules = 0
+        for (y in 0 until personalMatrix.height) {
+            for (x in 0 until personalMatrix.width) {
+                if (personalMatrix.get(x, y)) personalBlackModules++
+            }
+        }
+        assertTrue("Personal QR matrix must contain encoded dark modules", personalBlackModules > 50)
+
+        // 4. Verify new localization keys for weight input & live birds sales cap warning
+        for (lang in listOf(AppLanguage.AR, AppLanguage.FR, AppLanguage.EN, AppLanguage.ES, AppLanguage.PT)) {
+            val weightLabel = Translations.tr("field_actual_bird_weight_grams_optional", lang)
+            val salesWarn = Translations.tr("sales_exceeds_live_birds_warning", lang)
+            assertTrue(weightLabel.isNotBlank() && weightLabel != "field_actual_bird_weight_grams_optional")
+            assertTrue(salesWarn.isNotBlank() && salesWarn != "sales_exceeds_live_birds_warning")
+        }
+    }
+}
 

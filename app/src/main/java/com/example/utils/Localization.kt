@@ -3878,6 +3878,302 @@ object Translations {
             "es" to "Profesión y tipo de cuenta",
             "pt" to "Profissão e tipo de conta",
             "hi" to "पेशा और खाता प्रकार"
+        ),
+        "ai_vet_coming_soon_title" to mapOf(
+            "ar" to "المساعد البيطري الذكي (AI Vet) — قيد التطوير",
+            "fr" to "Assistant Vétérinaire Intelligent (AI Vet) — En cours de développement",
+            "en" to "Smart Veterinary Assistant (AI Vet) — Under Development",
+            "es" to "Asistente Veterinario Inteligente (AI Vet) — En desarrollo",
+            "pt" to "Assistente Veterinário Inteligente (AI Vet) — Em desenvolvimento",
+            "hi" to "स्मार्ट पशु चिकित्सा सहायक (AI Vet) — विकास के अधीन"
+        ),
+        "ai_vet_coming_soon_subtitle" to mapOf(
+            "ar" to "هذه الميزة ليست متوفرة حالياً. نعمل على تطويرها وتدريبها بيطرياً لتكون متاحة لك في التحديثات القادمة بإذن الله.",
+            "fr" to "Cette fonctionnalité n'est pas encore disponible. Nous la développons et l'entraînons cliniquement pour les prochaines mises à jour.",
+            "en" to "This feature is not available right now. We are actively developing and clinically training it for upcoming updates.",
+            "es" to "Esta función no está disponible actualmente. Estamos desarrollándola y entrenándola clínicamente para próximas actualizaciones.",
+            "pt" to "Este recurso não está disponível no momento. Estamos desenvolvendo e treinando clinicamente para as próximas atualizações.",
+            "hi" to "यह सुविधा अभी उपलब्ध नहीं है। हम आगामी अपडेट के लिए इसे विकसित और प्रशिक्षित कर रहे हैं।"
+        ),
+        "personal_qr_sheet_title" to mapOf(
+            "ar" to "رمز الحساب الشخصي والمسح السريع (QR)",
+            "fr" to "Mon Code QR Personnel & Scanner",
+            "en" to "Personal Account QR & Quick Scanner",
+            "es" to "Código QR Personal y Escáner",
+            "pt" to "Código QR Pessoal e Scanner",
+            "hi" to "व्यक्तिगत खाता QR और स्कैनर"
+        ),
+        "personal_qr_tab_my_code" to mapOf(
+            "ar" to "رمزي الشخصي QR",
+            "fr" to "Mon QR Personnel",
+            "en" to "My Personal QR",
+            "es" to "Mi QR Personal",
+            "pt" to "Meu QR Pessoal",
+            "hi" to "मेरा व्यक्तिगत QR"
+        ),
+        "personal_qr_tab_scan" to mapOf(
+            "ar" to "مسح رمز QR 📷",
+            "fr" to "Scanner un QR 📷",
+            "en" to "Scan QR Code 📷",
+            "es" to "Escanear QR 📷",
+            "pt" to "Escanear QR 📷",
+            "hi" to "QR कोड स्कैन करें 📷"
+        ),
+        "personal_qr_whatsapp_subtitle" to mapOf(
+            "ar" to "امسح هذا الرمز عبر الكاميرا لإضافتي مباشرة في الدردشة (مثل واتساب)",
+            "fr" to "Scannez ce code avec la caméra pour m'ajouter directement au chat (comme WhatsApp)",
+            "en" to "Scan this code with the camera to add me directly in chat (like WhatsApp)",
+            "es" to "Escanea este código con la cámara para agregarme directamente al chat (como WhatsApp)",
+            "pt" to "Escaneie este código com a câmera para me adicionar diretamente no chat (como WhatsApp)",
+            "hi" to "मुझे सीधे चैट में जोड़ने के लिए कैमरे से इस कोड को स्कैन करें (व्हाट्सएप की तरह)"
+        ),
+        "invoice_sig_dialog_title" to mapOf(
+            "ar" to "مراجعة وتوقيع اعتماد الصرف ✍️",
+            "fr" to "Vérification et signature d'approbation ✍️",
+            "en" to "Review & Sign Disbursement Approval ✍️",
+            "es" to "Revisión y firma de aprobación ✍️",
+            "pt" to "Revisão e assinatura de aprovação ✍️",
+            "hi" to "भुगतान स्वीकृति की समीक्षा और हस्ताक्षर ✍️"
+        ),
+        "invoice_sig_deduction_notice" to mapOf(
+            "ar" to "سيتم خصم هذا المبلغ رسمياً من خزنة المزرعة بعد توقيعك واعتمادك",
+            "fr" to "Ce montant sera officiellement déduit de la trésorerie après votre signature et approbation",
+            "en" to "This amount will be officially deducted from the farm treasury after your signature and approval",
+            "es" to "Este monto se descontará oficialmente de la tesorería tras su firma y aprobación",
+            "pt" to "Este valor será oficialmente deduzido da tesouraria após sua assinatura e aprovação",
+            "hi" to "आपके हस्ताक्षर और स्वीकृति के बाद यह राशि आधिकारिक तौर पर फार्म के खजाने से काट ली जाएगी"
+        ),
+        "invoice_sig_pad_label" to mapOf(
+            "ar" to "✍️ وقّع بإصبعك هنا لتأكيد القراءة والاعتماد",
+            "fr" to "✍️ Signez avec votre doigt ici pour confirmer",
+            "en" to "✍️ Sign with your finger here to confirm reading & approval",
+            "es" to "✍️ Firme con su dedo aquí para confirmar lectura y aprobación",
+            "pt" to "✍️ Assine com o dedo aqui para confirmar a leitura e aprovação",
+            "hi" to "✍️ पढ़ने और स्वीकृति की पुष्टि करने के लिए यहाँ अपनी उंगली से हस्ताक्षर करें"
+        ),
+        "invoice_sig_clear_btn" to mapOf(
+            "ar" to "مسح التوقيع",
+            "fr" to "Effacer la signature",
+            "en" to "Clear Signature",
+            "es" to "Borrar firma",
+            "pt" to "Limpar assinatura",
+            "hi" to "हस्ताक्षर साफ़ करें"
+        ),
+        "invoice_sig_confirm_btn" to mapOf(
+            "ar" to "✓ حفظ التوقيع واعتماد الصرف",
+            "fr" to "✓ Enregistrer la signature et approuver",
+            "en" to "✓ Save Signature & Approve Payment",
+            "es" to "✓ Guardar firma y aprobar pago",
+            "pt" to "✓ Salvar assinatura e aprovar pagamento",
+            "hi" to "✓ हस्ताक्षर सहेजें और भुगतान स्वीकृत करें"
+        ),
+        "sig_clear_short" to mapOf(
+            "ar" to "مسح",
+            "fr" to "Effacer",
+            "en" to "Clear",
+            "es" to "Borrar",
+            "pt" to "Limpar",
+            "hi" to "साफ़ करें"
+        ),
+        "sig_breeder_signed_badge" to mapOf(
+            "ar" to "✓ تم توقيع المربي",
+            "fr" to "✓ Signé par l'éleveur",
+            "en" to "✓ Breeder Signed",
+            "es" to "✓ Firmado por el criador",
+            "pt" to "✓ Assinado pelo produtor",
+            "hi" to "✓ पालक द्वारा हस्ताक्षरित"
+        ),
+        "sig_buyer_signed_badge" to mapOf(
+            "ar" to "✓ تم توقيع المشتري",
+            "fr" to "✓ Signé par l'acheteur",
+            "en" to "✓ Buyer Signed",
+            "es" to "✓ Firmado por el comprador",
+            "pt" to "✓ Assinado pelo comprador",
+            "hi" to "✓ खरीदार द्वारा हस्ताक्षरित"
+        ),
+        "med_drinking_badge_prefix" to mapOf(
+            "ar" to "💊 شرب الدواء:",
+            "fr" to "💊 Médicament administré :",
+            "en" to "💊 Medicine Administered:",
+            "es" to "💊 Medicamento administrado:",
+            "pt" to "💊 Medicamento administrado:",
+            "hi" to "💊 दी गई दवा:"
+        ),
+        "confirm_medicine_water_today_label" to mapOf(
+            "ar" to "💊 تأكيد إعطاء الدواء في الماء اليوم (شرب الدواء ✓)",
+            "fr" to "💊 Confirmer l'administration du médicament dans l'eau aujourd'hui (✓)",
+            "en" to "💊 Confirm giving medicine in water today (Medicine Given ✓)",
+            "es" to "💊 Confirmar medicina en el agua hoy (Medicina dada ✓)",
+            "pt" to "💊 Confirmar medicamento na água hoje (Medicamento dado ✓)",
+            "hi" to "💊 आज पानी में दवा देने की पुष्टि करें (दवा दी गई ✓)"
+        ),
+        "medicine_water_name_input_label" to mapOf(
+            "ar" to "اسم الدواء / الوصفة المُعطاة في الماء 💊",
+            "fr" to "Nom du médicament / prescription dans l'eau 💊",
+            "en" to "Medicine / Prescription given in water 💊",
+            "es" to "Nombre del medicamento / receta en el agua 💊",
+            "pt" to "Nome do medicamento / receita na água 💊",
+            "hi" to "पानी में दी गई दवा / नुस्खे का नाम 💊"
+        ),
+        "badge_day_med_pill" to mapOf(
+            "ar" to "💊 دواء",
+            "fr" to "💊 Méd.",
+            "en" to "💊 Med",
+            "es" to "💊 Med",
+            "pt" to "💊 Med",
+            "hi" to "💊 दवा"
+        ),
+        "medicine_orders_ledger_title" to mapOf(
+            "ar" to "💊 سجل الأدوية والوصفات البيطرية",
+            "fr" to "💊 Registre des Médicaments & Ordonnances Vétérinaires",
+            "en" to "💊 Medicines & Veterinary Prescriptions Ledger",
+            "es" to "💊 Registro de Medicamentos y Recetas Veterinarias",
+            "pt" to "💊 Registro de Medicamentos e Receitas Veterinárias",
+            "hi" to "💊 दवाइयों और पशु चिकित्सा नुस्खों का रजिस्टर"
+        ),
+        "total_medicine_expenses_label" to mapOf(
+            "ar" to "إجمالي مصاريف الأدوية واللقاحات",
+            "fr" to "Total Dépenses Médicaments & Vaccins",
+            "en" to "Total Medicine & Vaccine Expenses",
+            "es" to "Total Gastos en Medicamentos y Vacunas",
+            "pt" to "Total de Despesas com Medicamentos e Vacinas",
+            "hi" to "कुल दवा और टीकाकरण खर्च"
+        ),
+        "total_prescriptions_count_label" to mapOf(
+            "ar" to "عدد الوصفات المسجلة",
+            "fr" to "Nombre d'ordonnances enregistrées",
+            "en" to "Recorded Prescriptions Count",
+            "es" to "Número de recetas registradas",
+            "pt" to "Número de receitas registradas",
+            "hi" to "दर्ज नुस्खों की संख्या"
+        ),
+        "th_med_day" to mapOf(
+            "ar" to "اليوم",
+            "fr" to "Jour",
+            "en" to "Day",
+            "es" to "Día",
+            "pt" to "Dia",
+            "hi" to "दिन"
+        ),
+        "th_med_prescription_dosage" to mapOf(
+            "ar" to "الدواء والوصفة (الجرعة)",
+            "fr" to "Médicament & Posologie",
+            "en" to "Medicine & Prescription (Dosage)",
+            "es" to "Medicamento y Dosis",
+            "pt" to "Medicamento e Dosagem",
+            "hi" to "दवा और खुराक"
+        ),
+        "th_med_status" to mapOf(
+            "ar" to "الحالة",
+            "fr" to "Statut",
+            "en" to "Status",
+            "es" to "Estado",
+            "pt" to "Status",
+            "hi" to "स्थिति"
+        ),
+        "th_med_total_price" to mapOf(
+            "ar" to "السعر الإجمالي",
+            "fr" to "Prix Total",
+            "en" to "Total Price",
+            "es" to "Precio Total",
+            "pt" to "Preço Total",
+            "hi" to "कुल कीमत"
+        ),
+        "med_status_approved_short" to mapOf(
+            "ar" to "✓ معتمدة",
+            "fr" to "✓ Approuvé",
+            "en" to "✓ Approved",
+            "es" to "✓ Aprobado",
+            "pt" to "✓ Aprovado",
+            "hi" to "✓ स्वीकृत"
+        ),
+        "med_status_pending_short" to mapOf(
+            "ar" to "⏳ معلقة",
+            "fr" to "⏳ En attente",
+            "en" to "⏳ Pending",
+            "es" to "⏳ Pendiente",
+            "pt" to "⏳ Pendente",
+            "hi" to "⏳ लंबित"
+        ),
+        "no_medicine_orders_yet" to mapOf(
+            "ar" to "لا توجد وصفات أو فواتير أدوية مسجلة في هذه الدورة بعد.",
+            "fr" to "Aucune ordonnance ou facture de médicament enregistrée pour ce lot.",
+            "en" to "No medicine prescriptions or invoices recorded in this cycle yet.",
+            "es" to "Aún no hay recetas ni facturas de medicamentos registradas en este lote.",
+            "pt" to "Nenhuma receita ou fatura de medicamento registrada neste lote ainda.",
+            "hi" to "इस चक्र में अभी तक कोई दवा नुस्खा या चालान दर्ज नहीं किया गया है।"
+        ),
+        "prescriptions_unit_short" to mapOf(
+            "ar" to "وصفة",
+            "fr" to "ordonnances",
+            "en" to "prescriptions",
+            "es" to "recetas",
+            "pt" to "receitas",
+            "hi" to "नुस्खे"
+        ),
+        "day_meds_given_section_title" to mapOf(
+            "ar" to "💊 الأدوية والفيتامينات المعطاة في هذا اليوم",
+            "fr" to "💊 Médicaments et vitamines administrés ce jour",
+            "en" to "💊 Medicines & Vitamins Administered Today",
+            "es" to "💊 Medicamentos y vitaminas administrados este día",
+            "pt" to "💊 Medicamentos e vitaminas administrados neste dia",
+            "hi" to "💊 इस दिन दी गई दवाएं और विटामिन"
+        ),
+        "day_med_drunk_confirmed_prefix" to mapOf(
+            "ar" to "✓ تم شرب الدواء:",
+            "fr" to "✓ Médicament administré dans l'eau :",
+            "en" to "✓ Medicine drunk in water:",
+            "es" to "✓ Medicamento administrado en agua:",
+            "pt" to "✓ Medicamento administrado na água:",
+            "hi" to "✓ पानी में दवा दी गई:"
+        ),
+        "btn_view_share_tx_receipt" to mapOf(
+            "ar" to "🧾 عرض ومشاركة وصل المعاملة",
+            "fr" to "🧾 Voir et partager le reçu de transaction",
+            "en" to "🧾 View & Share Transaction Receipt",
+            "es" to "🧾 Ver y compartir recibo de transacción",
+            "pt" to "🧾 Ver e compartilhar recibo da transação",
+            "hi" to "🧾 लेनदेन रसीद देखें और साझा करें"
+        ),
+        "personal_qr_scan_whatsapp_desc" to mapOf(
+            "ar" to "وجه الكاميرا نحو رمز (QR) الحساب الشخصي لصديق أو تاجر أو طبيب بيطري لإضافته فوراً إلى قائمة الدردشة (مثل واتساب)",
+            "fr" to "Dirigez la caméra vers le code QR personnel d'un ami, commerçant ou vétérinaire pour l'ajouter directement au chat (style WhatsApp)",
+            "en" to "Point the camera at the personal QR code of a friend, trader, or vet to immediately add them to your chat list (like WhatsApp)",
+            "es" to "Apunte la cámara al código QR personal de un amigo, comerciante o veterinario para agregarlo al instante al chat (como WhatsApp)",
+            "pt" to "Aponte a câmera para o código QR pessoal de um amigo, comerciante ou veterinário para adicioná-lo imediatamente ao chat (como WhatsApp)",
+            "hi" to "किसी मित्र, व्यापारी या पशु चिकित्सक को तुरंत चैट सूची में जोड़ने के लिए उनके व्यक्तिगत QR कोड पर कैमरा इंगित करें"
+        ),
+        "personal_qr_scan_add_contact_btn" to mapOf(
+            "ar" to "✓ مسح وإضافة جهة الاتصال للدردشة",
+            "fr" to "✓ Scanner et ajouter le contact au chat",
+            "en" to "✓ Scan & Add Contact to Chat",
+            "es" to "✓ Escanear y agregar contacto al chat",
+            "pt" to "✓ Escanear e adicionar contato ao chat",
+            "hi" to "✓ स्कैन करें और चैट में संपर्क जोड़ें"
+        ),
+        "gram_unit" to mapOf(
+            "ar" to "غرام",
+            "fr" to "g",
+            "en" to "g",
+            "es" to "g",
+            "pt" to "g",
+            "hi" to "ग्राम"
+        ),
+        "field_actual_bird_weight_grams_optional" to mapOf(
+            "ar" to "⚖️ متوسط وزن الطائر الفعلي (غرام - اختياري)",
+            "fr" to "⚖️ Poids moyen réel de l'oiseau (grammes - optionnel)",
+            "en" to "⚖️ Actual Average Bird Weight (grams - optional)",
+            "es" to "⚖️ Peso promedio real del ave (gramos - opcional)",
+            "pt" to "⚖️ Peso médio real da ave (gramas - opcional)",
+            "hi" to "⚖️ पक्षी का वास्तविक औसत वजन (ग्राम - वैकल्पिक)"
+        ),
+        "sales_exceeds_live_birds_warning" to mapOf(
+            "ar" to "⚠️ العدد المدخل يتجاوز عدد الطيور الحية المتبقية في العنبر ({liveBirds} طائر)",
+            "fr" to "⚠️ Le nombre saisi dépasse le nombre d'oiseaux vivants restants dans le bâtiment ({liveBirds} oiseaux)",
+            "en" to "⚠️ Entered count exceeds remaining live birds in the barn ({liveBirds} birds)",
+            "es" to "⚠️ La cantidad ingresada supera las aves vivas restantes en el galpón ({liveBirds} aves)",
+            "pt" to "⚠️ A quantidade inserida excede as aves vivas restantes no galpão ({liveBirds} aves)",
+            "hi" to "⚠️ दर्ज की गई संख्या बाड़े में शेष जीवित पक्षियों ({liveBirds} पक्षी) से अधिक है"
         )
     )
 
@@ -4093,7 +4389,15 @@ object Translations {
         "fin_req_cat_vet_invoice" to "Fatura de medicamentos e vacinas vet.",
         "fin_req_amount_label" to "Valor solicitado",
         "fin_req_submit_btn" to "Enviar solicitação ✓",
-        "btn_approve_vet_invoice" to "Confirmar e Aprovar Pagamento ✓"
+        "btn_approve_vet_invoice" to "Confirmar e Aprovar Pagamento ✓",
+        "day_meds_given_section_title" to "💊 Medicamentos e vitaminas administrados neste dia",
+        "day_med_drunk_confirmed_prefix" to "✓ Medicamento administrado na água:",
+        "btn_view_share_tx_receipt" to "🧾 Ver e compartilhar recibo da transação",
+        "personal_qr_scan_whatsapp_desc" to "Aponte a câmera para o código QR pessoal de um amigo, comerciante ou veterinário para adicioná-lo imediatamente ao chat (como WhatsApp)",
+        "personal_qr_scan_add_contact_btn" to "✓ Escanear e adicionar contato ao chat",
+        "gram_unit" to "g",
+        "field_actual_bird_weight_grams_optional" to "⚖️ Peso médio real da ave (gramas - opcional)",
+        "sales_exceeds_live_birds_warning" to "⚠️ A quantidade inserida excede as aves vivas restantes no galpão ({liveBirds} aves)"
     )
 
     fun hasKey(key: String): Boolean {

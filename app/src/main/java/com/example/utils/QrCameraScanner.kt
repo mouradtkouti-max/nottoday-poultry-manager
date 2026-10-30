@@ -94,6 +94,43 @@ fun parseAgritechQrInvite(rawValue: String, fallbackRole: AppRole = AppRole.WORK
     )
 }
 
+data class QrPersonalContactData(
+    val name: String,
+    val roleLabel: String,
+    val phone: String,
+    val rawPayload: String
+)
+
+fun parsePersonalContactQr(rawValue: String): QrPersonalContactData? {
+    val trimmed = rawValue.trim()
+    if (!trimmed.startsWith("MYBUSINESS_CONTACT", ignoreCase = true) && !trimmed.contains("phone=", ignoreCase = true)) {
+        return null
+    }
+    var name = "شريك مزرعة"
+    var role = "مربي / شريك"
+    var phone = "+213 550 00 00 00"
+    val parts = trimmed.split("|", ";", "&")
+    for (part in parts) {
+        val kv = part.split("=", limit = 2)
+        if (kv.size == 2) {
+            val k = kv[0].trim().lowercase()
+            val v = kv[1].trim()
+            when (k) {
+                "name" -> if (v.isNotEmpty()) name = v
+                "role" -> if (v.isNotEmpty()) role = v
+                "phone", "tel" -> if (v.isNotEmpty()) phone = v
+            }
+        }
+    }
+    return QrPersonalContactData(
+        name = name,
+        roleLabel = role,
+        phone = phone,
+        rawPayload = trimmed
+    )
+}
+
+
 /**
  * Real-time CameraX + Google ML Kit Barcode Scanner composable with graceful
  * runtime `Manifest.permission.CAMERA` handling.

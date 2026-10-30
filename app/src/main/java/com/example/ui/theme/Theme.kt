@@ -23,15 +23,17 @@ fun PoultryTheme(
     val colorScheme = if (isDark) {
         darkColorScheme(
             primary = activePrimary,
-            onPrimary = Color(0xFF0F172A),
+            onPrimary = Color.White,
             primaryContainer = activeContainer,
             onPrimaryContainer = Color.White,
             secondary = activePrimary,
-            onSecondary = Color(0xFF0F172A),
-            background = Color(0xFF0F172A),
+            onSecondary = Color.White,
+            background = Color(0xFF0E121A),
             onBackground = Color.White,
-            surface = Color(0xFF1E293B),
-            onSurface = Color.White
+            surface = Color(0xFF161B26),
+            onSurface = Color.White,
+            surfaceVariant = Color(0xFF1E2534),
+            onSurfaceVariant = Color(0xFFCBD5E1)
         )
     } else {
         lightColorScheme(

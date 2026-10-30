@@ -619,6 +619,8 @@ class AgritechAppSessionState(
         selectedFarmForVet = null
         selectedFarmForWorker = null
         SaasPreferencesManager.clearAuthSession(context)
+        AgritechMockDb.clearOnExplicitLogout()
+        LocalFarmPersistence.clear(context)
     }
 
     fun updateTheme(context: Context, newTheme: AppThemeOption) {
@@ -3147,8 +3149,9 @@ fun SubscriptionPaywallBottomSheet(
                 enabled = !isProcessingPayment,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(52.dp)
+                    .heightIn(min = 64.dp)
                     .testTag("btn_subscribe_google_play"),
+                contentPadding = PaddingValues(vertical = 12.dp, horizontal = 16.dp),
                 shape = RoundedCornerShape(14.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = TextForestGreen)
             ) {
@@ -3186,8 +3189,9 @@ fun SubscriptionPaywallBottomSheet(
                 enabled = !isProcessingPayment,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(52.dp)
+                    .heightIn(min = 64.dp)
                     .testTag("btn_subscribe_stripe"),
+                contentPadding = PaddingValues(vertical = 12.dp, horizontal = 16.dp),
                 shape = RoundedCornerShape(14.dp),
                 border = BorderStroke(1.5.dp, Color(0xFF635BFF)),
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF635BFF))
@@ -3773,6 +3777,17 @@ fun BarnClimateAndStatsDialog(
                     }
                 }
 
+                // 0. Smart Barn Robot & Gas/Climate IoT Telemetry Card ("🤖 روبوت وحساسات العنبر الذكية")
+                SmartBarnRobotIoTCard(
+                    flockAgeDays = cycleDay,
+                    liveBirds = liveBirds,
+                    mortalityPct = (100.0 - livabilityPct).coerceIn(0.0, 100.0),
+                    dailyFeedQuintals = 14.5,
+                    temperatureC = temperatureC,
+                    lang = lang,
+                    currentTheme = currentTheme
+                )
+
                 // 1. Live Barn Micro-Climate Animated Banner
                 LiveBarnClimateBanner(
                     temperatureC = temperatureC,
@@ -3812,6 +3827,310 @@ fun BarnClimateAndStatsDialog(
                         fontWeight = FontWeight.Bold,
                         fontSize = 13.5.sp,
                         color = Color.White
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Apple-HIG-styled "🤖 روبوت وحساسات العنبر الذكية (Smart Barn IoT)" card:
+ * - Mode toggle: `[✋ إدخال يدوي]` | `[🤖 متصل بالروبوت]`
+ * - 4 compact live sensor pills:
+ *   1) `🧪 الأمونيا (NH3): 12 ppm (🟢 آمن)` (tap-to-simulate alert toggle `26 ppm 🔴 خطر تنفسي`)
+ *   2) `💨 الأكسجين وCO2: 1,800 ppm (🟢 جيد)`
+ *   3) `🔥 ضغط الغاز: 85% (🟢 مستقر)`
+ *   4) `🌡️ الحرارة والرطوبة: 21.3°C • 58%`
+ * - One-tap button `"🤖 تحليل قراءات الروبوت والقطيع الآن"` that feeds live telemetry into `AiVetGeminiService`.
+ */
+@Composable
+fun SmartBarnRobotIoTCard(
+    flockAgeDays: Int,
+    liveBirds: Int,
+    mortalityPct: Double,
+    dailyFeedQuintals: Double = 14.5,
+    temperatureC: Double = 21.3,
+    lang: AppLanguage,
+    currentTheme: AppThemeOption,
+    onAnalysisResult: ((String) -> Unit)? = null
+) {
+    val appearance = LocalAppAppearanceState.current
+    val isDark = currentTheme.isDark
+    val cardBg = if (isDark) Color(0xFF161B26) else currentTheme.cardColor
+    val pillSurfaceBg = if (isDark) Color(0xFF0E121A) else Color(0xFFF8FAFC)
+    val subtleBorder = if (isDark) Color.White.copy(alpha = 0.08f) else appearance.accentColor.copy(alpha = 0.22f)
+    val primaryText = if (isDark) Color(0xFFFFFFFF) else Color(0xFF0F172A)
+    val secondaryText = if (isDark) Color(0xFFCBD5E1) else Color(0xFF475569)
+    val emeraldGreen = Color(0xFF10B981)
+    val alertRed = Color(0xFFEF4444)
+    val cornerShape = RoundedCornerShape(appearance.cornerRadiusDp.dp)
+    val pillShape = RoundedCornerShape((appearance.cornerRadiusDp - 6).coerceAtLeast(6).dp)
+
+    var isRobotConnected by remember { mutableStateOf(true) }
+    var isSimulatedNh3Alert by remember { mutableStateOf(false) }
+    var isAnalyzing by remember { mutableStateOf(false) }
+    var inlineAiReport by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+
+    val currentNh3Ppm = if (isSimulatedNh3Alert) 26 else 12
+    val telemetrySnapshot = remember(isRobotConnected, currentNh3Ppm, temperatureC) {
+        SmartBarnTelemetrySnapshot(
+            isRobotConnected = isRobotConnected,
+            ammoniaNh3Ppm = currentNh3Ppm,
+            co2Ppm = 1800,
+            gasPressurePct = 85,
+            temperatureC = 21.3,
+            humidityPct = 58
+        )
+    }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("smart_barn_robot_iot_card"),
+        shape = cornerShape,
+        colors = CardDefaults.cardColors(containerColor = cardBg),
+        border = BorderStroke(1.dp, subtleBorder),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            // Header + Mode Toggle (`[✋ إدخال يدوي]` | `[🤖 متصل بالروبوت]`)
+            Text(
+                text = Translations.tr("smart_barn_iot_title", lang),
+                fontWeight = FontWeight.ExtraBold,
+                fontSize = 13.5.sp,
+                color = primaryText,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Surface(
+                    onClick = { isRobotConnected = false },
+                    modifier = Modifier
+                        .weight(1f)
+                        .heightIn(min = 44.dp)
+                        .testTag("btn_iot_mode_manual"),
+                    shape = pillShape,
+                    color = if (!isRobotConnected) appearance.accentOption.primaryColor else pillSurfaceBg,
+                    border = BorderStroke(1.dp, if (!isRobotConnected) appearance.accentOption.primaryColor else subtleBorder)
+                ) {
+                    Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp)) {
+                        Text(
+                            text = Translations.tr("smart_barn_mode_manual", lang),
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (!isRobotConnected) Color.White else secondaryText,
+                            maxLines = 1
+                        )
+                    }
+                }
+                Surface(
+                    onClick = { isRobotConnected = true },
+                    modifier = Modifier
+                        .weight(1f)
+                        .heightIn(min = 44.dp)
+                        .testTag("btn_iot_mode_robot"),
+                    shape = pillShape,
+                    color = if (isRobotConnected) appearance.accentOption.primaryColor else pillSurfaceBg,
+                    border = BorderStroke(1.dp, if (isRobotConnected) appearance.accentOption.primaryColor else subtleBorder)
+                ) {
+                    Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp)) {
+                        Text(
+                            text = Translations.tr("smart_barn_mode_robot", lang),
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isRobotConnected) Color.White else secondaryText,
+                            maxLines = 1
+                        )
+                    }
+                }
+            }
+
+            // 4 Compact Live Sensor Pills (2x2 clean grid)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // Pill 1: 🧪 الأمونيا (NH3): 12 ppm (🟢 آمن) / 26 ppm (🔴 خطر تنفسي)
+                Surface(
+                    onClick = { isSimulatedNh3Alert = !isSimulatedNh3Alert },
+                    modifier = Modifier
+                        .weight(1f)
+                        .heightIn(min = 44.dp)
+                        .testTag("iot_pill_nh3_toggle"),
+                    shape = pillShape,
+                    color = if (isSimulatedNh3Alert) alertRed.copy(alpha = 0.14f) else pillSurfaceBg,
+                    border = BorderStroke(
+                        1.dp,
+                        if (isSimulatedNh3Alert) alertRed else emeraldGreen.copy(alpha = 0.45f)
+                    )
+                ) {
+                    Box(
+                        contentAlignment = Alignment.CenterStart,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)
+                    ) {
+                        Text(
+                            text = if (isSimulatedNh3Alert) {
+                                Translations.tr("smart_barn_sensor_nh3_alert", lang)
+                            } else {
+                                Translations.tr("smart_barn_sensor_nh3_safe", lang)
+                            },
+                            fontSize = 10.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isSimulatedNh3Alert) (if (isDark) Color(0xFFFCA5A5) else Color(0xFFB91C1C)) else primaryText,
+                            maxLines = 1
+                        )
+                    }
+                }
+
+                // Pill 2: 💨 الأكسجين وCO2: 1,800 ppm (🟢 جيد)
+                Surface(
+                    modifier = Modifier
+                        .weight(1f)
+                        .heightIn(min = 44.dp)
+                        .testTag("iot_pill_o2_co2"),
+                    shape = pillShape,
+                    color = pillSurfaceBg,
+                    border = BorderStroke(1.dp, emeraldGreen.copy(alpha = 0.35f))
+                ) {
+                    Box(
+                        contentAlignment = Alignment.CenterStart,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)
+                    ) {
+                        Text(
+                            text = Translations.tr("smart_barn_sensor_o2_co2", lang),
+                            fontSize = 10.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = primaryText,
+                            maxLines = 1
+                        )
+                    }
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // Pill 3: 🔥 ضغط الغاز: 85% (🟢 مستقر)
+                Surface(
+                    modifier = Modifier
+                        .weight(1f)
+                        .heightIn(min = 44.dp)
+                        .testTag("iot_pill_gas_pressure"),
+                    shape = pillShape,
+                    color = pillSurfaceBg,
+                    border = BorderStroke(1.dp, emeraldGreen.copy(alpha = 0.35f))
+                ) {
+                    Box(
+                        contentAlignment = Alignment.CenterStart,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)
+                    ) {
+                        Text(
+                            text = Translations.tr("smart_barn_sensor_gas", lang),
+                            fontSize = 10.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = primaryText,
+                            maxLines = 1
+                        )
+                    }
+                }
+
+                // Pill 4: 🌡️ الحرارة والرطوبة: 21.3°C • 58%
+                Surface(
+                    modifier = Modifier
+                        .weight(1f)
+                        .heightIn(min = 44.dp)
+                        .testTag("iot_pill_temp_humidity"),
+                    shape = pillShape,
+                    color = pillSurfaceBg,
+                    border = BorderStroke(1.dp, emeraldGreen.copy(alpha = 0.35f))
+                ) {
+                    Box(
+                        contentAlignment = Alignment.CenterStart,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)
+                    ) {
+                        Text(
+                            text = Translations.tr("smart_barn_sensor_temp_hum", lang),
+                            fontSize = 10.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = primaryText,
+                            maxLines = 1
+                        )
+                    }
+                }
+            }
+
+            Text(
+                text = Translations.tr("smart_barn_tap_nh3_hint", lang),
+                fontSize = 10.sp,
+                color = secondaryText,
+                maxLines = 1
+            )
+
+            // One-tap button: "🤖 تحليل قراءات الروبوت والقطيع الآن"
+            Button(
+                onClick = {
+                    if (!isAnalyzing) {
+                        isAnalyzing = true
+                        scope.launch {
+                            val result = AiVetGeminiService.analyzeSmartBarnTelemetry(
+                                flockAgeDays = flockAgeDays,
+                                liveBirds = liveBirds,
+                                mortalityPct = mortalityPct,
+                                dailyFeedQuintals = dailyFeedQuintals,
+                                telemetry = telemetrySnapshot,
+                                lang = lang
+                            )
+                            inlineAiReport = result
+                            onAnalysisResult?.invoke(result)
+                            isAnalyzing = false
+                        }
+                    }
+                },
+                enabled = !isAnalyzing,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 46.dp)
+                    .testTag("btn_analyze_robot_telemetry"),
+                shape = pillShape,
+                colors = ButtonDefaults.buttonColors(containerColor = appearance.accentOption.primaryColor)
+            ) {
+                Text(
+                    text = Translations.tr("smart_barn_analyze_btn", lang),
+                    fontSize = 12.5.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                    maxLines = 1
+                )
+            }
+
+            if (inlineAiReport != null && onAnalysisResult == null) {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("smart_barn_inline_ai_report"),
+                    shape = pillShape,
+                    color = pillSurfaceBg,
+                    border = BorderStroke(1.dp, subtleBorder)
+                ) {
+                    Text(
+                        text = inlineAiReport.orEmpty(),
+                        fontSize = 11.5.sp,
+                        color = primaryText,
+                        lineHeight = 17.sp,
+                        modifier = Modifier.padding(10.dp)
                     )
                 }
             }
@@ -4113,7 +4432,7 @@ fun ProfessionOnboardingDialog(
                                     )
                                 }
                             }
-                            RadioButton(
+                                RadioButton(
                                 selected = isSelected,
                                 onClick = { selectedRole = item.role },
                                 colors = RadioButtonDefaults.colors(
@@ -4128,5 +4447,281 @@ fun ProfessionOnboardingDialog(
         }
     }
 }
+
+/**
+ * Ironclad Local (`SharedPreferences` JSON) Persistence for Farms, Cycles, Daily Reports,
+ * Transactions, and Vet Notes (`"agritech_local_state_v1"`).
+ */
+object LocalFarmPersistence {
+    private const val PREF_NAME = "agritech_local_state_v1"
+    private const val KEY_SAVED = "has_saved_state"
+    private const val KEY_FARMS = "farms_json"
+    private const val KEY_CYCLES = "cycles_json"
+    private const val KEY_REPORTS = "daily_reports_json"
+    private const val KEY_TRANSACTIONS = "transactions_json"
+    private const val KEY_VET_NOTES = "vet_notes_json"
+
+    fun hasSavedData(context: Context): Boolean {
+        val prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
+        return prefs.getBoolean(KEY_SAVED, false)
+    }
+
+    fun clear(context: Context) {
+        val prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
+        prefs.edit().clear().apply()
+    }
+
+    fun saveAll(context: Context) {
+        try {
+            val prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
+            val farmsArr = org.json.JSONArray()
+            for (f in AgritechMockDb.farms) {
+                val obj = org.json.JSONObject()
+                obj.put("id", f.id)
+                obj.put("name", f.name)
+                obj.put("location", f.location)
+                obj.put("capacity", f.capacity)
+                obj.put("assignedWorkerId", f.assignedWorkerId)
+                obj.put("currencyCode", f.currencyCode)
+                farmsArr.put(obj)
+            }
+
+            val cyclesArr = org.json.JSONArray()
+            for (c in AgritechMockDb.cycles) {
+                val obj = org.json.JSONObject()
+                obj.put("id", c.id)
+                obj.put("farmId", c.farmId)
+                obj.put("totalBirdsPlaced", c.totalBirdsPlaced)
+                obj.put("targetWeight", c.targetWeight)
+                obj.put("status", c.status)
+                obj.put("startDate", c.startDate)
+                obj.put("chickPrice", c.chickPrice)
+                obj.put("feedInventoryKg", c.feedInventoryKg)
+                obj.put("cumulativeBirdsSold", c.cumulativeBirdsSold)
+                obj.put("cumulativeSoldWeightKg", c.cumulativeSoldWeightKg)
+                obj.put("currencyCode", c.currencyCode)
+                cyclesArr.put(obj)
+            }
+
+            val reportsArr = org.json.JSONArray()
+            for (r in AgritechMockDb.dailyReports) {
+                val obj = org.json.JSONObject()
+                obj.put("id", r.id)
+                obj.put("farmId", r.farmId)
+                obj.put("cycleId", r.cycleId)
+                obj.put("dayNumber", r.dayNumber)
+                obj.put("feedIntakeKg", r.feedIntakeKg)
+                obj.put("waterIntakeLiters", r.waterIntakeLiters)
+                obj.put("mortalityCount", r.mortalityCount)
+                obj.put("temperature", r.temperature)
+                obj.put("gasUnits", r.gasUnits)
+                obj.put("ventilationStatus", r.ventilationStatus)
+                obj.put("generalStatus", r.generalStatus)
+                obj.put("isLocked", r.isLocked)
+                obj.put("isEdited", r.isEdited)
+                obj.put("previousSummary", r.previousSummary)
+                obj.put("actualAvgWeightKg", r.actualAvgWeightKg)
+                obj.put("medicineGiven", r.medicineGiven)
+                obj.put("medicineSummary", r.medicineSummary)
+                reportsArr.put(obj)
+            }
+
+            val txArr = org.json.JSONArray()
+            for (t in AgritechMockDb.transactions) {
+                val obj = org.json.JSONObject()
+                obj.put("id", t.id)
+                obj.put("farmId", t.farmId)
+                obj.put("cycleId", t.cycleId)
+                obj.put("type", t.type.name)
+                obj.put("category", t.category)
+                obj.put("amount", t.amount)
+                obj.put("currency", t.currency)
+                obj.put("date", t.date)
+                obj.put("status", t.status)
+                obj.put("notes", t.notes)
+                obj.put("quantityQuintals", t.quantityQuintals)
+                obj.put("approvedBySignature", t.approvedBySignature)
+                txArr.put(obj)
+            }
+
+            val notesArr = org.json.JSONArray()
+            for (vn in AgritechMockDb.vetNotes) {
+                val obj = org.json.JSONObject()
+                obj.put("id", vn.id)
+                obj.put("farmId", vn.farmId)
+                obj.put("cycleId", vn.cycleId)
+                obj.put("dayNumber", vn.dayNumber)
+                obj.put("medicineName", vn.medicineName)
+                obj.put("dosage", vn.dosage)
+                obj.put("note", vn.note)
+                obj.put("isUrgent", vn.isUrgent)
+                obj.put("status", vn.status)
+                obj.put("linkedTransactionId", vn.linkedTransactionId)
+                obj.put("invoiceAmount", vn.invoiceAmount)
+                obj.put("currency", vn.currency)
+                notesArr.put(obj)
+            }
+
+            prefs.edit()
+                .putBoolean(KEY_SAVED, true)
+                .putString(KEY_FARMS, farmsArr.toString())
+                .putString(KEY_CYCLES, cyclesArr.toString())
+                .putString(KEY_REPORTS, reportsArr.toString())
+                .putString(KEY_TRANSACTIONS, txArr.toString())
+                .putString(KEY_VET_NOTES, notesArr.toString())
+                .apply()
+        } catch (_: Exception) {
+        }
+    }
+
+    fun loadIntoMockDb(context: Context) {
+        try {
+            val prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
+            if (!prefs.getBoolean(KEY_SAVED, false)) return
+
+            val farmsStr = prefs.getString(KEY_FARMS, null)
+            if (!farmsStr.isNullOrBlank()) {
+                val arr = org.json.JSONArray(farmsStr)
+                for (i in 0 until arr.length()) {
+                    val obj = arr.getJSONObject(i)
+                    val farm = FarmModel(
+                        id = obj.optString("id"),
+                        name = obj.optString("name"),
+                        location = obj.optString("location"),
+                        capacity = obj.optInt("capacity", 5000),
+                        assignedWorkerId = obj.optString("assignedWorkerId", "worker_1"),
+                        currencyCode = obj.optString("currencyCode", "DZD")
+                    )
+                    if (farm.id.isNotBlank()) {
+                        val idx = AgritechMockDb.farms.indexOfFirst { it.id == farm.id }
+                        if (idx >= 0) AgritechMockDb.farms[idx] = farm else AgritechMockDb.farms.add(farm)
+                    }
+                }
+            }
+
+            val cyclesStr = prefs.getString(KEY_CYCLES, null)
+            if (!cyclesStr.isNullOrBlank()) {
+                val arr = org.json.JSONArray(cyclesStr)
+                for (i in 0 until arr.length()) {
+                    val obj = arr.getJSONObject(i)
+                    val cycle = CycleModel(
+                        id = obj.optString("id"),
+                        farmId = obj.optString("farmId"),
+                        totalBirdsPlaced = obj.optInt("totalBirdsPlaced", 5000),
+                        targetWeight = obj.optDouble("targetWeight", 2.3),
+                        status = obj.optString("status", "active"),
+                        startDate = obj.optString("startDate", "2026-03-01"),
+                        chickPrice = obj.optDouble("chickPrice", 120.0),
+                        feedInventoryKg = obj.optDouble("feedInventoryKg", 0.0),
+                        cumulativeBirdsSold = obj.optInt("cumulativeBirdsSold", 0),
+                        cumulativeSoldWeightKg = obj.optDouble("cumulativeSoldWeightKg", 0.0),
+                        currencyCode = obj.optString("currencyCode", "DZD")
+                    )
+                    if (cycle.id.isNotBlank()) {
+                        val idx = AgritechMockDb.cycles.indexOfFirst { it.id == cycle.id }
+                        if (idx >= 0) AgritechMockDb.cycles[idx] = cycle else AgritechMockDb.cycles.add(cycle)
+                    }
+                }
+            }
+
+            val reportsStr = prefs.getString(KEY_REPORTS, null)
+            if (!reportsStr.isNullOrBlank()) {
+                val arr = org.json.JSONArray(reportsStr)
+                for (i in 0 until arr.length()) {
+                    val obj = arr.getJSONObject(i)
+                    val rep = DailyReportModel(
+                        id = obj.optString("id"),
+                        farmId = obj.optString("farmId"),
+                        cycleId = obj.optString("cycleId"),
+                        dayNumber = obj.optInt("dayNumber", 1),
+                        feedIntakeKg = obj.optDouble("feedIntakeKg", 0.0),
+                        waterIntakeLiters = obj.optDouble("waterIntakeLiters", 0.0),
+                        mortalityCount = obj.optInt("mortalityCount", 0),
+                        temperature = obj.optDouble("temperature", 30.0),
+                        gasUnits = obj.optDouble("gasUnits", 0.0),
+                        ventilationStatus = obj.optString("ventilationStatus", "جيدة"),
+                        generalStatus = obj.optString("generalStatus", "طبيعية"),
+                        isLocked = obj.optBoolean("isLocked", true),
+                        isEdited = obj.optBoolean("isEdited", false),
+                        previousSummary = obj.optString("previousSummary", ""),
+                        actualAvgWeightKg = obj.optDouble("actualAvgWeightKg", 0.0),
+                        medicineGiven = obj.optBoolean("medicineGiven", false),
+                        medicineSummary = obj.optString("medicineSummary", "")
+                    )
+                    if (rep.id.isNotBlank()) {
+                        val idx = AgritechMockDb.dailyReports.indexOfFirst {
+                            it.id == rep.id || (it.farmId == rep.farmId && it.cycleId == rep.cycleId && it.dayNumber == rep.dayNumber)
+                        }
+                        if (idx >= 0) AgritechMockDb.dailyReports[idx] = rep else AgritechMockDb.dailyReports.add(rep)
+                    }
+                }
+            }
+
+            val txStr = prefs.getString(KEY_TRANSACTIONS, null)
+            if (!txStr.isNullOrBlank()) {
+                val arr = org.json.JSONArray(txStr)
+                for (i in 0 until arr.length()) {
+                    val obj = arr.getJSONObject(i)
+                    val type = try {
+                        TransactionType.valueOf(obj.optString("type", "EXPENSE"))
+                    } catch (_: Exception) {
+                        TransactionType.EXPENSE
+                    }
+                    val tx = TransactionModel(
+                        id = obj.optString("id"),
+                        farmId = obj.optString("farmId"),
+                        cycleId = obj.optString("cycleId"),
+                        type = type,
+                        category = obj.optString("category"),
+                        amount = obj.optDouble("amount", 0.0),
+                        currency = obj.optString("currency", "دج"),
+                        date = obj.optString("date", "اليوم 1"),
+                        status = obj.optString("status", "APPROVED"),
+                        notes = obj.optString("notes", ""),
+                        quantityQuintals = obj.optDouble("quantityQuintals", 0.0),
+                        approvedBySignature = obj.optString("approvedBySignature", "")
+                    )
+                    if (tx.id.isNotBlank()) {
+                        val idx = AgritechMockDb.transactions.indexOfFirst { it.id == tx.id }
+                        if (idx >= 0) {
+                            val existing = AgritechMockDb.transactions[idx]
+                            AgritechMockDb.transactions[idx] = tx.copy(invoiceData = existing.invoiceData)
+                        } else {
+                            AgritechMockDb.transactions.add(tx)
+                        }
+                    }
+                }
+            }
+
+            val notesStr = prefs.getString(KEY_VET_NOTES, null)
+            if (!notesStr.isNullOrBlank()) {
+                val arr = org.json.JSONArray(notesStr)
+                for (i in 0 until arr.length()) {
+                    val obj = arr.getJSONObject(i)
+                    val vn = VetNoteModel(
+                        id = obj.optString("id"),
+                        farmId = obj.optString("farmId"),
+                        cycleId = obj.optString("cycleId"),
+                        dayNumber = obj.optInt("dayNumber", 1),
+                        medicineName = obj.optString("medicineName"),
+                        dosage = obj.optString("dosage"),
+                        note = obj.optString("note"),
+                        isUrgent = obj.optBoolean("isUrgent", false),
+                        status = obj.optString("status", "APPROVED"),
+                        linkedTransactionId = obj.optString("linkedTransactionId", ""),
+                        invoiceAmount = obj.optDouble("invoiceAmount", 0.0),
+                        currency = obj.optString("currency", "دج")
+                    )
+                    if (vn.id.isNotBlank()) {
+                        val idx = AgritechMockDb.vetNotes.indexOfFirst { it.id == vn.id }
+                        if (idx >= 0) AgritechMockDb.vetNotes[idx] = vn else AgritechMockDb.vetNotes.add(vn)
+                    }
+                }
+            }
+        } catch (_: Exception) {
+        }
+    }
+}
+
 
 
