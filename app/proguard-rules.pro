@@ -5,17 +5,19 @@
 # For more details, see
 #   http://developer.android.com/guide/developing/tools/proguard.html
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+# الحفاظ على أرقام الأسطر البرمجية لمعرفة مكان أي خطأ بدقة في تقارير الأعطال
+-keepattributes SourceFile,LineNumberTable
+-renamesourcefileattribute SourceFile
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+# حماية جميع نماذج البيانات (FarmModel, CycleModel, DailyReportModel, TransactionModel) من التغيير
+-keep class com.example.models.** { *; }
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# حماية خصائص القراءة والكتابة الخاصة بقاعدة بيانات Firebase Firestore
+-keepclassmembers class * {
+    @com.google.firebase.firestore.PropertyName <fields>;
+    @com.google.firebase.firestore.PropertyName <methods>;
+}
+
+# الحفاظ على الأنواع العامة (Generics) والتعليقات التوضيحية اللازمة لتحويل البيانات (JSON)
+-keepattributes Signature, InnerClasses, EnclosingMethod
+-keepattributes RuntimeVisibleAnnotations, RuntimeVisibleParameterAnnotations

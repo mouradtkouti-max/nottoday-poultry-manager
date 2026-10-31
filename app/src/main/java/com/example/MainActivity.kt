@@ -6698,6 +6698,7 @@ fun AgritechFarmNotebookScreen(
     var buyerNameInput by remember { mutableStateOf("") }
     var truckPlateInput by remember { mutableStateOf("") }
     var pricePerKgInput by remember { mutableStateOf("") }
+    var shipmentPriceError by remember { mutableStateOf<String?>(null) }
     var birdsPerCrateInput by remember { mutableStateOf("10") }
     var tareMode by remember { mutableStateOf(TareMode.DETAILED) }
     var directTareTotalInput by remember { mutableStateOf("") }
@@ -6933,15 +6934,30 @@ fun AgritechFarmNotebookScreen(
                 truckPlate = truckPlateInput,
                 onTruckPlateChange = { truckPlateInput = it },
                 pricePerKg = pricePerKgInput,
-                onPricePerKgChange = { pricePerKgInput = it },
+                onPricePerKgChange = {
+                    pricePerKgInput = it
+                    shipmentPriceError = null
+                },
+                priceError = shipmentPriceError,
                 birdsPerCrate = birdsPerCrateInput,
                 onBirdsPerCrateChange = { birdsPerCrateInput = it },
                 tareMode = tareMode,
                 onTareModeChange = { tareMode = it },
                 directTareTotal = directTareTotalInput,
                 onDirectTareTotalChange = { directTareTotalInput = it },
-                onProceedToWeighing = { salesFlowStep = SalesFlowStep.STAGE_2_WEIGHING_TABLE },
-                onBack = { salesFlowStep = SalesFlowStep.NONE }
+                onProceedToWeighing = {
+                    val enteredPrice = pricePerKgInput.trim().toDoubleOrNull() ?: 0.0
+                    if (enteredPrice <= 0.0) {
+                        shipmentPriceError = Translations.tr("input_required_error", lang)
+                    } else {
+                        shipmentPriceError = null
+                        salesFlowStep = SalesFlowStep.STAGE_2_WEIGHING_TABLE
+                    }
+                },
+                onBack = {
+                    shipmentPriceError = null
+                    salesFlowStep = SalesFlowStep.NONE
+                }
             )
         }
         SalesFlowStep.STAGE_2_WEIGHING_TABLE -> {
@@ -7027,6 +7043,7 @@ fun AgritechFarmNotebookScreen(
                             buyerNameInput = ""
                             truckPlateInput = ""
                             pricePerKgInput = ""
+                            shipmentPriceError = null
                             birdsPerCrateInput = "10"
                             tareMode = TareMode.DETAILED
                             directTareTotalInput = ""
@@ -9922,6 +9939,7 @@ fun BatchShipmentInfoScreen(
     onTruckPlateChange: (String) -> Unit,
     pricePerKg: String,
     onPricePerKgChange: (String) -> Unit,
+    priceError: String? = null,
     birdsPerCrate: String,
     onBirdsPerCrateChange: (String) -> Unit,
     tareMode: TareMode,
@@ -10101,8 +10119,24 @@ fun BatchShipmentInfoScreen(
                         onValueChange = onPricePerKgChange,
                         label = { Text(Translations.tr("price_per_kg_label", lang), fontSize = 13.sp) },
                         placeholder = { Text("380") },
+                        isError = priceError != null,
+                        supportingText = if (priceError != null) {
+                            {
+                                Text(
+                                    text = priceError,
+                                    color = ActionRed,
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.testTag("sales_stage1_price_error")
+                                )
+                            }
+                        } else null,
                         leadingIcon = {
-                            Icon(Icons.Default.Payments, contentDescription = null, tint = shipAccent)
+                            Icon(
+                                Icons.Default.Payments,
+                                contentDescription = null,
+                                tint = if (priceError != null) ActionRed else shipAccent
+                            )
                         },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
@@ -10112,7 +10146,9 @@ fun BatchShipmentInfoScreen(
                         shape = shipFieldShape,
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = shipAccent,
-                            focusedLabelColor = shipAccent
+                            focusedLabelColor = shipAccent,
+                            errorBorderColor = ActionRed,
+                            errorLabelColor = ActionRed
                         )
                     )
 
