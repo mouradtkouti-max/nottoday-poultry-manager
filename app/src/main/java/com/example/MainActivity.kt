@@ -556,7 +556,7 @@ object AgritechMockDb {
         tx: TransactionModel,
         vetNote: VetNoteModel,
         chatChannelId: String = "${tx.cycleId}_vet"
-    ) {
+    ): ChatMessageModel {
         val pendingTx = tx.copy(status = "PENDING")
         val pendingNote = vetNote.copy(
             status = "PENDING",
@@ -584,23 +584,23 @@ object AgritechMockDb {
             "الآن"
         }
         val formattedPrice = String.format(java.util.Locale.US, "%,.0f", pendingTx.amount)
-        sendChatMessage(
-            ChatMessageModel(
-                id = "msg_vet_inv_${pendingTx.id}",
-                cycleId = chatChannelId,
-                senderId = "vet_1",
-                senderName = "د. كمال",
-                senderRole = "طبيب بيطري 🩺",
-                text = "🧾 فاتورة دواء (بانتظار موافقة المالك ⏳): ${pendingNote.medicineName}\n• الجرعة: ${pendingNote.dosage}\n• المبلغ المطلوب اعتماده: $formattedPrice ${pendingTx.currency}",
-                timestamp = nowTime,
-                linkedTransactionId = pendingTx.id,
-                requestCategory = pendingNote.medicineName,
-                requestAmount = pendingTx.amount,
-                requestCurrency = pendingTx.currency,
-                status = "PENDING"
-            )
+        val chatMsg = ChatMessageModel(
+            id = "msg_vet_inv_${pendingTx.id}",
+            cycleId = chatChannelId,
+            senderId = "vet_1",
+            senderName = "د. كمال",
+            senderRole = "طبيب بيطري 🩺",
+            text = "🧾 فاتورة دواء (بانتظار موافقة المالك ⏳): ${pendingNote.medicineName}\n• الجرعة: ${pendingNote.dosage}\n• المبلغ المطلوب اعتماده: $formattedPrice ${pendingTx.currency}",
+            timestamp = nowTime,
+            linkedTransactionId = pendingTx.id,
+            requestCategory = pendingNote.medicineName,
+            requestAmount = pendingTx.amount,
+            requestCurrency = pendingTx.currency,
+            status = "PENDING"
         )
+        sendChatMessage(chatMsg)
         persistLocalState()
+        return chatMsg
     }
 
     /**
@@ -615,7 +615,7 @@ object AgritechMockDb {
         senderName: String,
         senderRole: String,
         chatChannelId: String
-    ) {
+    ): ChatMessageModel {
         val pendingTx = tx.copy(
             status = "PENDING",
             notes = noteText.ifBlank { tx.notes }
@@ -635,23 +635,54 @@ object AgritechMockDb {
         }
         val formattedPrice = String.format(java.util.Locale.US, "%,.0f", pendingTx.amount)
         val cleanNote = if (noteText.isNotBlank()) "\n• البيان: $noteText" else ""
-        sendChatMessage(
-            ChatMessageModel(
-                id = "msg_fin_req_${pendingTx.id}",
-                cycleId = chatChannelId,
-                senderId = senderId,
-                senderName = senderName,
-                senderRole = senderRole,
-                text = "🧾 ${pendingTx.category}$cleanNote\n• المبلغ المطلوب اعتماده: $formattedPrice ${pendingTx.currency}",
-                timestamp = nowTime,
-                linkedTransactionId = pendingTx.id,
-                requestCategory = pendingTx.category,
-                requestAmount = pendingTx.amount,
-                requestCurrency = pendingTx.currency,
-                status = "PENDING"
-            )
+        val chatMsg = ChatMessageModel(
+            id = "msg_fin_req_${pendingTx.id}",
+            cycleId = chatChannelId,
+            senderId = senderId,
+            senderName = senderName,
+            senderRole = senderRole,
+            text = "🧾 ${pendingTx.category}$cleanNote\n• المبلغ المطلوب اعتماده: $formattedPrice ${pendingTx.currency}",
+            timestamp = nowTime,
+            linkedTransactionId = pendingTx.id,
+            requestCategory = pendingTx.category,
+            requestAmount = pendingTx.amount,
+            requestCurrency = pendingTx.currency,
+            status = "PENDING"
         )
+        sendChatMessage(chatMsg)
         persistLocalState()
+        return chatMsg
+    }
+
+    fun mergeCloudCycleWithLocal(cloudCycle: CycleModel, localCycle: CycleModel): CycleModel {
+        return cloudCycle.copy(
+            feedInventoryKg = maxOf(cloudCycle.feedInventoryKg, localCycle.feedInventoryKg),
+            cumulativeBirdsSold = maxOf(cloudCycle.cumulativeBirdsSold, localCycle.cumulativeBirdsSold),
+            cumulativeSoldWeightKg = maxOf(cloudCycle.cumulativeSoldWeightKg, localCycle.cumulativeSoldWeightKg)
+        )
+    }
+
+    fun mergeCloudReportWithLocal(cloudReport: DailyReportModel, existingLocal: DailyReportModel): DailyReportModel {
+        val localIsNewer = (existingLocal.updatedAtMillis > cloudReport.updatedAtMillis) ||
+            (existingLocal.isEdited && !cloudReport.isEdited)
+        return if (localIsNewer) {
+            existingLocal.copy(
+                actualAvgWeightKg = if (existingLocal.actualAvgWeightKg > 0.0) existingLocal.actualAvgWeightKg else cloudReport.actualAvgWeightKg,
+                medicineGiven = existingLocal.medicineGiven || cloudReport.medicineGiven,
+                medicineSummary = existingLocal.medicineSummary.ifBlank { cloudReport.medicineSummary },
+                withdrawalDays = maxOf(existingLocal.withdrawalDays, cloudReport.withdrawalDays)
+            )
+        } else {
+            cloudReport.copy(
+                isEdited = cloudReport.isEdited || existingLocal.isEdited,
+                previousSummary = cloudReport.previousSummary.ifBlank { existingLocal.previousSummary },
+                actualAvgWeightKg = if (cloudReport.actualAvgWeightKg > 0.0) cloudReport.actualAvgWeightKg else existingLocal.actualAvgWeightKg,
+                medicineGiven = cloudReport.medicineGiven || existingLocal.medicineGiven,
+                medicineSummary = cloudReport.medicineSummary.ifBlank { existingLocal.medicineSummary },
+                withdrawalDays = maxOf(cloudReport.withdrawalDays, existingLocal.withdrawalDays),
+                updatedAtMillis = maxOf(cloudReport.updatedAtMillis, existingLocal.updatedAtMillis)
+            )
+        }
     }
 
     /**
@@ -1124,11 +1155,16 @@ fun AgritechMainApp(
                                     cloudCycles.forEach { cycle ->
                                         val idx = AgritechMockDb.cycles.indexOfFirst { it.id == cycle.id }
                                         if (idx >= 0) {
-                                            AgritechMockDb.cycles[idx] = cycle
+                                            val localCycle = AgritechMockDb.cycles[idx]
+                                            AgritechMockDb.cycles[idx] = AgritechMockDb.mergeCloudCycleWithLocal(
+                                                cloudCycle = cycle,
+                                                localCycle = localCycle
+                                            )
                                         } else {
                                             AgritechMockDb.cycles.add(cycle)
                                         }
                                     }
+                                    AgritechMockDb.persistLocalState()
                                 }
                             }
                         } catch (_: Exception) {}
@@ -1143,7 +1179,7 @@ fun AgritechMainApp(
                                         }
                                         if (idx >= 0) {
                                             val existingLocal = AgritechMockDb.dailyReports[idx]
-                                            val localIsNewer = (existingLocal.updatedAtMillis > report.updatedAtMillis && report.updatedAtMillis > 0L) ||
+                                            val localIsNewer = (existingLocal.updatedAtMillis > report.updatedAtMillis) ||
                                                 (existingLocal.isEdited && !report.isEdited)
                                             val mergedReport = if (localIsNewer) {
                                                 existingLocal.copy(
@@ -1709,22 +1745,11 @@ fun AgritechLoginScreen(
                         modifier = Modifier.fillMaxWidth()
                     )
 
-                    OutlinedTextField(
-                        value = "farm_admin@algeria.dz",
-                        onValueChange = {},
-                        label = { Text(Translations.tr("username_label", lang)) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = buttonCornerShape
-                    )
-
-                    OutlinedTextField(
-                        value = "••••••••",
-                        onValueChange = {},
-                        label = { Text(Translations.tr("password_label", lang)) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = buttonCornerShape
+                    Text(
+                        Translations.tr("app_subtitle", lang),
+                        fontSize = 13.sp,
+                        color = Color.Gray,
+                        modifier = Modifier.fillMaxWidth()
                     )
 
                     Button(
@@ -1918,7 +1943,8 @@ fun AgritechOwnerDashboard(
     // c) As soon as ownedFarmsCount >= 1: clicking "+ دورة جديدة / عنبر جديد" MUST trigger SubscriptionPaywallBottomSheet ($5 / 2 Months)
     val ownedFarmsOrCyclesCount = farms.size
     val onTapNewBarnOrCycle: () -> Unit = {
-        if (ownedFarmsOrCyclesCount == 0) {
+        val maxAllowedBarns = 1 + unlockedAdditionalBarns
+        if (ownedFarmsOrCyclesCount < maxAllowedBarns) {
             targetFarmForCycle = null
             farmNameInput = ""
             locationInput = ""
@@ -4063,7 +4089,7 @@ fun UniversalFinancialRequestDialog(
         Translations.tr("fin_req_cat_vet_invoice", lang)
     )
     var selectedCatIdx by remember { mutableStateOf(0) }
-    var amountText by remember { mutableStateOf("15000") }
+    var amountText by remember { mutableStateOf("") }
     var noteText by remember { mutableStateOf("") }
 
     AlertDialog(
@@ -4137,6 +4163,7 @@ fun UniversalFinancialRequestDialog(
                     value = amountText,
                     onValueChange = { amountText = it.filter { ch -> ch.isDigit() || ch == '.' } },
                     label = { Text("${Translations.tr("fin_req_amount_label", lang)} ($curr)", fontSize = 12.sp) },
+                    placeholder = { Text("15000", fontSize = 12.sp, color = secondaryText.copy(alpha = 0.5f)) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     shape = RoundedCornerShape(12.dp),
@@ -4175,7 +4202,7 @@ fun UniversalFinancialRequestDialog(
                             date = "${Translations.tr("day_prefix", lang)} $dayNumber",
                             status = "PENDING"
                         )
-                        AgritechMockDb.recordUniversalFinancialRequest(
+                        val chatMsg = AgritechMockDb.recordUniversalFinancialRequest(
                             tx = pendingTx,
                             noteText = noteText.trim(),
                             senderId = "contact_${channelId}",
@@ -4189,6 +4216,7 @@ fun UniversalFinancialRequestDialog(
                                     idempotencyKey = txId,
                                     tx = pendingTx
                                 )
+                                firestoreRepo.sendChatMessage(chatMsg)
                             }
                         }
                         onOrderSubmitted?.invoke(amt, chosenCat, noteText.trim())
@@ -4709,6 +4737,17 @@ fun AddMarketPostDialog(
                     val parsedPrice = priceInput.toDoubleOrNull() ?: 0.0
                     if (cleanTitle.isNotEmpty() && parsedPrice > 0.0) {
                         val curr = Translations.tr("currency", lang)
+                        val currentUser = try {
+                            FirebaseAuth.getInstance().currentUser
+                        } catch (_: Exception) {
+                            null
+                        }
+                        val activeFarm = AgritechMockDb.farms.firstOrNull()
+                        val resolvedPublisherName = currentUser?.displayName?.takeIf { it.isNotBlank() }
+                            ?: activeFarm?.name?.takeIf { it.isNotBlank() }
+                            ?: Translations.tr("role_badge_owner_barn", lang)
+                        val resolvedPublisherLocation = activeFarm?.location?.takeIf { it.isNotBlank() }
+                            ?: Translations.tr("farms_title", lang)
                         onPublishPost(
                             MarketPostModel(
                                 id = "post_${System.currentTimeMillis()}",
@@ -4716,8 +4755,8 @@ fun AddMarketPostDialog(
                                 description = descInput.trim().ifEmpty { "متوفر حالياً في المزرعة بجودة ممتازة." },
                                 priceDzd = parsedPrice,
                                 priceUnit = curr,
-                                publisherName = "الحاج مراد - مالك المزرعة",
-                                publisherLocation = "البليدة - المزرعة النموذجية",
+                                publisherName = resolvedPublisherName,
+                                publisherLocation = resolvedPublisherLocation,
                                 imageCaption = if (selectedImageUri != null) "صورة مرفقة: $cleanTitle" else "صورة مرفقة للإعلان",
                                 chatChannelId = "general_admin",
                                 imageUri = selectedImageUri?.toString()
@@ -5848,7 +5887,8 @@ fun PersonalAccountWhatsAppQrBottomSheet(
         null
     }
     val userDisplayName = currentUser?.displayName?.takeIf { it.isNotBlank() }
-        ?: "الحاج مراد (مزرعة البركة)"
+        ?: AgritechMockDb.farms.firstOrNull()?.name?.takeIf { it.isNotBlank() }
+        ?: Translations.tr("account_local_profile", lang)
     val userPhoneOrEmail = currentUser?.phoneNumber?.takeIf { it.isNotBlank() }
         ?: currentUser?.email?.takeIf { it.isNotBlank() }
         ?: Translations.tr("account_local_profile", lang)
@@ -9442,9 +9482,9 @@ fun VetMedicineInvoiceDialog(
 
                         // 1. Atomic update in reactive state (Treasury Expense + VetNote + Vet Chat Bubble)
                         val targetChannel = channelId ?: "${cycle.id}_vet"
-                        AgritechMockDb.recordVetInvoiceAndPrescription(medTx, vetNote, targetChannel)
+                        val chatMsg = AgritechMockDb.recordVetInvoiceAndPrescription(medTx, vetNote, targetChannel)
 
-                        // 2. Atomic Firestore transaction when authenticated
+                        // 2. Atomic Firestore transaction + Chat message sync when authenticated
                         if (firestoreRepo != null) {
                             scope.launch {
                                 firestoreRepo.recordVetInvoiceAndPrescriptionIdempotent(
@@ -9452,6 +9492,7 @@ fun VetMedicineInvoiceDialog(
                                     tx = medTx,
                                     vetNote = vetNote
                                 )
+                                firestoreRepo.sendChatMessage(chatMsg)
                             }
                         }
 
@@ -9797,17 +9838,27 @@ fun TeamChatTab(
                                 val nowTime = java.time.LocalTime.now().format(
                                     java.time.format.DateTimeFormatter.ofPattern("hh:mm a", java.util.Locale("ar"))
                                 )
-                                AgritechMockDb.sendChatMessage(
-                                    ChatMessageModel(
-                                        id = "msg_${System.currentTimeMillis()}",
-                                        cycleId = channelId,
-                                        senderId = currentUserId,
-                                        senderName = "الحاج مراد",
-                                        senderRole = "مالك المزرعة 👨‍🌾",
-                                        text = trimmed,
-                                        timestamp = nowTime
-                                    )
+                                val resolvedSenderName = try {
+                                    FirebaseAuth.getInstance().currentUser?.displayName?.takeIf { it.isNotBlank() }
+                                } catch (_: Exception) {
+                                    null
+                                } ?: AgritechMockDb.farms.firstOrNull()?.name?.takeIf { it.isNotBlank() }
+                                    ?: Translations.tr("role_badge_owner_barn", lang)
+                                val newMsg = ChatMessageModel(
+                                    id = "msg_${System.currentTimeMillis()}",
+                                    cycleId = channelId,
+                                    senderId = currentUserId,
+                                    senderName = resolvedSenderName,
+                                    senderRole = "مالك المزرعة 👨‍🌾",
+                                    text = trimmed,
+                                    timestamp = nowTime
                                 )
+                                AgritechMockDb.sendChatMessage(newMsg)
+                                if (firestoreRepo != null) {
+                                    scope.launch {
+                                        firestoreRepo.sendChatMessage(newMsg)
+                                    }
+                                }
                                 messageInput = ""
                             }
                         },
