@@ -174,7 +174,9 @@ data class DailyReportModel(
     val previousSummary: String = "",
     val actualAvgWeightKg: Double = 0.0,
     val medicineGiven: Boolean = false,
-    val medicineSummary: String = ""
+    val medicineSummary: String = "",
+    val withdrawalDays: Int = 0,
+    val updatedAtMillis: Long = System.currentTimeMillis()
 )
 
 data class VetNoteModel(
@@ -189,7 +191,9 @@ data class VetNoteModel(
     val status: String = "APPROVED",
     val linkedTransactionId: String = "",
     val invoiceAmount: Double = 0.0,
-    val currency: String = "دج"
+    val currency: String = "دج",
+    val withdrawalDays: Int = 0,
+    val updatedAtMillis: Long = System.currentTimeMillis()
 )
 
 data class ChatMessageModel(
@@ -216,7 +220,7 @@ data class ChatConversationModel(
     val defaultSnippet: String,
     val defaultTimestamp: String,
     val unreadCount: Int = 0,
-    val phoneNumber: String = "+213 550 10 20 30",
+    val phoneNumber: String = "",
     val isPhoneContact: Boolean = true
 )
 
@@ -231,7 +235,7 @@ data class MarketPostModel(
     val imageCaption: String = "صورة مرفقة للإعلان",
     val chatChannelId: String = "conv_feed_trader",
     val imageUri: String? = null,
-    val publisherPhone: String = "+213 550 10 20 30",
+    val publisherPhone: String = "",
     val isPhoneContact: Boolean = true
 )
 

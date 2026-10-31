@@ -4174,6 +4174,70 @@ object Translations {
             "es" to "⚠️ La cantidad ingresada supera las aves vivas restantes en el galpón ({liveBirds} aves)",
             "pt" to "⚠️ A quantidade inserida excede as aves vivas restantes no galpão ({liveBirds} aves)",
             "hi" to "⚠️ दर्ज की गई संख्या बाड़े में शेष जीवित पक्षियों ({liveBirds} पक्षी) से अधिक है"
+        ),
+        "weight_not_measured_yet" to mapOf(
+            "ar" to "غير مقاس بعد",
+            "fr" to "Non mesuré",
+            "en" to "Not measured yet",
+            "es" to "Sin medir aún",
+            "pt" to "Ainda não medido",
+            "hi" to "अभी मापा नहीं गया"
+        ),
+        "ross308_reference_hint" to mapOf(
+            "ar" to "مرجع Ross 308",
+            "fr" to "Réf. Ross 308",
+            "en" to "Ross 308 Ref.",
+            "es" to "Ref. Ross 308",
+            "pt" to "Ref. Ross 308",
+            "hi" to "रॉस 308 संदर्भ"
+        ),
+        "withdrawal_active_banner_title" to mapOf(
+            "ar" to "⏳ فترة سحب الدواء نشطة (متبقي {days} يوم)",
+            "fr" to "⏳ Période d'attente médicamenteuse active ({days} j restants)",
+            "en" to "⏳ Active Drug Withdrawal Period ({days} days left)",
+            "es" to "⏳ Período de retiro de medicamento activo ({days} días restantes)",
+            "pt" to "⏳ Período de carência ativo ({days} dias restantes)",
+            "hi" to "⏳ दवा निकासी अवधि सक्रिय ({days} दिन शेष)"
+        ),
+        "withdrawal_active_sales_blocked" to mapOf(
+            "ar" to "⛔ يُمنع بيع أو ذبح الطيور للاستهلاك خلال فترة سحب الدواء ({days} يوم متبقي لسلامة المستهلك).",
+            "fr" to "⛔ Vente bloquée pendant la période d'attente médicamenteuse ({days} j restants).",
+            "en" to "⛔ Bird sales are blocked during the active veterinary drug withdrawal period ({days} days remaining).",
+            "es" to "⛔ Venta bloqueada durante el período de retiro del medicamento ({days} días restantes).",
+            "pt" to "⛔ Venda bloqueada durante o período de carência do medicamento ({days} dias restantes).",
+            "hi" to "⛔ सक्रिय दवा निकासी अवधि ({days} दिन शेष) के दौरान पक्षियों की बिक्री अवरुद्ध है।"
+        ),
+        "vet_withdrawal_days_label" to mapOf(
+            "ar" to "⏳ فترة سحب الدواء بالأيام (0 للفيتامينات، 7 للمضادات)",
+            "fr" to "⏳ Délai d'attente en jours (0 vitamines, 7 antibiotiques)",
+            "en" to "⏳ Withdrawal Period in Days (0 vitamins, 7 antibiotics)",
+            "es" to "⏳ Días de retiro (0 vitaminas, 7 antibióticos)",
+            "pt" to "⏳ Período de carência em dias (0 vitaminas, 7 antibióticos)",
+            "hi" to "⏳ दिनों में दवा निकासी अवधि (0 विटामिन, 7 एंटीबायोटिक)"
+        ),
+        "account_local_profile" to mapOf(
+            "ar" to "حساب المزرعة المحلي",
+            "fr" to "Profil local de la ferme",
+            "en" to "Local Farm Profile",
+            "es" to "Perfil local de la granja",
+            "pt" to "Perfil local da granja",
+            "hi" to "स्थानीय फार्म प्रोफ़ाइल"
+        ),
+        "paywall_sandbox_notice" to mapOf(
+            "ar" to "🧪 وضع التفعيل التجريبي (Sandbox): تفعيل فوري بدون خصم بنكي حقيقي لأغراض الاختبار.",
+            "fr" to "🧪 Mode test (Sandbox) : activation immédiate sans prélèvement bancaire réel.",
+            "en" to "🧪 Sandbox / Demo Mode: Instant unlock without real billing charge.",
+            "es" to "🧪 Modo de prueba (Sandbox): activación inmediata sin cargo bancario real.",
+            "pt" to "🧪 Modo de teste (Sandbox): ativação imediata sem cobrança bancária real.",
+            "hi" to "🧪 सैंडबॉक्स / डेमो मोड: वास्तविक शुल्क के बिना तत्काल अनलॉक।"
+        ),
+        "input_required_error" to mapOf(
+            "ar" to "⚠️ يرجى إدخال القيم الإلزامية أولاً",
+            "fr" to "⚠️ Veuillez saisir les champs obligatoires",
+            "en" to "⚠️ Please enter mandatory values first",
+            "es" to "⚠️ Por favor ingrese los valores obligatorios",
+            "pt" to "⚠️ Insira os valores obrigatórios primeiro",
+            "hi" to "⚠️ कृपया पहले अनिवार्य मान दर्ज करें"
         )
     )
 
@@ -4397,7 +4461,15 @@ object Translations {
         "personal_qr_scan_add_contact_btn" to "✓ Escanear e adicionar contato ao chat",
         "gram_unit" to "g",
         "field_actual_bird_weight_grams_optional" to "⚖️ Peso médio real da ave (gramas - opcional)",
-        "sales_exceeds_live_birds_warning" to "⚠️ A quantidade inserida excede as aves vivas restantes no galpão ({liveBirds} aves)"
+        "sales_exceeds_live_birds_warning" to "⚠️ A quantidade inserida excede as aves vivas restantes no galpão ({liveBirds} aves)",
+        "weight_not_measured_yet" to "Ainda não medido",
+        "ross308_reference_hint" to "Ref. Ross 308",
+        "withdrawal_active_banner_title" to "⏳ Período de carência ativo ({days} dias restantes)",
+        "withdrawal_active_sales_blocked" to "⛔ Venda bloqueada durante o período de carência do medicamento ({days} dias restantes).",
+        "vet_withdrawal_days_label" to "⏳ Período de carência em dias (0 vitaminas, 7 antibióticos)",
+        "account_local_profile" to "Perfil local da granja",
+        "paywall_sandbox_notice" to "🧪 Modo de teste (Sandbox): ativação imediata sem cobrança bancária real.",
+        "input_required_error" to "⚠️ Insira os valores obrigatórios primeiro"
     )
 
     fun hasKey(key: String): Boolean {

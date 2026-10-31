@@ -1654,8 +1654,18 @@ fun PremiumSettingsModal(
                                                     color = textPrimary,
                                                     maxLines = 1
                                                 )
+                                                val activeProfileIdentifier = remember(selectedLang) {
+                                                    try {
+                                                        com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.let { u ->
+                                                            u.email?.takeIf { it.isNotBlank() }
+                                                                ?: u.phoneNumber?.takeIf { it.isNotBlank() }
+                                                        }
+                                                    } catch (_: Exception) {
+                                                        null
+                                                    } ?: Translations.tr("account_local_profile", selectedLang)
+                                                }
                                                 Text(
-                                                    text = "mouradtkouti@gmail.com • ${selectedCountry.flag} ${selectedCurrency.code}",
+                                                    text = "$activeProfileIdentifier • ${selectedCountry.flag} ${selectedCurrency.code}",
                                                     fontSize = 11.5.sp,
                                                     color = textSecondary,
                                                     maxLines = 1
@@ -3133,6 +3143,23 @@ fun SubscriptionPaywallBottomSheet(
 
             HorizontalDivider(color = if (isDark) Color(0xFF334155) else Color(0xFFE2E8F0))
 
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = if (isDark) Color(0xFF1E293B) else Color(0xFFFFFBEB),
+                border = BorderStroke(1.dp, Color(0xFFF59E0B).copy(alpha = 0.55f)),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("paywall_sandbox_banner")
+            ) {
+                Text(
+                    text = Translations.tr("paywall_sandbox_notice", lang),
+                    fontSize = 11.5.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (isDark) Color(0xFFFDE68A) else Color(0xFF92400E),
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                )
+            }
+
             // Payment Buttons: Google Play & Stripe ($4.99 / 2 Months)
             Button(
                 onClick = {
@@ -4523,6 +4550,8 @@ object LocalFarmPersistence {
                 obj.put("actualAvgWeightKg", r.actualAvgWeightKg)
                 obj.put("medicineGiven", r.medicineGiven)
                 obj.put("medicineSummary", r.medicineSummary)
+                obj.put("withdrawalDays", r.withdrawalDays)
+                obj.put("updatedAtMillis", r.updatedAtMillis)
                 reportsArr.put(obj)
             }
 
@@ -4541,6 +4570,29 @@ object LocalFarmPersistence {
                 obj.put("notes", t.notes)
                 obj.put("quantityQuintals", t.quantityQuintals)
                 obj.put("approvedBySignature", t.approvedBySignature)
+                t.invoiceData?.let { inv ->
+                    val invObj = org.json.JSONObject()
+                    invObj.put("invoiceNumber", inv.invoiceNumber)
+                    invObj.put("farmName", inv.farmName)
+                    invObj.put("cycleId", inv.cycleId)
+                    invObj.put("dateText", inv.dateText)
+                    invObj.put("birdAgeDays", inv.birdAgeDays)
+                    invObj.put("buyerName", inv.buyerName)
+                    invObj.put("truckPlate", inv.truckPlate)
+                    invObj.put("totalCrates", inv.totalCrates)
+                    invObj.put("birdsPerCrate", inv.birdsPerCrate)
+                    invObj.put("totalBirdsSold", inv.totalBirdsSold)
+                    invObj.put("totalGrossKg", inv.totalGrossKg)
+                    invObj.put("totalTareKg", inv.totalTareKg)
+                    invObj.put("totalNetKg", inv.totalNetKg)
+                    invObj.put("avgBirdWeightKg", inv.avgBirdWeightKg)
+                    invObj.put("pricePerKg", inv.pricePerKg)
+                    invObj.put("totalAmount", inv.totalAmount)
+                    invObj.put("currency", inv.currency)
+                    invObj.put("tareWeightsCount", inv.tareWeightsCount)
+                    invObj.put("grossWeightsCount", inv.grossWeightsCount)
+                    obj.put("invoiceData", invObj)
+                }
                 txArr.put(obj)
             }
 
@@ -4559,6 +4611,8 @@ object LocalFarmPersistence {
                 obj.put("linkedTransactionId", vn.linkedTransactionId)
                 obj.put("invoiceAmount", vn.invoiceAmount)
                 obj.put("currency", vn.currency)
+                obj.put("withdrawalDays", vn.withdrawalDays)
+                obj.put("updatedAtMillis", vn.updatedAtMillis)
                 notesArr.put(obj)
             }
 
@@ -4646,7 +4700,9 @@ object LocalFarmPersistence {
                         previousSummary = obj.optString("previousSummary", ""),
                         actualAvgWeightKg = obj.optDouble("actualAvgWeightKg", 0.0),
                         medicineGiven = obj.optBoolean("medicineGiven", false),
-                        medicineSummary = obj.optString("medicineSummary", "")
+                        medicineSummary = obj.optString("medicineSummary", ""),
+                        withdrawalDays = obj.optInt("withdrawalDays", 0),
+                        updatedAtMillis = obj.optLong("updatedAtMillis", 0L)
                     )
                     if (rep.id.isNotBlank()) {
                         val idx = AgritechMockDb.dailyReports.indexOfFirst {
@@ -4667,6 +4723,30 @@ object LocalFarmPersistence {
                     } catch (_: Exception) {
                         TransactionType.EXPENSE
                     }
+                    val invObj = obj.optJSONObject("invoiceData")
+                    val parsedInvoice = if (invObj != null) {
+                        SalesInvoiceModel(
+                            invoiceNumber = invObj.optString("invoiceNumber"),
+                            farmName = invObj.optString("farmName"),
+                            cycleId = invObj.optString("cycleId"),
+                            dateText = invObj.optString("dateText"),
+                            birdAgeDays = invObj.optInt("birdAgeDays", 1),
+                            buyerName = invObj.optString("buyerName"),
+                            truckPlate = invObj.optString("truckPlate"),
+                            totalCrates = invObj.optInt("totalCrates", 0),
+                            birdsPerCrate = invObj.optInt("birdsPerCrate", 10),
+                            totalBirdsSold = invObj.optInt("totalBirdsSold", 0),
+                            totalGrossKg = invObj.optDouble("totalGrossKg", 0.0),
+                            totalTareKg = invObj.optDouble("totalTareKg", 0.0),
+                            totalNetKg = invObj.optDouble("totalNetKg", 0.0),
+                            avgBirdWeightKg = invObj.optDouble("avgBirdWeightKg", 0.0),
+                            pricePerKg = invObj.optDouble("pricePerKg", 0.0),
+                            totalAmount = invObj.optDouble("totalAmount", 0.0),
+                            currency = invObj.optString("currency", "دج"),
+                            tareWeightsCount = invObj.optInt("tareWeightsCount", 0),
+                            grossWeightsCount = invObj.optInt("grossWeightsCount", 0)
+                        )
+                    } else null
                     val tx = TransactionModel(
                         id = obj.optString("id"),
                         farmId = obj.optString("farmId"),
@@ -4676,6 +4756,7 @@ object LocalFarmPersistence {
                         amount = obj.optDouble("amount", 0.0),
                         currency = obj.optString("currency", "دج"),
                         date = obj.optString("date", "اليوم 1"),
+                        invoiceData = parsedInvoice,
                         status = obj.optString("status", "APPROVED"),
                         notes = obj.optString("notes", ""),
                         quantityQuintals = obj.optDouble("quantityQuintals", 0.0),
@@ -4685,7 +4766,7 @@ object LocalFarmPersistence {
                         val idx = AgritechMockDb.transactions.indexOfFirst { it.id == tx.id }
                         if (idx >= 0) {
                             val existing = AgritechMockDb.transactions[idx]
-                            AgritechMockDb.transactions[idx] = tx.copy(invoiceData = existing.invoiceData)
+                            AgritechMockDb.transactions[idx] = tx.copy(invoiceData = tx.invoiceData ?: existing.invoiceData)
                         } else {
                             AgritechMockDb.transactions.add(tx)
                         }
@@ -4710,7 +4791,9 @@ object LocalFarmPersistence {
                         status = obj.optString("status", "APPROVED"),
                         linkedTransactionId = obj.optString("linkedTransactionId", ""),
                         invoiceAmount = obj.optDouble("invoiceAmount", 0.0),
-                        currency = obj.optString("currency", "دج")
+                        currency = obj.optString("currency", "دج"),
+                        withdrawalDays = obj.optInt("withdrawalDays", 0),
+                        updatedAtMillis = obj.optLong("updatedAtMillis", 0L)
                     )
                     if (vn.id.isNotBlank()) {
                         val idx = AgritechMockDb.vetNotes.indexOfFirst { it.id == vn.id }

@@ -1114,5 +1114,157 @@ class ExampleRobolectricTest {
             assertTrue(salesWarn.isNotBlank() && salesWarn != "sales_exceeds_live_birds_warning")
         }
     }
+
+    @Test
+    fun deepAuditFixes_withdrawalPeriod_unmeasuredWeight_persistence_andPrivacy_workCorrectly() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+
+        // 1. Verify all new Deep Audit localization keys across AR, FR, EN, ES, PT, HI
+        val deepAuditKeys = listOf(
+            "weight_not_measured_yet",
+            "ross308_reference_hint",
+            "withdrawal_active_banner_title",
+            "withdrawal_active_sales_blocked",
+            "vet_withdrawal_days_label",
+            "account_local_profile",
+            "paywall_sandbox_notice",
+            "input_required_error"
+        )
+        for (key in deepAuditKeys) {
+            assertTrue("Key '$key' must be registered in Translations", Translations.hasKey(key))
+            for (lang in listOf(AppLanguage.AR, AppLanguage.FR, AppLanguage.EN, AppLanguage.ES, AppLanguage.PT, AppLanguage.HI)) {
+                val translated = Translations.tr(key, lang)
+                assertTrue("Key '$key' in ${lang.name} must not be blank or raw", translated.isNotBlank() && translated != key)
+            }
+        }
+
+        // 2. Verify Veterinary Drug Withdrawal Period calculation & antibiotic vs vitamin distinction
+        val vitaminNote = VetNoteModel(
+            id = "vn_vit_test",
+            farmId = "farm_wd_1",
+            cycleId = "cycle_wd_1",
+            dayNumber = 18,
+            medicineName = "فيتامين AD3E + إلكترولايت",
+            dosage = "1 مل / لتر",
+            note = "رفع مناعة",
+            isUrgent = false,
+            withdrawalDays = 0
+        )
+        assertEquals(
+            0,
+            PoultryCalculators.calculateWithdrawalDaysRemaining(
+                vetNotes = listOf(vitaminNote),
+                currentCycleDay = 20
+            )
+        )
+
+        val antibioticNote = VetNoteModel(
+            id = "vn_abx_test",
+            farmId = "farm_wd_1",
+            cycleId = "cycle_wd_1",
+            dayNumber = 28,
+            medicineName = "مضاد حيوي إنروفلوكساسين 20%",
+            dosage = "1 مل / لتر",
+            note = "علاج تنفسي",
+            isUrgent = true,
+            withdrawalDays = 7
+        )
+        // On Day 30 (2 days after Day 28 prescription with 7-day withdrawal), 5 days remain
+        assertEquals(
+            5,
+            PoultryCalculators.calculateWithdrawalDaysRemaining(
+                vetNotes = listOf(antibioticNote),
+                currentCycleDay = 30
+            )
+        )
+        // On Day 36 (8 days after Day 28 prescription), 0 days remain -> safe for sale
+        assertEquals(
+            0,
+            PoultryCalculators.calculateWithdrawalDaysRemaining(
+                vetNotes = listOf(antibioticNote),
+                currentCycleDay = 36
+            )
+        )
+
+        // 3. Verify Unmeasured Bird Weight returns null until actual measurement or sales invoice is recorded
+        val unmeasuredReport = DailyReportModel(
+            id = "rep_unmeasured_d15",
+            farmId = "farm_unm_1",
+            cycleId = "cycle_unm_1",
+            dayNumber = 15,
+            feedIntakeKg = 350.0,
+            waterIntakeLiters = 700.0,
+            mortalityCount = 1,
+            temperature = 28.0,
+            actualAvgWeightKg = 0.0
+        )
+        val resolvedUnmeasured = PoultryCalculators.resolveActualAvgBirdWeightKg(
+            reports = listOf(unmeasuredReport),
+            cycleTransactions = emptyList(),
+            cycleId = "cycle_unm_1"
+        )
+        assertEquals(null, resolvedUnmeasured)
+
+        // 4. Verify LocalFarmPersistence preserves SalesInvoiceModel (invoiceData) and VetNote withdrawalDays
+        val saleInvoice = SalesInvoiceModel(
+            invoiceNumber = "INV-1-0099",
+            farmName = "عنبر الاختبار",
+            cycleId = "cycle_unm_1",
+            dateText = "اليوم 35",
+            birdAgeDays = 35,
+            buyerName = "تاجر الجملة",
+            truckPlate = "12345-116-09",
+            totalCrates = 20,
+            birdsPerCrate = 10,
+            totalBirdsSold = 200,
+            totalGrossKg = 470.0,
+            totalTareKg = 40.0,
+            totalNetKg = 430.0,
+            avgBirdWeightKg = 2.15,
+            pricePerKg = 390.0,
+            totalAmount = 167700.0,
+            currency = "دج"
+        )
+        val saleTx = TransactionModel(
+            id = "tx_sale_persist_test",
+            farmId = "farm_unm_1",
+            cycleId = "cycle_unm_1",
+            type = TransactionType.INCOME,
+            category = "🍗 بيع دجاج التسمين",
+            amount = 167700.0,
+            currency = "دج",
+            date = "اليوم 35",
+            invoiceData = saleInvoice
+        )
+        AgritechMockDb.transactions.removeAll { it.id == "tx_sale_persist_test" }
+        AgritechMockDb.transactions.add(saleTx)
+        AgritechMockDb.vetNotes.removeAll { it.id == "vn_abx_test" }
+        AgritechMockDb.vetNotes.add(antibioticNote)
+
+        LocalFarmPersistence.saveAll(context)
+        AgritechMockDb.transactions.clear()
+        AgritechMockDb.vetNotes.clear()
+        LocalFarmPersistence.loadIntoMockDb(context)
+
+        val reloadedSaleTx = AgritechMockDb.transactions.firstOrNull { it.id == "tx_sale_persist_test" }
+        assertTrue("Reloaded transaction must preserve invoiceData", reloadedSaleTx?.invoiceData != null)
+        assertEquals(2.15, reloadedSaleTx?.invoiceData?.avgBirdWeightKg ?: 0.0, 0.001)
+
+        val reloadedAbxNote = AgritechMockDb.vetNotes.firstOrNull { it.id == "vn_abx_test" }
+        assertEquals(7, reloadedAbxNote?.withdrawalDays ?: 0)
+
+        // 5. Verify ChatConversationModel and MarketPostModel have no hardcoded personal phone defaults
+        val defaultConv = ChatConversationModel(
+            id = "conv_clean_test",
+            userName = "مستخدم تجريبي",
+            roleLabel = "مربي",
+            avatarEmoji = "👨‍🌾",
+            avatarBgHex = 0xFFE8F5E9,
+            defaultSnippet = "مرحبا",
+            defaultTimestamp = "الآن"
+        )
+        assertEquals("", defaultConv.phoneNumber)
+    }
 }
+
 

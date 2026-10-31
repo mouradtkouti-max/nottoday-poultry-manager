@@ -45,45 +45,87 @@ object PoultryCalculators {
     }
 
     /**
-     * Checks if the barn has any active medication/antibiotic administered within the last 7 days
+     * Checks if the barn has any active medication/antibiotic administered within its withdrawal period
+     * (either explicit `withdrawalDays > 0` or default 7-day antibiotic window) across VetNotes and DailyReports,
      * and returns the remaining withdrawal days (> 0 if active, 0 if safe).
      */
     fun calculateWithdrawalDaysRemaining(
         vetNotes: List<VetNoteModel>,
         currentCycleDay: Int,
-        maxReportDay: Int = currentCycleDay
+        maxReportDay: Int = currentCycleDay,
+        reports: List<DailyReportModel> = emptyList()
     ): Int {
-        if (vetNotes.isEmpty()) return 0
         val refDay = maxOf(currentCycleDay, maxReportDay).coerceAtLeast(1)
-        val recentMedNotes = vetNotes.filter { vn ->
+
+        fun isAntibioticText(text: String, isUrgent: Boolean): Boolean {
+            val isVitaminOrVaccineOnly = (
+                text.contains("فيتامين") ||
+                    text.contains("لقاح") ||
+                    text.contains("Vitamin", ignoreCase = true) ||
+                    text.contains("Vaccine", ignoreCase = true)
+                ) && !text.contains("مضاد") && !text.contains("سحب") && !isUrgent
+            return !isVitaminOrVaccineOnly && (
+                isUrgent ||
+                    text.contains("مضاد") ||
+                    text.contains("أوكسي") ||
+                    text.contains("إنروفلوكساسين") ||
+                    text.contains("تيلوزين") ||
+                    text.contains("كوليستين") ||
+                    text.contains("أموكسيسيلين") ||
+                    text.contains("دوكسي") ||
+                    text.contains("سلفا") ||
+                    text.contains("سحب") ||
+                    text.contains("Antibiotic", ignoreCase = true) ||
+                    text.contains("Enro", ignoreCase = true) ||
+                    text.contains("Tylosin", ignoreCase = true) ||
+                    text.contains("Colistin", ignoreCase = true) ||
+                    text.contains("Doxy", ignoreCase = true) ||
+                    text.contains("Withdrawal", ignoreCase = true)
+                )
+        }
+
+        val vetRemaining = vetNotes.maxOfOrNull { vn ->
             val text = "${vn.medicineName} ${vn.dosage} ${vn.note}"
-            val isVitaminOrVaccineOnly = (text.contains("فيتامين") || text.contains("لقاح") || text.contains("Vitamin", ignoreCase = true) || text.contains("Vaccine", ignoreCase = true)) &&
-                !text.contains("مضاد") && !text.contains("سحب") && !vn.isUrgent
-            val hasAntibioticOrWithdrawal = !isVitaminOrVaccineOnly && (
-                vn.isUrgent ||
-                text.contains("مضاد") ||
-                text.contains("دواء") ||
-                text.contains("أوكسي") ||
-                text.contains("إنروفلوكساسين") ||
-                text.contains("تيلوزين") ||
-                text.contains("كوليستين") ||
-                text.contains("أموكسيسيلين") ||
-                text.contains("دوكسي") ||
-                text.contains("سحب") ||
-                text.contains("Antibiotic", ignoreCase = true) ||
-                text.contains("Enro", ignoreCase = true) ||
-                text.contains("Tylosin", ignoreCase = true) ||
-                text.contains("Withdrawal", ignoreCase = true)
-            )
-            val daysSince = (refDay - vn.dayNumber).coerceAtLeast(0)
-            hasAntibioticOrWithdrawal && daysSince < 7
-        }
-        if (recentMedNotes.isEmpty()) return 0
-        val maxRemaining = recentMedNotes.maxOf { vn ->
-            val daysSince = (refDay - vn.dayNumber).coerceAtLeast(0)
-            (7 - daysSince).coerceIn(1, 7)
-        }
-        return maxRemaining
+            val requiredWithdrawalDays = when {
+                vn.withdrawalDays > 0 -> vn.withdrawalDays
+                isAntibioticText(text, vn.isUrgent) -> 7
+                else -> 0
+            }
+            if (requiredWithdrawalDays <= 0) {
+                0
+            } else {
+                val daysSince = (refDay - vn.dayNumber).coerceAtLeast(0)
+                if (daysSince < requiredWithdrawalDays) {
+                    (requiredWithdrawalDays - daysSince).coerceAtLeast(0)
+                } else {
+                    0
+                }
+            }
+        } ?: 0
+
+        val reportRemaining = reports.maxOfOrNull { r ->
+            if (!r.medicineGiven && r.withdrawalDays <= 0) {
+                0
+            } else {
+                val requiredWithdrawalDays = when {
+                    r.withdrawalDays > 0 -> r.withdrawalDays
+                    isAntibioticText(r.medicineSummary, false) -> 7
+                    else -> 0
+                }
+                if (requiredWithdrawalDays <= 0) {
+                    0
+                } else {
+                    val daysSince = (refDay - r.dayNumber).coerceAtLeast(0)
+                    if (daysSince < requiredWithdrawalDays) {
+                        (requiredWithdrawalDays - daysSince).coerceAtLeast(0)
+                    } else {
+                        0
+                    }
+                }
+            }
+        } ?: 0
+
+        return maxOf(vetRemaining, reportRemaining)
     }
 
     fun getRealisticFieldWeightGrams(day: Int): Double {

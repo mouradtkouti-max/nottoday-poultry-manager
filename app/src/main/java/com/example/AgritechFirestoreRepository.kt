@@ -529,6 +529,8 @@ class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
                             "actualAvgWeightKg" to report.actualAvgWeightKg,
                             "medicineGiven" to report.medicineGiven,
                             "medicineSummary" to report.medicineSummary,
+                            "withdrawalDays" to report.withdrawalDays,
+                            "updatedAtMillis" to report.updatedAtMillis,
                             "updatedAt" to FieldValue.serverTimestamp()
                         )
                     )
@@ -552,6 +554,8 @@ class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
                             "actualAvgWeightKg" to report.actualAvgWeightKg,
                             "medicineGiven" to report.medicineGiven,
                             "medicineSummary" to report.medicineSummary,
+                            "withdrawalDays" to report.withdrawalDays,
+                            "updatedAtMillis" to report.updatedAtMillis,
                             "createdAt" to FieldValue.serverTimestamp(),
                             "updatedAt" to FieldValue.serverTimestamp()
                         )
@@ -613,6 +617,8 @@ class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
                         "linkedTransactionId" to note.linkedTransactionId,
                         "invoiceAmount" to note.invoiceAmount,
                         "currency" to note.currency,
+                        "withdrawalDays" to note.withdrawalDays,
+                        "updatedAtMillis" to note.updatedAtMillis,
                         "updatedAt" to FieldValue.serverTimestamp()
                     )
                 ).await()
@@ -631,6 +637,8 @@ class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
                         "linkedTransactionId" to note.linkedTransactionId,
                         "invoiceAmount" to note.invoiceAmount,
                         "currency" to note.currency,
+                        "withdrawalDays" to note.withdrawalDays,
+                        "updatedAtMillis" to note.updatedAtMillis,
                         "createdAt" to FieldValue.serverTimestamp(),
                         "updatedAt" to FieldValue.serverTimestamp()
                     )
@@ -815,6 +823,8 @@ class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
                             "linkedTransactionId" to idempotencyKey,
                             "invoiceAmount" to medicationTx.amount,
                             "currency" to medicationTx.currency,
+                            "withdrawalDays" to vetNote.withdrawalDays,
+                            "updatedAtMillis" to vetNote.updatedAtMillis,
                             "createdAt" to FieldValue.serverTimestamp(),
                             "updatedAt" to FieldValue.serverTimestamp()
                         )
@@ -1052,7 +1062,9 @@ class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
             previousSummary = doc.getString("previousSummary") ?: "",
             actualAvgWeightKg = doc.getDouble("actualAvgWeightKg") ?: 0.0,
             medicineGiven = doc.getBoolean("medicineGiven") ?: false,
-            medicineSummary = doc.getString("medicineSummary") ?: ""
+            medicineSummary = doc.getString("medicineSummary") ?: "",
+            withdrawalDays = (doc.getLong("withdrawalDays") ?: 0L).toInt(),
+            updatedAtMillis = doc.getLong("updatedAtMillis") ?: doc.getTimestamp("updatedAt")?.toDate()?.time ?: 0L
         )
     }
 
@@ -1071,7 +1083,9 @@ class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
             status = doc.getString("status") ?: "APPROVED",
             linkedTransactionId = doc.getString("linkedTransactionId") ?: "",
             invoiceAmount = doc.getDouble("invoiceAmount") ?: 0.0,
-            currency = doc.getString("currency") ?: "دج"
+            currency = doc.getString("currency") ?: "دج",
+            withdrawalDays = (doc.getLong("withdrawalDays") ?: 0L).toInt(),
+            updatedAtMillis = doc.getLong("updatedAtMillis") ?: doc.getTimestamp("updatedAt")?.toDate()?.time ?: 0L
         )
     }
 
@@ -1140,9 +1154,68 @@ class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
     }
 
     /**
-     * Sends a new team chat message for the specified cycle.
+     * Observes real-time Cloud Firestore chat messages for a specific channel/cycle.
+     */
+    fun observeChatMessages(channelId: String): Flow<List<ChatMessageModel>> {
+        val cleanChannel = channelId.ifBlank { "general_admin" }
+        val colRef = db.collection("chatChannels").document(cleanChannel).collection("messages")
+        return colRef.snapshots()
+            .map { snapshot ->
+                snapshot.documents.mapNotNull { doc ->
+                    val text = doc.getString("text") ?: return@mapNotNull null
+                    ChatMessageModel(
+                        id = doc.id,
+                        cycleId = doc.getString("cycleId") ?: cleanChannel,
+                        senderId = doc.getString("senderId") ?: "",
+                        senderName = doc.getString("senderName") ?: "",
+                        senderRole = doc.getString("senderRole") ?: "",
+                        text = text,
+                        timestamp = doc.getString("timestamp") ?: "الآن",
+                        linkedTransactionId = doc.getString("linkedTransactionId") ?: "",
+                        requestCategory = doc.getString("requestCategory") ?: "",
+                        requestAmount = doc.getDouble("requestAmount") ?: 0.0,
+                        requestCurrency = doc.getString("requestCurrency") ?: "دج",
+                        status = doc.getString("status") ?: "PENDING"
+                    )
+                }
+            }
+            .catch { emit(emptyList()) }
+    }
+
+    /**
+     * Sends a new team chat message for the specified cycle to both reactive local state and Cloud Firestore.
      */
     fun sendChatMessage(message: ChatMessageModel) {
         AgritechMockDb.sendChatMessage(message)
+        try {
+            val uid = FirebaseAuth.getInstance().currentUser?.uid
+            if (uid != null) {
+                val cleanChannel = message.cycleId.ifBlank { "general_admin" }
+                val msgId = message.id.ifBlank { "msg_${System.currentTimeMillis()}" }
+                db.collection("chatChannels")
+                    .document(cleanChannel)
+                    .collection("messages")
+                    .document(msgId)
+                    .set(
+                        mapOf(
+                            "id" to msgId,
+                            "userId" to uid,
+                            "cycleId" to cleanChannel,
+                            "senderId" to message.senderId,
+                            "senderName" to message.senderName,
+                            "senderRole" to message.senderRole,
+                            "text" to message.text,
+                            "timestamp" to message.timestamp,
+                            "linkedTransactionId" to message.linkedTransactionId,
+                            "requestCategory" to message.requestCategory,
+                            "requestAmount" to message.requestAmount,
+                            "requestCurrency" to message.requestCurrency,
+                            "status" to message.status,
+                            "createdAt" to FieldValue.serverTimestamp()
+                        )
+                    )
+            }
+        } catch (_: Exception) {
+        }
     }
 }

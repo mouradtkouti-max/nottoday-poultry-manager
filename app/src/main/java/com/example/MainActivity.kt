@@ -780,7 +780,9 @@ object AgritechMockDb {
             val updated = report.copy(
                 id = old.id,
                 isEdited = true,
-                previousSummary = prevSummary
+                previousSummary = prevSummary,
+                withdrawalDays = maxOf(report.withdrawalDays, old.withdrawalDays),
+                updatedAtMillis = System.currentTimeMillis()
             )
             dailyReports[existingIdx] = updated
             val feedDeltaKg = updated.feedIntakeKg - old.feedIntakeKg
@@ -795,18 +797,19 @@ object AgritechMockDb {
             }
             updated
         } else {
-            dailyReports.add(report)
+            val stamped = report.copy(updatedAtMillis = System.currentTimeMillis())
+            dailyReports.add(stamped)
             dailyReports.sortBy { it.dayNumber }
-            if (report.feedIntakeKg > 0.0) {
-                val cycleIdx = cycles.indexOfFirst { it.id == report.cycleId || (it.farmId == report.farmId && it.status.equals("active", true)) }
+            if (stamped.feedIntakeKg > 0.0) {
+                val cycleIdx = cycles.indexOfFirst { it.id == stamped.cycleId || (it.farmId == stamped.farmId && it.status.equals("active", true)) }
                 if (cycleIdx >= 0) {
                     val c = cycles[cycleIdx]
                     cycles[cycleIdx] = c.copy(
-                        feedInventoryKg = (c.feedInventoryKg - report.feedIntakeKg).coerceAtLeast(0.0)
+                        feedInventoryKg = (c.feedInventoryKg - stamped.feedIntakeKg).coerceAtLeast(0.0)
                     )
                 }
             }
-            report
+            stamped
         }
         persistLocalState()
         return finalReport
@@ -1136,18 +1139,36 @@ fun AgritechMainApp(
                                 if (cloudReports.isNotEmpty()) {
                                     cloudReports.forEach { report ->
                                         val idx = AgritechMockDb.dailyReports.indexOfFirst {
-                                            it.id == report.id || (it.farmId == report.farmId && it.dayNumber == report.dayNumber)
+                                            it.id == report.id || (it.farmId == report.farmId && it.cycleId == report.cycleId && it.dayNumber == report.dayNumber)
                                         }
                                         if (idx >= 0) {
                                             val existingLocal = AgritechMockDb.dailyReports[idx]
-                                            AgritechMockDb.dailyReports[idx] = report.copy(
-                                                medicineGiven = report.medicineGiven || existingLocal.medicineGiven,
-                                                medicineSummary = report.medicineSummary.ifBlank { existingLocal.medicineSummary }
-                                            )
+                                            val localIsNewer = (existingLocal.updatedAtMillis > report.updatedAtMillis && report.updatedAtMillis > 0L) ||
+                                                (existingLocal.isEdited && !report.isEdited)
+                                            val mergedReport = if (localIsNewer) {
+                                                existingLocal.copy(
+                                                    actualAvgWeightKg = if (existingLocal.actualAvgWeightKg > 0.0) existingLocal.actualAvgWeightKg else report.actualAvgWeightKg,
+                                                    medicineGiven = existingLocal.medicineGiven || report.medicineGiven,
+                                                    medicineSummary = existingLocal.medicineSummary.ifBlank { report.medicineSummary },
+                                                    withdrawalDays = maxOf(existingLocal.withdrawalDays, report.withdrawalDays)
+                                                )
+                                            } else {
+                                                report.copy(
+                                                    isEdited = report.isEdited || existingLocal.isEdited,
+                                                    previousSummary = report.previousSummary.ifBlank { existingLocal.previousSummary },
+                                                    actualAvgWeightKg = if (report.actualAvgWeightKg > 0.0) report.actualAvgWeightKg else existingLocal.actualAvgWeightKg,
+                                                    medicineGiven = report.medicineGiven || existingLocal.medicineGiven,
+                                                    medicineSummary = report.medicineSummary.ifBlank { existingLocal.medicineSummary },
+                                                    withdrawalDays = maxOf(report.withdrawalDays, existingLocal.withdrawalDays),
+                                                    updatedAtMillis = maxOf(report.updatedAtMillis, existingLocal.updatedAtMillis)
+                                                )
+                                            }
+                                            AgritechMockDb.dailyReports[idx] = mergedReport
                                         } else {
                                             AgritechMockDb.dailyReports.add(report)
                                         }
                                     }
+                                    AgritechMockDb.persistLocalState()
                                 }
                             }
                         } catch (_: Exception) {}
@@ -1159,11 +1180,17 @@ fun AgritechMainApp(
                                     cloudNotes.forEach { note ->
                                         val idx = AgritechMockDb.vetNotes.indexOfFirst { it.id == note.id }
                                         if (idx >= 0) {
-                                            AgritechMockDb.vetNotes[idx] = note
+                                            val existingLocal = AgritechMockDb.vetNotes[idx]
+                                            AgritechMockDb.vetNotes[idx] = note.copy(
+                                                status = if (existingLocal.status == "APPROVED") "APPROVED" else note.status,
+                                                withdrawalDays = maxOf(note.withdrawalDays, existingLocal.withdrawalDays),
+                                                updatedAtMillis = maxOf(note.updatedAtMillis, existingLocal.updatedAtMillis)
+                                            )
                                         } else {
                                             AgritechMockDb.vetNotes.add(note)
                                         }
                                     }
+                                    AgritechMockDb.persistLocalState()
                                 }
                             }
                         } catch (_: Exception) {}
@@ -1175,11 +1202,17 @@ fun AgritechMainApp(
                                     cloudTxs.forEach { tx ->
                                         val idx = AgritechMockDb.transactions.indexOfFirst { it.id == tx.id }
                                         if (idx >= 0) {
-                                            AgritechMockDb.transactions[idx] = tx
+                                            val existingLocal = AgritechMockDb.transactions[idx]
+                                            AgritechMockDb.transactions[idx] = tx.copy(
+                                                status = if (existingLocal.status == "APPROVED") "APPROVED" else tx.status,
+                                                invoiceData = tx.invoiceData ?: existingLocal.invoiceData,
+                                                approvedBySignature = tx.approvedBySignature.ifBlank { existingLocal.approvedBySignature }
+                                            )
                                         } else {
                                             AgritechMockDb.transactions.add(tx)
                                         }
                                     }
+                                    AgritechMockDb.persistLocalState()
                                 }
                             }
                         } catch (_: Exception) {}
@@ -1875,8 +1908,9 @@ fun AgritechOwnerDashboard(
     var targetFarmForCycle by remember { mutableStateOf<FarmModel?>(null) }
     var farmNameInput by remember { mutableStateOf("") }
     var locationInput by remember { mutableStateOf("") }
-    var birdCountInput by remember { mutableStateOf("8000") }
-    var chickPriceInput by remember { mutableStateOf("40") }
+    var birdCountInput by remember { mutableStateOf("") }
+    var chickPriceInput by remember { mutableStateOf("") }
+    var newCycleValidationError by remember { mutableStateOf<String?>(null) }
 
     // Strict Freemium Paywall Interception for "+ دورة جديدة / عنبر جديد" (New Barn):
     // a) Count existing farms owned by the current user
@@ -1888,8 +1922,9 @@ fun AgritechOwnerDashboard(
             targetFarmForCycle = null
             farmNameInput = ""
             locationInput = ""
-            birdCountInput = "8000"
-            chickPriceInput = "40"
+            birdCountInput = ""
+            chickPriceInput = ""
+            newCycleValidationError = null
             showNewCycleDialog = true
         } else {
             showSubscriptionPaywallSheet = true
@@ -1911,8 +1946,9 @@ fun AgritechOwnerDashboard(
                 targetFarmForCycle = null
                 farmNameInput = ""
                 locationInput = ""
-                birdCountInput = "8000"
-                chickPriceInput = "40"
+                birdCountInput = ""
+                chickPriceInput = ""
+                newCycleValidationError = null
                 showNewCycleDialog = true
             }
         )
@@ -2199,8 +2235,9 @@ fun AgritechOwnerDashboard(
                             targetFarmForCycle = selectedFarm
                             farmNameInput = Translations.getLocalizedFarmName(selectedFarm.id, lang, selectedFarm.name)
                             locationInput = Translations.getLocalizedFarmLocation(selectedFarm.id, lang, selectedFarm.location)
-                            birdCountInput = selectedFarm.capacity.toString()
-                            chickPriceInput = "40"
+                            birdCountInput = ""
+                            chickPriceInput = ""
+                            newCycleValidationError = null
                             showNewCycleDialog = true
                         },
                         onIssueVetInvoiceForFarm = { farmForInv ->
@@ -2277,8 +2314,8 @@ fun AgritechOwnerDashboard(
 
         if (showNewCycleDialog) {
             val curr = Translations.tr("currency", lang)
-            val parsedInitialCount = birdCountInput.toIntOrNull() ?: 8000
-            val parsedChickPrice = chickPriceInput.toDoubleOrNull() ?: 40.0
+            val parsedInitialCount = birdCountInput.toIntOrNull() ?: 0
+            val parsedChickPrice = chickPriceInput.toDoubleOrNull() ?: 0.0
             val previewChicksExpense = parsedInitialCount * parsedChickPrice
             val dialogBg = if (isDark) Color(0xFF1E293B) else Color.White
             val fieldBg = if (isDark) Color(0xFF0F172A) else Color.White
@@ -2288,6 +2325,7 @@ fun AgritechOwnerDashboard(
                 onDismissRequest = {
                     showNewCycleDialog = false
                     targetFarmForCycle = null
+                    newCycleValidationError = null
                 },
                 shape = RoundedCornerShape(22.dp),
                 containerColor = dialogBg,
@@ -2328,7 +2366,12 @@ fun AgritechOwnerDashboard(
                     ) {
                         OutlinedTextField(
                             value = farmNameInput,
-                            onValueChange = { if (targetFarmForCycle == null) farmNameInput = it },
+                            onValueChange = {
+                                if (targetFarmForCycle == null) {
+                                    farmNameInput = it
+                                    newCycleValidationError = null
+                                }
+                            },
                             readOnly = targetFarmForCycle != null,
                             label = { Text(Translations.tr("field_farm_name", lang), fontSize = 12.sp, color = secondaryTextColor) },
                             placeholder = { Text("عنبر البركة النموذجي 1", fontSize = 12.sp, color = secondaryTextColor.copy(alpha = 0.6f)) },
@@ -2349,7 +2392,12 @@ fun AgritechOwnerDashboard(
 
                         OutlinedTextField(
                             value = locationInput,
-                            onValueChange = { if (targetFarmForCycle == null) locationInput = it },
+                            onValueChange = {
+                                if (targetFarmForCycle == null) {
+                                    locationInput = it
+                                    newCycleValidationError = null
+                                }
+                            },
                             readOnly = targetFarmForCycle != null,
                             label = { Text(Translations.tr("field_location", lang), fontSize = 12.sp, color = secondaryTextColor) },
                             placeholder = { Text("المدية - سيدي نعمان", fontSize = 12.sp, color = secondaryTextColor.copy(alpha = 0.6f)) },
@@ -2370,8 +2418,12 @@ fun AgritechOwnerDashboard(
 
                         OutlinedTextField(
                             value = birdCountInput,
-                            onValueChange = { birdCountInput = it.filter { ch -> ch.isDigit() } },
+                            onValueChange = {
+                                birdCountInput = it.filter { ch -> ch.isDigit() }
+                                newCycleValidationError = null
+                            },
                             label = { Text(Translations.tr("field_bird_count", lang), fontSize = 12.sp, color = secondaryTextColor) },
+                            placeholder = { Text("8000", fontSize = 12.sp, color = secondaryTextColor.copy(alpha = 0.6f)) },
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             modifier = Modifier
@@ -2390,8 +2442,12 @@ fun AgritechOwnerDashboard(
 
                         OutlinedTextField(
                             value = chickPriceInput,
-                            onValueChange = { chickPriceInput = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                            onValueChange = {
+                                chickPriceInput = it.filter { ch -> ch.isDigit() || ch == '.' }
+                                newCycleValidationError = null
+                            },
                             label = { Text(Translations.tr("field_chick_price", lang), fontSize = 12.sp, color = secondaryTextColor) },
+                            placeholder = { Text("40", fontSize = 12.sp, color = secondaryTextColor.copy(alpha = 0.6f)) },
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                             modifier = Modifier
@@ -2407,6 +2463,16 @@ fun AgritechOwnerDashboard(
                                 unfocusedContainerColor = fieldBg
                             )
                         )
+
+                        if (newCycleValidationError != null) {
+                            Text(
+                                text = newCycleValidationError!!,
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = ActionRed,
+                                modifier = Modifier.testTag("new_cycle_validation_error")
+                            )
+                        }
 
                         Card(
                             modifier = Modifier.fillMaxWidth(),
@@ -2446,8 +2512,12 @@ fun AgritechOwnerDashboard(
                 confirmButton = {
                     Button(
                         onClick = {
-                            val count = birdCountInput.toIntOrNull() ?: 8000
-                            val price = chickPriceInput.toDoubleOrNull() ?: 40.0
+                            val count = birdCountInput.trim().toIntOrNull()
+                            val price = chickPriceInput.trim().toDoubleOrNull()
+                            if (count == null || count <= 0 || price == null || price < 0.0) {
+                                newCycleValidationError = Translations.tr("input_required_error", lang)
+                                return@Button
+                            }
                             val chickTotal = count * price
                             val uniqueSuffix = (System.currentTimeMillis() % 100000).toString()
                             val existingFarm = targetFarmForCycle
@@ -2493,8 +2563,9 @@ fun AgritechOwnerDashboard(
                             targetFarmForCycle = null
                             farmNameInput = ""
                             locationInput = ""
-                            birdCountInput = "8000"
-                            chickPriceInput = "40"
+                            birdCountInput = ""
+                            chickPriceInput = ""
+                            newCycleValidationError = null
                         },
                         modifier = Modifier.testTag("btn_confirm_new_cycle"),
                         shape = RoundedCornerShape(12.dp),
@@ -3636,6 +3707,27 @@ fun ChatDetailScreen(
     val activeFarm = AgritechMockDb.farms.firstOrNull() ?: FarmModel(id = "farm_1", name = "عنبر البركة 1 - المدية", location = "المدية", capacity = 8000, assignedWorkerId = "worker_1")
     val activeCycle = AgritechMockDb.cycles.firstOrNull { it.farmId == activeFarm.id } ?: CycleModel(id = "cycle_2025_1", farmId = activeFarm.id, totalBirdsPlaced = 8000, targetWeight = 2.3, status = "active")
     val dayNum = (AgritechMockDb.dailyReports.filter { it.farmId == activeFarm.id }.maxOfOrNull { it.dayNumber } ?: 1)
+
+    LaunchedEffect(conversation.id, firestoreRepo) {
+        if (firestoreRepo != null) {
+            try {
+                firestoreRepo.observeChatMessages(conversation.id).collectLatest { cloudMsgs ->
+                    cloudMsgs.forEach { msg ->
+                        val idx = AgritechMockDb.chatMessages.indexOfFirst { it.id == msg.id }
+                        if (idx >= 0) {
+                            val existing = AgritechMockDb.chatMessages[idx]
+                            AgritechMockDb.chatMessages[idx] = msg.copy(
+                                status = if (existing.status == "APPROVED") "APPROVED" else msg.status
+                            )
+                        } else {
+                            AgritechMockDb.chatMessages.add(msg)
+                        }
+                    }
+                }
+            } catch (_: Exception) {
+            }
+        }
+    }
 
     if (showVetInvoiceDialog) {
         VetMedicineInvoiceDialog(
@@ -4825,11 +4917,11 @@ fun FarmCard(
                 }
                 val maxReportDay = reportsForCycle.maxOfOrNull { it.dayNumber } ?: 1
                 val calculatedDay = PoultryCalculators.calculateCycleDay(activeCycle.startDate, maxReportDay)
-                val estimatedWeightKg = PoultryCalculators.resolveActualAvgBirdWeightKg(
+                val actualCardWeightKg = PoultryCalculators.resolveActualAvgBirdWeightKg(
                     reports = reportsForCycle,
                     cycleTransactions = txsForCycle,
                     cycleId = activeCycle.id
-                ) ?: PoultryCalculators.getRoss308StandardWeightKg(calculatedDay)
+                )
                 val formattedStartDate = PoultryCalculators.formatDateDdMmYyyy(activeCycle.startDate)
                 val kgUnit = Translations.tr("kg_unit", lang)
 
@@ -5018,10 +5110,14 @@ fun FarmCard(
                                     )
                                     Spacer(modifier = Modifier.height(3.dp))
                                     Text(
-                                        "${String.format(java.util.Locale.US, "%.3f", estimatedWeightKg)} $kgUnit",
-                                        fontSize = 12.sp,
+                                        if (actualCardWeightKg != null) {
+                                            "${String.format(java.util.Locale.US, "%.3f", actualCardWeightKg)} $kgUnit"
+                                        } else {
+                                            Translations.tr("weight_not_measured_yet", lang)
+                                        },
+                                        fontSize = 11.5.sp,
                                         fontWeight = FontWeight.ExtraBold,
-                                        color = primaryText,
+                                        color = if (actualCardWeightKg != null) primaryText else secondaryText,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
@@ -5755,7 +5851,7 @@ fun PersonalAccountWhatsAppQrBottomSheet(
         ?: "الحاج مراد (مزرعة البركة)"
     val userPhoneOrEmail = currentUser?.phoneNumber?.takeIf { it.isNotBlank() }
         ?: currentUser?.email?.takeIf { it.isNotBlank() }
-        ?: "+213 550 12 34 56"
+        ?: Translations.tr("account_local_profile", lang)
     val roleBadgeLabel = when (activeRole.normalizedHubRole) {
         AppRole.VET_CLINIC -> Translations.tr("role_badge_vet_clinic", lang)
         AppRole.WORKER -> Translations.tr("role_badge_worker", lang)
@@ -6615,6 +6711,12 @@ fun AgritechFarmNotebookScreen(
         ageInDays = ageInDays,
         fcr = accurateFcr
     )
+    val activeWithdrawalDays = PoultryCalculators.calculateWithdrawalDaysRemaining(
+        vetNotes = liveVetNotesForFarm.filter { it.cycleId == activeCycle.id || it.cycleId.isBlank() },
+        currentCycleDay = calculatedCycleDay,
+        maxReportDay = ageInDays,
+        reports = reportsForCycle
+    )
 
     val curr = Translations.tr("currency", lang)
     val kgUnit = Translations.tr("kg_unit", lang)
@@ -6812,7 +6914,7 @@ fun AgritechFarmNotebookScreen(
                     }
                 },
                 onFinalizeAndMigrate = {
-                    if (totalSalesValue > 0.0 && totalNetKg > 0.0 && totalBirdsSold in 1..liveBirds) {
+                    if (activeWithdrawalDays <= 0 && totalSalesValue > 0.0 && totalNetKg > 0.0 && totalBirdsSold in 1..liveBirds) {
                         val invoiceNumber = "INV-${farm.id.takeLast(1).uppercase()}-${String.format(java.util.Locale.US, "%04d", transactions.count { it.type == TransactionType.INCOME } + 1)}"
                         val invoiceIdempKey = "tx_sale_${farm.id}_${cycle.id}_${invoiceNumber}"
                         if (invoiceIdempKey != lastSubmittedIdempotencyKey) {
@@ -7386,6 +7488,37 @@ fun AgritechFarmNotebookScreen(
                             }
                         }
 
+                        if (activeWithdrawalDays > 0) {
+                            Surface(
+                                shape = notebookBtnShape,
+                                color = if (currentTheme.isDark) Color(0xFF450A0A) else Color(0xFFFEF2F2),
+                                border = BorderStroke(1.2.dp, ActionRed.copy(alpha = 0.65f)),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 12.dp, vertical = 6.dp)
+                                    .testTag("withdrawal_warning_banner")
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Text(
+                                        text = Translations.tr("withdrawal_active_banner_title", lang)
+                                            .replace("{days}", activeWithdrawalDays.toString()),
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontSize = 13.sp,
+                                        color = if (currentTheme.isDark) Color(0xFFFCA5A5) else ActionRed
+                                    )
+                                    Text(
+                                        text = Translations.tr("withdrawal_active_sales_blocked", lang)
+                                            .replace("{days}", activeWithdrawalDays.toString()),
+                                        fontSize = 11.5.sp,
+                                        color = if (currentTheme.isDark) Color(0xFFFECACA) else Color(0xFF7F1D1D)
+                                    )
+                                }
+                            }
+                        }
+
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -7956,18 +8089,28 @@ fun AgritechFarmNotebookScreen(
                                     darkValueColor
                                 )
 
-                                // 5. 🐥 متوسط وزن الطائر (الفعلي المسجل أو منحنى Ross 308)
+                                // 5. 🐥 متوسط وزن الطائر (الفعلي المسجل أو غير مقاس مع مرجع Ross 308)
+                                val weightMetricText = if (actualMeasuredWeightKg != null) {
+                                    "${String.format(java.util.Locale.US, "%.3f", actualMeasuredWeightKg)} $kgUnit"
+                                } else {
+                                    "${Translations.tr("weight_not_measured_yet", lang)} (${Translations.tr("ross308_reference_hint", lang)}: ${String.format(java.util.Locale.US, "%.3f", currentStandardWeightKg)} $kgUnit)"
+                                }
                                 CalmMetricRow(
                                     Translations.tr("est_weight", lang),
-                                    "${String.format(java.util.Locale.US, "%.3f", effectiveAvgWeightKg)} $kgUnit",
-                                    positiveGreen
+                                    weightMetricText,
+                                    if (actualMeasuredWeightKg != null) positiveGreen else darkValueColor
                                 )
 
                                 // 6. ⚖️ معامل التحويل (FCR)
+                                val fcrMetricText = if (actualMeasuredWeightKg != null) {
+                                    String.format(java.util.Locale.US, "%.3f", accurateFcr)
+                                } else {
+                                    "${Translations.tr("weight_not_measured_yet", lang)} (${Translations.tr("ross308_reference_hint", lang)}: ${String.format(java.util.Locale.US, "%.3f", accurateFcr)})"
+                                }
                                 CalmMetricRow(
                                     Translations.tr("fcr", lang),
-                                    String.format(java.util.Locale.US, "%.3f", accurateFcr),
-                                    positiveGreen
+                                    fcrMetricText,
+                                    if (actualMeasuredWeightKg != null) positiveGreen else darkValueColor
                                 )
 
                                 // 6. 💰 إجمالي مصاريف العنبر (دج)
@@ -8139,22 +8282,55 @@ fun AgritechFarmNotebookScreen(
                                     }
                                 }
 
-                                // 1. زر البيع الرئيسي المختصر [البيع 🍗] في الأعلى
+                                if (activeWithdrawalDays > 0) {
+                                    Surface(
+                                        shape = notebookBtnShape,
+                                        color = if (currentTheme.isDark) Color(0xFF450A0A) else Color(0xFFFEF2F2),
+                                        border = BorderStroke(1.2.dp, ActionRed.copy(alpha = 0.65f)),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .testTag("withdrawal_sales_blocked_banner")
+                                    ) {
+                                        Text(
+                                            text = Translations.tr("withdrawal_active_sales_blocked", lang)
+                                                .replace("{days}", activeWithdrawalDays.toString()),
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (currentTheme.isDark) Color(0xFFFCA5A5) else ActionRed,
+                                            modifier = Modifier.padding(12.dp)
+                                        )
+                                    }
+                                }
+
+                                // 1. زر البيع الرئيسي المختصر [البيع 🍗] في الأعلى (يُقفل آلياً أثناء فترة سحب الدواء)
                                 Button(
-                                    onClick = { salesFlowStep = SalesFlowStep.STAGE_1_SHIPMENT_INFO },
+                                    onClick = {
+                                        if (activeWithdrawalDays <= 0) {
+                                            salesFlowStep = SalesFlowStep.STAGE_1_SHIPMENT_INFO
+                                        }
+                                    },
+                                    enabled = activeWithdrawalDays <= 0,
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .height(52.dp)
                                         .testTag("btn_start_sales_flow"),
                                     shape = notebookBtnShape,
-                                    colors = ButtonDefaults.buttonColors(containerColor = notebookButtonAccent),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = notebookButtonAccent,
+                                        disabledContainerColor = ActionRed.copy(alpha = 0.35f)
+                                    ),
                                     elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp)
                                 ) {
                                     Icon(Icons.Default.Scale, contentDescription = null, tint = Color.White, modifier = Modifier.size(22.dp))
                                     Spacer(modifier = Modifier.width(10.dp))
                                     Text(
-                                        Translations.tr("btn_start_sales_flow", lang),
-                                        fontSize = 15.sp,
+                                        if (activeWithdrawalDays > 0) {
+                                            Translations.tr("withdrawal_active_banner_title", lang)
+                                                .replace("{days}", activeWithdrawalDays.toString())
+                                        } else {
+                                            Translations.tr("btn_start_sales_flow", lang)
+                                        },
+                                        fontSize = 14.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = Color.White
                                     )
@@ -8499,17 +8675,17 @@ fun OwnerDailyReportDialog(
     var feedQuintalsInput by remember(initialReport) {
         mutableStateOf(
             if (initialReport != null) Translations.formatQuintalNumber(initialReport.feedIntakeKg / 100.0)
-            else "1.8"
+            else ""
         )
     }
     var waterLitersInput by remember(initialReport) {
         mutableStateOf(
             if (initialReport != null) String.format(java.util.Locale.US, "%.0f", initialReport.waterIntakeLiters)
-            else "320"
+            else ""
         )
     }
     var mortalityInput by remember(initialReport) {
-        mutableStateOf((initialReport?.mortalityCount ?: 1).toString())
+        mutableStateOf(initialReport?.mortalityCount?.toString() ?: "")
     }
     var tempInput by remember(initialReport) {
         mutableStateOf(
@@ -8532,6 +8708,7 @@ fun OwnerDailyReportDialog(
             }
         )
     }
+    var dailyReportValidationError by remember { mutableStateOf<String?>(null) }
 
     val parsedCurrentDay = dayNumberInput.toIntOrNull() ?: suggestedDayNumber
     val activeDayOrFarmVetNote = vetNotes.firstOrNull { it.dayNumber == parsedCurrentDay }
@@ -8591,8 +8768,12 @@ fun OwnerDailyReportDialog(
 
                 OutlinedTextField(
                     value = feedQuintalsInput,
-                    onValueChange = { feedQuintalsInput = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    onValueChange = {
+                        feedQuintalsInput = it.filter { ch -> ch.isDigit() || ch == '.' }
+                        dailyReportValidationError = null
+                    },
                     label = { Text(Translations.tr("th_feed", lang), fontSize = 11.5.sp, color = secondaryText) },
+                    placeholder = { Text("1.8", fontSize = 11.5.sp, color = secondaryText.copy(alpha = 0.6f)) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     shape = RoundedCornerShape(12.dp),
@@ -8608,8 +8789,12 @@ fun OwnerDailyReportDialog(
 
                 OutlinedTextField(
                     value = waterLitersInput,
-                    onValueChange = { waterLitersInput = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    onValueChange = {
+                        waterLitersInput = it.filter { ch -> ch.isDigit() || ch == '.' }
+                        dailyReportValidationError = null
+                    },
                     label = { Text(Translations.tr("th_water", lang), fontSize = 11.5.sp, color = secondaryText) },
+                    placeholder = { Text("320", fontSize = 11.5.sp, color = secondaryText.copy(alpha = 0.6f)) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     shape = RoundedCornerShape(12.dp),
@@ -8625,8 +8810,12 @@ fun OwnerDailyReportDialog(
 
                 OutlinedTextField(
                     value = mortalityInput,
-                    onValueChange = { mortalityInput = it.filter { ch -> ch.isDigit() } },
+                    onValueChange = {
+                        mortalityInput = it.filter { ch -> ch.isDigit() }
+                        dailyReportValidationError = null
+                    },
                     label = { Text(Translations.tr("th_mortality", lang), fontSize = 11.5.sp, color = secondaryText) },
+                    placeholder = { Text("0", fontSize = 11.5.sp, color = secondaryText.copy(alpha = 0.6f)) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     shape = RoundedCornerShape(12.dp),
@@ -8755,15 +8944,31 @@ fun OwnerDailyReportDialog(
                         }
                     }
                 }
+                if (dailyReportValidationError != null) {
+                    Text(
+                        text = dailyReportValidationError!!,
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = ActionRed,
+                        modifier = Modifier.testTag("daily_report_validation_error")
+                    )
+                }
             }
         },
         confirmButton = {
             Button(
                 onClick = {
+                    val parsedFeedQ = feedQuintalsInput.trim().toDoubleOrNull()
+                    val parsedWaterVal = waterLitersInput.trim().toDoubleOrNull()
+                    val parsedMortVal = mortalityInput.trim().toIntOrNull()
+                    if (parsedFeedQ == null || parsedWaterVal == null || parsedMortVal == null) {
+                        dailyReportValidationError = Translations.tr("input_required_error", lang)
+                        return@Button
+                    }
                     val parsedDay = (dayNumberInput.toIntOrNull() ?: suggestedDayNumber).coerceAtLeast(1)
-                    val parsedFeedKg = ((feedQuintalsInput.toDoubleOrNull() ?: 0.0) * 100.0).coerceAtLeast(0.0)
-                    val parsedWater = (waterLitersInput.toDoubleOrNull() ?: 0.0).coerceAtLeast(0.0)
-                    val parsedMortality = (mortalityInput.toIntOrNull() ?: 0).coerceAtLeast(0)
+                    val parsedFeedKg = (parsedFeedQ * 100.0).coerceAtLeast(0.0)
+                    val parsedWater = parsedWaterVal.coerceAtLeast(0.0)
+                    val parsedMortality = parsedMortVal.coerceAtLeast(0)
                     val parsedTemp = tempInput.toDoubleOrNull() ?: 29.0
                     val parsedGas = (gasAmmoniaInput.toDoubleOrNull() ?: 0.0).coerceAtLeast(0.0)
                     val parsedWeightGrams = actualWeightGramsInput.trim().replace(',', '.').toDoubleOrNull() ?: 0.0
@@ -9005,9 +9210,11 @@ fun VetMedicineInvoiceDialog(
     var dosageText by remember { mutableStateOf("1 مل لكل لتر ماء شرب لمدة 4 أيام") }
     var priceText by remember { mutableStateOf("14500") }
     var clinicalNote by remember { mutableStateOf("علاج وقائي وتنفسي معتمد للقطيع مع مراقبة استهلاك المياه.") }
+    var withdrawalDaysInput by remember { mutableStateOf("7") }
     var isUrgent by remember { mutableStateOf(true) }
 
     val parsedPrice = (priceText.toDoubleOrNull() ?: 0.0).coerceAtLeast(0.0)
+    val parsedWithdrawalDays = (withdrawalDaysInput.toIntOrNull() ?: 0).coerceAtLeast(0)
     val medsCategoryLabel = Translations.tr("tx_meds", lang)
     val vetInvoiceDialogUuid = remember { java.util.UUID.randomUUID().toString() }
 
@@ -9122,6 +9329,23 @@ fun VetMedicineInvoiceDialog(
                         .testTag("input_vet_clinical_note")
                 )
 
+                OutlinedTextField(
+                    value = withdrawalDaysInput,
+                    onValueChange = { withdrawalDaysInput = it.filter { ch -> ch.isDigit() } },
+                    label = { Text(Translations.tr("vet_withdrawal_days_label", lang), fontSize = 11.5.sp, color = secondaryText) },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = primaryText,
+                        unfocusedTextColor = primaryText,
+                        focusedBorderColor = accentEmerald
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("input_vet_withdrawal_days")
+                )
+
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -9201,7 +9425,8 @@ fun VetMedicineInvoiceDialog(
                             status = "PENDING",
                             linkedTransactionId = txId,
                             invoiceAmount = parsedPrice,
-                            currency = curr
+                            currency = curr,
+                            withdrawalDays = parsedWithdrawalDays
                         )
                         val medTx = TransactionModel(
                             id = txId,
@@ -13750,11 +13975,12 @@ fun AgritechWorkerDashboard(
     var isSubmittedToday by remember { mutableStateOf(false) }
 
     // Feed input is strictly in Quintals (ق) - e.g. 0.5 ق for 50 kg, 2.4 ق for 240 kg
-    var feedQuintalsText by remember { mutableStateOf("0.5") }
+    var feedQuintalsText by remember { mutableStateOf("") }
     var waterText by remember { mutableStateOf("") }
     var mortalityText by remember { mutableStateOf("") }
     var tempText by remember { mutableStateOf("") }
     var gasText by remember { mutableStateOf("") }
+    var workerValidationError by remember { mutableStateOf<String?>(null) }
 
     val activePrescriptionNote = urgentNotes.firstOrNull { it.dayNumber == currentDay }
         ?: urgentNotes.lastOrNull()
@@ -13887,8 +14113,12 @@ fun AgritechWorkerDashboard(
 
                             OutlinedTextField(
                                 value = feedQuintalsText,
-                                onValueChange = { feedQuintalsText = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                                onValueChange = {
+                                    feedQuintalsText = it.filter { ch -> ch.isDigit() || ch == '.' }
+                                    workerValidationError = null
+                                },
                                 label = { Text("${Translations.tr("th_feed", lang)} (مثال: 0.5 $qShort)") },
+                                placeholder = { Text("0.5") },
                                 singleLine = true,
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                                 modifier = Modifier
@@ -13896,10 +14126,19 @@ fun AgritechWorkerDashboard(
                                     .testTag("worker_input_feed_quintals"),
                                 shape = RoundedCornerShape(12.dp)
                             )
-                            OutlinedTextField(value = waterText, onValueChange = { waterText = it }, label = { Text(Translations.tr("th_water", lang)) }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
-                            OutlinedTextField(value = mortalityText, onValueChange = { mortalityText = it }, label = { Text(Translations.tr("th_mortality", lang)) }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
-                            OutlinedTextField(value = tempText, onValueChange = { tempText = it }, label = { Text(Translations.tr("th_temp", lang)) }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
-                            OutlinedTextField(value = gasText, onValueChange = { gasText = it }, label = { Text(Translations.tr("th_gas", lang)) }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
+                            OutlinedTextField(value = waterText, onValueChange = { waterText = it; workerValidationError = null }, label = { Text(Translations.tr("th_water", lang)) }, placeholder = { Text("500") }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
+                            OutlinedTextField(value = mortalityText, onValueChange = { mortalityText = it; workerValidationError = null }, label = { Text(Translations.tr("th_mortality", lang)) }, placeholder = { Text("0") }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
+                            OutlinedTextField(value = tempText, onValueChange = { tempText = it }, label = { Text(Translations.tr("th_temp", lang)) }, placeholder = { Text("30.0") }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
+                            OutlinedTextField(value = gasText, onValueChange = { gasText = it }, label = { Text(Translations.tr("th_gas", lang)) }, placeholder = { Text("2.5") }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
+
+                            if (workerValidationError != null) {
+                                Text(
+                                    text = workerValidationError!!,
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = ActionRed
+                                )
+                            }
 
                             // Supervisor Medicine in Water Confirmation Row ("💊 تأكيد إعطاء الدواء في الماء اليوم (شرب الدواء ✓)")
                             Surface(
@@ -13957,11 +14196,15 @@ fun AgritechWorkerDashboard(
                             Button(
                                 onClick = {
                                     if (!isSavingReport) {
+                                        val feedQuintals = feedQuintalsText.trim().toDoubleOrNull()
+                                        val water = waterText.trim().toDoubleOrNull()
+                                        val mort = mortalityText.trim().toIntOrNull()
+                                        if (feedQuintals == null || water == null || mort == null) {
+                                            workerValidationError = Translations.tr("input_required_error", lang)
+                                            return@Button
+                                        }
                                         isSavingReport = true
-                                        val feedQuintals = feedQuintalsText.toDoubleOrNull() ?: 0.5
                                         val feedKg = feedQuintals * 100.0
-                                        val water = waterText.toDoubleOrNull() ?: 500.0
-                                        val mort = mortalityText.toIntOrNull() ?: 1
                                         val temp = tempText.toDoubleOrNull() ?: 31.5
                                         val gas = gasText.toDoubleOrNull() ?: 3.5
                                         val resolvedWorkerMed = if (workerMedicineGiven) {
