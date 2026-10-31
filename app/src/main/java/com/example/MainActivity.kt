@@ -132,7 +132,7 @@ object AgritechMockDb {
     }
 
     val supervisedVetFarms = mutableStateListOf(
-        FarmModel("farm_1", "عنبر الخيرات والبركة 1 (الحاج مراد)", "البليدة - بوفاريك", 8000, "worker_1"),
+        FarmModel("farm_1", "عنبر الخيرات والبركة 1", "البليدة - بوفاريك", 8000, "worker_1"),
         FarmModel("farm_2", "مزرعة الهضاب للدواجن (سطيف)", "سطيف - عين أرنات", 12000, "worker_2")
     )
 
@@ -213,7 +213,7 @@ object AgritechMockDb {
         RoleBusinessOrderModel(
             id = "ord_feed_1",
             role = AppRole.FEED_SUPPLIER,
-            clientName = "عنبر الخيرات والبركة 1 - الحاج مراد",
+            clientName = "عنبر الخيرات والبركة 1",
             clientPhone = "+213 550 11 22 33",
             itemSummary = "علف بادئ ونامي متوازن (ذرة وصويا 22% بروتين)",
             quantityText = "40 ق",
@@ -318,14 +318,14 @@ object AgritechMockDb {
             senderId = "worker_1",
             senderName = "أحمد",
             senderRole = "مشرف العنبر 👷‍♂️",
-            text = "السلام عليكم عمي مراد، تم تسجيل التقرير اليومي: استهلاك العلف 5.1 ق والمياه 980 لتر، والحرارة مستقرة عند 30.0°C.",
+            text = "السلام عليكم، تم تسجيل التقرير اليومي: استهلاك العلف 5.1 ق والمياه 980 لتر، والحرارة مستقرة عند 30.0°C.",
             timestamp = "08:15 ص"
         ),
         ChatMessageModel(
             id = "msg_w2",
             cycleId = "cycle_2026_01_worker",
             senderId = "owner_1",
-            senderName = "الحاج مراد",
+            senderName = "مالك المزرعة",
             senderRole = "مالك المزرعة 👨‍🌾",
             text = "وعليكم السلام يا أحمد، الله يبارك. انتبه لتوزيع المعالف في الجناح الشرقي وتأكد من نظافة خطوط الحلمات.",
             timestamp = "08:25 ص"
@@ -336,7 +336,7 @@ object AgritechMockDb {
             senderId = "worker_1",
             senderName = "أحمد",
             senderRole = "مشرف العنبر 👷‍♂️",
-            text = "حاضر عمي مراد، تم تفقد خطوط المياه وضبط ارتفاع المعالف بالكامل ✓",
+            text = "حاضر، تم تفقد خطوط المياه وضبط ارتفاع المعالف بالكامل ✓",
             timestamp = "08:40 ص"
         ),
 
@@ -347,14 +347,14 @@ object AgritechMockDb {
             senderId = "vet_1",
             senderName = "د. كمال",
             senderRole = "طبيب بيطري 🩺",
-            text = "السلام عليكم الحاج مراد، بناءً على فحص اليوم الخامس يُنصح بإعطاء جرعة فيتامين AD3E + أملاح معدنية (1 مل / لتر) لمدة 3 أيام لدعم النمو.",
+            text = "السلام عليكم، بناءً على فحص اليوم الخامس يُنصح بإعطاء جرعة فيتامين AD3E + أملاح معدنية (1 مل / لتر) لمدة 3 أيام لدعم النمو.",
             timestamp = "09:10 ص"
         ),
         ChatMessageModel(
             id = "msg_v2",
             cycleId = "cycle_2026_01_vet",
             senderId = "owner_1",
-            senderName = "الحاج مراد",
+            senderName = "مالك المزرعة",
             senderRole = "مالك المزرعة 👨‍🌾",
             text = "وعليكم السلام دكتور كمال، تم توفير العبوات في صيدلية العنبر وإبلاغ المشرف بتطبيق الجرعة فوراً.",
             timestamp = "09:18 ص"
@@ -374,7 +374,7 @@ object AgritechMockDb {
             id = "msg_g1",
             cycleId = "general_admin",
             senderId = "owner_1",
-            senderName = "الحاج مراد",
+            senderName = "مالك المزرعة",
             senderRole = "مالك المزرعة 👨‍🌾",
             text = "السلام عليكم فريق المزرعة، يرجى من جميع مشرفي العنابر رفع تقارير المخزون اليومية بالقنطار (ق) قبل الساعة 5 مساءً لجدولة طلبيات العلف الأسبوعية.",
             timestamp = "07:45 ص"
@@ -405,14 +405,14 @@ object AgritechMockDb {
             senderId = "trader_1",
             senderName = "كمال",
             senderRole = "تاجر أعلاف 🌾",
-            text = "السلام عليكم الحاج مراد، توفرت اليوم دفعة جديدة من علف ناهي ممتاز (18% بروتين) بسعر 7,600 دج للقنطار مع التوصيل للمزرعة.",
+            text = "السلام عليكم، توفرت اليوم دفعة جديدة من علف ناهي ممتاز (18% بروتين) بسعر 7,600 دج للقنطار مع التوصيل للمزرعة.",
             timestamp = "10:15 ص"
         ),
         ChatMessageModel(
             id = "msg_ft2",
             cycleId = "conv_feed_trader",
             senderId = "owner_1",
-            senderName = "الحاج مراد",
+            senderName = "مالك المزرعة",
             senderRole = "مالك المزرعة 👨‍🌾",
             text = "وعليكم السلام سي كمال، بارك الله فيك. احجز لنا 40 قنطار لعنبر الخيرات ليوم الغد إن شاء الله.",
             timestamp = "10:22 ص"
@@ -423,7 +423,7 @@ object AgritechMockDb {
             senderId = "trader_1",
             senderName = "كمال",
             senderRole = "تاجر أعلاف 🌾",
-            text = "تم الحجز عمي مراد، الشاحنة تنطلق غداً الساعة 7 صباحاً بإذن الله ✓",
+            text = "تم الحجز، الشاحنة تنطلق غداً الساعة 7 صباحاً بإذن الله ✓",
             timestamp = "10:30 ص"
         ),
 
@@ -446,7 +446,7 @@ object AgritechMockDb {
             roleLabel = "مورد أعلاف وذرة صويا 🌾",
             avatarEmoji = "🌾",
             avatarBgHex = 0xFFE8F5E9,
-            defaultSnippet = "تم الحجز عمي مراد، الشاحنة تنطلق غداً الساعة 7 صباحاً بإذن الله ✓",
+            defaultSnippet = "تم الحجز، الشاحنة تنطلق غداً الساعة 7 صباحاً بإذن الله ✓",
             defaultTimestamp = "10:30 ص",
             unreadCount = 1
         ),
@@ -466,7 +466,7 @@ object AgritechMockDb {
             roleLabel = "عنبر الخيرات والبركة 1 👷‍♂️",
             avatarEmoji = "👷‍♂️",
             avatarBgHex = 0xFFFEF3C7,
-            defaultSnippet = "حاضر عمي مراد، تم تفقد خطوط المياه وضبط ارتفاع المعالف بالكامل ✓",
+            defaultSnippet = "حاضر، تم تفقد خطوط المياه وضبط ارتفاع المعالف بالكامل ✓",
             defaultTimestamp = "08:40 ص",
             unreadCount = 0
         ),
@@ -655,8 +655,31 @@ object AgritechMockDb {
     }
 
     fun mergeCloudCycleWithLocal(cloudCycle: CycleModel, localCycle: CycleModel): CycleModel {
+        val totalPurchasedFeedKg = transactions.filter {
+            (it.cycleId == cloudCycle.id || it.cycleId == localCycle.id) &&
+                it.type == TransactionType.EXPENSE &&
+                it.status.equals("APPROVED", ignoreCase = true) &&
+                (it.category.contains("علف") ||
+                    it.category.contains("Feed", ignoreCase = true) ||
+                    it.category.contains("Aliment", ignoreCase = true) ||
+                    it.category.contains("Pienso", ignoreCase = true))
+        }.sumOf { parseFeedTransaction(it, AppLanguage.AR).estimatedKg }
+
+        val totalConsumedFeedKg = dailyReports
+            .filter { it.cycleId == cloudCycle.id || it.cycleId == localCycle.id }
+            .sumOf { it.feedIntakeKg }
+
+        val accurateFeedInventoryKg = when {
+            totalPurchasedFeedKg > 0.0 -> (totalPurchasedFeedKg - totalConsumedFeedKg).coerceAtLeast(0.0)
+            totalConsumedFeedKg > 0.0 -> localCycle.feedInventoryKg.coerceAtLeast(0.0)
+            localCycle.feedInventoryKg > 0.0 && cloudCycle.feedInventoryKg > 0.0 ->
+                minOf(localCycle.feedInventoryKg, cloudCycle.feedInventoryKg)
+            localCycle.feedInventoryKg > 0.0 -> localCycle.feedInventoryKg
+            else -> cloudCycle.feedInventoryKg.coerceAtLeast(0.0)
+        }
+
         return cloudCycle.copy(
-            feedInventoryKg = maxOf(cloudCycle.feedInventoryKg, localCycle.feedInventoryKg),
+            feedInventoryKg = accurateFeedInventoryKg,
             cumulativeBirdsSold = maxOf(cloudCycle.cumulativeBirdsSold, localCycle.cumulativeBirdsSold),
             cumulativeSoldWeightKg = maxOf(cloudCycle.cumulativeSoldWeightKg, localCycle.cumulativeSoldWeightKg)
         )
@@ -6674,7 +6697,7 @@ fun AgritechFarmNotebookScreen(
     var salesFlowStep by remember { mutableStateOf(SalesFlowStep.NONE) }
     var buyerNameInput by remember { mutableStateOf("") }
     var truckPlateInput by remember { mutableStateOf("") }
-    var pricePerKgInput by remember { mutableStateOf("380") }
+    var pricePerKgInput by remember { mutableStateOf("") }
     var birdsPerCrateInput by remember { mutableStateOf("10") }
     var tareMode by remember { mutableStateOf(TareMode.DETAILED) }
     var directTareTotalInput by remember { mutableStateOf("") }
@@ -6690,7 +6713,7 @@ fun AgritechFarmNotebookScreen(
     val totalNetKg = (totalGrossKg - totalTareKg).coerceAtLeast(0.0)
     val totalBirdsSold = grossWeightsList.sumOf { it.cratesCount * parsedBirdsPerCrate }
     val avgBirdWeightKg = if (totalBirdsSold > 0) totalNetKg / totalBirdsSold else 0.0
-    val pricePerKg = pricePerKgInput.toDoubleOrNull() ?: 380.0
+    val pricePerKg = pricePerKgInput.trim().toDoubleOrNull() ?: 0.0
     val totalSalesValue = totalNetKg * pricePerKg
 
     val totalFeed = reportsForCycle.sumOf { it.feedIntakeKg }
@@ -6922,7 +6945,7 @@ fun AgritechFarmNotebookScreen(
             )
         }
         SalesFlowStep.STAGE_2_WEIGHING_TABLE -> {
-            val parsedPrice = pricePerKgInput.toDoubleOrNull() ?: 380.0
+            val parsedPrice = pricePerKgInput.trim().toDoubleOrNull() ?: 0.0
             val directTareParsed = directTareTotalInput.toDoubleOrNull() ?: 0.0
             BatchQuickWeighingScreen(
                 currentTheme = currentTheme,
@@ -7003,7 +7026,7 @@ fun AgritechFarmNotebookScreen(
                             // 3. تُصفّر حقول الميزان بحيث عند الضغط على زر [البيع 🍗] مرة أخرى تفتح فاتورة شحنة جديدة وفارغة تماماً
                             buyerNameInput = ""
                             truckPlateInput = ""
-                            pricePerKgInput = "380"
+                            pricePerKgInput = ""
                             birdsPerCrateInput = "10"
                             tareMode = TareMode.DETAILED
                             directTareTotalInput = ""
@@ -10083,7 +10106,9 @@ fun BatchShipmentInfoScreen(
                         },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("input_sales_price_per_kg"),
                         shape = shipFieldShape,
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = shipAccent,

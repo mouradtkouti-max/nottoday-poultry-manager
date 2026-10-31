@@ -195,6 +195,32 @@ class ExampleUnitTest {
         assertEquals(2400.0, mergedCycle.feedInventoryKg, 0.001)
         assertEquals(1500, mergedCycle.cumulativeBirdsSold)
         assertEquals(3300.0, mergedCycle.cumulativeSoldWeightKg, 0.001)
+
+        // Crucial check: When daily feed consumption deducts local feedInventoryKg (e.g. 4000 kg -> 3500 kg),
+        // an older cloudCycle snapshot with 4000.0 kg must NOT overwrite the local deduction back to 4000.0 kg!
+        val localCycleAfterConsumption = CycleModel(
+            id = "cycle_sync_deduction",
+            farmId = "farm_1",
+            totalBirdsPlaced = 8000,
+            feedInventoryKg = 3500.0,
+            cumulativeBirdsSold = 500,
+            cumulativeSoldWeightKg = 1150.0
+        )
+        val staleCloudCycleBeforeConsumption = CycleModel(
+            id = "cycle_sync_deduction",
+            farmId = "farm_1",
+            totalBirdsPlaced = 8000,
+            feedInventoryKg = 4000.0,
+            cumulativeBirdsSold = 0,
+            cumulativeSoldWeightKg = 0.0
+        )
+        val mergedAfterDeduction = AgritechMockDb.mergeCloudCycleWithLocal(
+            cloudCycle = staleCloudCycleBeforeConsumption,
+            localCycle = localCycleAfterConsumption
+        )
+        assertEquals(3500.0, mergedAfterDeduction.feedInventoryKg, 0.001)
+        assertEquals(500, mergedAfterDeduction.cumulativeBirdsSold)
+        assertEquals(1150.0, mergedAfterDeduction.cumulativeSoldWeightKg, 0.001)
     }
 
     @Test

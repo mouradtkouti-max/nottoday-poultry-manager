@@ -1448,11 +1448,11 @@ object Translations {
             "hi" to "संदेश लिखें..."
         ),
         "chat_role_owner" to mapOf(
-            "ar" to "الحاج مراد - مالك المزرعة 👨‍🌾",
-            "fr" to "Mourad - Propriétaire 👨‍🌾",
-            "en" to "Mourad - Farm Owner 👨‍🌾",
-            "es" to "Mourad - Propietario 👨‍🌾",
-            "hi" to "मुराद - फ़ार्म मालिक 👨‍🌾"
+            "ar" to "مالك المزرعة 👨‍🌾",
+            "fr" to "Propriétaire de la Ferme 👨‍🌾",
+            "en" to "Farm Owner 👨‍🌾",
+            "es" to "Propietario de la Granja 👨‍🌾",
+            "hi" to "फ़ार्म मालिक 👨‍🌾"
         ),
         "chat_role_vet" to mapOf(
             "ar" to "د. كمال - طبيب بيطري 🩺",
