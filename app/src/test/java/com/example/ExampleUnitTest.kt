@@ -259,4 +259,100 @@ class ExampleUnitTest {
         assertEquals("tx_unit_vet_1", vetChatMsg.linkedTransactionId)
         assertEquals(12000.0, vetChatMsg.requestAmount, 0.001)
     }
+
+    @Test
+    fun futureProofUnitModel_and_smartBarnLocalization_workCorrectly() {
+        val defaultUnit = FutureProofUnitModel()
+        assertEquals(2, defaultUnit.schemaVersion)
+        assertEquals("AGRICULTURE", defaultUnit.sectorId)
+        assertEquals("BROILER", defaultUnit.branchId)
+        assertTrue(defaultUnit.customMetrics.isEmpty())
+
+        val customCycle = CycleModel(
+            id = "cycle_fp_1",
+            farmId = "farm_fp_1",
+            totalBirdsPlaced = 5000,
+            customMetrics = mapOf("targetFcr" to "1.55")
+        )
+        assertEquals(2, customCycle.schemaVersion)
+        assertEquals("AGRICULTURE", customCycle.sectorId)
+        assertEquals("BROILER", customCycle.branchId)
+        assertEquals("1.55", customCycle.customMetrics["targetFcr"])
+
+        assertTrue(Translations.hasKey("smart_barn_iot_title"))
+        assertTrue(Translations.hasKey("smart_barn_mode"))
+        assertTrue(Translations.hasKey("smart_barn_sensor"))
+        assertTrue(Translations.hasKey("smart_barn_tap_nh3_hint"))
+        assertTrue(Translations.hasKey("smart_barn_analyze_btn"))
+
+        assertFalse(Translations.tr("tx_feed", AppLanguage.AR).contains("25"))
+        assertFalse(Translations.tr("tx_feed", AppLanguage.EN).contains("25"))
+        assertFalse(Translations.tr("tx_feed", AppLanguage.PT).contains("25"))
+    }
+
+    @Test
+    fun modularSectorEngines_calculateAndValidateCorrectly() {
+        // 1. Input validation & sanitization in BusinessNotebookEngine
+        assertTrue(BusinessNotebookEngine.validatePositiveAmount(150.0))
+        assertFalse(BusinessNotebookEngine.validatePositiveAmount(0.0))
+        assertFalse(BusinessNotebookEngine.validatePositiveAmount(-20.0))
+        assertEquals(42.5, BusinessNotebookEngine.sanitizeNumericInput(" 42,5 "), 0.001)
+        assertEquals(0.0, BusinessNotebookEngine.sanitizeNumericInput("-99"), 0.001)
+        assertEquals(0.0, BusinessNotebookEngine.sanitizeNumericInput("abc"), 0.001)
+
+        // 2. LivestockAndPoultryEngine (Quintals = 100kg, FCR, EPEF, mortality, daily yield)
+        assertEquals(2500.0, LivestockAndPoultryEngine.quintalsToKg(25.0), 0.001)
+        assertEquals(0.0, LivestockAndPoultryEngine.quintalsToKg(-5.0), 0.001)
+        val flockMetrics = LivestockAndPoultryEngine.evaluateFlockOrHerdMetrics(
+            initialHeads = 1000,
+            cumulativeMortality = 50,
+            culledOrSoldHeads = 0,
+            totalFeedQuintals = 38.0, // 3,800 kg
+            averageLiveWeightKg = 2.0, // 950 * 2.0 = 1,900 kg biomass -> FCR = 2.0
+            ageDays = 38
+        )
+        assertEquals(950.0, flockMetrics["remainingLiveHeads"] ?: 0.0, 0.001)
+        assertEquals(5.0, flockMetrics["mortalityPct"] ?: 0.0, 0.001)
+        assertEquals(2.0, flockMetrics["fcr"] ?: 0.0, 0.001)
+        assertTrue((flockMetrics["epef"] ?: 0.0) > 200.0)
+
+        val yieldMetrics = LivestockAndPoultryEngine.calculateDailyYieldMetrics(
+            producingUnits = 500,
+            dailyOutputQuantity = 450.0,
+            dailyFeedAndCareExpense = 9000.0
+        )
+        assertEquals(90.0, yieldMetrics["productionRatePct"] ?: 0.0, 0.001)
+        assertEquals(20.0, yieldMetrics["costPerOutputUnit"] ?: 0.0, 0.001)
+
+        // 3. PlantAndOrchardEngine calculations & negative input protection
+        val orchardSummary = PlantAndOrchardEngine.evaluateCropOrOrchardSeason(
+            areaHectaresOrTreesCount = 5.0,
+            harvestedQuintals = 200.0,
+            sellingPricePerQuintal = 6000.0, // 1,200,000 income
+            seedAndSaplingExpense = 100000.0,
+            fertilizerAndPesticideExpense = 150000.0,
+            irrigationAndLaborExpense = 150000.0 // 400,000 total expenses
+        )
+        assertEquals(1200000.0, orchardSummary.totalIncome, 0.001)
+        assertEquals(400000.0, orchardSummary.totalExpenses, 0.001)
+        assertEquals(800000.0, orchardSummary.netProfit, 0.001)
+        assertTrue(orchardSummary.isProfitable)
+        assertEquals(40.0, orchardSummary.customKpis["yieldQuintalsPerAreaUnit"] ?: 0.0, 0.001)
+        assertEquals(2000.0, orchardSummary.unitCost, 0.001)
+
+        // 4. CommercialAndFreelanceEngine calculations & ROI
+        val commercialSummary = CommercialAndFreelanceEngine.evaluateCommercialOrFreelancePeriod(
+            branchId = BusinessNotebookEngine.BRANCH_RETAIL_WHOLESALE,
+            grossSalesAndServiceIncome = 500000.0,
+            merchandiseOrMaterialExpense = 300000.0,
+            operatingAndOverheadExpense = 50000.0,
+            completedOrdersOrProjectsCount = 100
+        )
+        assertEquals(500000.0, commercialSummary.totalIncome, 0.001)
+        assertEquals(350000.0, commercialSummary.totalExpenses, 0.001)
+        assertEquals(150000.0, commercialSummary.netProfit, 0.001)
+        assertEquals(200000.0, commercialSummary.customKpis["grossProfit"] ?: 0.0, 0.001)
+        assertEquals(3500.0, commercialSummary.unitCost, 0.001)
+    }
 }
+

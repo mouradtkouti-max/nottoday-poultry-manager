@@ -132,19 +132,25 @@ data class RoleBusinessOrderModel(
 )
 
 data class FarmModel(
-    val id: String,
-    val name: String,
-    val location: String,
-    val capacity: Int,
-    val assignedWorkerId: String,
+    val id: String = "",
+    val name: String = "",
+    val location: String = "",
+    val capacity: Int = 0,
+    val assignedWorkerId: String = "",
     val members: Map<String, String> = emptyMap(),
-    val currencyCode: String = "DZD"
+    val currencyCode: String = "DZD",
+    val schemaVersion: Int = 2,
+    val sectorId: String = "AGRICULTURE",
+    val branchId: String = "BROILER",
+    val customMetrics: Map<String, String> = emptyMap()
 )
 
+typealias FutureProofUnitModel = FarmModel
+
 data class CycleModel(
-    val id: String,
-    val farmId: String,
-    val totalBirdsPlaced: Int,
+    val id: String = "",
+    val farmId: String = "",
+    val totalBirdsPlaced: Int = 0,
     val targetWeight: Double = 2.3,
     val status: String = "active",
     val startDate: String = "2026-03-01",
@@ -152,7 +158,11 @@ data class CycleModel(
     val feedInventoryKg: Double = 0.0,
     val cumulativeBirdsSold: Int = 0,
     val cumulativeSoldWeightKg: Double = 0.0,
-    val currencyCode: String = "DZD"
+    val currencyCode: String = "DZD",
+    val schemaVersion: Int = 2,
+    val sectorId: String = "AGRICULTURE",
+    val branchId: String = "BROILER",
+    val customMetrics: Map<String, String> = emptyMap()
 )
 
 typealias ProductionCycle = CycleModel

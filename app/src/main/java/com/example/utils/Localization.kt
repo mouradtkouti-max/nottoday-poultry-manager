@@ -531,11 +531,12 @@ object Translations {
             "hi" to "🐣 चूजे (Ross 308)"
         ),
         "tx_feed" to mapOf(
-            "ar" to "🌾 علف بادئ (25 ق)",
-            "fr" to "🌾 Aliment Démarrage (25 q)",
-            "en" to "🌾 Starter Feed (25 q)",
-            "es" to "🌾 Alimento Inicio (25 q)",
-            "hi" to "🌾 स्टार्टर दाना (25 क्विं.)"
+            "ar" to "🌾 علف بادئ",
+            "fr" to "🌾 Aliment Démarrage",
+            "en" to "🌾 Starter Feed",
+            "es" to "🌾 Alimento Inicio",
+            "pt" to "🌾 Ração Inicial",
+            "hi" to "🌾 स्टार्टर दाना"
         ),
         "tx_gas" to mapOf(
             "ar" to "🔥 غاز وتدفئة",
@@ -4238,6 +4239,102 @@ object Translations {
             "es" to "⚠️ Por favor ingrese los valores obligatorios",
             "pt" to "⚠️ Insira os valores obrigatórios primeiro",
             "hi" to "⚠️ कृपया पहले अनिवार्य मान दर्ज करें"
+        ),
+        "smart_barn_iot_title" to mapOf(
+            "ar" to "🤖 مستشعرات العنبر الذكي والروبوت (IoT)",
+            "fr" to "🤖 Capteurs Bâtiment Intelligent & Robot (IoT)",
+            "en" to "🤖 Smart Barn & Robot IoT Telemetry",
+            "es" to "🤖 Sensores de Galpón Inteligente y Robot (IoT)",
+            "pt" to "🤖 Sensores do Galpão Inteligente e Robô (IoT)",
+            "hi" to "🤖 स्मार्ट बार्न और रोबोट सेंसर (IoT)"
+        ),
+        "smart_barn_mode" to mapOf(
+            "ar" to "وضع التشغيل: يدوي / متصل بالروبوت",
+            "fr" to "Mode : Manuel / Connecté au Robot",
+            "en" to "Operating Mode: Manual / Robot Connected",
+            "es" to "Modo: Manual / Conectado al Robot",
+            "pt" to "Modo: Manual / Conectado ao Robô",
+            "hi" to "मोड: मैनुअल / रोबोट से जुड़ा"
+        ),
+        "smart_barn_mode_manual" to mapOf(
+            "ar" to "✋ إدخال يدوي",
+            "fr" to "✋ Saisie manuelle",
+            "en" to "✋ Manual Input",
+            "es" to "✋ Entrada manual",
+            "pt" to "✋ Entrada manual",
+            "hi" to "✋ मैनुअल इनपुट"
+        ),
+        "smart_barn_mode_robot" to mapOf(
+            "ar" to "🤖 متصل بالروبوت",
+            "fr" to "🤖 Connecté au robot",
+            "en" to "🤖 Robot Connected",
+            "es" to "🤖 Robot conectado",
+            "pt" to "🤖 Conectado ao robô",
+            "hi" to "🤖 रोबोट कनेक्टेड"
+        ),
+        "smart_barn_sensor" to mapOf(
+            "ar" to "قراءات المستشعرات الحية (NH3 • CO2 • الغاز • الحرارة)",
+            "fr" to "Capteurs en direct (NH3 • CO2 • Gaz • Temp.)",
+            "en" to "Live Sensor Readings (NH3 • CO2 • Gas • Temp)",
+            "es" to "Lecturas de sensores en vivo (NH3 • CO2 • Gas • Temp)",
+            "pt" to "Leituras de sensores ao vivo (NH3 • CO2 • Gás • Temp)",
+            "hi" to "लाइव सेंसर रीडिंग (NH3 • CO2 • गैस • तापमान)"
+        ),
+        "smart_barn_sensor_nh3_safe" to mapOf(
+            "ar" to "🧪 الأمونيا (NH3): 12 ppm (🟢 آمن)",
+            "fr" to "🧪 Ammoniac (NH3) : 12 ppm (🟢 Sûr)",
+            "en" to "🧪 Ammonia (NH3): 12 ppm (🟢 Safe)",
+            "es" to "🧪 Amoníaco (NH3): 12 ppm (🟢 Seguro)",
+            "pt" to "🧪 Amônia (NH3): 12 ppm (🟢 Seguro)",
+            "hi" to "🧪 अमोनिया (NH3): 12 ppm (🟢 सुरक्षित)"
+        ),
+        "smart_barn_sensor_nh3_alert" to mapOf(
+            "ar" to "🧪 الأمونيا (NH3): 26 ppm (🔴 خطر تنفسي)",
+            "fr" to "🧪 Ammoniac (NH3) : 26 ppm (🔴 Danger)",
+            "en" to "🧪 Ammonia (NH3): 26 ppm (🔴 Resp. Risk)",
+            "es" to "🧪 Amoníaco (NH3): 26 ppm (🔴 Riesgo resp.)",
+            "pt" to "🧪 Amônia (NH3): 26 ppm (🔴 Risco resp.)",
+            "hi" to "🧪 अमोनिया (NH3): 26 ppm (🔴 श्वसन खतरा)"
+        ),
+        "smart_barn_sensor_o2_co2" to mapOf(
+            "ar" to "💨 الأكسجين وCO2: 1,800 ppm (🟢 جيد)",
+            "fr" to "💨 O2 & CO2 : 1 800 ppm (🟢 Bon)",
+            "en" to "💨 O2 & CO2: 1,800 ppm (🟢 Good)",
+            "es" to "💨 O2 y CO2: 1.800 ppm (🟢 Bueno)",
+            "pt" to "💨 O2 e CO2: 1.800 ppm (🟢 Bom)",
+            "hi" to "💨 O2 और CO2: 1,800 ppm (🟢 अच्छा)"
+        ),
+        "smart_barn_sensor_gas" to mapOf(
+            "ar" to "🔥 ضغط الغاز: 85% (🟢 مستقر)",
+            "fr" to "🔥 Pression Gaz : 85% (🟢 Stable)",
+            "en" to "🔥 Gas Pressure: 85% (🟢 Stable)",
+            "es" to "🔥 Presión de gas: 85% (🟢 Estable)",
+            "pt" to "🔥 Pressão do gás: 85% (🟢 Estável)",
+            "hi" to "🔥 गैस दबाव: 85% (🟢 स्थिर)"
+        ),
+        "smart_barn_sensor_temp_hum" to mapOf(
+            "ar" to "🌡️ الحرارة والرطوبة: 21.3°C • 58%",
+            "fr" to "🌡️ Temp. & Humidité : 21.3°C • 58%",
+            "en" to "🌡️ Temp & Humidity: 21.3°C • 58%",
+            "es" to "🌡️ Temp. y Humedad: 21.3°C • 58%",
+            "pt" to "🌡️ Temp. e Umidade: 21.3°C • 58%",
+            "hi" to "🌡️ तापमान और नमी: 21.3°C • 58%"
+        ),
+        "smart_barn_tap_nh3_hint" to mapOf(
+            "ar" to "💡 اضغط على مستشعر الأمونيا (NH3) لمحاكاة حالة الإنذار التنفسي واختبار التشخيص",
+            "fr" to "💡 Appuyez sur le capteur NH3 pour simuler une alerte respiratoire et tester le diagnostic",
+            "en" to "💡 Tap the Ammonia (NH3) sensor to simulate a respiratory alert and test diagnostics",
+            "es" to "💡 Toque el sensor de amoníaco (NH3) para simular una alerta respiratoria",
+            "pt" to "💡 Toque no sensor de amônia (NH3) para simular um alerta respiratório",
+            "hi" to "💡 श्वसन अलर्ट का परीक्षण करने के लिए अमोनिया (NH3) सेंसर पर टैप करें"
+        ),
+        "smart_barn_analyze_btn" to mapOf(
+            "ar" to "🤖 تحليل قراءات الروبوت والقطيع الآن",
+            "fr" to "🤖 Analyser les capteurs du robot et le lot maintenant",
+            "en" to "🤖 Analyze Robot Telemetry & Flock Now",
+            "es" to "🤖 Analizar lecturas del robot y lote ahora",
+            "pt" to "🤖 Analisar leituras do robô e lote agora",
+            "hi" to "🤖 रोबोट रीडिंग और झुंड का अभी विश्लेषण करें"
         )
     )
 
@@ -4321,7 +4418,7 @@ object Translations {
         "vent_moderate" to "Moderada",
         "vent_issue" to "Alerta",
         "tx_chicks" to "🐣 Pintinhos (Ross 308)",
-        "tx_feed" to "🌾 Ração Inicial (25 q)",
+        "tx_feed" to "🌾 Ração Inicial",
         "tx_gas" to "🔥 Gás e Aquecimento",
         "tx_meds" to "💊 Medicamentos e Vacinas",
         "tx_manure" to "🚜 Venda de Adubo Orgânico",
@@ -4469,7 +4566,19 @@ object Translations {
         "vet_withdrawal_days_label" to "⏳ Período de carência em dias (0 vitaminas, 7 antibióticos)",
         "account_local_profile" to "Perfil local da granja",
         "paywall_sandbox_notice" to "🧪 Modo de teste (Sandbox): ativação imediata sem cobrança bancária real.",
-        "input_required_error" to "⚠️ Insira os valores obrigatórios primeiro"
+        "input_required_error" to "⚠️ Insira os valores obrigatórios primeiro",
+        "smart_barn_iot_title" to "🤖 Sensores do Galpão Inteligente e Robô (IoT)",
+        "smart_barn_mode" to "Modo: Manual / Conectado ao Robô",
+        "smart_barn_mode_manual" to "✋ Entrada manual",
+        "smart_barn_mode_robot" to "🤖 Conectado ao robô",
+        "smart_barn_sensor" to "Leituras de sensores ao vivo (NH3 • CO2 • Gás • Temp)",
+        "smart_barn_sensor_nh3_safe" to "🧪 Amônia (NH3): 12 ppm (🟢 Seguro)",
+        "smart_barn_sensor_nh3_alert" to "🧪 Amônia (NH3): 26 ppm (🔴 Risco resp.)",
+        "smart_barn_sensor_o2_co2" to "💨 O2 e CO2: 1.800 ppm (🟢 Bom)",
+        "smart_barn_sensor_gas" to "🔥 Pressão do gás: 85% (🟢 Estável)",
+        "smart_barn_sensor_temp_hum" to "🌡️ Temp. e Umidade: 21.3°C • 58%",
+        "smart_barn_tap_nh3_hint" to "💡 Toque no sensor de amônia (NH3) para simular um alerta respiratório",
+        "smart_barn_analyze_btn" to "🤖 Analisar leituras do robô e lote agora"
     )
 
     fun hasKey(key: String): Boolean {

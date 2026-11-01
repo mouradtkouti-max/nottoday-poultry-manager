@@ -193,6 +193,10 @@ class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
                         "capacity" to farm.capacity,
                         "assignedWorkerId" to farm.assignedWorkerId,
                         "currencyCode" to farm.currencyCode.ifBlank { "DZD" },
+                        "schemaVersion" to farm.schemaVersion,
+                        "sectorId" to farm.sectorId.ifBlank { "AGRICULTURE" },
+                        "branchId" to farm.branchId.ifBlank { "BROILER" },
+                        "customMetrics" to farm.customMetrics,
                         "members" to mergedMembers,
                         "updatedAt" to FieldValue.serverTimestamp()
                     )
@@ -207,6 +211,10 @@ class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
                         "capacity" to farm.capacity,
                         "assignedWorkerId" to farm.assignedWorkerId,
                         "currencyCode" to farm.currencyCode.ifBlank { "DZD" },
+                        "schemaVersion" to farm.schemaVersion,
+                        "sectorId" to farm.sectorId.ifBlank { "AGRICULTURE" },
+                        "branchId" to farm.branchId.ifBlank { "BROILER" },
+                        "customMetrics" to farm.customMetrics,
                         "members" to initialMembers,
                         "createdAt" to FieldValue.serverTimestamp(),
                         "updatedAt" to FieldValue.serverTimestamp()
@@ -360,6 +368,10 @@ class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
                         "cumulativeSoldWeightKg" to cumulativeSoldWeightKg.coerceAtLeast(0.0),
                         "feedInventoryKg" to cycle.feedInventoryKg.coerceAtLeast(0.0),
                         "currencyCode" to cycle.currencyCode.ifBlank { "DZD" },
+                        "schemaVersion" to cycle.schemaVersion,
+                        "sectorId" to cycle.sectorId.ifBlank { "AGRICULTURE" },
+                        "branchId" to cycle.branchId.ifBlank { "BROILER" },
+                        "customMetrics" to cycle.customMetrics,
                         "updatedAt" to FieldValue.serverTimestamp()
                     )
                 ).await()
@@ -374,6 +386,10 @@ class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
                         "cumulativeSoldWeightKg" to cumulativeSoldWeightKg.coerceAtLeast(0.0),
                         "feedInventoryKg" to cycle.feedInventoryKg.coerceAtLeast(0.0),
                         "currencyCode" to cycle.currencyCode.ifBlank { "DZD" },
+                        "schemaVersion" to cycle.schemaVersion,
+                        "sectorId" to cycle.sectorId.ifBlank { "AGRICULTURE" },
+                        "branchId" to cycle.branchId.ifBlank { "BROILER" },
+                        "customMetrics" to cycle.customMetrics,
                         "createdAt" to FieldValue.serverTimestamp(),
                         "updatedAt" to FieldValue.serverTimestamp()
                     )
@@ -444,8 +460,15 @@ class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
         val capacity = (doc.getLong("capacity") ?: 0L).toInt()
         val assignedWorkerId = doc.getString("assignedWorkerId") ?: ""
         val currencyCode = doc.getString("currencyCode") ?: "DZD"
+        val schemaVersion = (doc.getLong("schemaVersion") ?: 2L).toInt()
+        val sectorId = doc.getString("sectorId")?.ifBlank { "AGRICULTURE" } ?: "AGRICULTURE"
+        val branchId = doc.getString("branchId")?.ifBlank { "BROILER" } ?: "BROILER"
         @Suppress("UNCHECKED_CAST")
         val members = (doc.get("members") as? Map<String, String>).orEmpty()
+        @Suppress("UNCHECKED_CAST")
+        val customMetrics = (doc.get("customMetrics") as? Map<String, Any?>)
+            ?.mapValues { it.value?.toString() ?: "" }
+            .orEmpty()
         return FarmModel(
             id = farmId,
             name = name,
@@ -453,7 +476,11 @@ class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
             capacity = capacity,
             assignedWorkerId = assignedWorkerId,
             members = members,
-            currencyCode = currencyCode
+            currencyCode = currencyCode,
+            schemaVersion = schemaVersion,
+            sectorId = sectorId,
+            branchId = branchId,
+            customMetrics = customMetrics
         )
     }
 
@@ -477,6 +504,13 @@ class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
         val cumulativeBirdsSold = (doc.getLong("cumulativeBirdsSold") ?: 0L).toInt()
         val cumulativeSoldWeightKg = doc.getDouble("cumulativeSoldWeightKg") ?: 0.0
         val currencyCode = doc.getString("currencyCode") ?: "DZD"
+        val schemaVersion = (doc.getLong("schemaVersion") ?: 2L).toInt()
+        val sectorId = doc.getString("sectorId")?.ifBlank { "AGRICULTURE" } ?: "AGRICULTURE"
+        val branchId = doc.getString("branchId")?.ifBlank { "BROILER" } ?: "BROILER"
+        @Suppress("UNCHECKED_CAST")
+        val customMetrics = (doc.get("customMetrics") as? Map<String, Any?>)
+            ?.mapValues { it.value?.toString() ?: "" }
+            .orEmpty()
         return CycleModel(
             id = doc.id,
             farmId = farmId,
@@ -488,7 +522,11 @@ class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
             feedInventoryKg = feedInventoryKg,
             cumulativeBirdsSold = cumulativeBirdsSold,
             cumulativeSoldWeightKg = cumulativeSoldWeightKg,
-            currencyCode = currencyCode
+            currencyCode = currencyCode,
+            schemaVersion = schemaVersion,
+            sectorId = sectorId,
+            branchId = branchId,
+            customMetrics = customMetrics
         )
     }
 

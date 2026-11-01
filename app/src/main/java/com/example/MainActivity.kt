@@ -1312,6 +1312,8 @@ fun AgritechMainApp(
                     val cm = credentialManager
                     val isAlreadySignedIn = AgritechAuthHelper.isSignedIn()
                     if (isAlreadySignedIn) {
+                        LocalFarmPersistence.restoreFromReloginArchiveIfNeeded(context)
+                        LocalFarmPersistence.loadIntoMockDb(context)
                         sessionState.markAuthenticated(
                             context = context,
                             role = role,
@@ -1337,6 +1339,8 @@ fun AgritechMainApp(
                             credentialManager = cm,
                             onAuthSuccess = {
                                 authErrorBanner = null
+                                LocalFarmPersistence.restoreFromReloginArchiveIfNeeded(context)
+                                LocalFarmPersistence.loadIntoMockDb(context)
                                 sessionState.markAuthenticated(
                                     context = context,
                                     role = role,
@@ -11102,10 +11106,11 @@ fun SimpleTransactionDialog(
     var selectedCategory by remember { mutableStateOf(categories.first()) }
     var amountText by remember { mutableStateOf("") }
 
-    // Feed-specific fields when "علف" (Feed) chip is selected in Add Expense Dialog
+    // Feed-specific fields when "علف" (Feed) chip is selected in Add Expense Dialog:
+    // Never pre-fill with "40" or "8000" so user input never auto-multiplies by 8000 (e.g., 6000 * 8000 = 48,000,000).
     var feedDesignation by remember { mutableStateOf(Translations.tr("feed_designation_default", lang)) }
-    var feedQuintalsText by remember { mutableStateOf("40") }
-    var feedPricePerQuintalText by remember { mutableStateOf("8000") }
+    var feedQuintalsText by remember { mutableStateOf("") }
+    var feedPricePerQuintalText by remember { mutableStateOf("") }
 
     val feedCategoryLabel = Translations.tr("tx_feed", lang)
     val isFeedExpense = type == TransactionType.EXPENSE && (
@@ -11143,7 +11148,11 @@ fun SimpleTransactionDialog(
                 WrapFilters(
                     categories = categories,
                     selected = selectedCategory,
-                    onSelect = { selectedCategory = it }
+                    onSelect = { newCat ->
+                        if (newCat != selectedCategory) {
+                            selectedCategory = newCat
+                        }
+                    }
                 )
 
                 if (isFeedExpense) {
@@ -11171,6 +11180,7 @@ fun SimpleTransactionDialog(
                             value = feedQuintalsText,
                             onValueChange = { feedQuintalsText = it.filter { ch -> ch.isDigit() || ch == '.' } },
                             label = { Text(Translations.tr("feed_qty_quintals_label", lang), fontSize = 11.sp, color = secondaryText) },
+                            placeholder = { Text("40", fontSize = 11.sp, color = secondaryText.copy(alpha = 0.55f)) },
                             shape = RoundedCornerShape(12.dp),
                             singleLine = true,
                             colors = OutlinedTextFieldDefaults.colors(
@@ -11187,6 +11197,7 @@ fun SimpleTransactionDialog(
                             value = feedPricePerQuintalText,
                             onValueChange = { feedPricePerQuintalText = it.filter { ch -> ch.isDigit() || ch == '.' } },
                             label = { Text(Translations.tr("feed_price_quintal_label", lang), fontSize = 11.sp, color = secondaryText) },
+                            placeholder = { Text("8000", fontSize = 11.sp, color = secondaryText.copy(alpha = 0.55f)) },
                             shape = RoundedCornerShape(12.dp),
                             singleLine = true,
                             colors = OutlinedTextFieldDefaults.colors(
@@ -11238,7 +11249,7 @@ fun SimpleTransactionDialog(
                 } else {
                     OutlinedTextField(
                         value = amountText,
-                        onValueChange = { amountText = it },
+                        onValueChange = { amountText = it.filter { ch -> ch.isDigit() || ch == '.' } },
                         label = { Text(Translations.tr("amount_label", lang), color = secondaryText) },
                         shape = RoundedCornerShape(12.dp),
                         singleLine = true,

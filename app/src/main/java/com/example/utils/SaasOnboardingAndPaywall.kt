@@ -593,10 +593,14 @@ class AgritechAppSessionState(
         farmId: String = activeFarmId,
         uid: String? = currentUserUid
     ) {
+        LocalFarmPersistence.restoreFromReloginArchiveIfNeeded(context)
+        LocalFarmPersistence.loadIntoMockDb(context)
+        val resolvedLinkedBarns = linkedBarns || AgritechMockDb.farms.isNotEmpty()
+        val resolvedFarmId = farmId.ifBlank { AgritechMockDb.farms.firstOrNull()?.id ?: "" }
         isLoggedIn = true
         currentRole = role
-        hasLinkedBarns = linkedBarns
-        activeFarmId = farmId
+        hasLinkedBarns = resolvedLinkedBarns
+        activeFarmId = resolvedFarmId
         if (uid != null) {
             currentUserUid = uid
         }
@@ -604,8 +608,8 @@ class AgritechAppSessionState(
             context = context,
             isLoggedIn = true,
             role = role,
-            hasLinkedBarns = linkedBarns,
-            activeFarmId = farmId,
+            hasLinkedBarns = resolvedLinkedBarns,
+            activeFarmId = resolvedFarmId,
             userUid = currentUserUid
         )
     }
@@ -619,6 +623,7 @@ class AgritechAppSessionState(
         selectedFarmForVet = null
         selectedFarmForWorker = null
         SaasPreferencesManager.clearAuthSession(context)
+        LocalFarmPersistence.archiveBeforeLogout(context)
         AgritechMockDb.clearOnExplicitLogout()
         LocalFarmPersistence.clear(context)
     }
@@ -4481,6 +4486,7 @@ fun ProfessionOnboardingDialog(
  */
 object LocalFarmPersistence {
     private const val PREF_NAME = "agritech_local_state_v1"
+    private const val PREF_ARCHIVE_NAME = "agritech_local_relogin_archive_v1"
     private const val KEY_SAVED = "has_saved_state"
     private const val KEY_FARMS = "farms_json"
     private const val KEY_CYCLES = "cycles_json"
@@ -4488,9 +4494,69 @@ object LocalFarmPersistence {
     private const val KEY_TRANSACTIONS = "transactions_json"
     private const val KEY_VET_NOTES = "vet_notes_json"
 
+    private fun mapToJson(map: Map<String, String>): org.json.JSONObject {
+        val obj = org.json.JSONObject()
+        for ((k, v) in map) {
+            obj.put(k, v)
+        }
+        return obj
+    }
+
+    private fun jsonToMap(obj: org.json.JSONObject?): Map<String, String> {
+        if (obj == null) return emptyMap()
+        val result = mutableMapOf<String, String>()
+        val keys = obj.keys()
+        while (keys.hasNext()) {
+            val k = keys.next()
+            result[k] = obj.optString(k, "")
+        }
+        return result
+    }
+
     fun hasSavedData(context: Context): Boolean {
         val prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
         return prefs.getBoolean(KEY_SAVED, false)
+    }
+
+    fun archiveBeforeLogout(context: Context) {
+        try {
+            if (AgritechMockDb.farms.isNotEmpty() || AgritechMockDb.cycles.isNotEmpty()) {
+                saveAll(context)
+            }
+            val prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
+            if (prefs.getBoolean(KEY_SAVED, false)) {
+                val archive = context.getSharedPreferences(PREF_ARCHIVE_NAME, Context.MODE_PRIVATE)
+                archive.edit()
+                    .putBoolean(KEY_SAVED, true)
+                    .putString(KEY_FARMS, prefs.getString(KEY_FARMS, null))
+                    .putString(KEY_CYCLES, prefs.getString(KEY_CYCLES, null))
+                    .putString(KEY_REPORTS, prefs.getString(KEY_REPORTS, null))
+                    .putString(KEY_TRANSACTIONS, prefs.getString(KEY_TRANSACTIONS, null))
+                    .putString(KEY_VET_NOTES, prefs.getString(KEY_VET_NOTES, null))
+                    .apply()
+            }
+        } catch (_: Exception) {
+        }
+    }
+
+    fun restoreFromReloginArchiveIfNeeded(context: Context) {
+        try {
+            val prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
+            if (!prefs.getBoolean(KEY_SAVED, false)) {
+                val archive = context.getSharedPreferences(PREF_ARCHIVE_NAME, Context.MODE_PRIVATE)
+                if (archive.getBoolean(KEY_SAVED, false)) {
+                    prefs.edit()
+                        .putBoolean(KEY_SAVED, true)
+                        .putString(KEY_FARMS, archive.getString(KEY_FARMS, null))
+                        .putString(KEY_CYCLES, archive.getString(KEY_CYCLES, null))
+                        .putString(KEY_REPORTS, archive.getString(KEY_REPORTS, null))
+                        .putString(KEY_TRANSACTIONS, archive.getString(KEY_TRANSACTIONS, null))
+                        .putString(KEY_VET_NOTES, archive.getString(KEY_VET_NOTES, null))
+                        .apply()
+                }
+            }
+        } catch (_: Exception) {
+        }
     }
 
     fun clear(context: Context) {
@@ -4510,6 +4576,11 @@ object LocalFarmPersistence {
                 obj.put("capacity", f.capacity)
                 obj.put("assignedWorkerId", f.assignedWorkerId)
                 obj.put("currencyCode", f.currencyCode)
+                obj.put("schemaVersion", f.schemaVersion)
+                obj.put("sectorId", f.sectorId)
+                obj.put("branchId", f.branchId)
+                obj.put("customMetrics", mapToJson(f.customMetrics))
+                obj.put("members", mapToJson(f.members))
                 farmsArr.put(obj)
             }
 
@@ -4527,6 +4598,10 @@ object LocalFarmPersistence {
                 obj.put("cumulativeBirdsSold", c.cumulativeBirdsSold)
                 obj.put("cumulativeSoldWeightKg", c.cumulativeSoldWeightKg)
                 obj.put("currencyCode", c.currencyCode)
+                obj.put("schemaVersion", c.schemaVersion)
+                obj.put("sectorId", c.sectorId)
+                obj.put("branchId", c.branchId)
+                obj.put("customMetrics", mapToJson(c.customMetrics))
                 cyclesArr.put(obj)
             }
 
@@ -4624,6 +4699,16 @@ object LocalFarmPersistence {
                 .putString(KEY_TRANSACTIONS, txArr.toString())
                 .putString(KEY_VET_NOTES, notesArr.toString())
                 .apply()
+
+            val archive = context.getSharedPreferences(PREF_ARCHIVE_NAME, Context.MODE_PRIVATE)
+            archive.edit()
+                .putBoolean(KEY_SAVED, true)
+                .putString(KEY_FARMS, farmsArr.toString())
+                .putString(KEY_CYCLES, cyclesArr.toString())
+                .putString(KEY_REPORTS, reportsArr.toString())
+                .putString(KEY_TRANSACTIONS, txArr.toString())
+                .putString(KEY_VET_NOTES, notesArr.toString())
+                .apply()
         } catch (_: Exception) {
         }
     }
@@ -4644,7 +4729,12 @@ object LocalFarmPersistence {
                         location = obj.optString("location"),
                         capacity = obj.optInt("capacity", 5000),
                         assignedWorkerId = obj.optString("assignedWorkerId", "worker_1"),
-                        currencyCode = obj.optString("currencyCode", "DZD")
+                        members = jsonToMap(obj.optJSONObject("members")),
+                        currencyCode = obj.optString("currencyCode", "DZD"),
+                        schemaVersion = obj.optInt("schemaVersion", 2),
+                        sectorId = obj.optString("sectorId", "AGRICULTURE").ifBlank { "AGRICULTURE" },
+                        branchId = obj.optString("branchId", "BROILER").ifBlank { "BROILER" },
+                        customMetrics = jsonToMap(obj.optJSONObject("customMetrics"))
                     )
                     if (farm.id.isNotBlank()) {
                         val idx = AgritechMockDb.farms.indexOfFirst { it.id == farm.id }
@@ -4669,7 +4759,11 @@ object LocalFarmPersistence {
                         feedInventoryKg = obj.optDouble("feedInventoryKg", 0.0),
                         cumulativeBirdsSold = obj.optInt("cumulativeBirdsSold", 0),
                         cumulativeSoldWeightKg = obj.optDouble("cumulativeSoldWeightKg", 0.0),
-                        currencyCode = obj.optString("currencyCode", "DZD")
+                        currencyCode = obj.optString("currencyCode", "DZD"),
+                        schemaVersion = obj.optInt("schemaVersion", 2),
+                        sectorId = obj.optString("sectorId", "AGRICULTURE").ifBlank { "AGRICULTURE" },
+                        branchId = obj.optString("branchId", "BROILER").ifBlank { "BROILER" },
+                        customMetrics = jsonToMap(obj.optJSONObject("customMetrics"))
                     )
                     if (cycle.id.isNotBlank()) {
                         val idx = AgritechMockDb.cycles.indexOfFirst { it.id == cycle.id }
