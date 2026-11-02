@@ -38,6 +38,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
@@ -1668,6 +1670,282 @@ fun SettingsDialog(
 // ============================================================================
 // 1. شاشة تسجيل الدخول الموحدة + مسح رمز الانضمام (QR Onboarding)
 // ============================================================================
+// PREMIUM NEUMORPHISM & 3D TACTILE UI DESIGN SYSTEM
+// ============================================================================
+
+enum class PremiumPillVariant {
+    PRIMARY,
+    SALES_INCOME,
+    DELETE_RESET,
+    LOGIN_GRADIENT
+}
+
+@Composable
+fun PremiumPillButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    variant: PremiumPillVariant = PremiumPillVariant.PRIMARY,
+    enabled: Boolean = true,
+    leadingIcon: (@Composable () -> Unit)? = null,
+    fontSize: TextUnit = 13.5.sp,
+    contentPadding: PaddingValues = PaddingValues(horizontal = 16.dp, vertical = 10.dp)
+) {
+    val appearance = LocalAppAppearanceState.current
+    val pillShape = RoundedCornerShape(50)
+    val basePrimary = appearance.accentOption.primaryColor
+    val deepPrimary = Color(
+        red = (basePrimary.red * 0.80f).coerceIn(0f, 1f),
+        green = (basePrimary.green * 0.80f).coerceIn(0f, 1f),
+        blue = (basePrimary.blue * 0.85f).coerceIn(0f, 1f),
+        alpha = 1f
+    )
+    val gradientColors = when (variant) {
+        PremiumPillVariant.PRIMARY -> listOf(
+            appearance.accentOption.darkModeColor,
+            basePrimary,
+            deepPrimary
+        )
+        PremiumPillVariant.SALES_INCOME -> listOf(
+            Color(0xFF10B981),
+            Color(0xFF059669)
+        )
+        PremiumPillVariant.DELETE_RESET -> listOf(
+            Color(0xFFFF4B72),
+            Color(0xFFE11D48)
+        )
+        PremiumPillVariant.LOGIN_GRADIENT -> listOf(
+            Color(0xFF43C6FF),
+            Color(0xFF6B46FF)
+        )
+    }
+    val spotShadowColor = when (variant) {
+        PremiumPillVariant.PRIMARY -> basePrimary
+        PremiumPillVariant.SALES_INCOME -> Color(0xFF10B981)
+        PremiumPillVariant.DELETE_RESET -> Color(0xFFE11D48)
+        PremiumPillVariant.LOGIN_GRADIENT -> Color(0xFF6B46FF)
+    }
+    val activeBrush = if (enabled) {
+        Brush.linearGradient(colors = gradientColors)
+    } else {
+        Brush.linearGradient(colors = listOf(Color(0xFF94A3B8), Color(0xFF64748B)))
+    }
+    val innerSpecularHighlight = Brush.verticalGradient(
+        colors = listOf(
+            Color.White.copy(alpha = if (enabled) 0.45f else 0.18f),
+            Color.Transparent
+        )
+    )
+
+    Box(
+        modifier = modifier
+            .shadow(
+                elevation = if (enabled) 8.dp else 0.dp,
+                shape = pillShape,
+                spotColor = spotShadowColor,
+                ambientColor = spotShadowColor
+            )
+            .clip(pillShape)
+            .background(brush = activeBrush, shape = pillShape)
+            .border(width = 1.dp, brush = innerSpecularHighlight, shape = pillShape)
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(contentPadding),
+        contentAlignment = Alignment.Center
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            if (leadingIcon != null) {
+                leadingIcon()
+                Spacer(modifier = Modifier.width(6.dp))
+            }
+            Text(
+                text = text,
+                color = Color.White,
+                fontWeight = FontWeight.ExtraBold,
+                fontSize = fontSize,
+                maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+@Composable
+fun PremiumTactileCalcButton(
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    isSelected: Boolean = false,
+    isDark: Boolean = LocalAppAppearanceState.current.isDark,
+    accentColor: Color = LocalAppAppearanceState.current.accentOption.primaryColor,
+    fontSize: TextUnit = 13.5.sp
+) {
+    val btnShape = RoundedCornerShape(14.dp)
+    val outerBevelBrush = if (isSelected) {
+        Brush.verticalGradient(
+            colors = listOf(
+                Color.White.copy(alpha = 0.55f),
+                accentColor.copy(alpha = 0.9f)
+            )
+        )
+    } else if (isDark) {
+        Brush.linearGradient(
+            colors = listOf(Color(0xFF334155), Color(0xFF0F172A))
+        )
+    } else {
+        Brush.linearGradient(
+            colors = listOf(Color.White, Color(0xFFCBD5E1))
+        )
+    }
+
+    val appearance = LocalAppAppearanceState.current
+    val innerSurfaceBrush = if (isSelected) {
+        Brush.linearGradient(
+            colors = listOf(appearance.accentOption.darkModeColor, accentColor)
+        )
+    } else if (isDark) {
+        Brush.verticalGradient(
+            colors = listOf(Color(0xFF26354D), Color(0xFF162032))
+        )
+    } else {
+        Brush.verticalGradient(
+            colors = listOf(Color(0xFFFFFFFF), Color(0xFFE6EEF8))
+        )
+    }
+
+    val textColor = when {
+        isSelected -> Color.White
+        isDark -> Color.White
+        else -> Color(0xFF0F172A)
+    }
+
+    Box(
+        modifier = modifier
+            .height(44.dp)
+            .shadow(
+                elevation = if (isSelected) 7.dp else 3.dp,
+                shape = btnShape,
+                spotColor = if (isSelected) accentColor else Color(0xFF64748B)
+            )
+            .clip(btnShape)
+            .background(brush = innerSurfaceBrush, shape = btnShape)
+            .border(width = 1.2.dp, brush = outerBevelBrush, shape = btnShape)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 8.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            fontSize = fontSize,
+            fontWeight = FontWeight.ExtraBold,
+            color = textColor,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            softWrap = false
+        )
+    }
+}
+
+@Composable
+fun NeumorphicRecessedDisplay(
+    modifier: Modifier = Modifier,
+    isDark: Boolean = LocalAppAppearanceState.current.isDark,
+    contentPadding: PaddingValues = PaddingValues(14.dp),
+    content: @Composable ColumnScope.() -> Unit
+) {
+    val recessedShape = RoundedCornerShape(18.dp)
+    val recessedBg = if (isDark) Color(0xFF0B1324) else Color(0xFFEBF1F8)
+    val recessedBorderBrush = if (isDark) {
+        Brush.linearGradient(
+            colors = listOf(Color(0xFF050914), Color(0xFF26354D))
+        )
+    } else {
+        Brush.linearGradient(
+            colors = listOf(Color(0xFFCBD5E1), Color.White)
+        )
+    }
+
+    Box(
+        modifier = modifier
+            .clip(recessedShape)
+            .background(color = recessedBg, shape = recessedShape)
+            .border(width = 1.5.dp, brush = recessedBorderBrush, shape = recessedShape)
+            .padding(contentPadding)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            content = content
+        )
+    }
+}
+
+@Composable
+fun NeumorphicRecessedField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    modifier: Modifier = Modifier,
+    placeholder: String = "",
+    isDark: Boolean = LocalAppAppearanceState.current.isDark,
+    accentColor: Color = LocalAppAppearanceState.current.accentColor,
+    keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
+    keyboardActions: KeyboardActions = KeyboardActions.Default
+) {
+    val recessedShape = RoundedCornerShape(18.dp)
+    val recessedBg = if (isDark) Color(0xFF0B1324) else Color(0xFFEBF1F8)
+    val recessedBorderBrush = if (isDark) {
+        Brush.linearGradient(
+            colors = listOf(Color(0xFF050914), Color(0xFF26354D))
+        )
+    } else {
+        Brush.linearGradient(
+            colors = listOf(Color(0xFFCBD5E1), Color.White)
+        )
+    }
+    val primaryText = if (isDark) Color.White else Color(0xFF0F172A)
+    val secondaryText = if (isDark) Color(0xFFCBD5E1) else Color(0xFF475569)
+
+    Box(
+        modifier = modifier
+            .clip(recessedShape)
+            .background(color = recessedBg, shape = recessedShape)
+            .border(width = 1.5.dp, brush = recessedBorderBrush, shape = recessedShape)
+    ) {
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            label = {
+                Text(
+                    label,
+                    fontSize = 11.sp,
+                    color = secondaryText,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            },
+            placeholder = if (placeholder.isNotEmpty()) {
+                { Text(placeholder, color = Color.Gray, fontSize = 11.sp) }
+            } else null,
+            singleLine = true,
+            keyboardOptions = keyboardOptions,
+            keyboardActions = keyboardActions,
+            shape = recessedShape,
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = accentColor.copy(alpha = 0.65f),
+                unfocusedBorderColor = Color.Transparent,
+                focusedContainerColor = Color.Transparent,
+                unfocusedContainerColor = Color.Transparent,
+                focusedTextColor = primaryText,
+                unfocusedTextColor = primaryText,
+                focusedLabelColor = accentColor
+            ),
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -1679,10 +1957,11 @@ fun AgritechLoginScreen(
     onOpenSettings: () -> Unit
 ) {
     val appearance = LocalAppAppearanceState.current
+    val isDark = currentTheme.isDark
     val activeAccent = appearance.accentColor
-    val activeAccentContainer = appearance.accentContainerColor
-    val cardCornerShape = RoundedCornerShape(appearance.cornerRadiusDp.dp)
-    val buttonCornerShape = RoundedCornerShape((appearance.cornerRadiusDp - 4).coerceAtLeast(4).dp)
+    val pearlLoginBg = if (isDark) Color(0xFF0F172A) else Color(0xFFEEF2FA)
+    val loginCardShape = RoundedCornerShape(28.dp)
+    val squircleShape = RoundedCornerShape(24.dp)
 
     var showQrScannerSheet by remember { mutableStateOf(false) }
     var isLoginMorphing by remember { mutableStateOf(false) }
@@ -1726,7 +2005,7 @@ fun AgritechLoginScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(currentTheme.bgColor)
+            .background(pearlLoginBg)
             .padding(24.dp),
         contentAlignment = Alignment.Center
     ) {
@@ -1743,34 +2022,52 @@ fun AgritechLoginScreen(
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            // 3D Neumorphic Squircle Badge for App Logo
+            val squircleBorderBrush = if (isDark) {
+                Brush.linearGradient(listOf(Color.White.copy(alpha = 0.35f), Color(0xFF1E293B)))
+            } else {
+                Brush.linearGradient(listOf(Color.White, Color(0xFFCBD5E1)))
+            }
+            val squircleSurfaceBrush = if (isDark) {
+                Brush.linearGradient(listOf(Color(0xFF1E293B), Color(0xFF0F172A)))
+            } else {
+                Brush.linearGradient(listOf(Color.White, Color(0xFFE6EEF8)))
+            }
+
             Box(
                 modifier = Modifier
-                    .size(70.dp)
-                    .clip(CircleShape)
-                    .background(activeAccentContainer),
+                    .size(78.dp)
+                    .shadow(
+                        elevation = 10.dp,
+                        shape = squircleShape,
+                        spotColor = Color(0xFF6B46FF).copy(alpha = 0.45f)
+                    )
+                    .clip(squircleShape)
+                    .background(brush = squircleSurfaceBrush, shape = squircleShape)
+                    .border(width = 1.5.dp, brush = squircleBorderBrush, shape = squircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     Icons.Default.Agriculture,
                     contentDescription = null,
                     tint = activeAccent,
-                    modifier = Modifier.size(38.dp)
+                    modifier = Modifier.size(40.dp)
                 )
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
             Text(
                 Translations.tr("app_title", lang),
-                fontWeight = FontWeight.Bold,
+                fontWeight = FontWeight.ExtraBold,
                 fontSize = 22.sp,
-                color = currentTheme.headingColor
+                color = if (isDark) Color.White else currentTheme.headingColor
             )
 
             Text(
                 Translations.tr("app_subtitle", lang),
                 fontSize = 13.sp,
-                color = currentTheme.headingColor.copy(alpha = 0.8f)
+                color = (if (isDark) Color(0xFFCBD5E1) else currentTheme.headingColor).copy(alpha = 0.85f)
             )
 
             Spacer(modifier = Modifier.height(24.dp))
@@ -1778,52 +2075,85 @@ fun AgritechLoginScreen(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .shadow(
+                        elevation = 12.dp,
+                        shape = loginCardShape,
+                        spotColor = Color(0xFF64748B).copy(alpha = 0.35f)
+                    )
                     .testTag("login_spring_card"),
-                shape = cardCornerShape,
-                colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                shape = loginCardShape,
+                colors = CardDefaults.cardColors(
+                    containerColor = if (isDark) Color(0xFF1E293B) else Color(0xFFF8FAFF)
+                ),
+                border = BorderStroke(
+                    1.2.dp,
+                    Brush.linearGradient(
+                        colors = if (isDark) {
+                            listOf(Color.White.copy(alpha = 0.22f), Color(0xFF0F172A))
+                        } else {
+                            listOf(Color.White, Color(0xFFD8E2F0))
+                        }
+                    )
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
             ) {
                 Column(
-                    modifier = Modifier.padding(22.dp),
+                    modifier = Modifier.padding(24.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
                         Translations.tr("login_title_owner", lang),
-                        fontWeight = FontWeight.Bold,
+                        fontWeight = FontWeight.ExtraBold,
                         fontSize = 16.sp,
-                        color = currentTheme.headingColor,
+                        color = if (isDark) Color.White else currentTheme.headingColor,
                         modifier = Modifier.fillMaxWidth()
                     )
 
                     Text(
                         Translations.tr("app_subtitle", lang),
                         fontSize = 13.sp,
-                        color = Color.Gray,
+                        color = if (isDark) Color(0xFFCBD5E1) else Color(0xFF64748B),
                         modifier = Modifier.fillMaxWidth()
                     )
 
-                    Button(
-                        onClick = {
-                            if (!isLoginMorphing) {
-                                isLoginMorphing = true
-                                onLogin(AppRole.OWNER, true)
-                                loginScope.launch {
-                                    delay(350)
-                                    isLoginMorphing = false
-                                }
-                            }
-                        },
+                    // 3D Luminous Capsule Login Button (Linear Gradient #43C6FF -> #6B46FF)
+                    val loginCapsuleShape = if (isLoginMorphing) CircleShape else RoundedCornerShape(50)
+                    val loginGradientBrush = Brush.linearGradient(
+                        colors = listOf(Color(0xFF43C6FF), Color(0xFF6B46FF))
+                    )
+                    val loginTopHighlight = Brush.verticalGradient(
+                        colors = listOf(Color.White.copy(alpha = 0.5f), Color.Transparent)
+                    )
+
+                    Box(
                         modifier = Modifier
                             .then(
                                 if (isLoginMorphing) Modifier.width(loginBtnWidth)
                                 else Modifier.fillMaxWidth()
                             )
-                            .height(50.dp)
+                            .height(52.dp)
+                            .shadow(
+                                elevation = 9.dp,
+                                shape = loginCapsuleShape,
+                                spotColor = Color(0xFF6B46FF),
+                                ambientColor = Color(0xFF43C6FF)
+                            )
+                            .clip(loginCapsuleShape)
+                            .background(brush = loginGradientBrush, shape = loginCapsuleShape)
+                            .border(width = 1.dp, brush = loginTopHighlight, shape = loginCapsuleShape)
+                            .clickable {
+                                if (!isLoginMorphing) {
+                                    isLoginMorphing = true
+                                    onLogin(AppRole.OWNER, true)
+                                    loginScope.launch {
+                                        delay(350)
+                                        isLoginMorphing = false
+                                    }
+                                }
+                            }
                             .testTag("btn_owner_login_morph"),
-                        shape = if (isLoginMorphing) CircleShape else buttonCornerShape,
-                        colors = ButtonDefaults.buttonColors(containerColor = activeAccent),
-                        contentPadding = if (isLoginMorphing) PaddingValues(0.dp) else ButtonDefaults.ContentPadding
+                        contentAlignment = Alignment.Center
                     ) {
                         AnimatedContent(
                             targetState = isLoginMorphing,
@@ -1837,12 +2167,13 @@ fun AgritechLoginScreen(
                                 )
                             } else {
                                 Text(
-                                    Translations.tr("login_btn", lang),
-                                    fontWeight = FontWeight.Bold,
+                                    "${Translations.tr("login_btn", lang)} ➔",
+                                    fontWeight = FontWeight.ExtraBold,
                                     fontSize = 15.sp,
                                     color = Color.White,
                                     maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.padding(horizontal = 16.dp)
                                 )
                             }
                         }
@@ -1850,7 +2181,7 @@ fun AgritechLoginScreen(
 
                     if (authErrorMessage != null) {
                         Surface(
-                            shape = buttonCornerShape,
+                            shape = RoundedCornerShape(18.dp),
                             color = Color(0xFFFFEBEE),
                             border = BorderStroke(1.dp, ActionRed.copy(alpha = 0.4f)),
                             modifier = Modifier
@@ -1867,35 +2198,56 @@ fun AgritechLoginScreen(
                         }
                     }
 
-                    // QR Onboarding Scan Button for New Workers & Vets ("مسح رمز الانضمام 📷")
-                    OutlinedButton(
-                        onClick = { showQrScannerSheet = true },
+                    // Soft Raised Neumorphic Capsule for QR Scan Join ("📷 مسح رمز الانضمام")
+                    val qrCapsuleShape = RoundedCornerShape(50)
+                    val qrRaisedBrush = if (isDark) {
+                        Brush.verticalGradient(listOf(Color(0xFF26354D), Color(0xFF162032)))
+                    } else {
+                        Brush.verticalGradient(listOf(Color.White, Color(0xFFE6EEF8)))
+                    }
+                    val qrBevelBorder = if (isDark) {
+                        Brush.linearGradient(listOf(Color.White.copy(alpha = 0.25f), Color(0xFF0F172A)))
+                    } else {
+                        Brush.linearGradient(listOf(Color.White, Color(0xFFCBD5E1)))
+                    }
+
+                    Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(48.dp)
+                            .height(50.dp)
+                            .shadow(
+                                elevation = 5.dp,
+                                shape = qrCapsuleShape,
+                                spotColor = Color(0xFF64748B)
+                            )
+                            .clip(qrCapsuleShape)
+                            .background(brush = qrRaisedBrush, shape = qrCapsuleShape)
+                            .border(width = 1.2.dp, brush = qrBevelBorder, shape = qrCapsuleShape)
+                            .clickable { showQrScannerSheet = true }
                             .testTag("btn_scan_qr_join"),
-                        shape = buttonCornerShape,
-                        border = BorderStroke(1.5.dp, activeAccent),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            containerColor = activeAccentContainer.copy(alpha = 0.45f),
-                            contentColor = activeAccent
-                        )
+                        contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            Icons.Default.QrCodeScanner,
-                            contentDescription = Translations.tr("btn_scan_qr_join", lang),
-                            tint = activeAccent,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            Translations.tr("btn_scan_qr_join", lang),
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp,
-                            color = activeAccent,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center,
+                            modifier = Modifier.padding(horizontal = 16.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.QrCodeScanner,
+                                contentDescription = Translations.tr("btn_scan_qr_join", lang),
+                                tint = activeAccent,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                Translations.tr("btn_scan_qr_join", lang),
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 14.sp,
+                                color = if (isDark) Color.White else activeAccent,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                     }
                 }
             }
@@ -2980,8 +3332,8 @@ fun ManagementHubScreen(
                                                 fontSize = 14.5.sp,
                                                 color = primaryTextColor,
                                                 maxLines = 1,
-                                                softWrap = false,
-                                                overflow = TextOverflow.Ellipsis
+                                                overflow = TextOverflow.Ellipsis,
+                                                modifier = Modifier.fillMaxWidth()
                                             )
                                             Text(
                                                 Translations.getLocalizedFarmLocation(farm.id, lang, farm.location),
@@ -2991,14 +3343,19 @@ fun ManagementHubScreen(
                                                 overflow = TextOverflow.Ellipsis
                                             )
                                         }
+                                        val compactLivabilityText = if (kotlin.math.abs(livability - kotlin.math.round(livability)) < 0.05) {
+                                            String.format(java.util.Locale.US, "%.0f%%", livability)
+                                        } else {
+                                            String.format(java.util.Locale.US, "%.1f%%", livability)
+                                        }
                                         Surface(
                                             shape = pillShape,
                                             color = accentBadgeBg
                                         ) {
                                             Text(
-                                                "${Translations.tr("liveability", lang)}: ${String.format(java.util.Locale.US, "%.1f", livability)}%",
-                                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                                                fontSize = 11.5.sp,
+                                                "${Translations.tr("liveability", lang)}: $compactLivabilityText",
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                                fontSize = 11.sp,
                                                 fontWeight = FontWeight.ExtraBold,
                                                 color = activeAccent,
                                                 maxLines = 1,
@@ -5087,7 +5444,7 @@ fun FarmCard(
     val appearance = LocalAppAppearanceState.current
     val isDark = currentTheme.isDark
     val primaryText = if (isDark) Color(0xFFFFFFFF) else currentTheme.headingColor
-    val secondaryText = if (isDark) Color(0xFFCBD5E1) else Color.Gray
+    val secondaryText = if (isDark) Color(0xFFCBD5E1) else Color(0xFF475569)
     val accentEmerald = appearance.accentColor
     val pillBgEmerald = appearance.accentContainerColor
     val pillBorderEmerald = accentEmerald.copy(alpha = 0.45f)
@@ -5328,6 +5685,7 @@ fun FarmCard(
                                     Text(
                                         Translations.tr("badge_estimated_weight", lang),
                                         fontSize = 10.sp,
+                                        fontWeight = FontWeight.SemiBold,
                                         color = secondaryText,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
@@ -5364,6 +5722,7 @@ fun FarmCard(
                                     Text(
                                         Translations.tr("livability_label", lang),
                                         fontSize = 10.sp,
+                                        fontWeight = FontWeight.SemiBold,
                                         color = secondaryText,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
@@ -5400,6 +5759,7 @@ fun FarmCard(
                                     Text(
                                         Translations.tr("feed_stock_short", lang),
                                         fontSize = 10.sp,
+                                        fontWeight = FontWeight.SemiBold,
                                         color = if (isFeedLow) feedInventoryColor else secondaryText,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
@@ -5482,82 +5842,65 @@ fun FarmCard(
                     )
                 }
 
-                // c) ID Footer Row: Primary full-weight action button "📖 فتح دفتر المزرعة" alongside compact secondary buttons "👥+ فريق" & "🔄 إعادة الدورة"
+                // c) ID Footer Row: Primary 3D capsule button "📖 فتح الدفتر" alongside compact secondary buttons "👥+ فريق" & "🔄 إعادة الدورة"
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Button(
+                    PremiumPillButton(
+                        text = Translations.tr("open_notebook", lang),
                         onClick = onOpenNotebook,
+                        variant = PremiumPillVariant.PRIMARY,
+                        fontSize = 12.5.sp,
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
+                        leadingIcon = {
+                            Icon(
+                                Icons.Default.MenuBook,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                                tint = Color.White
+                            )
+                        },
                         modifier = Modifier
                             .weight(1f)
                             .height(48.dp)
-                            .testTag("btn_open_notebook_${farm.id}"),
-                        shape = innerCornerShape,
-                        colors = ButtonDefaults.buttonColors(containerColor = appearance.accentOption.primaryColor),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.MenuBook,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp),
-                            tint = Color.White
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            Translations.tr("open_notebook", lang),
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp,
-                            color = Color.White,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
+                            .testTag("btn_open_notebook_${farm.id}")
+                    )
 
                     OutlinedButton(
                         onClick = { showTeamQrInviteSheet = true },
                         modifier = Modifier
                             .height(48.dp)
                             .testTag("btn_add_team_${farm.id}"),
-                        shape = innerCornerShape,
+                        shape = RoundedCornerShape(50),
                         border = BorderStroke(1.2.dp, accentEmerald.copy(alpha = 0.55f)),
                         colors = ButtonDefaults.outlinedButtonColors(
                             containerColor = qrButtonBg,
                             contentColor = accentEmerald
                         ),
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 10.dp)
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp)
                     ) {
                         Text(
                             Translations.tr("btn_invite_team_short", lang),
                             fontWeight = FontWeight.ExtraBold,
-                            fontSize = 12.sp,
+                            fontSize = 11.5.sp,
                             color = accentEmerald,
-                            maxLines = 1
+                            maxLines = 1,
+                            softWrap = false
                         )
                     }
 
-                    OutlinedButton(
+                    PremiumPillButton(
+                        text = Translations.tr("btn_reset_cycle", lang),
                         onClick = { showCardResetCycleDialog = true },
+                        variant = PremiumPillVariant.DELETE_RESET,
+                        fontSize = 11.5.sp,
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
                         modifier = Modifier
                             .height(48.dp)
-                            .testTag("btn_reset_cycle_${farm.id}"),
-                        shape = innerCornerShape,
-                        border = BorderStroke(1.2.dp, ActionRed.copy(alpha = 0.55f)),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            containerColor = if (isDark) Color(0xFF450A0A).copy(alpha = 0.4f) else Color(0xFFFEF2F2),
-                            contentColor = ActionRed
-                        ),
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 10.dp)
-                    ) {
-                        Text(
-                            Translations.tr("btn_reset_cycle", lang),
-                            fontWeight = FontWeight.ExtraBold,
-                            fontSize = 11.5.sp,
-                            color = if (isDark) Color(0xFFFCA5A5) else ActionRed,
-                            maxLines = 1
-                        )
-                    }
+                            .testTag("btn_reset_cycle_${farm.id}")
+                    )
                 }
             } else {
                 // 3. Empty State Handling: No active cycle exists for this farm
@@ -7309,6 +7652,70 @@ fun AgritechFarmNotebookScreen(
             val feedAlertRed = Color(0xFFD32F2F)
             val feedStatusColor = if (isLowFeedInventory) feedAlertRed else appearance.accentColor
             var showBarnClimateAndStatsDialog by remember { mutableStateOf(false) }
+            var showFcrWeightEditorDialog by remember { mutableStateOf(false) }
+            var showProfitEstimatorDialog by remember { mutableStateOf(false) }
+
+            // Shared interactive state for flexible Owner adjustment of Estimated Weight, FCR, and Net Profit Simulator
+            val defaultEstWeightKg = (actualMeasuredWeightKg ?: currentStandardWeightKg).coerceAtLeast(0.1)
+            val defaultFcr = if (accurateFcr > 0.0) accurateFcr else 1.68
+            var interactiveWeightKg by remember(activeCycle.id, ageInDays, actualMeasuredWeightKg) {
+                mutableStateOf(defaultEstWeightKg)
+            }
+            var interactiveFcr by remember(activeCycle.id, ageInDays, actualMeasuredWeightKg, totalFeed) {
+                mutableStateOf(defaultFcr)
+            }
+            var cullUnfitBirdsText by remember(activeCycle.id, liveBirds) {
+                mutableStateOf("0")
+            }
+            var simWeightInputText by remember(activeCycle.id, ageInDays, actualMeasuredWeightKg) {
+                mutableStateOf(String.format(java.util.Locale.US, "%.1f", defaultEstWeightKg))
+            }
+            var expectedPricePerKgText by remember(activeCycle.id) {
+                mutableStateOf("250")
+            }
+
+            fun updateWeightAndRecalcFcr(newWeight: Double) {
+                val clampedW = (kotlin.math.round(newWeight * 100.0) / 100.0).coerceIn(0.10, 6.50)
+                interactiveWeightKg = clampedW
+                simWeightInputText = String.format(java.util.Locale.US, "%.1f", clampedW)
+                if (totalFeed > 0.0) {
+                    interactiveFcr = PoultryCalculators.calculateFcr(
+                        totalFeedKg = totalFeed,
+                        initialBirds = activeCycle.totalBirdsPlaced,
+                        totalMortality = totalMortality,
+                        birdsSold = cumulativeBirdsSold,
+                        ageInDays = ageInDays,
+                        actualAvgWeightKg = clampedW,
+                        cumulativeSoldWeightKg = cumulativeSoldWeightKg
+                    )
+                }
+            }
+
+            fun updateFcrAndRecalcWeight(newFcr: Double) {
+                val clampedFcr = (kotlin.math.round(newFcr * 100.0) / 100.0).coerceIn(1.00, 3.80)
+                val oldFcr = interactiveFcr.coerceAtLeast(0.1)
+                interactiveFcr = clampedFcr
+                val impliedWeight = if (totalFeed > 0.0 && liveBirds > 0) {
+                    val requiredTotalBiomass = totalFeed / clampedFcr
+                    val liveBiomass = (requiredTotalBiomass - cumulativeSoldWeightKg).coerceAtLeast(liveBirds * 0.1)
+                    (liveBiomass / liveBirds).coerceIn(0.10, 6.50)
+                } else {
+                    (interactiveWeightKg * (oldFcr / clampedFcr)).coerceIn(0.10, 6.50)
+                }
+                val roundedW = kotlin.math.round(impliedWeight * 100.0) / 100.0
+                interactiveWeightKg = roundedW
+                simWeightInputText = String.format(java.util.Locale.US, "%.1f", roundedW)
+            }
+
+            val dynamicProducedBiomassKg = PoultryCalculators.calculateTotalProducedBiomassKg(
+                liveBirds = liveBirds,
+                avgLiveWeightKg = interactiveWeightKg,
+                cumulativeSoldWeightKg = cumulativeSoldWeightKg
+            )
+            val dynamicCostPerKg = PoultryCalculators.calculateCostPerKg(
+                totalExpenses = totalExpenses,
+                totalProducedBiomassKg = dynamicProducedBiomassKg
+            )
 
             if (pendingSignatureApprovalRequest != null) {
                 InvoiceApprovalSignatureDialog(
@@ -7343,15 +7750,462 @@ fun AgritechFarmNotebookScreen(
                     liveBirds = liveBirds,
                     livabilityPct = liveabilityPct,
                     feedInventoryKg = effectiveFeedInventoryKg,
-                    fcr = accurateFcr,
-                    estimatedWeightKg = effectiveAvgWeightKg,
+                    fcr = interactiveFcr,
+                    estimatedWeightKg = interactiveWeightKg,
                     netBalance = netBalance,
                     totalExpenses = totalExpenses,
                     currencyCode = curr,
                     lang = lang,
                     currentTheme = currentTheme,
+                    onFcrWeightCardClick = { showFcrWeightEditorDialog = true },
+                    onNetTreasuryCardClick = { showProfitEstimatorDialog = true },
                     onDismiss = { showBarnClimateAndStatsDialog = false }
                 )
+            }
+
+            if (showFcrWeightEditorDialog) {
+                val dialogAccent = appearance.accentColor
+                val dialogSecondaryColor = if (currentTheme.isDark) Color(0xFFCBD5E1) else Color(0xFF475569)
+                androidx.compose.ui.window.Dialog(onDismissRequest = { showFcrWeightEditorDialog = false }) {
+                    Card(
+                        shape = RoundedCornerShape(24.dp),
+                        colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 10.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("dialog_fcr_weight_editor")
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(18.dp),
+                            verticalArrangement = Arrangement.spacedBy(14.dp)
+                        ) {
+                            Text(
+                                Translations.tr("fcr_weight_editor_dialog_title", lang),
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 15.5.sp,
+                                color = if (currentTheme.isDark) Color.White else currentTheme.headingColor
+                            )
+
+                            // 🐥 الوزن التقديري الحالي: [-] ≈ 2.8 كغ [+]
+                            NeumorphicRecessedDisplay(
+                                isDark = currentTheme.isDark,
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        "🐥 ${Translations.tr("est_weight", lang)}",
+                                        color = dialogSecondaryColor,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        PremiumTactileCalcButton(
+                                            label = "-",
+                                            onClick = { updateWeightAndRecalcFcr(interactiveWeightKg - 0.1) },
+                                            isDark = currentTheme.isDark,
+                                            accentColor = dialogAccent,
+                                            fontSize = 16.sp,
+                                            modifier = Modifier
+                                                .width(44.dp)
+                                                .testTag("btn_dialog_adjust_weight_minus")
+                                        )
+                                        Text(
+                                            "≈ ${String.format(java.util.Locale.US, "%.1f", interactiveWeightKg)} $kgUnit",
+                                            fontWeight = FontWeight.ExtraBold,
+                                            fontSize = 15.sp,
+                                            color = dialogAccent,
+                                            modifier = Modifier.testTag("txt_dialog_est_weight_value")
+                                        )
+                                        PremiumTactileCalcButton(
+                                            label = "+",
+                                            onClick = { updateWeightAndRecalcFcr(interactiveWeightKg + 0.1) },
+                                            isDark = currentTheme.isDark,
+                                            accentColor = dialogAccent,
+                                            fontSize = 16.sp,
+                                            modifier = Modifier
+                                                .width(44.dp)
+                                                .testTag("btn_dialog_adjust_weight_plus")
+                                        )
+                                    }
+                                }
+                            }
+
+                            // ⚖️ معامل التحويل FCR: [-] ≈ 1.68 [+]
+                            NeumorphicRecessedDisplay(
+                                isDark = currentTheme.isDark,
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        Translations.tr("fcr", lang),
+                                        color = dialogSecondaryColor,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        PremiumTactileCalcButton(
+                                            label = "-",
+                                            onClick = { updateFcrAndRecalcWeight(interactiveFcr - 0.02) },
+                                            isDark = currentTheme.isDark,
+                                            accentColor = dialogAccent,
+                                            fontSize = 16.sp,
+                                            modifier = Modifier
+                                                .width(44.dp)
+                                                .testTag("btn_dialog_adjust_fcr_minus")
+                                        )
+                                        Text(
+                                            "≈ ${String.format(java.util.Locale.US, "%.2f", interactiveFcr)}",
+                                            fontWeight = FontWeight.ExtraBold,
+                                            fontSize = 15.sp,
+                                            color = dialogAccent,
+                                            modifier = Modifier.testTag("txt_dialog_fcr_value")
+                                        )
+                                        PremiumTactileCalcButton(
+                                            label = "+",
+                                            onClick = { updateFcrAndRecalcWeight(interactiveFcr + 0.02) },
+                                            isDark = currentTheme.isDark,
+                                            accentColor = dialogAccent,
+                                            fontSize = 16.sp,
+                                            modifier = Modifier
+                                                .width(44.dp)
+                                                .testTag("btn_dialog_adjust_fcr_plus")
+                                        )
+                                    }
+                                }
+                            }
+
+                            // 🏷️ تكلفة الكيلو الواحد (تتحدث لحظياً)
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 4.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    Translations.tr("cost_per_kg", lang),
+                                    fontSize = 12.5.sp,
+                                    color = dialogSecondaryColor
+                                )
+                                Text(
+                                    if (dynamicProducedBiomassKg > 0) "${String.format(java.util.Locale.US, "%.1f", dynamicCostPerKg)} $curr/$kgUnit" else "0 $curr/$kgUnit",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = if (currentTheme.isDark) Color.White else currentTheme.headingColor
+                                )
+                            }
+
+                            PremiumPillButton(
+                                text = Translations.tr("btn_close_check", lang),
+                                onClick = { showFcrWeightEditorDialog = false },
+                                variant = PremiumPillVariant.PRIMARY,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(48.dp)
+                                    .testTag("btn_close_fcr_weight_editor")
+                            )
+                        }
+                    }
+                }
+            }
+
+            if (showProfitEstimatorDialog) {
+                val dialogAccent = appearance.accentColor
+                val parsedCullBirds = (cullUnfitBirdsText.toIntOrNull() ?: 0).coerceIn(0, liveBirds)
+                val marketableBirds = (liveBirds - parsedCullBirds).coerceAtLeast(0)
+                val simPricePerKg = expectedPricePerKgText.toDoubleOrNull() ?: 0.0
+                val expectedTotalSaleWeightKg = marketableBirds * interactiveWeightKg
+                val expectedTotalSalesRevenue = expectedTotalSaleWeightKg * simPricePerKg
+                val estimatedNetProfit = expectedTotalSalesRevenue - totalExpenses
+                val isSimulatedProfitPositive = estimatedNetProfit >= 0.0
+                val profitHighlightColor = if (isSimulatedProfitPositive) dialogAccent else ActionRed
+
+                androidx.compose.ui.window.Dialog(onDismissRequest = { showProfitEstimatorDialog = false }) {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("card_sales_profit_simulator"),
+                        shape = RoundedCornerShape(24.dp),
+                        colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
+                        border = BorderStroke(1.2.dp, dialogAccent.copy(alpha = 0.35f)),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 10.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .verticalScroll(rememberScrollState())
+                                .padding(18.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Text(
+                                Translations.tr("sales_profit_simulator_title", lang),
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 15.5.sp,
+                                color = if (currentTheme.isDark) Color.White else currentTheme.headingColor
+                            )
+                            Text(
+                                Translations.tr("sales_profit_simulator_subtitle", lang),
+                                fontSize = 11.5.sp,
+                                color = if (currentTheme.isDark) Color(0xFFCBD5E1) else Color(0xFF475569)
+                            )
+
+                            // أ) الطيور الصالحة للبيع + خصم الفرزة (الطيور غير الصالحة)
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                NeumorphicRecessedDisplay(
+                                    isDark = currentTheme.isDark,
+                                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            "🐔 ${Translations.tr("marketable_birds_label", lang)}:",
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (currentTheme.isDark) Color.White else currentTheme.headingColor
+                                        )
+                                        Text(
+                                            "${String.format(java.util.Locale.US, "%,d", marketableBirds)} ${Translations.tr("bird_unit", lang)}",
+                                            fontSize = 15.sp,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = dialogAccent,
+                                            modifier = Modifier.testTag("txt_sim_marketable_birds")
+                                        )
+                                    }
+                                }
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    NeumorphicRecessedField(
+                                        value = cullUnfitBirdsText,
+                                        onValueChange = { raw ->
+                                            cullUnfitBirdsText = raw.filter { it.isDigit() }
+                                        },
+                                        label = Translations.tr("cull_unfit_birds_label", lang),
+                                        isDark = currentTheme.isDark,
+                                        accentColor = dialogAccent,
+                                        keyboardOptions = KeyboardOptions(
+                                            keyboardType = KeyboardType.Number,
+                                            imeAction = ImeAction.Next
+                                        ),
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .testTag("input_cull_unfit_birds")
+                                    )
+                                    PremiumTactileCalcButton(
+                                        label = "-10",
+                                        onClick = {
+                                            val nextCull = (parsedCullBirds - 10).coerceAtLeast(0)
+                                            cullUnfitBirdsText = nextCull.toString()
+                                        },
+                                        isDark = currentTheme.isDark,
+                                        accentColor = dialogAccent,
+                                        fontSize = 11.5.sp,
+                                        modifier = Modifier
+                                            .width(48.dp)
+                                            .testTag("btn_cull_minus")
+                                    )
+                                    PremiumTactileCalcButton(
+                                        label = "+10",
+                                        onClick = {
+                                            val nextCull = (parsedCullBirds + 10).coerceAtMost(liveBirds)
+                                            cullUnfitBirdsText = nextCull.toString()
+                                        },
+                                        isDark = currentTheme.isDark,
+                                        accentColor = dialogAccent,
+                                        fontSize = 11.5.sp,
+                                        modifier = Modifier
+                                            .width(48.dp)
+                                            .testTag("btn_cull_plus")
+                                    )
+                                }
+
+                                // ب) متوسط الوزن التقديري (كغ) + سعر البيع المتوقع للكيلو (دج)
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    NeumorphicRecessedField(
+                                        value = simWeightInputText,
+                                        onValueChange = { raw ->
+                                            val filtered = raw.filter { it.isDigit() || it == '.' }
+                                            simWeightInputText = filtered
+                                            val parsedW = filtered.toDoubleOrNull()
+                                            if (parsedW != null && parsedW >= 0.1) {
+                                                interactiveWeightKg = parsedW.coerceAtMost(6.5)
+                                                if (totalFeed > 0.0) {
+                                                    interactiveFcr = PoultryCalculators.calculateFcr(
+                                                        totalFeedKg = totalFeed,
+                                                        initialBirds = activeCycle.totalBirdsPlaced,
+                                                        totalMortality = totalMortality,
+                                                        birdsSold = cumulativeBirdsSold,
+                                                        ageInDays = ageInDays,
+                                                        actualAvgWeightKg = interactiveWeightKg,
+                                                        cumulativeSoldWeightKg = cumulativeSoldWeightKg
+                                                    )
+                                                }
+                                            }
+                                        },
+                                        label = Translations.tr("sim_avg_weight_label", lang),
+                                        isDark = currentTheme.isDark,
+                                        accentColor = dialogAccent,
+                                        keyboardOptions = KeyboardOptions(
+                                            keyboardType = KeyboardType.Number,
+                                            imeAction = ImeAction.Next
+                                        ),
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .testTag("input_sim_avg_weight")
+                                    )
+
+                                    NeumorphicRecessedField(
+                                        value = expectedPricePerKgText,
+                                        onValueChange = { raw ->
+                                            expectedPricePerKgText = raw.filter { it.isDigit() || it == '.' }
+                                        },
+                                        label = Translations.tr("sim_expected_price_kg_label", lang),
+                                        isDark = currentTheme.isDark,
+                                        accentColor = dialogAccent,
+                                        keyboardOptions = KeyboardOptions(
+                                            keyboardType = KeyboardType.Number,
+                                            imeAction = ImeAction.Done
+                                        ),
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .testTag("input_sim_price_per_kg")
+                                    )
+                                }
+                            }
+
+                            // ج) النتيجة الحسابية المباشرة داخل شاشة رقمية غائرة (Recessed Inset Neumorphic Display)
+                            NeumorphicRecessedDisplay(
+                                isDark = currentTheme.isDark,
+                                contentPadding = PaddingValues(14.dp)
+                            ) {
+                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            Translations.tr("sim_total_expected_weight_label", lang),
+                                            fontSize = 12.sp,
+                                            color = if (currentTheme.isDark) Color(0xFFCBD5E1) else Color(0xFF475569),
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        Text(
+                                            "${String.format(java.util.Locale.US, "%,.1f", expectedTotalSaleWeightKg)} $kgUnit",
+                                            fontSize = 13.5.sp,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = if (currentTheme.isDark) Color.White else currentTheme.headingColor,
+                                            modifier = Modifier.testTag("txt_sim_total_weight")
+                                        )
+                                    }
+
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            Translations.tr("sim_total_expected_revenue_label", lang),
+                                            fontSize = 12.sp,
+                                            color = if (currentTheme.isDark) Color(0xFFCBD5E1) else Color(0xFF475569),
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        Text(
+                                            "${String.format(java.util.Locale.US, "%,.0f", expectedTotalSalesRevenue)} $curr",
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = dialogAccent,
+                                            modifier = Modifier.testTag("txt_sim_total_revenue")
+                                        )
+                                    }
+
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            Translations.tr("sim_actual_cycle_expenses_label", lang),
+                                            fontSize = 12.sp,
+                                            color = if (currentTheme.isDark) Color(0xFFCBD5E1) else Color(0xFF475569),
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        Text(
+                                            "- ${String.format(java.util.Locale.US, "%,.0f", totalExpenses)} $curr",
+                                            fontSize = 13.5.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = ActionRed
+                                        )
+                                    }
+
+                                    HorizontalDivider(color = profitHighlightColor.copy(alpha = 0.25f))
+
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            Translations.tr("sim_estimated_net_profit_label", lang),
+                                            fontSize = 13.5.sp,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = if (currentTheme.isDark) Color.White else currentTheme.headingColor,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        Text(
+                                            "${if (isSimulatedProfitPositive) "+" else "-"} ${String.format(java.util.Locale.US, "%,.0f", kotlin.math.abs(estimatedNetProfit))} $curr",
+                                            fontSize = 16.sp,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = profitHighlightColor,
+                                            modifier = Modifier.testTag("txt_sim_net_profit")
+                                        )
+                                    }
+                                }
+                            }
+
+                            PremiumPillButton(
+                                text = Translations.tr("btn_close_check", lang),
+                                onClick = { showProfitEstimatorDialog = false },
+                                variant = PremiumPillVariant.PRIMARY,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(48.dp)
+                                    .testTag("btn_close_profit_simulator_dialog")
+                            )
+                        }
+                    }
+                }
             }
 
             if (showFeedLedgerBottomSheet) {
@@ -8178,30 +9032,42 @@ fun AgritechFarmNotebookScreen(
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
                         Card(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("card_treasury_summary"),
                             shape = notebookShape,
                             colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
                             elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                         ) {
-                            Column(modifier = Modifier.padding(20.dp)) {
-                                Text(Translations.tr("treasury_title", lang), fontWeight = FontWeight.Bold, fontSize = 15.sp, color = currentTheme.headingColor)
-                                Spacer(modifier = Modifier.height(14.dp))
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
+                            Column(modifier = Modifier.padding(18.dp)) {
+                                Text(
+                                    Translations.tr("treasury_title", lang),
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 15.sp,
+                                    color = currentTheme.headingColor
+                                )
+                                Spacer(modifier = Modifier.height(12.dp))
+                                NeumorphicRecessedDisplay(
+                                    isDark = currentTheme.isDark,
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 14.dp)
                                 ) {
-                                    val positiveGreen = notebookAccent
-                                    Box(modifier = Modifier.weight(1f)) {
-                                        CalmFinancialItem(Translations.tr("total_expenses", lang), "${String.format(java.util.Locale.US, "%,.0f", totalExpenses)} $curr", ActionRed)
-                                    }
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Box(modifier = Modifier.weight(1f)) {
-                                        CalmFinancialItem(Translations.tr("total_income", lang), "${String.format(java.util.Locale.US, "%,.0f", totalIncome)} $curr", positiveGreen)
-                                    }
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Box(modifier = Modifier.weight(1.15f)) {
-                                        CalmFinancialItem(Translations.tr("net_balance", lang), "${String.format(java.util.Locale.US, "%,.0f", netBalance)} $curr", if (netBalance >= 0) positiveGreen else ActionRed)
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        val positiveGreen = notebookAccent
+                                        Box(modifier = Modifier.weight(1f)) {
+                                            CalmFinancialItem(Translations.tr("total_expenses", lang), "${String.format(java.util.Locale.US, "%,.0f", totalExpenses)} $curr", ActionRed)
+                                        }
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Box(modifier = Modifier.weight(1f)) {
+                                            CalmFinancialItem(Translations.tr("total_income", lang), "${String.format(java.util.Locale.US, "%,.0f", totalIncome)} $curr", positiveGreen)
+                                        }
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Box(modifier = Modifier.weight(1.15f)) {
+                                            CalmFinancialItem(Translations.tr("net_balance", lang), "${String.format(java.util.Locale.US, "%,.0f", netBalance)} $curr", if (netBalance >= 0) positiveGreen else ActionRed)
+                                        }
                                     }
                                 }
                             }
@@ -8238,27 +9104,25 @@ fun AgritechFarmNotebookScreen(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            Button(
+                            PremiumPillButton(
+                                text = Translations.tr("btn_spend", lang),
                                 onClick = { showExpenseDialog = true },
+                                variant = PremiumPillVariant.DELETE_RESET,
+                                fontSize = 12.5.sp,
                                 modifier = Modifier
                                     .weight(1f)
-                                    .height(48.dp),
-                                shape = notebookBtnShape,
-                                colors = ButtonDefaults.buttonColors(containerColor = ActionRed)
-                            ) {
-                                Text(Translations.tr("btn_spend", lang), fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color.White)
-                            }
+                                    .height(48.dp)
+                            )
 
-                            Button(
+                            PremiumPillButton(
+                                text = Translations.tr("btn_income", lang),
                                 onClick = { showIncomeDialog = true },
+                                variant = PremiumPillVariant.SALES_INCOME,
+                                fontSize = 12.5.sp,
                                 modifier = Modifier
                                     .weight(1f)
-                                    .height(48.dp),
-                                shape = notebookBtnShape,
-                                colors = ButtonDefaults.buttonColors(containerColor = notebookButtonAccent)
-                            ) {
-                                Text(Translations.tr("btn_income", lang), fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color.White)
-                            }
+                                    .height(48.dp)
+                            )
                         }
 
                         Text(Translations.tr("tx_history_title", lang), fontWeight = FontWeight.Bold, fontSize = 15.sp, color = currentTheme.headingColor)
@@ -8323,7 +9187,7 @@ fun AgritechFarmNotebookScreen(
                                                 Text(
                                                     if (isChickenSale && tx.date.contains("-")) tx.date else "${Translations.tr("day_prefix", lang)} $dayDigits",
                                                     fontSize = 12.sp,
-                                                    color = if (currentTheme.isDark) Color(0xFFCBD5E1) else Color.Gray
+                                                    color = if (currentTheme.isDark) Color(0xFFCBD5E1) else Color(0xFF475569)
                                                 )
                                             }
 
@@ -8439,7 +9303,7 @@ fun AgritechFarmNotebookScreen(
                             .padding(18.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        // 1. بطاقة مؤشرات الأداء والكفاءة (تبقى كما هي في الأعلى)
+                        // 1. بطاقة مؤشرات الأداء والكفاءة (مع تحكم مرن في الوزن التقديري ومعامل التحويل FCR)
                         Text(Translations.tr("analytics_title", lang), fontWeight = FontWeight.Bold, fontSize = 16.sp, color = currentTheme.headingColor)
 
                         Card(
@@ -8451,6 +9315,7 @@ fun AgritechFarmNotebookScreen(
                             Column(modifier = Modifier.padding(20.dp)) {
                                 val positiveGreen = notebookAccent
                                 val darkValueColor = if (currentTheme.isDark) Color.White else Color(0xFF212121)
+                                val secondaryLabelColor = if (currentTheme.isDark) Color(0xFFCBD5E1) else Color(0xFF475569)
                                 val qtlUnit = Translations.tr("quintal_unit", lang)
                                 val birdUnit = Translations.tr("bird_unit", lang)
 
@@ -8462,10 +9327,7 @@ fun AgritechFarmNotebookScreen(
                                     liveBirds = liveBirds,
                                     cumulativeBirdsSold = cumulativeBirdsSold
                                 )
-                                val costPerKg = PoultryCalculators.calculateCostPerKg(
-                                    totalExpenses = totalExpenses,
-                                    totalProducedBiomassKg = totalProducedBiomassKg
-                                )
+                                val costPerKg = dynamicCostPerKg
 
                                 // 1. 🐔 عدد الدجاج الحي داخل العنبر
                                 CalmMetricRow(
@@ -8500,48 +9362,73 @@ fun AgritechFarmNotebookScreen(
                                     darkValueColor
                                 )
 
-                                // 5. 🐥 متوسط وزن الطائر (الفعلي المسجل أو غير مقاس مع مرجع Ross 308)
-                                val weightMetricText = if (actualMeasuredWeightKg != null) {
-                                    "${String.format(java.util.Locale.US, "%.3f", actualMeasuredWeightKg)} $kgUnit"
-                                } else {
-                                    "${Translations.tr("weight_not_measured_yet", lang)} (${Translations.tr("ross308_reference_hint", lang)}: ${String.format(java.util.Locale.US, "%.3f", currentStandardWeightKg)} $kgUnit)"
+                                // 5. 🐥 الوزن التقديري الحالي (قراءة فقط برقم عشري واحد نظيف — التعديل محصور في نافذة المناخ)
+                                val formattedSimpleWeight = String.format(java.util.Locale.US, "%.1f", interactiveWeightKg)
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 8.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        "🐥 ${Translations.tr("est_weight", lang)}",
+                                        color = secondaryLabelColor,
+                                        fontSize = 14.sp,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    Text(
+                                        "≈ $formattedSimpleWeight $kgUnit",
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontSize = 15.sp,
+                                        color = positiveGreen,
+                                        modifier = Modifier.testTag("txt_est_weight_value")
+                                    )
                                 }
-                                CalmMetricRow(
-                                    Translations.tr("est_weight", lang),
-                                    weightMetricText,
-                                    if (actualMeasuredWeightKg != null) positiveGreen else darkValueColor
-                                )
+                                HorizontalDivider(color = if (currentTheme.isDark) Color(0xFF2C2C2C) else Color(0xFFF5F5F5))
 
-                                // 6. ⚖️ معامل التحويل (FCR)
-                                val fcrMetricText = if (actualMeasuredWeightKg != null) {
-                                    String.format(java.util.Locale.US, "%.3f", accurateFcr)
-                                } else {
-                                    "${Translations.tr("weight_not_measured_yet", lang)} (${Translations.tr("ross308_reference_hint", lang)}: ${String.format(java.util.Locale.US, "%.3f", accurateFcr)})"
+                                // 6. ⚖️ معامل التحويل FCR (قراءة فقط — التعديل محصور في نافذة المناخ)
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 8.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        Translations.tr("fcr", lang),
+                                        color = secondaryLabelColor,
+                                        fontSize = 14.sp,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    Text(
+                                        "≈ ${String.format(java.util.Locale.US, "%.2f", interactiveFcr)}",
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontSize = 15.sp,
+                                        color = positiveGreen,
+                                        modifier = Modifier.testTag("txt_fcr_value")
+                                    )
                                 }
-                                CalmMetricRow(
-                                    Translations.tr("fcr", lang),
-                                    fcrMetricText,
-                                    if (actualMeasuredWeightKg != null) positiveGreen else darkValueColor
-                                )
+                                HorizontalDivider(color = if (currentTheme.isDark) Color(0xFF2C2C2C) else Color(0xFFF5F5F5))
 
-                                // 6. 💰 إجمالي مصاريف العنبر (دج)
+                                // 7. 💰 إجمالي مصاريف العنبر (دج)
                                 CalmMetricRow(
                                     Translations.tr("total_expenses", lang),
                                     "${String.format(java.util.Locale.US, "%,.0f", totalExpenses)} $curr",
                                     ActionRed
                                 )
 
-                                // 7. 🐓 تكلفة الدجاجة الواحدة (دج/طائر)
+                                // 8. 🐓 تكلفة الدجاجة الواحدة (دج/طائر)
                                 CalmMetricRow(
                                     Translations.tr("cost_per_bird", lang),
                                     "${String.format(java.util.Locale.US, "%,.1f", costPerBird)} $curr/$birdUnit",
                                     darkValueColor
                                 )
 
-                                // 8. 🏷️ تكلفة الكيلو الواحد (دج/كغ)
+                                // 9. 🏷️ تكلفة الكيلو الواحد (دج/كغ — يتحدث لحظياً عند تعديل الوزن أو FCR)
                                 CalmMetricRow(
                                     Translations.tr("cost_per_kg", lang),
-                                    if (totalProducedBiomassKg > 0) "${String.format(java.util.Locale.US, "%.1f", costPerKg)} $curr/$kgUnit" else "0 $curr/$kgUnit",
+                                    if (dynamicProducedBiomassKg > 0) "${String.format(java.util.Locale.US, "%.1f", costPerKg)} $curr/$kgUnit" else "0 $curr/$kgUnit",
                                     darkValueColor
                                 )
                             }
@@ -8609,7 +9496,7 @@ fun AgritechFarmNotebookScreen(
                                         Text(
                                             Translations.tr("sales_banner_desc", lang),
                                             fontSize = 12.sp,
-                                            color = if (currentTheme.isDark) Color(0xFFCBD5E1) else Color.Gray
+                                            color = if (currentTheme.isDark) Color(0xFFCBD5E1) else Color(0xFF475569)
                                         )
                                     }
                                 }
@@ -8714,31 +9601,22 @@ fun AgritechFarmNotebookScreen(
                                     }
                                 }
 
-                                // 1. زر البيع الرئيسي المختصر [البيع 🍗] في الأعلى (متاح دائماً لتوثيق وحساب المبيعات؛ والتنبيه أعلاه إرشادي فقط)
-                                Button(
+                                // 1. زر البيع الرئيسي المختصر [البيع 🍗] بتصميم كبسولة ثلاثية الأبعاد زمردية (PremiumPillButton)
+                                PremiumPillButton(
+                                    text = Translations.tr("btn_start_sales_flow", lang),
                                     onClick = {
                                         salesFlowStep = SalesFlowStep.STAGE_1_SHIPMENT_INFO
                                     },
-                                    enabled = true,
+                                    variant = PremiumPillVariant.SALES_INCOME,
+                                    fontSize = 14.5.sp,
+                                    leadingIcon = {
+                                        Icon(Icons.Default.Scale, contentDescription = null, tint = Color.White, modifier = Modifier.size(22.dp))
+                                    },
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .height(52.dp)
-                                        .testTag("btn_start_sales_flow"),
-                                    shape = notebookBtnShape,
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = notebookButtonAccent
-                                    ),
-                                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp)
-                                ) {
-                                    Icon(Icons.Default.Scale, contentDescription = null, tint = Color.White, modifier = Modifier.size(22.dp))
-                                    Spacer(modifier = Modifier.width(10.dp))
-                                    Text(
-                                        Translations.tr("btn_start_sales_flow", lang),
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color.White
-                                    )
-                                }
+                                        .testTag("btn_start_sales_flow")
+                                )
 
                                 // 2. زر [🧾 فاتورة البيع] الثانوي بعرض كامل أسفل زر البيع
                                 if (lastSavedInvoice != null || totalSalesValue > 0) {
@@ -9793,10 +10671,11 @@ fun VetMedicineInvoiceDialog(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                "💊 $medsCategoryLabel:",
+                                "$medsCategoryLabel:",
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = accentEmerald
+                                color = accentEmerald,
+                                modifier = Modifier.weight(1f)
                             )
                             Text(
                                 "-${String.format(java.util.Locale.US, "%,.0f", parsedPrice)} $curr",
@@ -9807,10 +10686,13 @@ fun VetMedicineInvoiceDialog(
                         }
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            "يتم قيد الفاتورة آلياً في الخزنة وتسجيل الوصفة في السجل الطبي للعنبر.",
+                            text = Translations.tr("vet_invoice_auto_ledger_note", lang),
                             fontSize = 11.5.sp,
                             lineHeight = 17.sp,
-                            color = primaryText
+                            color = primaryText,
+                            softWrap = true,
+                            overflow = TextOverflow.Visible,
+                            modifier = Modifier.fillMaxWidth()
                         )
                     }
                 }
@@ -10300,9 +11182,9 @@ fun BatchShipmentInfoScreen(
                             color = currentTheme.headingColor
                         )
                         Text(
-                            "${Translations.getLocalizedFarmName(farm.id, lang)} • ${Translations.tr("cycle_label", lang)}: ${cycle.id}",
+                            "${Translations.getLocalizedFarmName(farm.id, lang, farm.name)} • ${Translations.tr("active_cycle_label", lang)}",
                             fontSize = 12.sp,
-                            color = currentTheme.headingColor.copy(alpha = 0.75f)
+                            color = if (currentTheme.isDark) Color(0xFFCBD5E1) else Color(0xFF475569)
                         )
                     }
                 },
@@ -10828,43 +11710,50 @@ fun BatchQuickWeighingScreen(
                         }
                     }
 
-                    // لا يتم حساب وإظهار الصافي إلا في الأسفل من المجموع الكلي
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                    // لا يتم حساب وإظهار الصافي إلا في الأسفل من المجموع الكلي داخل شاشة عرض رقمية غائرة (NeumorphicRecessedDisplay)
+                    NeumorphicRecessedDisplay(
+                        isDark = currentTheme.isDark,
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 10.dp)
                     ) {
-                        // صافي وزن الدجاج الحي = (مجموع أوزان الممتلئ) - (مجموع أوزان الفارغ)
-                        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1.1f)) {
-                            Text(Translations.tr("weigh_net_weight_label", lang), fontSize = 10.sp, color = Color.Gray, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text("${String.format(java.util.Locale.US, "%,.1f", totalNetKg)} $kgUnit", fontWeight = FontWeight.Bold, fontSize = 12.5.sp, color = positiveGreen)
-                        }
-                        // إجمالي عدد الطيور المباعة
-                        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
-                            Text(Translations.tr("weigh_total_birds_label", lang), fontSize = 10.sp, color = Color.Gray, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text(
-                                "${String.format(java.util.Locale.US, "%,d", totalBirdsSold)} ${Translations.tr("birds_unit_short", lang)}",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 12.5.sp,
-                                color = if (isBirdsSoldExceedingLive) ActionRed else darkColor
-                            )
-                        }
-                        // معدل وزن الدجاجة الواحدة = (الصافي الكلي ÷ إجمالي الطيور)
-                        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
-                            Text(Translations.tr("weigh_avg_bird_label", lang), fontSize = 10.sp, color = Color.Gray, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text("${String.format(java.util.Locale.US, "%.3f", avgBirdWeightKg)} $kgUnit", fontWeight = FontWeight.Bold, fontSize = 12.5.sp, color = positiveGreen)
-                        }
-                        // إجمالي قيمة المبيعات (دج) = (الصافي الكلي × سعر الكيلو)
-                        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1.2f)) {
-                            Text(Translations.tr("weigh_total_sales_label", lang), fontSize = 10.sp, color = Color.Gray, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text("${String.format(java.util.Locale.US, "%,.0f", totalSalesValue)} $curr", fontWeight = FontWeight.ExtraBold, fontSize = 13.5.sp, color = positiveGreen)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            val summaryLabelColor = if (currentTheme.isDark) Color(0xFFCBD5E1) else Color(0xFF475569)
+                            // صافي وزن الدجاج الحي = (مجموع أوزان الممتلئ) - (مجموع أوزان الفارغ)
+                            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1.1f)) {
+                                Text(Translations.tr("weigh_net_weight_label", lang), fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = summaryLabelColor, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text("${String.format(java.util.Locale.US, "%,.1f", totalNetKg)} $kgUnit", fontWeight = FontWeight.Bold, fontSize = 12.5.sp, color = positiveGreen)
+                            }
+                            // إجمالي عدد الطيور المباعة
+                            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
+                                Text(Translations.tr("weigh_total_birds_label", lang), fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = summaryLabelColor, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text(
+                                    "${String.format(java.util.Locale.US, "%,d", totalBirdsSold)} ${Translations.tr("birds_unit_short", lang)}",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.5.sp,
+                                    color = if (isBirdsSoldExceedingLive) ActionRed else darkColor
+                                )
+                            }
+                            // معدل وزن الدجاجة الواحدة = (الصافي الكلي ÷ إجمالي الطيور)
+                            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
+                                Text(Translations.tr("weigh_avg_bird_label", lang), fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = summaryLabelColor, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text("${String.format(java.util.Locale.US, "%.3f", avgBirdWeightKg)} $kgUnit", fontWeight = FontWeight.Bold, fontSize = 12.5.sp, color = positiveGreen)
+                            }
+                            // إجمالي قيمة المبيعات (دج) = (الصافي الكلي × سعر الكيلو)
+                            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1.2f)) {
+                                Text(Translations.tr("weigh_total_sales_label", lang), fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = summaryLabelColor, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text("${String.format(java.util.Locale.US, "%,.0f", totalSalesValue)} $curr", fontWeight = FontWeight.ExtraBold, fontSize = 13.5.sp, color = positiveGreen)
+                            }
                         }
                     }
 
-                    // زر [حفظ الفاتورة وترحيل للخزنة 💰] في الأسفل داخل SafeArea مع مؤشر التحميل (CircularProgressIndicator)
+                    // زر [حفظ الفاتورة وترحيل للخزنة 💰] في الأسفل داخل SafeArea بتصميم كبسولة ثلاثية الأبعاد زمردية
                     var isSavingInvoice by remember { mutableStateOf(false) }
                     val saveScope = rememberCoroutineScope()
-                    Button(
+                    PremiumPillButton(
+                        text = Translations.tr("btn_save_invoice_and_migrate", lang),
                         onClick = {
                             if (!isSavingInvoice && totalSalesValue > 0 && !isBirdsSoldExceedingLive) {
                                 isSavingInvoice = true
@@ -10876,33 +11765,24 @@ fun BatchQuickWeighingScreen(
                             }
                         },
                         enabled = totalSalesValue > 0 && !isBirdsSoldExceedingLive && !isSavingInvoice,
+                        variant = PremiumPillVariant.SALES_INCOME,
+                        fontSize = 14.sp,
+                        leadingIcon = {
+                            if (isSavingInvoice) {
+                                CircularProgressIndicator(
+                                    color = Color.White,
+                                    strokeWidth = 2.5.dp,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            } else {
+                                Icon(Icons.Default.ReceiptLong, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+                            }
+                        },
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(52.dp)
-                            .testTag("btn_save_invoice_and_migrate"),
-                        shape = RoundedCornerShape((appearance.cornerRadiusDp - 4).coerceAtLeast(4).dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = weighButtonAccent,
-                            disabledContainerColor = if (isSavingInvoice) weighButtonAccent.copy(alpha = 0.85f) else Color.LightGray
-                        )
-                    ) {
-                        if (isSavingInvoice) {
-                            CircularProgressIndicator(
-                                color = Color.White,
-                                strokeWidth = 2.5.dp,
-                                modifier = Modifier.size(22.dp)
-                            )
-                        } else {
-                            Icon(Icons.Default.ReceiptLong, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                Translations.tr("btn_save_invoice_and_migrate", lang),
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White
-                            )
-                        }
-                    }
+                            .testTag("btn_save_invoice_and_migrate")
+                    )
                 }
             }
         }
@@ -10931,7 +11811,7 @@ fun BatchQuickWeighingScreen(
             ) {
                 Column(
                     modifier = Modifier.padding(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -10946,11 +11826,11 @@ fun BatchQuickWeighingScreen(
                         )
                         Surface(
                             color = weighAccentContainer,
-                            shape = RoundedCornerShape(6.dp)
+                            shape = RoundedCornerShape(50)
                         ) {
                             Text(
                                 "${Translations.tr("weigh_price_per_kg_badge", lang)}: ${String.format(java.util.Locale.US, "%,.0f", pricePerKg)} $curr",
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
                                 fontSize = 11.5.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = weighAccent
@@ -10958,72 +11838,50 @@ fun BatchQuickWeighingScreen(
                         }
                     }
 
-                    // الحيلة الذكية لعدد الصناديق في الوزنة الممتلئة:
-                    // شريط متناسق بعرض كامل للأرقام من 1 إلى 5 بدون أي اقتصاص على الشاشات الصغيرة
-                    Surface(
-                        color = if (currentTheme.isDark) Color(0xFF1E293B) else weighAccentContainer.copy(alpha = 0.45f),
-                        shape = RoundedCornerShape(10.dp),
-                        border = BorderStroke(1.dp, weighAccent.copy(alpha = 0.4f)),
-                        modifier = Modifier.fillMaxWidth()
+                    // أزرار اختيار عدد الصناديق [1] [2] [3] [4] [5] بأسلوب الآلة الحاسبة الفاخرة (PremiumTactileCalcButton)
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Column(
-                            modifier = Modifier
-                                .padding(horizontal = 10.dp, vertical = 8.dp)
-                                .fillMaxWidth(),
-                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        val cratesNum = cratesPerThisWeigh.toIntOrNull() ?: 5
+                        val birdsInThisWeigh = cratesNum * birdsPerCrate
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            val cratesNum = cratesPerThisWeigh.toIntOrNull() ?: 5
-                            val birdsInThisWeigh = cratesNum * birdsPerCrate
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    Translations.tr("weigh_full_crates_label", lang),
-                                    fontSize = 11.5.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = weighAccent
-                                )
-                                Text(
-                                    "($birdsInThisWeigh ${Translations.tr("birds_unit_short", lang)})",
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = weighAccent.copy(alpha = 0.85f)
-                                )
-                            }
+                            Text(
+                                Translations.tr("weigh_full_crates_label", lang),
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = weighAccent
+                            )
+                            Text(
+                                "($birdsInThisWeigh ${Translations.tr("birds_unit_short", lang)})",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = weighAccent.copy(alpha = 0.85f)
+                            )
+                        }
 
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                listOf("1", "2", "3", "4", "5").forEach { preset ->
-                                    val isSelected = cratesPerThisWeigh == preset
-                                    Surface(
-                                        color = if (isSelected) weighButtonAccent else if (currentTheme.isDark) Color(0xFF0F172A) else Color.White,
-                                        shape = RoundedCornerShape(8.dp),
-                                        border = BorderStroke(1.dp, if (isSelected) weighButtonAccent else Color.LightGray),
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .height(34.dp)
-                                            .testTag("crate_count_chip_$preset")
-                                            .clickable { cratesPerThisWeigh = preset }
-                                    ) {
-                                        Box(
-                                            contentAlignment = Alignment.Center,
-                                            modifier = Modifier.fillMaxSize()
-                                        ) {
-                                            Text(
-                                                preset,
-                                                fontSize = 12.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                textAlign = TextAlign.Center,
-                                                color = if (isSelected) Color.White else (if (currentTheme.isDark) Color.White else Color(0xFF0F172A))
-                                            )
-                                        }
-                                    }
-                                }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            listOf("1", "2", "3", "4", "5").forEach { preset ->
+                                val isSelected = cratesPerThisWeigh == preset
+                                PremiumTactileCalcButton(
+                                    label = preset,
+                                    onClick = { cratesPerThisWeigh = preset },
+                                    isSelected = isSelected,
+                                    isDark = currentTheme.isDark,
+                                    accentColor = weighButtonAccent,
+                                    fontSize = 13.5.sp,
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .testTag("crate_count_chip_$preset")
+                                )
                             }
                         }
                     }
@@ -11033,17 +11891,14 @@ fun BatchQuickWeighingScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // خانة وزن الفارغ (Supports numeric keypad Done action for instant scale entry)
-                        OutlinedTextField(
+                        // خانة وزن الفارغ الغائرة (NeumorphicRecessedField)
+                        NeumorphicRecessedField(
                             value = tareInput,
                             onValueChange = { tareInput = it },
-                            label = { Text(Translations.tr("weigh_tare_input_label", lang), fontSize = 11.sp) },
-                            placeholder = { Text(Translations.tr("weigh_tare_placeholder", lang), color = Color.Gray, fontSize = 11.sp) },
-                            modifier = Modifier
-                                .weight(1f)
-                                .focusRequester(tareFocusRequester)
-                                .testTag("input_weigh_tare"),
-                            singleLine = true,
+                            label = Translations.tr("weigh_tare_input_label", lang),
+                            placeholder = Translations.tr("weigh_tare_placeholder", lang),
+                            isDark = currentTheme.isDark,
+                            accentColor = Color(0xFF0284C7),
                             keyboardOptions = KeyboardOptions(
                                 keyboardType = KeyboardType.Decimal,
                                 imeAction = ImeAction.Done
@@ -11056,24 +11911,20 @@ fun BatchQuickWeighingScreen(
                                     } catch (_: Exception) {}
                                 }
                             ),
-                            shape = RoundedCornerShape(10.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = Color(0xFF0284C7),
-                                focusedLabelColor = Color(0xFF0284C7)
-                            )
-                        )
-
-                        // خانة وزن الممتلئ (Supports numeric keypad Done action for instant scale entry)
-                        OutlinedTextField(
-                            value = grossInput,
-                            onValueChange = { grossInput = it },
-                            label = { Text(Translations.tr("weigh_gross_input_label", lang), fontSize = 11.sp) },
-                            placeholder = { Text(Translations.tr("weigh_gross_placeholder", lang), color = Color.Gray, fontSize = 11.sp) },
                             modifier = Modifier
                                 .weight(1f)
-                                .focusRequester(grossFocusRequester)
-                                .testTag("input_weigh_gross"),
-                            singleLine = true,
+                                .focusRequester(tareFocusRequester)
+                                .testTag("input_weigh_tare")
+                        )
+
+                        // خانة وزن الممتلئ الغائرة (NeumorphicRecessedField)
+                        NeumorphicRecessedField(
+                            value = grossInput,
+                            onValueChange = { grossInput = it },
+                            label = Translations.tr("weigh_gross_input_label", lang),
+                            placeholder = Translations.tr("weigh_gross_placeholder", lang),
+                            isDark = currentTheme.isDark,
+                            accentColor = weighAccent,
                             keyboardOptions = KeyboardOptions(
                                 keyboardType = KeyboardType.Decimal,
                                 imeAction = ImeAction.Done
@@ -11086,31 +11937,27 @@ fun BatchQuickWeighingScreen(
                                     } catch (_: Exception) {}
                                 }
                             ),
-                            shape = RoundedCornerShape(10.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = weighAccent,
-                                focusedLabelColor = weighAccent
-                            )
+                            modifier = Modifier
+                                .weight(1f)
+                                .focusRequester(grossFocusRequester)
+                                .testTag("input_weigh_gross")
                         )
 
-                        // زر [حفظ ✓]
-                        Button(
+                        // زر [حفظ ✓] كبسولة ثلاثية الأبعاد
+                        PremiumPillButton(
+                            text = Translations.tr("weigh_save_btn", lang),
                             onClick = { submitCurrentWeighRow() },
                             enabled = tareInput.isNotBlank() || grossInput.isNotBlank(),
+                            variant = PremiumPillVariant.PRIMARY,
+                            fontSize = 13.sp,
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
+                            leadingIcon = {
+                                Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                            },
                             modifier = Modifier
                                 .height(54.dp)
-                                .testTag("btn_save_weigh_entry"),
-                            shape = RoundedCornerShape(10.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = weighButtonAccent,
-                                disabledContainerColor = Color.LightGray
-                            ),
-                            contentPadding = PaddingValues(horizontal = 14.dp)
-                        ) {
-                            Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(Translations.tr("weigh_save_btn", lang), fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color.White)
-                        }
+                                .testTag("btn_save_weigh_entry")
+                        )
                     }
                 }
             }
@@ -11484,17 +12331,12 @@ fun SimpleTransactionDialog(
                 )
 
                 if (isFeedExpense) {
-                    OutlinedTextField(
+                    NeumorphicRecessedField(
                         value = feedDesignation,
                         onValueChange = { feedDesignation = it },
-                        label = { Text(Translations.tr("feed_designation_label", lang), fontSize = 12.sp, color = secondaryText) },
-                        shape = RoundedCornerShape(12.dp),
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = primaryText,
-                            unfocusedTextColor = primaryText,
-                            focusedBorderColor = accentEmerald
-                        ),
+                        label = Translations.tr("feed_designation_label", lang),
+                        isDark = isDark,
+                        accentColor = accentEmerald,
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("input_feed_designation")
@@ -11504,42 +12346,32 @@ fun SimpleTransactionDialog(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        OutlinedTextField(
+                        NeumorphicRecessedField(
                             value = feedQuintalsText,
                             onValueChange = { feedQuintalsText = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                            label = { Text(Translations.tr("feed_qty_quintals_label", lang), fontSize = 11.sp, color = secondaryText) },
-                            placeholder = { Text("40", fontSize = 11.sp, color = Color.Gray.copy(alpha = 0.4f)) },
+                            label = Translations.tr("feed_qty_quintals_label", lang),
+                            placeholder = "40",
+                            isDark = isDark,
+                            accentColor = accentEmerald,
                             keyboardOptions = KeyboardOptions(
                                 keyboardType = KeyboardType.Number,
                                 imeAction = ImeAction.Next
-                            ),
-                            shape = RoundedCornerShape(12.dp),
-                            singleLine = true,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = primaryText,
-                                unfocusedTextColor = primaryText,
-                                focusedBorderColor = accentEmerald
                             ),
                             modifier = Modifier
                                 .weight(1f)
                                 .testTag("input_feed_quintals")
                         )
 
-                        OutlinedTextField(
+                        NeumorphicRecessedField(
                             value = feedPricePerQuintalText,
                             onValueChange = { feedPricePerQuintalText = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                            label = { Text(Translations.tr("feed_price_quintal_label", lang), fontSize = 11.sp, color = secondaryText) },
-                            placeholder = { Text("8000", fontSize = 11.sp, color = Color.Gray.copy(alpha = 0.4f)) },
+                            label = Translations.tr("feed_price_quintal_label", lang),
+                            placeholder = "8000",
+                            isDark = isDark,
+                            accentColor = accentEmerald,
                             keyboardOptions = KeyboardOptions(
                                 keyboardType = KeyboardType.Number,
                                 imeAction = ImeAction.Next
-                            ),
-                            shape = RoundedCornerShape(12.dp),
-                            singleLine = true,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = primaryText,
-                                unfocusedTextColor = primaryText,
-                                focusedBorderColor = accentEmerald
                             ),
                             modifier = Modifier
                                 .weight(1f)
@@ -11547,56 +12379,47 @@ fun SimpleTransactionDialog(
                         )
                     }
 
-                    Surface(
-                        shape = RoundedCornerShape(14.dp),
-                        color = appearance.accentContainerColor,
-                        border = BorderStroke(1.dp, accentEmerald.copy(alpha = 0.45f)),
-                        modifier = Modifier.fillMaxWidth()
+                    NeumorphicRecessedDisplay(
+                        isDark = isDark,
+                        contentPadding = PaddingValues(12.dp)
                     ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    Translations.tr("feed_total_auto_label", lang),
-                                    fontSize = 11.5.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = accentEmerald
-                                )
-                                Text(
-                                    "${String.format(java.util.Locale.US, "%,.0f", autoCalculatedFeedAmount)} $curr",
-                                    fontSize = 15.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = accentEmerald
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(4.dp))
-                            val qShort = Translations.tr("quintal_short", lang)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             Text(
-                                "+${Translations.formatQuintalNumber(parsedQuintals)} $qShort ($quintalUnit) → ${Translations.tr("feed_inventory_label", lang)}",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = primaryText
+                                Translations.tr("feed_total_auto_label", lang),
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = accentEmerald
+                            )
+                            Text(
+                                "${String.format(java.util.Locale.US, "%,.0f", autoCalculatedFeedAmount)} $curr",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = accentEmerald
                             )
                         }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        val qShort = Translations.tr("quintal_short", lang)
+                        Text(
+                            "+${Translations.formatQuintalNumber(parsedQuintals)} $qShort ($quintalUnit) → ${Translations.tr("feed_inventory_label", lang)}",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = primaryText
+                        )
                     }
                 } else {
-                    OutlinedTextField(
+                    NeumorphicRecessedField(
                         value = amountText,
                         onValueChange = { amountText = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                        label = { Text(Translations.tr("amount_label", lang), color = secondaryText) },
+                        label = Translations.tr("amount_label", lang),
+                        isDark = isDark,
+                        accentColor = accentEmerald,
                         keyboardOptions = KeyboardOptions(
                             keyboardType = KeyboardType.Number,
                             imeAction = ImeAction.Next
-                        ),
-                        shape = RoundedCornerShape(12.dp),
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = primaryText,
-                            unfocusedTextColor = primaryText,
-                            focusedBorderColor = accentEmerald
                         ),
                         modifier = Modifier
                             .fillMaxWidth()
@@ -11606,7 +12429,8 @@ fun SimpleTransactionDialog(
             }
         },
         confirmButton = {
-            Button(
+            PremiumPillButton(
+                text = Translations.tr("confirm_btn", lang),
                 onClick = {
                     if (isFeedExpense) {
                         if (autoCalculatedFeedAmount > 0.0 && addedFeedKg > 0.0) {
@@ -11622,14 +12446,11 @@ fun SimpleTransactionDialog(
                         }
                     }
                 },
-                modifier = Modifier.testTag("btn_confirm_transaction"),
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = if (type == TransactionType.INCOME) appearance.accentOption.primaryColor else ActionRed
-                )
-            ) {
-                Text(Translations.tr("confirm_btn", lang), color = Color.White, fontWeight = FontWeight.Bold)
-            }
+                variant = if (type == TransactionType.INCOME) PremiumPillVariant.SALES_INCOME else PremiumPillVariant.PRIMARY,
+                modifier = Modifier
+                    .height(44.dp)
+                    .testTag("btn_confirm_transaction")
+            )
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
@@ -12835,7 +13656,11 @@ fun LiveBroilerReceiptDialog(
                                 color = accentEmerald
                             )
                         }
-                        Text("🗓️ ${Translations.tr("cycle_label", lang)}: $cycleId • $dateText", fontSize = 12.sp, color = Color.Gray)
+                        Text(
+                            "🗓️ ${Translations.tr("active_cycle_label", lang)} • $dateText",
+                            fontSize = 12.sp,
+                            color = if (appearance.isDark) Color(0xFFCBD5E1) else Color(0xFF475569)
+                        )
                     }
                 }
 
@@ -13252,6 +14077,7 @@ fun AgritechVetDashboard(
                     Column(modifier = Modifier.padding(20.dp)) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
@@ -13260,15 +14086,30 @@ fun AgritechVetDashboard(
                                 fontSize = 15.sp,
                                 color = currentTheme.headingColor,
                                 maxLines = 1,
-                                softWrap = false,
                                 overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f)
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(end = 8.dp)
                             )
+                            Surface(
+                                shape = btnShape,
+                                color = appearance.accentContainerColor
+                            ) {
+                                Text(
+                                    "${Translations.tr("liveability", lang)}: 100%",
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = appearance.accentColor,
+                                    maxLines = 1,
+                                    softWrap = false
+                                )
+                            }
                         }
                         Text(
                             Translations.getLocalizedFarmLocation(farm.id, lang, farm.location),
                             fontSize = 12.sp,
-                            color = if (currentTheme.isDark) Color(0xFFCBD5E1) else Color.Gray
+                            color = if (currentTheme.isDark) Color(0xFFCBD5E1) else Color(0xFF475569)
                         )
                         Spacer(modifier = Modifier.height(14.dp))
                         Button(

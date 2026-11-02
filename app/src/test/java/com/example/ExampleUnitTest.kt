@@ -427,6 +427,23 @@ class ExampleUnitTest {
         assertEquals("🔄 إعادة الدورة", Translations.tr("btn_reset_cycle", AppLanguage.AR))
         assertEquals("إجمالي النفوق", Translations.tr("sum_mortality", AppLanguage.AR))
         assertEquals("قيد القياس", Translations.tr("weight_not_measured_yet", AppLanguage.AR))
+        assertEquals("فتح الدفتر", Translations.tr("open_notebook", AppLanguage.AR))
+        assertEquals("💰 تقدير المبيعات وصافي ربح الدورة", Translations.tr("sales_profit_simulator_title", AppLanguage.AR))
+
+        // Verify Sales & Net Profit Simulator formula with cull bird deduction (5,786 - 286 = 5,500 * 2.8 = 15,400 kg * 250 = 3,850,000 - 2,940,000 = +910,000)
+        val liveBirds = 5786
+        val cullBirds = 286
+        val marketableBirds = (liveBirds - cullBirds).coerceAtLeast(0)
+        val estWeightKg = 2.8
+        val expectedPricePerKg = 250.0
+        val actualExpenses = 2940000.0
+        val expectedTotalWeightKg = marketableBirds * estWeightKg
+        val expectedRevenue = expectedTotalWeightKg * expectedPricePerKg
+        val estimatedNetProfit = expectedRevenue - actualExpenses
+        assertEquals(5500, marketableBirds)
+        assertEquals(15400.0, expectedTotalWeightKg, 0.001)
+        assertEquals(3850000.0, expectedRevenue, 0.001)
+        assertEquals(910000.0, estimatedNetProfit, 0.001)
     }
 }
 

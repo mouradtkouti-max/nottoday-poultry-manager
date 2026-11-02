@@ -139,11 +139,12 @@ object Translations {
             "hi" to "सामान्य पर्यवेक्षण"
         ),
         "open_notebook" to mapOf(
-            "ar" to "فتح دفتر المزرعة",
-            "fr" to "Ouvrir le carnet",
-            "en" to "Open Farm Notebook",
-            "es" to "Abrir Cuaderno",
-            "hi" to "फार्म बही खोलें"
+            "ar" to "فتح الدفتر",
+            "fr" to "Le carnet",
+            "en" to "Notebook",
+            "es" to "Cuaderno",
+            "pt" to "Caderno",
+            "hi" to "बही खोलें"
         ),
         "batch_label" to mapOf(
             "ar" to "الدفعة",
@@ -343,11 +344,12 @@ object Translations {
             "hi" to "📊 प्रदर्शन एवं दक्षता संकेतक"
         ),
         "liveability" to mapOf(
-            "ar" to "💚 نسبة الحيوية (Liveability)",
-            "fr" to "💚 Viabilité (Liveability)",
+            "ar" to "💚 الحيوية",
+            "fr" to "💚 Viabilité",
             "en" to "💚 Liveability",
-            "es" to "💚 Viabilidad (Liveability)",
-            "hi" to "💚 जीवन दर (Liveability)"
+            "es" to "💚 Viabilidad",
+            "pt" to "💚 Viabilidade",
+            "hi" to "💚 जीवन दर"
         ),
         "fcr" to mapOf(
             "ar" to "⚖️ معامل التحويل FCR",
@@ -652,11 +654,12 @@ object Translations {
             "hi" to "⚠️ अत्यावश्यक"
         ),
         "open_medical_records" to mapOf(
-            "ar" to "فتح السجل الطبي البيطري",
-            "fr" to "Ouvrir le dossier médical",
-            "en" to "Open Medical Records",
-            "es" to "Abrir Expediente Médico",
-            "hi" to "चिकित्सा रिकॉर्ड खोलें"
+            "ar" to "📋 السجل الطبي",
+            "fr" to "📋 Dossier médical",
+            "en" to "📋 Medical Records",
+            "es" to "📋 Expediente Médico",
+            "pt" to "📋 Prontuário Médico",
+            "hi" to "📋 चिकित्सा रिकॉर्ड"
         ),
         "category_label" to mapOf(
             "ar" to "التصنيف:",
@@ -4386,6 +4389,126 @@ object Translations {
             "es" to "Ciclo activo",
             "pt" to "Lote ativo",
             "hi" to "सक्रिय चक्र"
+        ),
+        "sales_profit_simulator_title" to mapOf(
+            "ar" to "💰 تقدير المبيعات وصافي ربح الدورة",
+            "fr" to "💰 Estimation des Ventes et Bénéfice Net",
+            "en" to "💰 Sales & Net Profit Simulator",
+            "es" to "💰 Estimación de Ventas y Ganancia Neta",
+            "pt" to "💰 Simulador de Vendas e Lucro Líquido",
+            "hi" to "💰 बिक्री और शुद्ध लाभ अनुमानक"
+        ),
+        "sales_profit_simulator_subtitle" to mapOf(
+            "ar" to "محاكاة فورية للربح الصافي بعد استبعاد الفرزة وحساب مصاريف الخزنة",
+            "fr" to "Simulation instantanée du bénéfice net après tri et dépenses réelles",
+            "en" to "Instant net profit simulation after culling unfit birds and deducting treasury expenses",
+            "es" to "Simulación instantánea de ganancia neta tras descartar triaje y gastos reales",
+            "pt" to "Simulação instantânea do lucro líquido após descarte de refugos e despesas reais",
+            "hi" to "अयोग्य पक्षियों को हटाने और वास्तविक खर्च घटाने के बाद तत्काल शुद्ध लाभ सिमुलेशन"
+        ),
+        "cull_unfit_birds_label" to mapOf(
+            "ar" to "الطيور غير الصالحة (الفرزة)",
+            "fr" to "Sujets écartés (Tri)",
+            "en" to "Unfit / Cull Birds",
+            "es" to "Aves de descarte (Triaje)",
+            "pt" to "Aves de descarte (Refugo)",
+            "hi" to "अयोग्य पक्षी (छंटाई)"
+        ),
+        "marketable_birds_label" to mapOf(
+            "ar" to "الطيور الصالحة للبيع",
+            "fr" to "Sujets prêts à la vente",
+            "en" to "Marketable Birds",
+            "es" to "Aves aptas para la venta",
+            "pt" to "Aves prontas para venda",
+            "hi" to "बिक्री योग्य पक्षी"
+        ),
+        "sim_avg_weight_label" to mapOf(
+            "ar" to "متوسط الوزن التقديري (كغ)",
+            "fr" to "Poids moyen estimé (kg)",
+            "en" to "Estimated Avg Weight (kg)",
+            "es" to "Peso promedio estimado (kg)",
+            "pt" to "Peso médio estimado (kg)",
+            "hi" to "अनुमानित औसत वजन (किग्रा)"
+        ),
+        "sim_expected_price_kg_label" to mapOf(
+            "ar" to "سعر الكيلو (دج)",
+            "fr" to "Prix / kg (DZD)",
+            "en" to "Price / kg (DZD)",
+            "es" to "Precio / kg (DZD)",
+            "pt" to "Preço / kg (BRL)",
+            "hi" to "मूल्य / किग्रा"
+        ),
+        "vet_invoice_auto_ledger_note" to mapOf(
+            "ar" to "يتم قيد الفاتورة آلياً في الخزنة وتسجيل الوصفة في السجل الطبي للعنبر.",
+            "fr" to "La facture est automatiquement enregistrée dans la trésorerie et le dossier médical.",
+            "en" to "The invoice is automatically recorded in the treasury and barn medical ledger.",
+            "es" to "La factura se registra automáticamente en la tesorería y en el historial médico.",
+            "pt" to "A fatura é registrada automaticamente na tesouraria e no prontuário médico.",
+            "hi" to "चालान स्वचालित रूप से खजाने और चिकित्सा रिकॉर्ड में दर्ज किया जाता है।"
+        ),
+        "sim_total_expected_weight_label" to mapOf(
+            "ar" to "الوزن الإجمالي المتوقع للبيع",
+            "fr" to "Poids total prévu à la vente",
+            "en" to "Total Expected Sale Weight",
+            "es" to "Peso total esperado de venta",
+            "pt" to "Peso total esperado para venda",
+            "hi" to "बिक्री के लिए कुल अपेक्षित वजन"
+        ),
+        "sim_total_expected_revenue_label" to mapOf(
+            "ar" to "إجمالي قيمة المبيعات المتوقعة",
+            "fr" to "Valeur totale des ventes prévues",
+            "en" to "Total Expected Sales Value",
+            "es" to "Valor total de ventas esperadas",
+            "pt" to "Valor total estimado das vendas",
+            "hi" to "कुल अपेक्षित बिक्री मूल्य"
+        ),
+        "sim_actual_cycle_expenses_label" to mapOf(
+            "ar" to "إجمالي مصاريف الدورة الفعلية (من الخزنة)",
+            "fr" to "Dépenses réelles du cycle (Trésorerie)",
+            "en" to "Actual Cycle Expenses (Treasury)",
+            "es" to "Gastos reales del ciclo (Tesorería)",
+            "pt" to "Despesas reais do lote (Tesouraria)",
+            "hi" to "वास्तविक चक्र खर्च (खजाना)"
+        ),
+        "sim_estimated_net_profit_label" to mapOf(
+            "ar" to "صافي الربح التقديري للدورة",
+            "fr" to "Bénéfice net estimé du cycle",
+            "en" to "Estimated Cycle Net Profit",
+            "es" to "Ganancia neta estimada del ciclo",
+            "pt" to "Lucro líquido estimado do lote",
+            "hi" to "चक्र का अनुमानित शुद्ध लाभ"
+        ),
+        "tap_to_edit_weight_fcr_hint" to mapOf(
+            "ar" to "اضغط للتعديل ✏️",
+            "fr" to "Appuyer pour modifier ✏️",
+            "en" to "Tap to edit ✏️",
+            "es" to "Tocar para editar ✏️",
+            "pt" to "Toque para editar ✏️",
+            "hi" to "संपादित करने के लिए टैप करें ✏️"
+        ),
+        "tap_to_estimate_sales_profit_hint" to mapOf(
+            "ar" to "اضغط لتقدير المبيعات والربح 📊",
+            "fr" to "Appuyer pour estimer ventes & profit 📊",
+            "en" to "Tap to estimate sales & profit 📊",
+            "es" to "Tocar para estimar ventas y ganancia 📊",
+            "pt" to "Toque para estimar vendas e lucro 📊",
+            "hi" to "बिक्री और लाभ का अनुमान लगाने के लिए टैप करें 📊"
+        ),
+        "fcr_weight_editor_dialog_title" to mapOf(
+            "ar" to "⚖️ تعديل الوزن التقديري ومعامل التحويل FCR",
+            "fr" to "⚖️ Ajuster le Poids Estimé et le FCR",
+            "en" to "⚖️ Adjust Estimated Weight & FCR",
+            "es" to "⚖️ Ajustar Peso Estimado y FCR",
+            "pt" to "⚖️ Ajustar Peso Estimado e FCR",
+            "hi" to "⚖️ अनुमानित वजन और FCR समायोजित करें"
+        ),
+        "btn_close_check" to mapOf(
+            "ar" to "إغلاق ✓",
+            "fr" to "Fermer ✓",
+            "en" to "Close ✓",
+            "es" to "Cerrar ✓",
+            "pt" to "Fechar ✓",
+            "hi" to "बंद करें ✓"
         )
     )
 
@@ -4413,7 +4536,7 @@ object Translations {
         "login_btn" to "Entrar na Granja",
         "farms_title" to "Galpões e Instalações Avícolas",
         "owner_supervision" to "Supervisão Geral do Produtor",
-        "open_notebook" to "Abrir Caderno do Galpão",
+        "open_notebook" to "Caderno",
         "batch_label" to "Lote",
         "birds_unit" to "aves 🐥",
         "day_prefix" to "Dia",
@@ -4442,7 +4565,7 @@ object Translations {
         "btn_income" to "🟢 Registrar Receita 💵",
         "tx_history_title" to "Histórico Financeiro do Lote",
         "analytics_title" to "📊 Indicadores de Desempenho (KPIs)",
-        "liveability" to "💚 Viabilidade (Liveability)",
+        "liveability" to "💚 Viabilidade",
         "fcr" to "⚖️ Conversão Alimentar (FCR)",
         "est_weight" to "🐥 Peso Médio Estimado",
         "total_biomass" to "📊 Biomassa Viva Total",
@@ -4635,7 +4758,22 @@ object Translations {
         "reset_cycle_dialog_msg" to "Tem certeza de que deseja reiniciar este lote? Isso apagará todos os relatórios diários, zerará a tesouraria e faturas, cancelará períodos de carência e voltará o lote para o Dia 1. Esta ação não pode ser desfeita.",
         "reset_cycle_confirm_btn" to "Sim, limpar dados e reiniciar",
         "reset_cycle_success_msg" to "Galpão limpo e lote reiniciado para o Dia 1 com sucesso",
-        "active_cycle_label" to "Lote ativo"
+        "active_cycle_label" to "Lote ativo",
+        "sales_profit_simulator_title" to "💰 Simulador de Vendas e Lucro Líquido",
+        "sales_profit_simulator_subtitle" to "Simulação instantânea do lucro líquido após descarte de refugos e despesas reais",
+        "cull_unfit_birds_label" to "Aves de descarte (Refugo)",
+        "marketable_birds_label" to "Aves prontas para venda",
+        "sim_avg_weight_label" to "Peso médio estimado (kg)",
+        "sim_expected_price_kg_label" to "Preço / kg (BRL)",
+        "vet_invoice_auto_ledger_note" to "A fatura é registrada automaticamente na tesouraria e no prontuário médico.",
+        "sim_total_expected_weight_label" to "Peso total esperado para venda",
+        "sim_total_expected_revenue_label" to "Valor total estimado das vendas",
+        "sim_actual_cycle_expenses_label" to "Despesas reais do lote (Tesouraria)",
+        "sim_estimated_net_profit_label" to "Lucro líquido estimado do lote",
+        "tap_to_edit_weight_fcr_hint" to "Toque para editar ✏️",
+        "tap_to_estimate_sales_profit_hint" to "Toque para estimar vendas e lucro 📊",
+        "fcr_weight_editor_dialog_title" to "⚖️ Ajustar Peso Estimado e FCR",
+        "btn_close_check" to "Fechar ✓"
     )
 
     fun hasKey(key: String): Boolean {

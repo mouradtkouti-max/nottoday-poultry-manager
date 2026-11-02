@@ -3535,6 +3535,8 @@ fun QuickStatsGrid(
     currencyCode: String,
     lang: AppLanguage,
     currentTheme: AppThemeOption,
+    onFcrWeightCardClick: (() -> Unit)? = null,
+    onNetTreasuryCardClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val appearance = LocalAppAppearanceState.current
@@ -3597,11 +3599,14 @@ fun QuickStatsGrid(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
+            val cleanWeightStr = String.format(Locale.US, "%.1f", estimatedWeightKg)
             QuickStatCardItem(
                 emoji = "⚖️",
                 title = Translations.tr("quick_stat_fcr_weight", lang),
-                primaryValue = "FCR ${String.format(Locale.US, "%.2f", fcr)}",
-                subtitle = "${Translations.tr("badge_estimated_weight", lang)}: ${String.format(Locale.US, "%.3f", estimatedWeightKg)} $kgUnit",
+                primaryValue = "FCR ≈ ${String.format(Locale.US, "%.2f", fcr)}",
+                subtitle = "${Translations.tr("badge_estimated_weight", lang)}: ≈ $cleanWeightStr $kgUnit",
+                actionHint = Translations.tr("tap_to_edit_weight_fcr_hint", lang),
+                onClick = onFcrWeightCardClick,
                 accentColor = accent,
                 cardBg = cardBg,
                 borderCol = borderCol,
@@ -3620,6 +3625,8 @@ fun QuickStatsGrid(
                 title = Translations.tr("quick_stat_net_treasury", lang),
                 primaryValue = "$netFormatted $displayCurrency",
                 subtitle = "${Translations.tr("treasury_expenses", lang)}: $expFormatted $displayCurrency",
+                actionHint = Translations.tr("tap_to_estimate_sales_profit_hint", lang),
+                onClick = onNetTreasuryCardClick,
                 accentColor = if (netBalance >= 0) accent else Color(0xFFF59E0B),
                 cardBg = cardBg,
                 borderCol = borderCol,
@@ -3646,13 +3653,17 @@ private fun QuickStatCardItem(
     textSecondary: Color,
     shape: RoundedCornerShape,
     testTag: String,
+    actionHint: String? = null,
+    onClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     Card(
-        modifier = modifier.testTag(testTag),
+        modifier = modifier
+            .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier)
+            .testTag(testTag),
         shape = shape,
         colors = CardDefaults.cardColors(containerColor = cardBg),
-        border = BorderStroke(1.dp, borderCol),
+        border = BorderStroke(1.dp, if (onClick != null) accentColor.copy(alpha = 0.45f) else borderCol),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.5.dp)
     ) {
         Column(
@@ -3684,6 +3695,14 @@ private fun QuickStatCardItem(
                 fontSize = 11.sp,
                 color = textPrimary.copy(alpha = 0.85f)
             )
+            if (!actionHint.isNullOrBlank()) {
+                Text(
+                    text = actionHint,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = accentColor
+                )
+            }
         }
     }
 }
@@ -3710,6 +3729,8 @@ fun BarnClimateAndStatsDialog(
     currencyCode: String,
     lang: AppLanguage,
     currentTheme: AppThemeOption,
+    onFcrWeightCardClick: (() -> Unit)? = null,
+    onNetTreasuryCardClick: (() -> Unit)? = null,
     onDismiss: () -> Unit
 ) {
     val appearance = LocalAppAppearanceState.current
@@ -3768,7 +3789,7 @@ fun BarnClimateAndStatsDialog(
                                 modifier = Modifier.size(40.dp)
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
-                                    Text("🌡️", fontSize = 18.sp)
+                                     Text("🌡️", fontSize = 18.sp)
                                 }
                             }
                             Column {
@@ -3837,7 +3858,9 @@ fun BarnClimateAndStatsDialog(
                     totalExpenses = totalExpenses,
                     currencyCode = currencyCode,
                     lang = lang,
-                    currentTheme = currentTheme
+                    currentTheme = currentTheme,
+                    onFcrWeightCardClick = onFcrWeightCardClick,
+                    onNetTreasuryCardClick = onNetTreasuryCardClick
                 )
 
                 // Close Button
