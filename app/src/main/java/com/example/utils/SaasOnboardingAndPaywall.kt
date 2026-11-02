@@ -378,7 +378,7 @@ object SaasPreferencesManager {
         return try {
             val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             val saved = prefs.getString(KEY_COUNTRY, null)
-            if (!saved.isNullOrBlank()) saved else detectInitialLocaleAndCurrency(context).countryCode
+            if (!saved.isNullOrBlank()) saved else "DZ"
         } catch (_: Exception) {
             "DZ"
         }
@@ -388,7 +388,7 @@ object SaasPreferencesManager {
         return try {
             val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             val saved = prefs.getString(KEY_CURRENCY, null)
-            if (!saved.isNullOrBlank()) saved else detectInitialLocaleAndCurrency(context).currencyCode
+            if (!saved.isNullOrBlank()) saved else "DZD"
         } catch (_: Exception) {
             "DZD"
         }
@@ -1392,8 +1392,8 @@ fun PremiumSettingsModal(
                             ) {
                                 val tabs = listOf(
                                     Triple(SettingsStudioTab.APPEARANCE, "🎨 ${Translations.tr("settings_tab_appearance", selectedLang)}", "settings_nav_appearance"),
-                                    Triple(SettingsStudioTab.LANGUAGE, "🌐 ${Translations.tr("settings_tab_language", selectedLang)} (${selectedLang.label})", "settings_nav_language"),
-                                    Triple(SettingsStudioTab.REGION_CURRENCY, "${selectedCountry.flag} ${Translations.tr("settings_tab_region_currency", selectedLang)} (${selectedCurrency.code})", "settings_nav_region_currency")
+                                    Triple(SettingsStudioTab.LANGUAGE, "🌐 ${Translations.tr("settings_tab_language", selectedLang)}", "settings_nav_language"),
+                                    Triple(SettingsStudioTab.REGION_CURRENCY, "${selectedCountry.flag} ${Translations.tr("settings_tab_region_currency", selectedLang)}", "settings_nav_region_currency")
                                 )
                                 tabs.forEach { (tab, title, tag) ->
                                     val selected = activeStudioTab == tab
@@ -1411,7 +1411,9 @@ fun PremiumSettingsModal(
                                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                                             fontSize = 12.sp,
                                             fontWeight = FontWeight.Bold,
-                                            color = if (selected) Color.White else textPrimary
+                                            color = if (selected) Color.White else textPrimary,
+                                            maxLines = 1,
+                                            softWrap = false
                                         )
                                     }
                                 }
@@ -1430,7 +1432,9 @@ fun PremiumSettingsModal(
                                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.ExtraBold,
-                                        color = if (isDark) Color(0xFFFDE68A) else Color(0xFFB45309)
+                                        color = if (isDark) Color(0xFFFDE68A) else Color(0xFFB45309),
+                                        maxLines = 1,
+                                        softWrap = false
                                     )
                                 }
                             }

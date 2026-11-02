@@ -95,6 +95,10 @@ service cloud.firestore {
              data.capacity is int && data.capacity >= 0 && data.capacity <= 1000000 &&
              data.assignedWorkerId is string && data.assignedWorkerId.size() <= 128 &&
              (!('currencyCode' in data) || data.currencyCode == null || (data.currencyCode is string && data.currencyCode.size() >= 1 && data.currencyCode.size() <= 16)) &&
+             (!('schemaVersion' in data) || data.schemaVersion == null || (data.schemaVersion is int && data.schemaVersion >= 1 && data.schemaVersion <= 100)) &&
+             (!('sectorId' in data) || data.sectorId == null || (data.sectorId is string && data.sectorId.size() <= 64)) &&
+             (!('branchId' in data) || data.branchId == null || (data.branchId is string && data.branchId.size() <= 64)) &&
+             (!('customMetrics' in data) || data.customMetrics == null || data.customMetrics is map) &&
              data.members is map &&
              request.auth.uid in data.members &&
              (data.members[request.auth.uid] == 'OWNER' ||
@@ -116,6 +120,10 @@ service cloud.firestore {
              (!('startDate' in data) || data.startDate == null || (data.startDate is string && data.startDate.size() <= 32)) &&
              (!('chickPrice' in data) || data.chickPrice == null || (data.chickPrice is int || data.chickPrice is float)) &&
              (!('currencyCode' in data) || data.currencyCode == null || (data.currencyCode is string && data.currencyCode.size() >= 1 && data.currencyCode.size() <= 16)) &&
+             (!('schemaVersion' in data) || data.schemaVersion == null || (data.schemaVersion is int && data.schemaVersion >= 1 && data.schemaVersion <= 100)) &&
+             (!('sectorId' in data) || data.sectorId == null || (data.sectorId is string && data.sectorId.size() <= 64)) &&
+             (!('branchId' in data) || data.branchId == null || (data.branchId is string && data.branchId.size() <= 64)) &&
+             (!('customMetrics' in data) || data.customMetrics == null || data.customMetrics is map) &&
              data.createdAt is timestamp && data.createdAt <= request.time &&
              data.updatedAt is timestamp && data.updatedAt <= request.time;
     }
@@ -135,6 +143,10 @@ service cloud.firestore {
              (!('isEdited' in data) || data.isEdited == null || data.isEdited is bool) &&
              (!('previousSummary' in data) || data.previousSummary == null || (data.previousSummary is string && data.previousSummary.size() <= 500)) &&
              (!('actualAvgWeightKg' in data) || data.actualAvgWeightKg == null || ((data.actualAvgWeightKg is int || data.actualAvgWeightKg is float) && data.actualAvgWeightKg >= 0 && data.actualAvgWeightKg <= 25)) &&
+             (!('medicineGiven' in data) || data.medicineGiven == null || data.medicineGiven is bool) &&
+             (!('medicineSummary' in data) || data.medicineSummary == null || (data.medicineSummary is string && data.medicineSummary.size() <= 500)) &&
+             (!('withdrawalDays' in data) || data.withdrawalDays == null || (data.withdrawalDays is int && data.withdrawalDays >= 0 && data.withdrawalDays <= 180)) &&
+             (!('updatedAtMillis' in data) || data.updatedAtMillis == null || (data.updatedAtMillis is int && data.updatedAtMillis >= 0)) &&
              data.createdAt is timestamp && data.createdAt <= request.time &&
              data.updatedAt is timestamp && data.updatedAt <= request.time;
     }
@@ -152,6 +164,8 @@ service cloud.firestore {
              (!('linkedTransactionId' in data) || data.linkedTransactionId == null || (data.linkedTransactionId is string && data.linkedTransactionId.size() <= 128)) &&
              (!('invoiceAmount' in data) || data.invoiceAmount == null || (data.invoiceAmount is int || data.invoiceAmount is float)) &&
              (!('currency' in data) || data.currency == null || (data.currency is string && data.currency.size() <= 16)) &&
+             (!('withdrawalDays' in data) || data.withdrawalDays == null || (data.withdrawalDays is int && data.withdrawalDays >= 0 && data.withdrawalDays <= 180)) &&
+             (!('updatedAtMillis' in data) || data.updatedAtMillis == null || (data.updatedAtMillis is int && data.updatedAtMillis >= 0)) &&
              data.createdAt is timestamp && data.createdAt <= request.time &&
              data.updatedAt is timestamp && data.updatedAt <= request.time;
     }
@@ -167,6 +181,10 @@ service cloud.firestore {
              data.date is string && data.date.size() >= 1 && data.date.size() <= 120 &&
              data.idempotencyKey is string && data.idempotencyKey.size() >= 1 && data.idempotencyKey.size() <= 128 &&
              (!('status' in data) || data.status == null || data.status in ['PENDING', 'APPROVED', 'REJECTED']) &&
+             (!('notes' in data) || data.notes == null || (data.notes is string && data.notes.size() <= 500)) &&
+             (!('quantityQuintals' in data) || data.quantityQuintals == null || ((data.quantityQuintals is int || data.quantityQuintals is float) && data.quantityQuintals >= 0)) &&
+             (!('approvedBySignature' in data) || data.approvedBySignature == null || (data.approvedBySignature is string && data.approvedBySignature.size() <= 200)) &&
+             (!('updatedAtMillis' in data) || data.updatedAtMillis == null || (data.updatedAtMillis is int && data.updatedAtMillis >= 0)) &&
              (!('invoiceNumber' in data) || data.invoiceNumber == null || (data.invoiceNumber is string && data.invoiceNumber.size() <= 64)) &&
              (!('buyerName' in data) || data.buyerName == null || (data.buyerName is string && data.buyerName.size() <= 120)) &&
              (!('truckPlate' in data) || data.truckPlate == null || (data.truckPlate is string && data.truckPlate.size() <= 64)) &&
@@ -220,7 +238,7 @@ service cloud.firestore {
       allow create: if isSignedIn() &&
                        isValidId(farmId) &&
                        incoming().keys().hasAll(['farmId', 'name', 'location', 'capacity', 'assignedWorkerId', 'members', 'createdAt', 'updatedAt']) &&
-                       incoming().keys().hasOnly(['farmId', 'name', 'location', 'capacity', 'assignedWorkerId', 'currencyCode', 'members', 'createdAt', 'updatedAt']) &&
+                       incoming().keys().hasOnly(['farmId', 'name', 'location', 'capacity', 'assignedWorkerId', 'currencyCode', 'schemaVersion', 'sectorId', 'branchId', 'customMetrics', 'members', 'createdAt', 'updatedAt']) &&
                        isValidFarmRecord(incoming(), farmId);
 
       allow update: if isSignedIn() &&
@@ -243,7 +261,12 @@ service cloud.firestore {
                          isOwnerRole(farmId) &&
                          incoming().userId == request.auth.uid &&
                          incoming().keys().hasAll(['userId', 'farmId', 'totalBirdsPlaced', 'targetWeightKg', 'cumulativeBirdsSold', 'createdAt', 'updatedAt']) &&
-                         incoming().keys().hasOnly(['userId', 'farmId', 'totalBirdsPlaced', 'targetWeightKg', 'cumulativeBirdsSold', 'cumulativeSoldWeightKg', 'feedInventoryKg', 'status', 'startDate', 'chickPrice', 'currencyCode', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly([
+                           'userId', 'farmId', 'totalBirdsPlaced', 'targetWeightKg', 'cumulativeBirdsSold',
+                           'cumulativeSoldWeightKg', 'feedInventoryKg', 'status', 'startDate', 'chickPrice',
+                           'currencyCode', 'schemaVersion', 'sectorId', 'branchId', 'customMetrics',
+                           'createdAt', 'updatedAt'
+                         ]) &&
                          isValidCycleRecord(incoming(), farmId);
 
         allow update: if isValidId(cycleId) &&
@@ -252,7 +275,11 @@ service cloud.firestore {
                          incoming().farmId == existing().farmId &&
                          incoming().createdAt == existing().createdAt &&
                          (
-                           (isOwnerRole(farmId) && incoming().diff(existing()).affectedKeys().hasOnly(['totalBirdsPlaced', 'targetWeightKg', 'cumulativeBirdsSold', 'cumulativeSoldWeightKg', 'feedInventoryKg', 'status', 'startDate', 'chickPrice', 'currencyCode', 'updatedAt'])) ||
+                           (isOwnerRole(farmId) && incoming().diff(existing()).affectedKeys().hasOnly([
+                             'totalBirdsPlaced', 'targetWeightKg', 'cumulativeBirdsSold', 'cumulativeSoldWeightKg',
+                             'feedInventoryKg', 'status', 'startDate', 'chickPrice', 'currencyCode',
+                             'schemaVersion', 'sectorId', 'branchId', 'customMetrics', 'updatedAt'
+                           ])) ||
                            (isWorkerRole(farmId) && incoming().diff(existing()).affectedKeys().hasOnly(['feedInventoryKg', 'updatedAt']))
                          );
 
@@ -267,7 +294,12 @@ service cloud.firestore {
                          (isOwnerRole(farmId) || isWorkerRole(farmId)) &&
                          incoming().userId == request.auth.uid &&
                          incoming().keys().hasAll(['userId', 'farmId', 'cycleId', 'dayNumber', 'feedIntakeKg', 'waterIntakeLiters', 'mortalityCount', 'temperature', 'gasUnits', 'ventilationStatus', 'litterCondition', 'createdAt', 'updatedAt']) &&
-                         incoming().keys().hasOnly(['userId', 'farmId', 'cycleId', 'dayNumber', 'feedIntakeKg', 'waterIntakeLiters', 'mortalityCount', 'temperature', 'gasUnits', 'ventilationStatus', 'litterCondition', 'isEdited', 'previousSummary', 'actualAvgWeightKg', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly([
+                           'userId', 'farmId', 'cycleId', 'dayNumber', 'feedIntakeKg', 'waterIntakeLiters',
+                           'mortalityCount', 'temperature', 'gasUnits', 'ventilationStatus', 'litterCondition',
+                           'isEdited', 'previousSummary', 'actualAvgWeightKg', 'medicineGiven', 'medicineSummary',
+                           'withdrawalDays', 'updatedAtMillis', 'createdAt', 'updatedAt'
+                         ]) &&
                          isValidDailyReport(incoming(), farmId);
 
         allow update: if isValidId(reportId) &&
@@ -276,7 +308,12 @@ service cloud.firestore {
                          incoming().farmId == existing().farmId &&
                          incoming().cycleId == existing().cycleId &&
                          incoming().createdAt == existing().createdAt &&
-                         incoming().diff(existing()).affectedKeys().hasOnly(['userId', 'dayNumber', 'feedIntakeKg', 'waterIntakeLiters', 'mortalityCount', 'temperature', 'gasUnits', 'ventilationStatus', 'litterCondition', 'isEdited', 'previousSummary', 'actualAvgWeightKg', 'updatedAt']);
+                         incoming().diff(existing()).affectedKeys().hasOnly([
+                           'userId', 'dayNumber', 'feedIntakeKg', 'waterIntakeLiters', 'mortalityCount',
+                           'temperature', 'gasUnits', 'ventilationStatus', 'litterCondition', 'isEdited',
+                           'previousSummary', 'actualAvgWeightKg', 'medicineGiven', 'medicineSummary',
+                           'withdrawalDays', 'updatedAtMillis', 'updatedAt'
+                         ]);
 
         allow delete: if isValidId(reportId) && isOwnerRole(farmId);
       }
@@ -289,7 +326,11 @@ service cloud.firestore {
                          (isOwnerRole(farmId) || isVetRole(farmId)) &&
                          incoming().userId == request.auth.uid &&
                          incoming().keys().hasAll(['userId', 'farmId', 'cycleId', 'dayNumber', 'medication', 'dosage', 'diagnosis', 'isUrgent', 'createdAt', 'updatedAt']) &&
-                         incoming().keys().hasOnly(['userId', 'farmId', 'cycleId', 'dayNumber', 'medication', 'dosage', 'diagnosis', 'isUrgent', 'status', 'linkedTransactionId', 'invoiceAmount', 'currency', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly([
+                           'userId', 'farmId', 'cycleId', 'dayNumber', 'medication', 'dosage', 'diagnosis',
+                           'isUrgent', 'status', 'linkedTransactionId', 'invoiceAmount', 'currency',
+                           'withdrawalDays', 'updatedAtMillis', 'createdAt', 'updatedAt'
+                         ]) &&
                          isValidVetNote(incoming(), farmId);
 
         allow update: if isValidId(noteId) &&
@@ -298,7 +339,11 @@ service cloud.firestore {
                          incoming().farmId == existing().farmId &&
                          incoming().cycleId == existing().cycleId &&
                          incoming().createdAt == existing().createdAt &&
-                         incoming().diff(existing()).affectedKeys().hasOnly(['userId', 'dayNumber', 'medication', 'dosage', 'diagnosis', 'isUrgent', 'status', 'linkedTransactionId', 'invoiceAmount', 'currency', 'updatedAt']);
+                         incoming().diff(existing()).affectedKeys().hasOnly([
+                           'userId', 'dayNumber', 'medication', 'dosage', 'diagnosis', 'isUrgent',
+                           'status', 'linkedTransactionId', 'invoiceAmount', 'currency',
+                           'withdrawalDays', 'updatedAtMillis', 'updatedAt'
+                         ]);
 
         allow delete: if isValidId(noteId) && isOwnerRole(farmId);
       }
@@ -323,6 +368,7 @@ service cloud.firestore {
                          incoming().keys().hasAll(['userId', 'farmId', 'cycleId', 'type', 'category', 'amount', 'currency', 'date', 'idempotencyKey', 'createdAt', 'updatedAt']) &&
                          incoming().keys().hasOnly([
                            'userId', 'farmId', 'cycleId', 'type', 'category', 'amount', 'currency', 'date', 'idempotencyKey', 'status',
+                           'notes', 'quantityQuintals', 'approvedBySignature', 'updatedAtMillis',
                            'invoiceNumber', 'buyerName', 'truckPlate', 'birdAgeDays', 'totalCrates', 'birdsPerCrate',
                            'totalBirdsSold', 'totalGrossKg', 'totalTareKg', 'totalNetKg', 'avgBirdWeightKg', 'pricePerKg',
                            'tareWeightsCount', 'grossWeightsCount', 'createdAt', 'updatedAt'
@@ -337,10 +383,31 @@ service cloud.firestore {
                          incoming().cycleId == existing().cycleId &&
                          incoming().idempotencyKey == existing().idempotencyKey &&
                          incoming().createdAt == existing().createdAt &&
-                         incoming().diff(existing()).affectedKeys().hasOnly(['category', 'amount', 'date', 'status', 'updatedAt']);
+                         incoming().diff(existing()).affectedKeys().hasOnly([
+                           'category', 'amount', 'date', 'status', 'notes', 'quantityQuintals',
+                           'approvedBySignature', 'updatedAtMillis', 'updatedAt'
+                         ]);
 
         allow delete: if isValidId(transactionId) && isOwnerRole(farmId);
       }
+    }
+
+    // 3. Chat Channels Collection (/chatChannels/{channelId}/messages/{messageId})
+    match /chatChannels/{channelId}/messages/{messageId} {
+      allow get, list: if isSignedIn() && isValidId(channelId);
+      allow create: if isSignedIn() &&
+                       isValidId(channelId) &&
+                       isValidId(messageId) &&
+                       incoming().keys().hasAll(['id', 'cycleId', 'senderRole', 'senderName', 'text', 'timestampText', 'createdAtMillis']) &&
+                       incoming().keys().hasOnly([
+                         'id', 'cycleId', 'senderRole', 'senderName', 'text', 'timestampText', 'createdAtMillis',
+                         'isFinancialRequest', 'linkedTransactionId', 'linkedVetNoteId', 'requestStatus',
+                         'requestAmount', 'requestCurrency', 'createdAt'
+                       ]);
+      allow update: if isSignedIn() &&
+                       isValidId(channelId) &&
+                       isValidId(messageId) &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['requestStatus']);
     }
   }
 }

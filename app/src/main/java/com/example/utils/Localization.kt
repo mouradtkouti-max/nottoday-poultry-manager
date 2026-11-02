@@ -4777,7 +4777,7 @@ object Translations {
     )
 
     fun hasKey(key: String): Boolean {
-        return dict.containsKey(key) || ptDict.containsKey(key)
+        return dict.containsKey(key) || ptDict.containsKey(key) || GlobalLanguageDictionaries.hasKey(key)
     }
 
     fun tr(key: String, lang: AppLanguage): String {
@@ -4786,13 +4786,15 @@ object Translations {
             return activeCurrency
         }
 
-        // Strict multi-language safe fallback chain:
+        // Strict multi-language safe fallback chain across all 14 languages:
         // 1) Requested language in dict
-        // 2) Portuguese dedicated dictionary when PT
-        // 3) English ("en") international fallback
-        // 4) Arabic ("ar") primary fallback
-        // 5) Sanitized human-readable string (NEVER expose raw underscore keys)
+        // 2) Dedicated language dictionary in GlobalLanguageDictionaries (TR, ID, UR, SW, RU, ZH, DE, IT + shared keys)
+        // 3) Portuguese dedicated dictionary when PT
+        // 4) English ("en") international fallback
+        // 5) Arabic ("ar") primary fallback
+        // 6) Sanitized human-readable string (NEVER expose raw underscore keys)
         val raw = dict[key]?.get(lang.code)
+            ?: GlobalLanguageDictionaries.lookup(key, lang)
             ?: (if (lang == AppLanguage.PT) ptDict[key] else null)
             ?: dict[key]?.get("en")
             ?: dict[key]?.get("ar")
@@ -4801,7 +4803,12 @@ object Translations {
 
         // Apply the user's globally chosen currency to all financial field labels
         if (!activeCurrency.isNullOrBlank() &&
-            (key == "amount_label" || key == "price_per_kg_label" || key == "field_chick_price" || key == "vet_invoice_amount_label")
+            (key == "amount_label" ||
+                key == "price_per_kg_label" ||
+                key == "field_chick_price" ||
+                key == "vet_invoice_amount_label" ||
+                key == "feed_price_quintal_label" ||
+                key == "sim_expected_price_kg_label")
         ) {
             return raw
                 .replace("(دج/كغ)", "($activeCurrency/${tr("kg_unit", lang)})")
@@ -4810,6 +4817,13 @@ object Translations {
                 .replace("(دج)", "($activeCurrency)")
                 .replace("(DZD)", "($activeCurrency)")
                 .replace("(BRL)", "($activeCurrency)")
+                .replace("(TRY)", "($activeCurrency)")
+                .replace("(IDR)", "($activeCurrency)")
+                .replace("(PKR)", "($activeCurrency)")
+                .replace("(KES)", "($activeCurrency)")
+                .replace("(RUB)", "($activeCurrency)")
+                .replace("(CNY)", "($activeCurrency)")
+                .replace("(EUR)", "($activeCurrency)")
         }
         return raw
     }

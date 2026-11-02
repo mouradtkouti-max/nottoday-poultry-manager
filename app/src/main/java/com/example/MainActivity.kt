@@ -924,10 +924,9 @@ fun AgritechRootApp() {
         AgritechMockDb.bindContext(context)
         LocalFarmPersistence.loadIntoMockDb(context)
         val onboardingDone = SaasPreferencesManager.hasCompletedOnboarding(context)
-        val detectedLocale = detectInitialLocaleAndCurrency(context)
-        val savedLang = if (onboardingDone) SaasPreferencesManager.getSavedLanguage(context) else detectedLocale.language
-        val savedCountry = if (onboardingDone) SaasPreferencesManager.getSavedCountryCode(context) else detectedLocale.countryCode
-        val savedCurrency = if (onboardingDone) SaasPreferencesManager.getSavedCurrencyCode(context) else detectedLocale.currencyCode
+        val savedLang = SaasPreferencesManager.getSavedLanguage(context)
+        val savedCountry = SaasPreferencesManager.getSavedCountryCode(context)
+        val savedCurrency = SaasPreferencesManager.getSavedCurrencyCode(context)
         val savedTheme = SaasPreferencesManager.getSavedTheme(context)
         val savedAccentColor = SaasPreferencesManager.getSavedAccentColor(context)
         val savedTextScale = SaasPreferencesManager.getSavedTextScale(context)
@@ -4755,8 +4754,12 @@ fun MarketPostCard(
     val cardShape = RoundedCornerShape(appearance.cornerRadiusDp.dp)
     val btnShape = RoundedCornerShape((appearance.cornerRadiusDp - 6).coerceAtLeast(4).dp)
 
-    val loadedBitmap = remember(post.imageUri) {
-        post.imageUri?.let { uriStr ->
+    val localizedPost = remember(post, lang, Translations.globalCurrencyCode) {
+        GlobalLanguageDictionaries.localizeMarketPost(post, lang)
+    }
+
+    val loadedBitmap = remember(localizedPost.imageUri) {
+        localizedPost.imageUri?.let { uriStr ->
             try {
                 val parsed = Uri.parse(uriStr)
                 context.contentResolver.openInputStream(parsed)?.use { stream ->
@@ -4771,7 +4774,7 @@ fun MarketPostCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .testTag("market_post_card_${post.id}"),
+            .testTag("market_post_card_${localizedPost.id}"),
         shape = cardShape,
         colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
@@ -4794,7 +4797,7 @@ fun MarketPostCard(
                 if (loadedBitmap != null) {
                     Image(
                         bitmap = loadedBitmap,
-                        contentDescription = post.imageCaption,
+                        contentDescription = localizedPost.imageCaption,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize()
                     )
@@ -4805,17 +4808,17 @@ fun MarketPostCard(
                         verticalArrangement = Arrangement.Center
                     ) {
                         Icon(
-                            if (post.imageUri != null) Icons.Default.PhotoCamera else Icons.Default.Image,
-                            contentDescription = post.imageCaption,
-                            tint = if (post.imageUri != null) accentEmerald else metaText,
+                            if (localizedPost.imageUri != null) Icons.Default.PhotoCamera else Icons.Default.Image,
+                            contentDescription = localizedPost.imageCaption,
+                            tint = if (localizedPost.imageUri != null) accentEmerald else metaText,
                             modifier = Modifier.size(42.dp)
                         )
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            post.imageCaption,
+                            localizedPost.imageCaption,
                             fontSize = 11.5.sp,
                             fontWeight = FontWeight.Medium,
-                            color = if (post.imageUri != null) accentEmerald else metaText
+                            color = if (localizedPost.imageUri != null) accentEmerald else metaText
                         )
                     }
                 }
@@ -4824,13 +4827,13 @@ fun MarketPostCard(
             // b) Post Title & Text Description
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
-                    post.title,
+                    localizedPost.title,
                     fontWeight = FontWeight.ExtraBold,
                     fontSize = 15.5.sp,
                     color = primaryText
                 )
                 Text(
-                    post.description,
+                    localizedPost.description,
                     fontSize = 13.sp,
                     color = secondaryText,
                     lineHeight = 19.sp
@@ -4843,7 +4846,7 @@ fun MarketPostCard(
                 color = priceBadgeBg
             ) {
                 Text(
-                    "${String.format(java.util.Locale.US, "%,.0f", post.priceDzd)} ${post.priceUnit}",
+                    "${String.format(java.util.Locale.US, "%,.0f", localizedPost.priceDzd)} ${localizedPost.priceUnit}",
                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
                     fontWeight = FontWeight.ExtraBold,
                     fontSize = 15.sp,
@@ -4875,14 +4878,14 @@ fun MarketPostCard(
                     }
                     Column {
                         Text(
-                            post.publisherName,
+                            localizedPost.publisherName,
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp,
                             color = primaryText,
                             maxLines = 1
                         )
                         Text(
-                            "📍 ${post.publisherLocation}",
+                            "📍 ${localizedPost.publisherLocation}",
                             fontSize = 11.sp,
                             color = metaText,
                             maxLines = 1
@@ -5114,7 +5117,7 @@ fun AddMarketPostDialog(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        if (selectedImageUri != null) "✓ تم إرفاق صورة الإعلان بنجاح"
+                        if (selectedImageUri != null) Translations.tr("market_image_attached_success", lang)
                         else Translations.tr("btn_upload_image", lang),
                         fontWeight = FontWeight.Bold,
                         fontSize = 12.5.sp,
@@ -5145,12 +5148,12 @@ fun AddMarketPostDialog(
                             MarketPostModel(
                                 id = "post_${System.currentTimeMillis()}",
                                 title = cleanTitle,
-                                description = descInput.trim().ifEmpty { "متوفر حالياً في المزرعة بجودة ممتازة." },
+                                description = descInput.trim().ifEmpty { cleanTitle },
                                 priceDzd = parsedPrice,
                                 priceUnit = curr,
                                 publisherName = resolvedPublisherName,
                                 publisherLocation = resolvedPublisherLocation,
-                                imageCaption = if (selectedImageUri != null) "صورة مرفقة: $cleanTitle" else "صورة مرفقة للإعلان",
+                                imageCaption = cleanTitle,
                                 chatChannelId = "general_admin",
                                 imageUri = selectedImageUri?.toString()
                             )
@@ -5158,7 +5161,7 @@ fun AddMarketPostDialog(
                     }
                 },
                 shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1B5E20)),
+                colors = ButtonDefaults.buttonColors(containerColor = LocalAppAppearanceState.current.accentOption.primaryColor),
                 modifier = Modifier.testTag("btn_confirm_publish_post")
             ) {
                 Text(
@@ -5192,23 +5195,23 @@ fun OwnerGlobalAiVetPlaceholderScreen(
     val secondaryText = if (isDark) Color(0xFFCBD5E1) else Color(0xFF475569)
     val coroutineScope = rememberCoroutineScope()
 
-    val quickChips = remember {
+    val quickChips = remember(lang) {
         listOf(
-            "🌡️ فحص الإجهاد الحراري والتهوية",
-            "💉 جدول تحصينات Ross 308",
-            "⚖️ تحليل معامل التحويل FCR",
-            "💊 بروتوكول الأعراض التنفسية والإسهال"
+            Translations.tr("ai_vet_chip_0", lang),
+            Translations.tr("ai_vet_chip_1", lang),
+            Translations.tr("ai_vet_chip_2", lang),
+            Translations.tr("ai_vet_chip_3", lang)
         )
     }
 
     var promptInput by remember { mutableStateOf("") }
     var isAnalyzing by remember { mutableStateOf(false) }
-    var diagnosisHistory by remember {
+    var diagnosisHistory by remember(lang) {
         mutableStateOf(
             listOf(
                 Pair(
-                    "🤖 المساعد البيطري الذكي (Ross 308 AI Vet)",
-                    "مرحباً بك في وحدة التشخيص البيطري الفوري وتحليل المؤشرات الحيوية للقطيع. اختر أحد الفحوصات السريعة أدناه أو اكتب الأعراض (الحرارة، النفوق، استهلاك الماء والعلف) للحصول على بروتوكول علاجي ووقائي دقيق."
+                    Translations.tr("ai_vet_welcome_title", lang),
+                    Translations.tr("ai_vet_welcome_body", lang)
                 )
             )
         )
@@ -5218,14 +5221,20 @@ fun OwnerGlobalAiVetPlaceholderScreen(
         val cleanQuery = queryText.trim()
         if (cleanQuery.isEmpty() || isAnalyzing) return
         isAnalyzing = true
-        diagnosisHistory = diagnosisHistory + Pair("👤 استشارتك: $cleanQuery", "⏳ جاري تحليل بيانات العنبر والأعراض عبر المساعد البيطري الذكي...")
+        diagnosisHistory = diagnosisHistory + Pair(
+            "${Translations.tr("ai_vet_user_query_prefix", lang)}: $cleanQuery",
+            Translations.tr("ai_vet_analyzing_msg", lang)
+        )
         coroutineScope.launch {
             val reply = try {
                 AiVetGeminiService.generateVetResponse(cleanQuery, lang)
             } catch (e: Exception) {
-                "🩺 تشخيص أولي: يرجى ضبط التهوية على الفور ومراقبة استهلاك المياه وإضافة إلكتروليت وفيتامين C عند ارتفاع الحرارة."
+                Translations.tr("ai_vet_fallback_reply", lang)
             }
-            diagnosisHistory = diagnosisHistory.dropLast(1) + Pair("🩺 تشخيص وتوصية المساعد البيطري (فحص: $cleanQuery)", reply)
+            diagnosisHistory = diagnosisHistory.dropLast(1) + Pair(
+                "${Translations.tr("ai_vet_diagnosis_prefix", lang)} ($cleanQuery)",
+                reply
+            )
             isAnalyzing = false
         }
     }
@@ -5269,13 +5278,13 @@ fun OwnerGlobalAiVetPlaceholderScreen(
                     }
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "المساعد البيطري الذكي والتشخيص الفوري",
+                            text = Translations.tr("ai_vet_header_title", lang),
                             fontWeight = FontWeight.ExtraBold,
                             fontSize = 15.sp,
                             color = primaryText
                         )
                         Text(
-                            text = "تحليل فوري للأعراض التنفسية، الإجهاد الحراري، وجدول لقاحات Ross 308",
+                            text = Translations.tr("ai_vet_header_subtitle", lang),
                             fontSize = 11.5.sp,
                             color = secondaryText
                         )
@@ -5359,7 +5368,7 @@ fun OwnerGlobalAiVetPlaceholderScreen(
                 onValueChange = { promptInput = it },
                 placeholder = {
                     Text(
-                        "اكتب أعراض القطيع أو سؤالك البيطري هنا...",
+                        Translations.tr("ai_vet_input_placeholder", lang),
                         fontSize = 12.sp,
                         color = secondaryText.copy(alpha = 0.6f)
                     )
@@ -5842,65 +5851,73 @@ fun FarmCard(
                     )
                 }
 
-                // c) ID Footer Row: Primary 3D capsule button "📖 فتح الدفتر" alongside compact secondary buttons "👥+ فريق" & "🔄 إعادة الدورة"
-                Row(
+                // c) ID Footer Section: Full-width primary 3D capsule button "📖 فتح الدفتر" on row 1,
+                // and balanced secondary buttons "👥+ فريق" & "🔄 إعادة الدورة" on row 2 so no text clips in any language
+                Column(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     PremiumPillButton(
                         text = Translations.tr("open_notebook", lang),
                         onClick = onOpenNotebook,
                         variant = PremiumPillVariant.PRIMARY,
-                        fontSize = 12.5.sp,
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
+                        fontSize = 13.5.sp,
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
                         leadingIcon = {
                             Icon(
                                 Icons.Default.MenuBook,
                                 contentDescription = null,
-                                modifier = Modifier.size(16.dp),
+                                modifier = Modifier.size(18.dp),
                                 tint = Color.White
                             )
                         },
                         modifier = Modifier
-                            .weight(1f)
+                            .fillMaxWidth()
                             .height(48.dp)
                             .testTag("btn_open_notebook_${farm.id}")
                     )
 
-                    OutlinedButton(
-                        onClick = { showTeamQrInviteSheet = true },
-                        modifier = Modifier
-                            .height(48.dp)
-                            .testTag("btn_add_team_${farm.id}"),
-                        shape = RoundedCornerShape(50),
-                        border = BorderStroke(1.2.dp, accentEmerald.copy(alpha = 0.55f)),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            containerColor = qrButtonBg,
-                            contentColor = accentEmerald
-                        ),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            Translations.tr("btn_invite_team_short", lang),
-                            fontWeight = FontWeight.ExtraBold,
+                        OutlinedButton(
+                            onClick = { showTeamQrInviteSheet = true },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(44.dp)
+                                .testTag("btn_add_team_${farm.id}"),
+                            shape = RoundedCornerShape(50),
+                            border = BorderStroke(1.2.dp, accentEmerald.copy(alpha = 0.55f)),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                containerColor = qrButtonBg,
+                                contentColor = accentEmerald
+                            ),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                        ) {
+                            Text(
+                                Translations.tr("btn_invite_team_short", lang),
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 11.5.sp,
+                                color = accentEmerald,
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        }
+
+                        PremiumPillButton(
+                            text = Translations.tr("btn_reset_cycle", lang),
+                            onClick = { showCardResetCycleDialog = true },
+                            variant = PremiumPillVariant.DELETE_RESET,
                             fontSize = 11.5.sp,
-                            color = accentEmerald,
-                            maxLines = 1,
-                            softWrap = false
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(44.dp)
+                                .testTag("btn_reset_cycle_${farm.id}")
                         )
                     }
-
-                    PremiumPillButton(
-                        text = Translations.tr("btn_reset_cycle", lang),
-                        onClick = { showCardResetCycleDialog = true },
-                        variant = PremiumPillVariant.DELETE_RESET,
-                        fontSize = 11.5.sp,
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
-                        modifier = Modifier
-                            .height(48.dp)
-                            .testTag("btn_reset_cycle_${farm.id}")
-                    )
                 }
             } else {
                 // 3. Empty State Handling: No active cycle exists for this farm
@@ -9501,7 +9518,7 @@ fun AgritechFarmNotebookScreen(
                                     }
                                 }
 
-                                // تفاصيل الشحنة المسجلة في الأعلى بوضوح
+                                // تفاصيل الشحنة المسجلة في الأعلى بوضوح (مع تنبيه واضح بأنها مسودة غير مرحلة للخزنة حتى يتم الحفظ)
                                 if (grossWeightsList.isNotEmpty()) {
                                     Surface(
                                         color = if (currentTheme.isDark) Color(0xFF0F172A) else Color(0xFFF8FAFC),
@@ -9512,6 +9529,23 @@ fun AgritechFarmNotebookScreen(
                                             modifier = Modifier.padding(14.dp),
                                             verticalArrangement = Arrangement.spacedBy(8.dp)
                                         ) {
+                                            Surface(
+                                                shape = RoundedCornerShape(8.dp),
+                                                color = if (currentTheme.isDark) Color(0xFF78350F).copy(alpha = 0.45f) else Color(0xFFFEF3C7),
+                                                border = BorderStroke(1.dp, Color(0xFFF59E0B)),
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .testTag("unsaved_weighing_draft_banner")
+                                            ) {
+                                                Text(
+                                                    text = Translations.tr("weigh_unsaved_draft_warning", lang),
+                                                    fontSize = 11.5.sp,
+                                                    fontWeight = FontWeight.ExtraBold,
+                                                    color = if (currentTheme.isDark) Color(0xFFFDE68A) else Color(0xFFB45309),
+                                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                                )
+                                            }
+
                                             Row(
                                                 modifier = Modifier.fillMaxWidth(),
                                                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -9692,12 +9726,16 @@ fun AgritechFarmNotebookScreen(
                                     Translations.tr("vet_records_title", lang),
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 15.sp,
-                                    color = currentTheme.headingColor
+                                    color = currentTheme.headingColor,
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .padding(end = 8.dp)
                                 )
 
                                 Button(
                                     onClick = { showVetMedicineInvoiceDialog = true },
                                     modifier = Modifier
+                                        .widthIn(min = 120.dp)
                                         .height(40.dp)
                                         .testTag("btn_open_vet_invoice_dialog"),
                                     shape = notebookBtnShape,
@@ -9708,7 +9746,9 @@ fun AgritechFarmNotebookScreen(
                                         "🧾 ${Translations.tr("vet_invoice_btn", lang)}",
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = Color.White
+                                        color = Color.White,
+                                        maxLines = 1,
+                                        softWrap = false
                                     )
                                 }
                             }
@@ -12798,7 +12838,7 @@ fun FeedOrdersLedgerBottomSheet(
                                     textAlign = TextAlign.Center
                                 )
                                 Text(
-                                    "${String.format(java.util.Locale.US, "%,.0f", row.totalAmountDzd)} ${row.currency}",
+                                    "${String.format(java.util.Locale.US, "%,.0f", row.totalAmountDzd)} $curr",
                                     modifier = Modifier.weight(1.1f),
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.ExtraBold,

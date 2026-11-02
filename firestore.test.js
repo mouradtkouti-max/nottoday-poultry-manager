@@ -392,8 +392,135 @@ test("Security Audit: Stranger cannot escalate to OWNER via /users profile or QR
   await assertSucceeds(
     ownerDb.collection("farms").doc(FARM_ID).collection("transactions").doc("tx_worker_req_1").update({
       status: "APPROVED",
+      approvedBySignature: "موافقة المالك المعتمدة",
+      updatedAtMillis: Date.now(),
       updatedAt: now,
     })
   );
 });
+
+test("Schema v2 & Audit Fields: farms, cycles, dailyReports, vetNotes, transactions, and chatChannels allow new optional fields", async () => {
+  await seedSharedFarmWithMembers(FARM_ID, {
+    [OWNER_UID]: "OWNER",
+    [VET_UID]: "VETERINARIAN",
+    [WORKER_UID]: "WORKER",
+  });
+  const now = new Date();
+  const ownerDb = testEnv.authenticatedContext(OWNER_UID).firestore();
+  const vetDb = testEnv.authenticatedContext(VET_UID).firestore();
+  const workerDb = testEnv.authenticatedContext(WORKER_UID).firestore();
+
+  // 1. Create farm with schemaVersion, sectorId, branchId, customMetrics
+  await assertSucceeds(
+    ownerDb.collection("farms").doc("farm_v2").set({
+      farmId: "farm_v2",
+      name: "عنبر التوسع المستقبلي",
+      location: "سطيف",
+      capacity: 15000,
+      assignedWorkerId: WORKER_UID,
+      currencyCode: "DZD",
+      schemaVersion: 2,
+      sectorId: "AGRICULTURE",
+      branchId: "BROILER",
+      customMetrics: { targetFcr: "1.55" },
+      members: { [OWNER_UID]: "OWNER" },
+      createdAt: now,
+      updatedAt: now,
+    })
+  );
+
+  // 2. Create cycle with schemaVersion, sectorId, branchId, customMetrics, status, startDate, chickPrice
+  await assertSucceeds(
+    ownerDb.collection("farms").doc(FARM_ID).collection("cycles").doc("cycle_v2").set({
+      userId: OWNER_UID,
+      farmId: FARM_ID,
+      status: "active",
+      startDate: "01-11-2026",
+      chickPrice: 125.0,
+      totalBirdsPlaced: 10000,
+      targetWeightKg: 2.8,
+      cumulativeBirdsSold: 0,
+      cumulativeSoldWeightKg: 0.0,
+      feedInventoryKg: 4000.0,
+      currencyCode: "DZD",
+      schemaVersion: 2,
+      sectorId: "AGRICULTURE",
+      branchId: "BROILER",
+      customMetrics: {},
+      createdAt: now,
+      updatedAt: now,
+    })
+  );
+
+  // 3. Create dailyReport with medicineGiven, medicineSummary, withdrawalDays, updatedAtMillis
+  await assertSucceeds(
+    workerDb.collection("farms").doc(FARM_ID).collection("dailyReports").doc("rep_v2").set({
+      userId: WORKER_UID,
+      farmId: FARM_ID,
+      cycleId: "cycle_v2",
+      dayNumber: 5,
+      feedIntakeKg: 320.0,
+      waterIntakeLiters: 640.0,
+      mortalityCount: 2,
+      temperature: 31.0,
+      gasUnits: 2.5,
+      ventilationStatus: "جيدة",
+      litterCondition: "طبيعية",
+      isEdited: false,
+      previousSummary: "",
+      actualAvgWeightKg: 0.18,
+      medicineGiven: true,
+      medicineSummary: "فيتامين AD3E",
+      withdrawalDays: 0,
+      updatedAtMillis: Date.now(),
+      createdAt: now,
+      updatedAt: now,
+    })
+  );
+
+  // 4. Create vetNote with withdrawalDays and updatedAtMillis
+  await assertSucceeds(
+    vetDb.collection("farms").doc(FARM_ID).collection("vetNotes").doc("vet_v2").set({
+      userId: VET_UID,
+      farmId: FARM_ID,
+      cycleId: "cycle_v2",
+      dayNumber: 5,
+      medication: "Enrofloxacin",
+      dosage: "1ml/2L",
+      diagnosis: "CRD Prevention",
+      isUrgent: true,
+      status: "PENDING",
+      linkedTransactionId: "tx_v2",
+      invoiceAmount: 15000.0,
+      currency: "DZD",
+      withdrawalDays: 7,
+      updatedAtMillis: Date.now(),
+      createdAt: now,
+      updatedAt: now,
+    })
+  );
+
+  // 5. Create transaction with notes, quantityQuintals, approvedBySignature, updatedAtMillis
+  await assertSucceeds(
+    ownerDb.collection("farms").doc(FARM_ID).collection("transactions").doc("tx_feed_v2").set({
+      userId: OWNER_UID,
+      farmId: FARM_ID,
+      cycleId: "cycle_v2",
+      type: "EXPENSE",
+      category: "🌾 علف (40 ق)",
+      amount: 320000.0,
+      currency: "DZD",
+      date: "اليوم 5",
+      idempotencyKey: "tx_feed_v2",
+      status: "APPROVED",
+      notes: "شراء علف بادئ",
+      quantityQuintals: 40.0,
+      approvedBySignature: "موافقة المالك",
+      updatedAtMillis: Date.now(),
+      createdAt: now,
+      updatedAt: now,
+    })
+  );
+});
+
 
