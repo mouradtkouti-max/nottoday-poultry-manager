@@ -258,11 +258,12 @@ object Translations {
             "hi" to "💧 कुल पानी"
         ),
         "sum_mortality" to mapOf(
-            "ar" to "💀 إجمالي النفوق",
-            "fr" to "💀 Mortalité Totale",
-            "en" to "💀 Total Mortality",
-            "es" to "💀 Mortandad Total",
-            "hi" to "💀 कुल मृत्यु"
+            "ar" to "إجمالي النفوق",
+            "fr" to "Mortalité Totale",
+            "en" to "Total Mortality",
+            "es" to "Mortandad Total",
+            "pt" to "Mortalidade Total",
+            "hi" to "कुल मृत्यु"
         ),
         "currency" to mapOf(
             "ar" to "دج",
@@ -1267,18 +1268,20 @@ object Translations {
             "hi" to "स्टार्टर फ़ीड"
         ),
         "feed_qty_quintals_label" to mapOf(
-            "ar" to "الكمية بالقنطار (مثلاً: 40)",
-            "fr" to "Quantité en Quintaux (ex: 40)",
-            "en" to "Quantity in Quintals (e.g., 40)",
-            "es" to "Cantidad en Quintales (ej: 40)",
-            "hi" to "मात्रा क्विंटल में (जैसे: 40)"
+            "ar" to "الكمية (قنطار)",
+            "fr" to "Quantité (q)",
+            "en" to "Quantity (qtl)",
+            "es" to "Cantidad (q)",
+            "pt" to "Quantidade (q)",
+            "hi" to "मात्रा (क्विंटल)"
         ),
         "feed_price_quintal_label" to mapOf(
-            "ar" to "سعر القنطار الواحد (مثلاً: 8000)",
-            "fr" to "Prix unitaire par Quintal (ex: 8000)",
-            "en" to "Unit Price per Quintal (e.g., 8000)",
-            "es" to "Precio por Quintal (ej: 8000)",
-            "hi" to "प्रति क्विंटल मूल्य (जैसे: 8000)"
+            "ar" to "سعر القنطار (دج)",
+            "fr" to "Prix / Quintal (DZD)",
+            "en" to "Price / Quintal (DZD)",
+            "es" to "Precio / Quintal (DZD)",
+            "pt" to "Preço / Quintal (DZD)",
+            "hi" to "प्रति क्विंटल मूल्य (DZD)"
         ),
         "feed_total_auto_label" to mapOf(
             "ar" to "المبلغ الإجمالي المحسوب تلقائياً",
@@ -2065,12 +2068,12 @@ object Translations {
             "hi" to "✓ स्वीकृत और कटौती की गई"
         ),
         "btn_approve_vet_invoice" to mapOf(
-            "ar" to "تأكيد واعتماد الصرف ✓",
-            "fr" to "Approuver et déduire ✓",
-            "en" to "Confirm & Approve Expense ✓",
-            "es" to "Confirmar y aprobar gasto ✓",
-            "pt" to "Confirmar e aprovar despesa ✓",
-            "hi" to "पुष्टि करें और खर्च स्वीकृत करें ✓"
+            "ar" to "✓ تأكيد واعتماد الصرف",
+            "fr" to "✓ Approuver et déduire",
+            "en" to "✓ Confirm & Approve Expense",
+            "es" to "✓ Confirmar y aprobar gasto",
+            "pt" to "✓ Confirmar e aprovar despesa",
+            "hi" to "✓ पुष्टि करें और खर्च स्वीकृत करें"
         ),
         "vet_pending_banner_title" to mapOf(
             "ar" to "فواتير أدوية بانتظار اعتماد الصرف ⏳",
@@ -2793,20 +2796,20 @@ object Translations {
             "hi" to "✓ स्वीकृत और खजाने से कटौती"
         ),
         "btn_approve_disbursement" to mapOf(
-            "ar" to "تأكيد واعتماد الصرف ✓",
-            "fr" to "Confirmer & Approuver ✓",
-            "en" to "Confirm & Approve Payment ✓",
-            "es" to "Confirmar y Aprobar Pago ✓",
-            "pt" to "Confirmar e Aprovar Pagamento ✓",
-            "hi" to "भुगतान की पुष्टि और स्वीकृति ✓"
+            "ar" to "✓ تأكيد واعتماد الصرف",
+            "fr" to "✓ Confirmer & Approuver",
+            "en" to "✓ Confirm & Approve Payment",
+            "es" to "✓ Confirmar y Aprobar Pago",
+            "pt" to "✓ Confirmar e Aprovar Pagamento",
+            "hi" to "✓ भुगतान की पुष्टि और स्वीकृति"
         ),
         "btn_approve_vet_invoice" to mapOf(
-            "ar" to "تأكيد واعتماد الصرف ✓",
-            "fr" to "Confirmer & Approuver ✓",
-            "en" to "Confirm & Approve Payment ✓",
-            "es" to "Confirmar y Aprobar Pago ✓",
-            "pt" to "Confirmar e Aprovar Pagamento ✓",
-            "hi" to "भुगतान की पुष्टि और स्वीकृति ✓"
+            "ar" to "✓ تأكيد واعتماد الصرف",
+            "fr" to "✓ Confirmer & Approuver",
+            "en" to "✓ Confirm & Approve Payment",
+            "es" to "✓ Confirmar y Aprobar Pago",
+            "pt" to "✓ Confirmar e Aprovar Pagamento",
+            "hi" to "✓ भुगतान की पुष्टि और स्वीकृति"
         ),
         "vet_pending_banner_title" to mapOf(
             "ar" to "⏳ طلبات مالية وفواتير بانتظار اعتمادك",
@@ -3049,12 +3052,12 @@ object Translations {
             "hi" to "💰 खजाना"
         ),
         "vet_bottom_tab_epidemics" to mapOf(
-            "ar" to "🧬 اللقاحات والأوبئة",
-            "fr" to "🧬 Vaccins & Épid.",
-            "en" to "🧬 Vaccines",
-            "es" to "🧬 Vacunas",
-            "pt" to "🧬 Vacinas",
-            "hi" to "🧬 टीके"
+            "ar" to "🧪 اللقاحات",
+            "fr" to "🧪 Vaccins",
+            "en" to "🧪 Vaccines",
+            "es" to "🧪 Vacunas",
+            "pt" to "🧪 Vacinas",
+            "hi" to "🧪 टीके"
         ),
         "vet_bottom_tab_pharmacy" to mapOf(
             "ar" to "💊 الصيدلية",
@@ -4177,12 +4180,12 @@ object Translations {
             "hi" to "⚠️ दर्ज की गई संख्या बाड़े में शेष जीवित पक्षियों ({liveBirds} पक्षी) से अधिक है"
         ),
         "weight_not_measured_yet" to mapOf(
-            "ar" to "غير مقاس بعد",
-            "fr" to "Non mesuré",
-            "en" to "Not measured yet",
-            "es" to "Sin medir aún",
-            "pt" to "Ainda não medido",
-            "hi" to "अभी मापा नहीं गया"
+            "ar" to "قيد القياس",
+            "fr" to "En mesure",
+            "en" to "Measuring",
+            "es" to "En medición",
+            "pt" to "Em medição",
+            "hi" to "मापन जारी"
         ),
         "ross308_reference_hint" to mapOf(
             "ar" to "مرجع Ross 308",
@@ -4193,20 +4196,20 @@ object Translations {
             "hi" to "रॉस 308 संदर्भ"
         ),
         "withdrawal_active_banner_title" to mapOf(
-            "ar" to "⏳ فترة سحب الدواء نشطة (متبقي {days} يوم)",
-            "fr" to "⏳ Période d'attente médicamenteuse active ({days} j restants)",
-            "en" to "⏳ Active Drug Withdrawal Period ({days} days left)",
-            "es" to "⏳ Período de retiro de medicamento activo ({days} días restantes)",
-            "pt" to "⏳ Período de carência ativo ({days} dias restantes)",
-            "hi" to "⏳ दवा निकासी अवधि सक्रिय ({days} दिन शेष)"
+            "ar" to "⚠️ تنبيه إرشادي: فترة سحب الدواء نشطة (متبقي {days} يوم) — البيع والميزان متاحان للتوثيق.",
+            "fr" to "⚠️ Avis indicatif : Période d'attente active ({days} j restants) — Pesée et vente disponibles.",
+            "en" to "⚠️ Advisory Notice: Active drug withdrawal ({days} days left) — Weighing & sales remain open for logging.",
+            "es" to "⚠️ Aviso orientativo: Período de retiro activo ({days} días restantes) — Pesaje y venta disponibles.",
+            "pt" to "⚠️ Aviso orientativo: Período de carência ativo ({days} dias restantes) — Pesagem e venda disponíveis.",
+            "hi" to "⚠️ सलाहकारी सूचना: दवा निकासी अवधि सक्रिय ({days} दिन शेष) — तौल और बिक्री उपलब्ध हैं।"
         ),
         "withdrawal_active_sales_blocked" to mapOf(
-            "ar" to "⛔ يُمنع بيع أو ذبح الطيور للاستهلاك خلال فترة سحب الدواء ({days} يوم متبقي لسلامة المستهلك).",
-            "fr" to "⛔ Vente bloquée pendant la période d'attente médicamenteuse ({days} j restants).",
-            "en" to "⛔ Bird sales are blocked during the active veterinary drug withdrawal period ({days} days remaining).",
-            "es" to "⛔ Venta bloqueada durante el período de retiro del medicamento ({days} días restantes).",
-            "pt" to "⛔ Venda bloqueada durante o período de carência do medicamento ({days} dias restantes).",
-            "hi" to "⛔ सक्रिय दवा निकासी अवधि ({days} दिन शेष) के दौरान पक्षियों की बिक्री अवरुद्ध है।"
+            "ar" to "⚠️ تنبيه إرشادي: فترة سحب الدواء نشطة (متبقي {days} يوم) — البيع والميزان متاحان للتوثيق.",
+            "fr" to "⚠️ Avis indicatif : Période d'attente active ({days} j restants) — Pesée et vente disponibles.",
+            "en" to "⚠️ Advisory Notice: Active drug withdrawal ({days} days left) — Weighing & sales remain open for logging.",
+            "es" to "⚠️ Aviso orientativo: Período de retiro activo ({days} días restantes) — Pesaje y venta disponibles.",
+            "pt" to "⚠️ Aviso orientativo: Período de carência ativo ({days} dias restantes) — Pesagem e venda disponíveis.",
+            "hi" to "⚠️ सलाहकारी सूचना: दवा निकासी अवधि सक्रिय ({days} दिन शेष) — तौल और बिक्री उपलब्ध हैं।"
         ),
         "vet_withdrawal_days_label" to mapOf(
             "ar" to "⏳ فترة سحب الدواء بالأيام (0 للفيتامينات، 7 للمضادات)",
@@ -4335,6 +4338,54 @@ object Translations {
             "es" to "🤖 Analizar lecturas del robot y lote ahora",
             "pt" to "🤖 Analisar leituras do robô e lote agora",
             "hi" to "🤖 रोबोट रीडिंग और झुंड का अभी विश्लेषण करें"
+        ),
+        "btn_reset_cycle" to mapOf(
+            "ar" to "🔄 إعادة الدورة",
+            "fr" to "🔄 Réinitialiser",
+            "en" to "🔄 Reset Cycle",
+            "es" to "🔄 Reiniciar Ciclo",
+            "pt" to "🔄 Reiniciar Lote",
+            "hi" to "🔄 चक्र रीसेट करें"
+        ),
+        "reset_cycle_dialog_title" to mapOf(
+            "ar" to "⚠️ تحذير: إعادة ضبط الدورة ومسح العنبر",
+            "fr" to "⚠️ Attention : Réinitialiser le cycle et vider le bâtiment",
+            "en" to "⚠️ Warning: Reset Cycle & Clear Barn Data",
+            "es" to "⚠️ Advertencia: Reiniciar ciclo y borrar datos del galpón",
+            "pt" to "⚠️ Aviso: Reiniciar lote e limpar dados do galpão",
+            "hi" to "⚠️ चेतावनी: चक्र रीसेट करें और बार्न डेटा साफ़ करें"
+        ),
+        "reset_cycle_dialog_msg" to mapOf(
+            "ar" to "هل أنت متأكد من إعادة ضبط هذه الدورة؟ سيؤدي هذا الإجراء إلى مسح جميع التقارير اليومية (العلف، الماء، النفوق)، وتصفير الخزنة والمصاريف والفواتير، وإلغاء فترات سحب الأدوية، وإعادة الدورة إلى اليوم 1 من جديد. لا يمكن التراجع عن هذا الإجراء.",
+            "fr" to "Êtes-vous sûr de vouloir réinitialiser ce cycle ? Cette action effacera tous les rapports quotidiens, la trésorerie, les factures et les délais d'attente, et remettra le cycle au Jour 1. Cette action est irréversible.",
+            "en" to "Are you sure you want to reset this cycle? This will clear all daily reports (feed, water, mortality), reset the treasury, expenses, and invoices, cancel drug withdrawal periods, and reset the cycle back to Day 1. This action cannot be undone.",
+            "es" to "¿Está seguro de reiniciar este ciclo? Esto borrará todos los registros diarios, reiniciará la tesorería y facturas, cancelará los períodos de retiro y devolverá el ciclo al Día 1. No se puede deshacer.",
+            "pt" to "Tem certeza de que deseja reiniciar este lote? Isso apagará todos os relatórios diários, zerará a tesouraria e faturas, cancelará períodos de carência e voltará o lote para o Dia 1. Esta ação não pode ser desfeita.",
+            "hi" to "क्या आप वाकई इस चक्र को रीसेट करना चाहते हैं? इससे सभी दैनिक रिपोर्ट, खजाना, चालान और दवा निकासी अवधि साफ़ हो जाएगी और चक्र वापस दिन 1 पर आ जाएगा।"
+        ),
+        "reset_cycle_confirm_btn" to mapOf(
+            "ar" to "نعم، امسح البيانات وأعد الدورة",
+            "fr" to "Oui, effacer et réinitialiser",
+            "en" to "Yes, Clear Data & Reset Cycle",
+            "es" to "Sí, borrar datos y reiniciar",
+            "pt" to "Sim, limpar dados e reiniciar",
+            "hi" to "हाँ, डेटा साफ़ करें और रीसेट करें"
+        ),
+        "reset_cycle_success_msg" to mapOf(
+            "ar" to "تم تصفير العنبر وإعادة الدورة إلى اليوم 1 بنجاح",
+            "fr" to "Bâtiment vidé et cycle réinitialisé au Jour 1 avec succès",
+            "en" to "Barn cleared and cycle reset to Day 1 successfully",
+            "es" to "Galpón limpiado y ciclo reiniciado al Día 1 con éxito",
+            "pt" to "Galpão limpo e lote reiniciado para o Dia 1 com sucesso",
+            "hi" to "बार्न साफ़ किया गया और चक्र सफलतापूर्वक दिन 1 पर रीसेट हो गया"
+        ),
+        "active_cycle_label" to mapOf(
+            "ar" to "الدورة النشطة",
+            "fr" to "Cycle actif",
+            "en" to "Active Cycle",
+            "es" to "Ciclo activo",
+            "pt" to "Lote ativo",
+            "hi" to "सक्रिय चक्र"
         )
     )
 
@@ -4550,7 +4601,7 @@ object Translations {
         "fin_req_cat_vet_invoice" to "Fatura de medicamentos e vacinas vet.",
         "fin_req_amount_label" to "Valor solicitado",
         "fin_req_submit_btn" to "Enviar solicitação ✓",
-        "btn_approve_vet_invoice" to "Confirmar e Aprovar Pagamento ✓",
+        "btn_approve_vet_invoice" to "✓ Confirmar e Aprovar Pagamento",
         "day_meds_given_section_title" to "💊 Medicamentos e vitaminas administrados neste dia",
         "day_med_drunk_confirmed_prefix" to "✓ Medicamento administrado na água:",
         "btn_view_share_tx_receipt" to "🧾 Ver e compartilhar recibo da transação",
@@ -4559,10 +4610,10 @@ object Translations {
         "gram_unit" to "g",
         "field_actual_bird_weight_grams_optional" to "⚖️ Peso médio real da ave (gramas - opcional)",
         "sales_exceeds_live_birds_warning" to "⚠️ A quantidade inserida excede as aves vivas restantes no galpão ({liveBirds} aves)",
-        "weight_not_measured_yet" to "Ainda não medido",
+        "weight_not_measured_yet" to "Em medição",
         "ross308_reference_hint" to "Ref. Ross 308",
-        "withdrawal_active_banner_title" to "⏳ Período de carência ativo ({days} dias restantes)",
-        "withdrawal_active_sales_blocked" to "⛔ Venda bloqueada durante o período de carência do medicamento ({days} dias restantes).",
+        "withdrawal_active_banner_title" to "⚠️ Aviso orientativo: Período de carência ativo ({days} dias restantes) — Pesagem e venda disponíveis.",
+        "withdrawal_active_sales_blocked" to "⚠️ Aviso orientativo: Período de carência ativo ({days} dias restantes) — Pesagem e venda disponíveis.",
         "vet_withdrawal_days_label" to "⏳ Período de carência em dias (0 vitaminas, 7 antibióticos)",
         "account_local_profile" to "Perfil local da granja",
         "paywall_sandbox_notice" to "🧪 Modo de teste (Sandbox): ativação imediata sem cobrança bancária real.",
@@ -4578,7 +4629,13 @@ object Translations {
         "smart_barn_sensor_gas" to "🔥 Pressão do gás: 85% (🟢 Estável)",
         "smart_barn_sensor_temp_hum" to "🌡️ Temp. e Umidade: 21.3°C • 58%",
         "smart_barn_tap_nh3_hint" to "💡 Toque no sensor de amônia (NH3) para simular um alerta respiratório",
-        "smart_barn_analyze_btn" to "🤖 Analisar leituras do robô e lote agora"
+        "smart_barn_analyze_btn" to "🤖 Analisar leituras do robô e lote agora",
+        "btn_reset_cycle" to "🔄 Reiniciar Lote",
+        "reset_cycle_dialog_title" to "⚠️ Aviso: Reiniciar lote e limpar dados do galpão",
+        "reset_cycle_dialog_msg" to "Tem certeza de que deseja reiniciar este lote? Isso apagará todos os relatórios diários, zerará a tesouraria e faturas, cancelará períodos de carência e voltará o lote para o Dia 1. Esta ação não pode ser desfeita.",
+        "reset_cycle_confirm_btn" to "Sim, limpar dados e reiniciar",
+        "reset_cycle_success_msg" to "Galpão limpo e lote reiniciado para o Dia 1 com sucesso",
+        "active_cycle_label" to "Lote ativo"
     )
 
     fun hasKey(key: String): Boolean {

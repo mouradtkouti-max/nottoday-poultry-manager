@@ -1256,4 +1256,48 @@ class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
         } catch (_: Exception) {
         }
     }
+
+    /**
+     * Resets the specified cycle and clears all daily reports, financial transactions, and vet notes/withdrawal periods
+     * for the barn in both local state and Cloud Firestore.
+     */
+    suspend fun resetCycleAndClearBarn(farmId: String, cycleId: String): Result<Unit> {
+        val resetCycle = AgritechMockDb.resetCycleAndClearBarn(farmId, cycleId)
+        val uid = auth.currentUser?.uid ?: return Result.success(Unit)
+        return try {
+            val reportsSnap = farmReportsRef(farmId).get().await()
+            for (doc in reportsSnap.documents) {
+                val docCycleId = doc.getString("cycleId").orEmpty()
+                if (docCycleId == cycleId || docCycleId.isBlank()) {
+                    doc.reference.delete().await()
+                }
+            }
+
+            val txsSnap = farmTransactionsRef(farmId).get().await()
+            for (doc in txsSnap.documents) {
+                val docCycleId = doc.getString("cycleId").orEmpty()
+                if (docCycleId == cycleId || docCycleId.isBlank()) {
+                    doc.reference.delete().await()
+                }
+            }
+
+            val vetSnap = farmVetNotesRef(farmId).get().await()
+            for (doc in vetSnap.documents) {
+                val docCycleId = doc.getString("cycleId").orEmpty()
+                if (docCycleId == cycleId || docCycleId.isBlank()) {
+                    doc.reference.delete().await()
+                }
+            }
+
+            if (resetCycle != null) {
+                saveCycleRecord(resetCycle)
+            }
+            Result.success(Unit)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }
+

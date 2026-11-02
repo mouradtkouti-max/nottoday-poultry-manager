@@ -3021,6 +3021,7 @@ fun SubscriptionPaywallBottomSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 22.dp)
                 .padding(bottom = 28.dp)
                 .navigationBarsPadding(),
@@ -3611,13 +3612,14 @@ fun QuickStatsGrid(
                 modifier = Modifier.weight(1f)
             )
 
+            val displayCurrency = if (currencyCode.equals("DZD", ignoreCase = true) && lang == AppLanguage.AR) "دج" else currencyCode
             val netFormatted = String.format(Locale.US, "%,.0f", netBalance)
             val expFormatted = String.format(Locale.US, "%,.0f", totalExpenses)
             QuickStatCardItem(
                 emoji = "💰",
                 title = Translations.tr("quick_stat_net_treasury", lang),
-                primaryValue = "$netFormatted $currencyCode",
-                subtitle = "${Translations.tr("treasury_expenses", lang)}: $expFormatted $currencyCode",
+                primaryValue = "$netFormatted $displayCurrency",
+                subtitle = "${Translations.tr("treasury_expenses", lang)}: $expFormatted $displayCurrency",
                 accentColor = if (netBalance >= 0) accent else Color(0xFFF59E0B),
                 cardBg = cardBg,
                 borderCol = borderCol,
@@ -3668,25 +3670,19 @@ private fun QuickStatCardItem(
                     text = title,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = textSecondary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    color = textSecondary
                 )
             }
             Text(
                 text = primaryValue,
                 fontWeight = FontWeight.ExtraBold,
-                fontSize = 14.5.sp,
-                color = accentColor,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                fontSize = 13.sp,
+                color = accentColor
             )
             Text(
                 text = subtitle,
                 fontSize = 11.sp,
-                color = textPrimary.copy(alpha = 0.85f),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                color = textPrimary.copy(alpha = 0.85f)
             )
         }
     }
@@ -3989,17 +3985,24 @@ fun SmartBarnRobotIoTCard(
                 }
             }
 
-            // 4 Compact Live Sensor Pills (2x2 clean grid)
+            // 4 Compact Live Sensor Pills (2x2 clean grid — Title on line 1, bold value + unit on line 2, no truncation)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 // Pill 1: 🧪 الأمونيا (NH3): 12 ppm (🟢 آمن) / 26 ppm (🔴 خطر تنفسي)
+                val nh3Raw = if (isSimulatedNh3Alert) {
+                    Translations.tr("smart_barn_sensor_nh3_alert", lang)
+                } else {
+                    Translations.tr("smart_barn_sensor_nh3_safe", lang)
+                }
+                val nh3Parts = nh3Raw.split(":", limit = 2)
+                val nh3Color = if (isSimulatedNh3Alert) (if (isDark) Color(0xFFFCA5A5) else Color(0xFFB91C1C)) else primaryText
                 Surface(
                     onClick = { isSimulatedNh3Alert = !isSimulatedNh3Alert },
                     modifier = Modifier
                         .weight(1f)
-                        .heightIn(min = 44.dp)
+                        .heightIn(min = 54.dp)
                         .testTag("iot_pill_nh3_toggle"),
                     shape = pillShape,
                     color = if (isSimulatedNh3Alert) alertRed.copy(alpha = 0.14f) else pillSurfaceBg,
@@ -4008,44 +4011,52 @@ fun SmartBarnRobotIoTCard(
                         if (isSimulatedNh3Alert) alertRed else emeraldGreen.copy(alpha = 0.45f)
                     )
                 ) {
-                    Box(
-                        contentAlignment = Alignment.CenterStart,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)
+                    Column(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
                     ) {
                         Text(
-                            text = if (isSimulatedNh3Alert) {
-                                Translations.tr("smart_barn_sensor_nh3_alert", lang)
-                            } else {
-                                Translations.tr("smart_barn_sensor_nh3_safe", lang)
-                            },
-                            fontSize = 10.5.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (isSimulatedNh3Alert) (if (isDark) Color(0xFFFCA5A5) else Color(0xFFB91C1C)) else primaryText,
-                            maxLines = 1
+                            text = nh3Parts.firstOrNull()?.trim().orEmpty(),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = secondaryText
+                        )
+                        Text(
+                            text = nh3Parts.getOrNull(1)?.trim() ?: nh3Raw,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = nh3Color
                         )
                     }
                 }
 
                 // Pill 2: 💨 الأكسجين وCO2: 1,800 ppm (🟢 جيد)
+                val o2Raw = Translations.tr("smart_barn_sensor_o2_co2", lang)
+                val o2Parts = o2Raw.split(":", limit = 2)
                 Surface(
                     modifier = Modifier
                         .weight(1f)
-                        .heightIn(min = 44.dp)
+                        .heightIn(min = 54.dp)
                         .testTag("iot_pill_o2_co2"),
                     shape = pillShape,
                     color = pillSurfaceBg,
                     border = BorderStroke(1.dp, emeraldGreen.copy(alpha = 0.35f))
                 ) {
-                    Box(
-                        contentAlignment = Alignment.CenterStart,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)
+                    Column(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
                     ) {
                         Text(
-                            text = Translations.tr("smart_barn_sensor_o2_co2", lang),
-                            fontSize = 10.5.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = primaryText,
-                            maxLines = 1
+                            text = o2Parts.firstOrNull()?.trim().orEmpty(),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = secondaryText
+                        )
+                        Text(
+                            text = o2Parts.getOrNull(1)?.trim() ?: o2Raw,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = primaryText
                         )
                     }
                 }
@@ -4056,49 +4067,63 @@ fun SmartBarnRobotIoTCard(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 // Pill 3: 🔥 ضغط الغاز: 85% (🟢 مستقر)
+                val gasRaw = Translations.tr("smart_barn_sensor_gas", lang)
+                val gasParts = gasRaw.split(":", limit = 2)
                 Surface(
                     modifier = Modifier
                         .weight(1f)
-                        .heightIn(min = 44.dp)
+                        .heightIn(min = 54.dp)
                         .testTag("iot_pill_gas_pressure"),
                     shape = pillShape,
                     color = pillSurfaceBg,
                     border = BorderStroke(1.dp, emeraldGreen.copy(alpha = 0.35f))
                 ) {
-                    Box(
-                        contentAlignment = Alignment.CenterStart,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)
+                    Column(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
                     ) {
                         Text(
-                            text = Translations.tr("smart_barn_sensor_gas", lang),
-                            fontSize = 10.5.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = primaryText,
-                            maxLines = 1
+                            text = gasParts.firstOrNull()?.trim().orEmpty(),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = secondaryText
+                        )
+                        Text(
+                            text = gasParts.getOrNull(1)?.trim() ?: gasRaw,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = primaryText
                         )
                     }
                 }
 
                 // Pill 4: 🌡️ الحرارة والرطوبة: 21.3°C • 58%
+                val tempHumRaw = Translations.tr("smart_barn_sensor_temp_hum", lang)
+                val tempHumParts = tempHumRaw.split(":", limit = 2)
                 Surface(
                     modifier = Modifier
                         .weight(1f)
-                        .heightIn(min = 44.dp)
+                        .heightIn(min = 54.dp)
                         .testTag("iot_pill_temp_humidity"),
                     shape = pillShape,
                     color = pillSurfaceBg,
                     border = BorderStroke(1.dp, emeraldGreen.copy(alpha = 0.35f))
                 ) {
-                    Box(
-                        contentAlignment = Alignment.CenterStart,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)
+                    Column(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
                     ) {
                         Text(
-                            text = Translations.tr("smart_barn_sensor_temp_hum", lang),
-                            fontSize = 10.5.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = primaryText,
-                            maxLines = 1
+                            text = tempHumParts.firstOrNull()?.trim().orEmpty(),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = secondaryText
+                        )
+                        Text(
+                            text = tempHumParts.getOrNull(1)?.trim() ?: tempHumRaw,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = primaryText
                         )
                     }
                 }

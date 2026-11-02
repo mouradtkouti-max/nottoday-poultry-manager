@@ -354,5 +354,79 @@ class ExampleUnitTest {
         assertEquals(200000.0, commercialSummary.customKpis["grossProfit"] ?: 0.0, 0.001)
         assertEquals(3500.0, commercialSummary.unitCost, 0.001)
     }
+
+    @Test
+    fun resetCycleAndClearBarn_clearsDailyReportsTransactionsVetNotesAndResetsCycleToDayOne() {
+        val testFarmId = "farm_reset_test"
+        val testCycleId = "cycle_reset_test"
+        AgritechMockDb.cycles.removeAll { it.id == testCycleId }
+        AgritechMockDb.dailyReports.removeAll { it.farmId == testFarmId }
+        AgritechMockDb.transactions.removeAll { it.farmId == testFarmId }
+        AgritechMockDb.vetNotes.removeAll { it.farmId == testFarmId }
+
+        AgritechMockDb.cycles.add(
+            CycleModel(
+                id = testCycleId,
+                farmId = testFarmId,
+                startDate = "2026-01-01",
+                totalBirdsPlaced = 5000,
+                feedInventoryKg = 1200.0,
+                cumulativeBirdsSold = 400,
+                cumulativeSoldWeightKg = 920.0,
+                status = "active"
+            )
+        )
+        AgritechMockDb.dailyReports.add(
+            DailyReportModel(
+                id = "r_test_1",
+                farmId = testFarmId,
+                cycleId = testCycleId,
+                dayNumber = 15,
+                feedIntakeKg = 300.0,
+                waterIntakeLiters = 550.0,
+                mortalityCount = 12,
+                temperature = 28.5
+            )
+        )
+        AgritechMockDb.transactions.add(
+            TransactionModel(
+                id = "tx_test_1",
+                farmId = testFarmId,
+                cycleId = testCycleId,
+                type = TransactionType.EXPENSE,
+                category = "علف",
+                amount = 240000.0,
+                date = "اليوم 15"
+            )
+        )
+        AgritechMockDb.vetNotes.add(
+            VetNoteModel(
+                id = "vn_test_1",
+                farmId = testFarmId,
+                cycleId = testCycleId,
+                dayNumber = 15,
+                medicineName = "Enrofloxacin",
+                dosage = "1 ml/L",
+                note = "Test note",
+                isUrgent = false,
+                withdrawalDays = 5
+            )
+        )
+
+        val resetCycle = AgritechMockDb.resetCycleAndClearBarn(testFarmId, testCycleId)
+        assertTrue(resetCycle != null)
+        assertEquals(java.time.LocalDate.now().toString(), resetCycle!!.startDate)
+        assertEquals(0.0, resetCycle.feedInventoryKg, 0.001)
+        assertEquals(0, resetCycle.cumulativeBirdsSold)
+        assertEquals(0.0, resetCycle.cumulativeSoldWeightKg, 0.001)
+        assertTrue(AgritechMockDb.dailyReports.none { it.farmId == testFarmId })
+        assertTrue(AgritechMockDb.transactions.none { it.farmId == testFarmId })
+        assertTrue(AgritechMockDb.vetNotes.none { it.farmId == testFarmId })
+
+        // Verify new localization keys
+        assertEquals("🔄 إعادة الدورة", Translations.tr("btn_reset_cycle", AppLanguage.AR))
+        assertEquals("إجمالي النفوق", Translations.tr("sum_mortality", AppLanguage.AR))
+        assertEquals("قيد القياس", Translations.tr("weight_not_measured_yet", AppLanguage.AR))
+    }
 }
 
