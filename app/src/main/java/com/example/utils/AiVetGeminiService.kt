@@ -94,6 +94,7 @@ object AiVetGeminiService {
                 return match.groupValues[1]
                     .replace("\\n", "\n")
                     .replace("\\\"", "\"")
+                    .replace("**", "")
                     .trim()
             }
         }
@@ -102,6 +103,7 @@ object AiVetGeminiService {
         return candidate
             .removePrefix("```")
             .removeSuffix("```")
+            .replace("**", "")
             .trim()
     }
 
@@ -233,94 +235,95 @@ object AiVetGeminiService {
         val isHeatStress = q.contains("حرارة") || q.contains("نهجان") || q.contains("احتباس") ||
             q.contains("heat") || q.contains("chaleur") || currentTempC >= 31.0
 
-        return when (lang) {
+        val rawText = when (lang) {
             AppLanguage.AR -> when {
                 isAmmoniaHigh -> """
-                    🚨 **تحليل روبوت العنبر: تنبيه ارتفاع غاز الأمونيا (NH3 = ${telemetry?.ammoniaNh3Ppm ?: 26} ppm 🔴 خطر تنفسي)**
-                    • **التشخيص الميداني (العمر $flockAgeDays يوم • $liveBirds طائر):** تجاوز الأمونيا حد 20 ppm يسبب تهيج الأغشية المخاطية للقصبة الهوائية ويضعف المناعة الموضعية ضد النيوكاسل والـ CRD.
-                    • **الإجراء الفوري للتهوية والفرشة:**
+                    🚨 تحليل روبوت العنبر: تنبيه ارتفاع غاز الأمونيا (NH3 = ${telemetry?.ammoniaNh3Ppm ?: 26} ppm 🔴 خطر تنفسي)
+                    • التشخيص الميداني (العمر $flockAgeDays يوم • $liveBirds طائر): تجاوز الأمونيا حد 20 ppm يسبب تهيج الأغشية المخاطية للقصبة الهوائية ويضعف المناعة الموضعية ضد النيوكاسل والـ CRD.
+                    • الإجراء الفوري للتهوية والفرشة:
                       1. رفع دورة شفاطات التهوية الدنيا بنسبة 25% لمدة 30 دقيقة لطرد الغازات الثقيلة دون إحداث تيار بارد مباشر.
                       2. فحص خطوط الحلمات (Nipples) وتقليب البقع الرطبة في الفرشة مع نثر الجير المطفي أو سوبر فوسفات وفوقها طبقة نشارة جافة.
                       3. إعطاء مقشع وموسع شعب (المنثول + الأوكاليبتوس) في مياه الشرب لمدة 3 أيام مع فيتامين C.
                 """.trimIndent()
                 isRobotTelemetryQuery -> """
-                    🤖 **تقرير الفحص الذكي لروبوت العنبر (العمر $flockAgeDays يوم • $liveBirds طائر):**
-                    • **قراءات الحساسات الحية:** الأمونيا NH3 = ${telemetry?.ammoniaNh3Ppm ?: 12} ppm (🟢 آمن < 20 ppm) | ثاني أكسيد الكربون CO2 = ${telemetry?.co2Ppm ?: 1800} ppm (🟢 جيد) | ضغط الغاز = ${telemetry?.gasPressurePct ?: 85}% (🟢 مستقر) | الحرارة = ${String.format(java.util.Locale.US, "%.1f", telemetry?.temperatureC ?: currentTempC)}°C • الرطوبة = ${telemetry?.humidityPct ?: 58}%.
-                    • **التقييم البيطري والإنتاجي:**
+                    🤖 تقرير الفحص الذكي لروبوت العنبر (العمر $flockAgeDays يوم • $liveBirds طائر):
+                    • قراءات الحساسات الحية: الأمونيا NH3 = ${telemetry?.ammoniaNh3Ppm ?: 12} ppm (🟢 آمن < 20 ppm) | ثاني أكسيد الكربون CO2 = ${telemetry?.co2Ppm ?: 1800} ppm (🟢 جيد) | ضغط الغاز = ${telemetry?.gasPressurePct ?: 85}% (🟢 مستقر) | الحرارة = ${String.format(java.util.Locale.US, "%.1f", telemetry?.temperatureC ?: currentTempC)}°C • الرطوبة = ${telemetry?.humidityPct ?: 58}%.
+                    • التقييم البيطري والإنتاجي:
                       1. جودة الهواء ممتازة ونسبة الأكسجين مثالية لتحويل العلف (FCR) في عمر $flockAgeDays يوم.
                       2. حافظ على التهوية التبادلية الهادئة وتأكد من ثبات حرارة العنبر حول ${if (flockAgeDays >= 28) "20.5°C - 21.5°C" else "24.0°C - 26.0°C"}.
                       3. استمر في مراقبة استهلاك الماء اليومي (نسبة الماء للعلف ~1.8 : 1)؛ القطيع جاهز لتحقيق أوزان قياسية بإذن الله.
                 """.trimIndent()
                 isRespiratory -> """
-                    🩺 **التشخيص البيطري المبدئي (عمر $flockAgeDays يوم):**
+                    🩺 التشخيص البيطري المبدئي (عمر $flockAgeDays يوم):
                     • اشتباه عدوى تنفسية (CRD / مايكوبلازما) أو رد فعل ما بعد التحصين، خاصة إذا ترافقت الأعراض مع رطوبة الفرشة أو غاز الأمونيا.
-                    • **الإجراء الفوري في العنبر:**
+                    • الإجراء الفوري في العنبر:
                       1. تحسين التهوية السقفية تدريجياً لطرد الأمونيا دون تعريض الطيور لتيار هواء بارد مباشر (حرارة العنبر الحالية: ${String.format(java.util.Locale.US, "%.1f", currentTempC)}°C).
                       2. تقديم موسع شعب ومقشع طبيعي (المنتول + الأوكاليبتوس) في ماء الشرب لمدة 3 أيام.
-                    • **العلاج الدوائي المقترح (تحت إشراف طبيب المزرعة):**
+                    • العلاج الدوائي المقترح (تحت إشراف طبيب المزرعة):
                       - التيلوزين (Tylosin) أو دوكسيسيكلين لمدة 4 أيام متتالية مع رافع مناعة وفيتامين AD3E.
-                    • **⏳ تنبيه فترة السحب:** يمنع بيع الطيور للاستهلاك قبل انقضاء 5 إلى 7 أيام من آخر جرعة مضاد حيوي.
+                    • ⏳ تنبيه فترة السحب: يمنع بيع الطيور للاستهلاك قبل انقضاء 5 إلى 7 أيام من آخر جرعة مضاد حيوي.
                 """.trimIndent()
                 isCoccidiosis -> """
-                    🩺 **التشخيص البيطري المبدئي (عمر $flockAgeDays يوم):**
+                    🩺 التشخيص البيطري المبدئي (عمر $flockAgeDays يوم):
                     • اشتباه كوكسيديا معوية أو أعوريه (Eimeria) ناتجة عن زيادة رطوبة الفرشة حول خطوط الحلمات.
-                    • **الإجراء الفوري في العنبر:**
+                    • الإجراء الفوري في العنبر:
                       1. تقليب الفرشة الرطبة فوراً وإضافة طبقة نشارة جافة مع الجير المطفي تحت خطوط الماء.
                       2. تقديم مضاد كوكسيديا (تولترازوريل Toltrazuril 2.5% بمعدل 1 مل/لتر لمدة يومين، أو أمبروليوم + فيتامين K3 لوقف النزف المعوي).
                       3. دعم الأمعاء بالأحماض العضوية والـ Probiotics بعد انتهاء العلاج.
                 """.trimIndent()
                 isHeatStress -> """
-                    🩺 **تنبيه إجهاد حراري (حرارة العنبر ${String.format(java.util.Locale.US, "%.1f", currentTempC)}°C - عمر $flockAgeDays يوم):**
-                    • **الإجراء الفوري:**
+                    🩺 تنبيه إجهاد حراري (حرارة العنبر ${String.format(java.util.Locale.US, "%.1f", currentTempC)}°C - عمر $flockAgeDays يوم):
+                    • الإجراء الفوري:
                       1. رفع العلف خلال ساعات الذروة الحارة (من 11 صباحاً حتى 4 عصراً) لتقليل الحرارة الاستقلابية.
                       2. إضافة فيتامين C + إلكتروليت (بيكربونات الصوديوم) في ماء الشرب البارد لتعويض التوازن الشاردي.
                       3. تشغيل خلايا التبريد والمراوح تدريجياً مع مراقبة الرطوبة النسبية.
                 """.trimIndent()
                 else -> """
-                    🩺 **التوصية البيطرية الذكية للقطيع (العمر: $flockAgeDays يوم • العدد الحي: $liveBirds طائر):**
-                    • **تقييم المؤشرات الحيوية:** نسبة النفوق التراكمية (${String.format(java.util.Locale.US, "%.2f", mortalityPct)}%) وحرارة العنبر (${String.format(java.util.Locale.US, "%.1f", currentTempC)}°C).
-                    • **خطة العمل الموصى بها:**
-                      1. **الفرشة والتهوية:** حافظ على جفاف الفرشة وتأكد من عدم وجود رائحة أمونيا في مستوى رأس الطائر.
-                      2. **برنامج المياه:** افحص نظافة خطوط الشرب (النيبل) وقدم جرعة فيتامين AD3E + أملاح معدنية لدعم النمو والتحويل الغذائي (FCR).
-                      3. **المتابعة التشريحية:** في حال ظهور أي خمول أو تغير في لون الزرق، قم بتصوير الحالة وإرسالها لطبيب المزرعة في تبويب المحادثة.
+                    🩺 التوصية البيطرية الذكية للقطيع (العمر: $flockAgeDays يوم • العدد الحي: $liveBirds طائر):
+                    • تقييم المؤشرات الحيوية: نسبة النفوق التراكمية (${String.format(java.util.Locale.US, "%.2f", mortalityPct)}%) وحرارة العنبر (${String.format(java.util.Locale.US, "%.1f", currentTempC)}°C).
+                    • خطة العمل الموصى بها:
+                      1. الفرشة والتهوية: حافظ على جفاف الفرشة وتأكد من عدم وجود رائحة أمونيا في مستوى رأس الطائر.
+                      2. برنامج المياه: افحص نظافة خطوط الشرب (النيبل) وقدم جرعة فيتامين AD3E + أملاح معدنية لدعم النمو والتحويل الغذائي (FCR).
+                      3. المتابعة التشريحية: في حال ظهور أي خمول أو تغير في لون الزرق، قم بتصوير الحالة وإرسالها لطبيب المزرعة في تبويب المحادثة.
                 """.trimIndent()
             }
             AppLanguage.FR -> when {
                 isAmmoniaHigh -> """
-                    🚨 **Alerte Robot IoT : Ammoniac élevé (NH3 = ${telemetry?.ammoniaNh3Ppm ?: 26} ppm 🔴 Risque respiratoire)**
-                    • **Diagnostic (Âge $flockAgeDays j • $liveBirds sujets) :** Un taux de NH3 > 20 ppm irrite la trachée et favorise les infections CRD.
-                    • **Actions immédiates :**
+                    🚨 Alerte Robot IoT : Ammoniac élevé (NH3 = ${telemetry?.ammoniaNh3Ppm ?: 26} ppm 🔴 Risque respiratoire)
+                    • Diagnostic (Âge $flockAgeDays j • $liveBirds sujets) : Un taux de NH3 > 20 ppm irrite la trachée et favorise les infections CRD.
+                    • Actions immédiates :
                       1. Augmenter l'extraction d'air de +25% pendant 30 minutes sans courant d'air froid.
                       2. Assécher les zones humides sous les pipettes avec du copeau sec.
                       3. Administrer un complexe huiles essentielles (Menthol/Eucalyptus) + Vitamine C pendant 3 jours.
                 """.trimIndent()
                 else -> """
-                    🩺 **Analyse Vétérinaire & Robot IoT (Âge : $flockAgeDays j • Effectif vif : $liveBirds sujets) :**
-                    • **Indicateurs :** Mortalité cumulée (${String.format(java.util.Locale.US, "%.2f", mortalityPct)}%), Température (${String.format(java.util.Locale.US, "%.1f", currentTempC)}°C), NH3 (${telemetry?.ammoniaNh3Ppm ?: 12} ppm).
-                    • **Actions immédiates recommandées :**
-                      1. **Ventilation & Litière :** Maintenez une litière sèche et contrôlez le taux d'ammoniac (NH3 < 20 ppm).
-                      2. **Eau de boisson :** Administrez un complexe Vitamines AD3E + Électrolytes ou Hépato-protecteur selon l'état clinique.
-                      3. **Délai d'attente :** Respectez strictement le délai de retrait avant l'abattage en cas de traitement antibiotique.
+                    🩺 Analyse Vétérinaire & Robot IoT (Âge : $flockAgeDays j • Effectif vif : $liveBirds sujets) :
+                    • Indicateurs : Mortalité cumulée (${String.format(java.util.Locale.US, "%.2f", mortalityPct)}%), Température (${String.format(java.util.Locale.US, "%.1f", currentTempC)}°C), NH3 (${telemetry?.ammoniaNh3Ppm ?: 12} ppm).
+                    • Actions immédiates recommandées :
+                      1. Ventilation & Litière : Maintenez une litière sèche et contrôlez le taux d'ammoniac (NH3 < 20 ppm).
+                      2. Eau de boisson : Administrez un complexe Vitamines AD3E + Électrolytes ou Hépato-protecteur selon l'état clinique.
+                      3. Délai d'attente : Respectez strictement le délai de retrait avant l'abattage en cas de traitement antibiotique.
                 """.trimIndent()
             }
             else -> when {
                 isAmmoniaHigh -> """
-                    🚨 **Smart Barn Robot Alert: High Ammonia Detected (NH3 = ${telemetry?.ammoniaNh3Ppm ?: 26} ppm 🔴 Respiratory Risk)**
-                    • **Clinical Impact (Day $flockAgeDays • $liveBirds birds):** NH3 above 20 ppm damages tracheal cilia and triggers secondary CRD / E. coli.
-                    • **Immediate Action Plan:**
+                    🚨 Smart Barn Robot Alert: High Ammonia Detected (NH3 = ${telemetry?.ammoniaNh3Ppm ?: 26} ppm 🔴 Respiratory Risk)
+                    • Clinical Impact (Day $flockAgeDays • $liveBirds birds): NH3 above 20 ppm damages tracheal cilia and triggers secondary CRD / E. coli.
+                    • Immediate Action Plan:
                       1. Increase minimum ventilation exhaust fans by +25% for 30 minutes to purge heavy gases.
                       2. Inspect drinker nipples for leaks and top-dress wet litter spots with dry shavings.
                       3. Add Menthol/Eucalyptus respiratory tonic + Vitamin C in drinking water for 3 days.
                 """.trimIndent()
                 else -> """
-                    🩺 **AI Vet & Smart Robot Assessment (Flock Age: $flockAgeDays days • Live Birds: $liveBirds):**
-                    • **Vital Signs:** Cumulative mortality (${String.format(java.util.Locale.US, "%.2f", mortalityPct)}%), Barn Temp (${String.format(java.util.Locale.US, "%.1f", currentTempC)}°C), NH3 (${telemetry?.ammoniaNh3Ppm ?: 12} ppm).
-                    • **Recommended Action Plan:**
-                      1. **Litter & Air Quality:** Keep litter friable and dry under drinker lines; ensure ammonia stays below 20 ppm.
-                      2. **Water Supplementation:** Provide AD3E vitamins + electrolytes or organic acids to optimize gut health and FCR.
-                      3. **Withdrawal Safety:** Always verify antibiotic withdrawal days before scheduling any flock sale.
+                    🩺 AI Vet & Smart Robot Assessment (Flock Age: $flockAgeDays days • Live Birds: $liveBirds):
+                    • Vital Signs: Cumulative mortality (${String.format(java.util.Locale.US, "%.2f", mortalityPct)}%), Barn Temp (${String.format(java.util.Locale.US, "%.1f", currentTempC)}°C), NH3 (${telemetry?.ammoniaNh3Ppm ?: 12} ppm).
+                    • Recommended Action Plan:
+                      1. Litter & Air Quality: Keep litter friable and dry under drinker lines; ensure ammonia stays below 20 ppm.
+                      2. Water Supplementation: Provide AD3E vitamins + electrolytes or organic acids to optimize gut health and FCR.
+                      3. Withdrawal Safety: Always verify antibiotic withdrawal days before scheduling any flock sale.
                 """.trimIndent()
             }
         }
+        return rawText.replace("**", "")
     }
 }

@@ -71,13 +71,17 @@ enum class AppRole {
     FEED_SUPPLIER,
     CHICK_HATCHERY,
     WHOLESALE_TRADER,
-    VET_IMPORTER;
+    VET_IMPORTER,
+    HOME_PERSONAL;
 
     val isOwnerRole: Boolean
         get() = this == OWNER || this == OWNER_BARN
 
     val isVetRole: Boolean
         get() = this == VETERINARIAN || this == VET_CLINIC
+
+    val isHomePersonalRole: Boolean
+        get() = this == HOME_PERSONAL
 
     val normalizedHubRole: AppRole
         get() = when (this) {
@@ -91,6 +95,7 @@ enum class AppRole {
             OWNER_BARN,
             VET_CLINIC,
             WORKER,
+            HOME_PERSONAL,
             FEED_SUPPLIER,
             CHICK_HATCHERY,
             WHOLESALE_TRADER,

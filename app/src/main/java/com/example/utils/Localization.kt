@@ -318,16 +318,18 @@ object Translations {
         "btn_spend" to mapOf(
             "ar" to "🔴 صرف مصروف 💸",
             "fr" to "🔴 Dépense 💸",
-            "en" to "🔴 Record Expense 💸",
-            "es" to "🔴 Registrar Gasto 💸",
-            "hi" to "🔴 खर्च दर्ज करें 💸"
+            "en" to "🔴 Expense 💸",
+            "es" to "🔴 Gasto 💸",
+            "pt" to "🔴 Despesa 💸",
+            "hi" to "🔴 खर्च 💸"
         ),
         "btn_income" to mapOf(
             "ar" to "🟢 دخل إيراد 💵",
             "fr" to "🟢 Revenu 💵",
-            "en" to "🟢 Record Income 💵",
-            "es" to "🟢 Registrar Ingreso 💵",
-            "hi" to "🟢 आय दर्ज करें 💵"
+            "en" to "🟢 Income 💵",
+            "es" to "🟢 Ingreso 💵",
+            "pt" to "🟢 Receita 💵",
+            "hi" to "🟢 आय 💵"
         ),
         "tx_history_title" to mapOf(
             "ar" to "سجل العمليات المالية للدورة",
@@ -4943,6 +4945,11 @@ object Translations {
             return cat
         }
         return when {
+            cat == "home_cat_electricity_gas" || cat.contains("كهرباء") || cat.contains("Electricity", true) || cat.contains("Électricité", true) -> tr("home_cat_electricity_gas", lang)
+            cat == "home_cat_internet_phone" || cat.contains("إنترنت") || cat.contains("Internet", true) -> tr("home_cat_internet_phone", lang)
+            cat == "home_cat_car_insurance" || cat.contains("تأمين وصيانة سيارة") || cat.contains("Car Insurance", true) || cat.contains("Assurance", true) -> tr("home_cat_car_insurance", lang)
+            cat == "home_cat_groceries" || cat.contains("مقاضي") || cat.contains("Groceries", true) || cat.contains("Courses", true) -> tr("home_cat_groceries", lang)
+            cat == "home_cat_salary_income" || cat.contains("الراتب") || cat.contains("Monthly Salary", true) || cat.contains("Salaire", true) -> tr("home_cat_salary_income", lang)
             cat.contains("كتاكيت") || cat.contains("Chicks", true) || cat.contains("Poussins", true) -> tr("tx_chicks", lang)
             cat.contains("غاز") || cat.contains("Gas", true) || cat.contains("Gaz", true) -> tr("tx_gas", lang)
             cat.equals("MEDICATION", true) || cat.contains("أدوية") || cat.contains("Medicine", true) || cat.contains("Médicaments", true) -> tr("tx_meds", lang)

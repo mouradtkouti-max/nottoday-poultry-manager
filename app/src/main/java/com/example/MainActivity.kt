@@ -44,11 +44,16 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.scale
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -1772,6 +1777,100 @@ fun PremiumPillButton(
     }
 }
 
+/**
+ * Kinetic "The Bin Eats The Label" button (`AnimatedDeleteOrResetButton`):
+ * When tapped, the trash/reset icon rotates (`25f`) and slides horizontally across the button
+ * to "swallow" the text label (`animateDpAsState` + `animateFloatAsState`) while invoking `onClick`.
+ */
+@Composable
+fun AnimatedDeleteOrResetButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    fontSize: TextUnit = 11.5.sp,
+    contentPadding: PaddingValues = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+) {
+    var isEating by remember { mutableStateOf(false) }
+    val animScope = rememberCoroutineScope()
+    val iconSlideOffset by animateDpAsState(
+        targetValue = if (isEating) 28.dp else 0.dp,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMedium
+        ),
+        label = "bin_eat_offset"
+    )
+    val lidRotation by animateFloatAsState(
+        targetValue = if (isEating) 25f else 0f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMedium
+        ),
+        label = "bin_lid_rotation"
+    )
+    val labelScale by animateFloatAsState(
+        targetValue = if (isEating) 0.15f else 1f,
+        animationSpec = tween(durationMillis = 260),
+        label = "bin_label_scale"
+    )
+
+    val pillShape = RoundedCornerShape(50)
+    val gradientColors = listOf(Color(0xFFFF4B72), Color(0xFFE11D48))
+    val spotShadowColor = Color(0xFFE11D48)
+    val innerSpecularHighlight = Brush.verticalGradient(
+        colors = listOf(Color.White.copy(alpha = 0.45f), Color.Transparent)
+    )
+
+    Box(
+        modifier = modifier
+            .shadow(
+                elevation = 8.dp,
+                shape = pillShape,
+                spotColor = spotShadowColor,
+                ambientColor = spotShadowColor
+            )
+            .clip(pillShape)
+            .background(brush = Brush.linearGradient(colors = gradientColors), shape = pillShape)
+            .border(width = 1.dp, brush = innerSpecularHighlight, shape = pillShape)
+            .clickable {
+                isEating = true
+                onClick()
+                animScope.launch {
+                    delay(350)
+                    isEating = false
+                }
+            }
+            .padding(contentPadding),
+        contentAlignment = Alignment.Center
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            Icon(
+                imageVector = Icons.Default.DeleteSweep,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier
+                    .size(16.dp)
+                    .offset(x = iconSlideOffset)
+                    .rotate(lidRotation)
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(
+                text = text,
+                color = Color.White,
+                fontWeight = FontWeight.ExtraBold,
+                fontSize = fontSize,
+                maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.scale(labelScale)
+            )
+        }
+    }
+}
+
 @Composable
 fun PremiumTactileCalcButton(
     label: String,
@@ -2460,6 +2559,7 @@ fun AgritechOwnerDashboard(
                             when (activeRole.normalizedHubRole) {
                                 AppRole.VET_CLINIC -> Translations.tr("role_badge_vet_clinic", lang)
                                 AppRole.WORKER -> Translations.tr("role_badge_worker", lang)
+                                AppRole.HOME_PERSONAL -> Translations.tr("role_badge_home_personal", lang)
                                 AppRole.FEED_SUPPLIER -> Translations.tr("role_badge_feed_supplier", lang)
                                 AppRole.CHICK_HATCHERY -> Translations.tr("role_badge_chick_hatchery", lang)
                                 AppRole.WHOLESALE_TRADER -> Translations.tr("role_badge_wholesale_trader", lang)
@@ -3033,6 +3133,7 @@ fun ManagementHubScreen(
         AppRole.OWNER_BARN to Translations.tr("role_badge_owner_barn", lang),
         AppRole.VET_CLINIC to Translations.tr("role_badge_vet_clinic", lang),
         AppRole.WORKER to Translations.tr("role_badge_worker", lang),
+        AppRole.HOME_PERSONAL to Translations.tr("role_badge_home_personal", lang),
         AppRole.FEED_SUPPLIER to Translations.tr("role_badge_feed_supplier", lang),
         AppRole.CHICK_HATCHERY to Translations.tr("role_badge_chick_hatchery", lang),
         AppRole.WHOLESALE_TRADER to Translations.tr("role_badge_wholesale_trader", lang),
@@ -3502,6 +3603,279 @@ fun ManagementHubScreen(
                                             color = Color.White
                                         )
                                     }
+                                }
+                            }
+                        }
+                        item { Spacer(modifier = Modifier.height(90.dp)) }
+                    }
+                }
+                AppRole.HOME_PERSONAL -> {
+                    var elecGasAmount by remember { mutableStateOf(4500.0) }
+                    var internetAmount by remember { mutableStateOf(2600.0) }
+                    var carMaintenanceAmount by remember { mutableStateOf(6000.0) }
+                    var groceriesAmount by remember { mutableStateOf(18500.0) }
+                    var monthlySalaryAmount by remember { mutableStateOf(65000.0) }
+                    var billCardApproved by remember { mutableStateOf(false) }
+                    var billCardDismissed by remember { mutableStateOf(false) }
+                    var showAddHomeBillDialog by remember { mutableStateOf(false) }
+                    var activeHomeTxType by remember { mutableStateOf(TransactionType.EXPENSE) }
+
+                    val homeCategories = remember(lang) {
+                        listOf(
+                            Translations.tr("home_cat_electricity_gas", lang),
+                            Translations.tr("home_cat_internet_phone", lang),
+                            Translations.tr("home_cat_car_insurance", lang),
+                            Translations.tr("home_cat_groceries", lang)
+                        )
+                    }
+                    val homeIncomeCategories = remember(lang) {
+                        listOf(
+                            Translations.tr("home_cat_salary_income", lang),
+                            Translations.tr("tx_other_inc", lang)
+                        )
+                    }
+
+                    if (showAddHomeBillDialog) {
+                        SimpleTransactionDialog(
+                            title = if (activeHomeTxType == TransactionType.EXPENSE) Translations.tr("btn_spend", lang) else Translations.tr("btn_income", lang),
+                            type = activeHomeTxType,
+                            lang = lang,
+                            categories = if (activeHomeTxType == TransactionType.EXPENSE) homeCategories else homeIncomeCategories,
+                            onDismiss = { showAddHomeBillDialog = false },
+                            onConfirm = { chosenCat, amt, _ ->
+                                when {
+                                    activeHomeTxType == TransactionType.INCOME -> monthlySalaryAmount += amt
+                                    chosenCat.contains("كهرباء") || chosenCat.contains("Electric", true) || chosenCat.contains("Électric", true) -> elecGasAmount += amt
+                                    chosenCat.contains("إنترنت") || chosenCat.contains("Internet", true) -> internetAmount += amt
+                                    chosenCat.contains("سيارة") || chosenCat.contains("Car", true) || chosenCat.contains("Auto", true) -> carMaintenanceAmount += amt
+                                    else -> groceriesAmount += amt
+                                }
+                                showAddHomeBillDialog = false
+                            }
+                        )
+                    }
+
+                    val homeSummary = remember(monthlySalaryAmount, elecGasAmount, internetAmount, carMaintenanceAmount, groceriesAmount) {
+                        PersonalAndHouseholdEngine.evaluateMonthlyHouseholdBudget(
+                            monthlySalaryAndIncome = monthlySalaryAmount,
+                            electricityAndGasExpense = elecGasAmount,
+                            internetAndPhoneExpense = internetAmount,
+                            carInsuranceAndMaintenanceExpense = carMaintenanceAmount,
+                            groceriesAndHomeExpense = groceriesAmount,
+                            previousMonthTotalExpense = 36000.0
+                        )
+                    }
+
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                            .testTag("home_personal_management_hub"),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        item {
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = cardCornerShape,
+                                colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
+                                border = BorderStroke(1.2.dp, activeAccent.copy(alpha = 0.35f))
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(16.dp),
+                                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    Text(
+                                        Translations.tr("home_ledger_title", lang),
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontSize = 15.sp,
+                                        color = primaryTextColor
+                                    )
+                                    Text(
+                                        Translations.tr("home_ledger_subtitle", lang),
+                                        fontSize = 12.sp,
+                                        color = secondaryTextColor
+                                    )
+                                    NeumorphicRecessedDisplay(
+                                        isDark = currentTheme.isDark,
+                                        contentPadding = PaddingValues(12.dp)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            CalmFinancialItem(
+                                                Translations.tr("total_income", lang),
+                                                "${String.format(java.util.Locale.US, "%,.0f", homeSummary.totalIncome)} $curr",
+                                                activeAccent
+                                            )
+                                            CalmFinancialItem(
+                                                Translations.tr("total_expenses", lang),
+                                                "${String.format(java.util.Locale.US, "%,.0f", homeSummary.totalExpenses)} $curr",
+                                                ActionRed
+                                            )
+                                            CalmFinancialItem(
+                                                Translations.tr("net_balance", lang),
+                                                "${String.format(java.util.Locale.US, "%,.0f", homeSummary.netProfit)} $curr",
+                                                if (homeSummary.netProfit >= 0) activeAccent else ActionRed
+                                            )
+                                        }
+                                    }
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        PremiumPillButton(
+                                            text = Translations.tr("btn_spend", lang),
+                                            onClick = {
+                                                activeHomeTxType = TransactionType.EXPENSE
+                                                showAddHomeBillDialog = true
+                                            },
+                                            variant = PremiumPillVariant.DELETE_RESET,
+                                            fontSize = 12.sp,
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .height(44.dp)
+                                                .testTag("btn_home_add_expense")
+                                        )
+                                        PremiumPillButton(
+                                            text = Translations.tr("btn_income", lang),
+                                            onClick = {
+                                                activeHomeTxType = TransactionType.INCOME
+                                                showAddHomeBillDialog = true
+                                            },
+                                            variant = PremiumPillVariant.SALES_INCOME,
+                                            fontSize = 12.sp,
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .height(44.dp)
+                                                .testTag("btn_home_add_income")
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        if (!billCardDismissed) {
+                            item {
+                                Card(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .testTag("home_proactive_ai_bill_card"),
+                                    shape = cardCornerShape,
+                                    colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
+                                    border = BorderStroke(1.2.dp, activeAccent.copy(alpha = 0.45f))
+                                ) {
+                                    Column(
+                                        modifier = Modifier.padding(16.dp),
+                                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        Text(
+                                            Translations.tr("home_ai_card1_title", lang),
+                                            fontWeight = FontWeight.ExtraBold,
+                                            fontSize = 14.sp,
+                                            color = activeAccent
+                                        )
+                                        Text(
+                                            Translations.tr("home_ai_card1_body", lang),
+                                            fontSize = 12.5.sp,
+                                            color = primaryTextColor,
+                                            lineHeight = 18.sp
+                                        )
+                                        if (billCardApproved) {
+                                            Surface(
+                                                shape = pillShape,
+                                                color = appearance.accentContainerColor,
+                                                border = BorderStroke(1.dp, activeAccent.copy(alpha = 0.5f)),
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) {
+                                                Text(
+                                                    Translations.tr("home_ai_card1_done", lang),
+                                                    fontSize = 12.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = activeAccent,
+                                                    modifier = Modifier.padding(10.dp)
+                                                )
+                                            }
+                                        } else {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                            ) {
+                                                Button(
+                                                    onClick = {
+                                                        elecGasAmount += 4500.0
+                                                        billCardApproved = true
+                                                    },
+                                                    shape = pillShape,
+                                                    colors = ButtonDefaults.buttonColors(containerColor = primaryButtonAccent),
+                                                    modifier = Modifier
+                                                        .weight(1.3f)
+                                                        .height(40.dp)
+                                                        .testTag("btn_home_ai_approve_bill")
+                                                ) {
+                                                    Text(
+                                                        Translations.tr("home_ai_card1_approve", lang),
+                                                        fontSize = 11.5.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = Color.White,
+                                                        maxLines = 1
+                                                    )
+                                                }
+                                                OutlinedButton(
+                                                    onClick = { billCardDismissed = true },
+                                                    shape = pillShape,
+                                                    border = BorderStroke(1.dp, secondaryTextColor.copy(alpha = 0.4f)),
+                                                    modifier = Modifier
+                                                        .weight(0.7f)
+                                                        .height(40.dp)
+                                                ) {
+                                                    Text(
+                                                        Translations.tr("ai_agent_card2_ignore", lang),
+                                                        fontSize = 11.5.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = secondaryTextColor
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        val breakdownRows = listOf(
+                            Triple(Translations.tr("home_cat_electricity_gas", lang), elecGasAmount, ActionRed),
+                            Triple(Translations.tr("home_cat_internet_phone", lang), internetAmount, ActionRed),
+                            Triple(Translations.tr("home_cat_car_insurance", lang), carMaintenanceAmount, ActionRed),
+                            Triple(Translations.tr("home_cat_groceries", lang), groceriesAmount, ActionRed),
+                            Triple(Translations.tr("home_cat_salary_income", lang), monthlySalaryAmount, activeAccent)
+                        )
+                        items(breakdownRows) { (catTitle, catAmt, catColor) ->
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = cardCornerShape,
+                                colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
+                                border = BorderStroke(1.dp, activeAccent.copy(alpha = 0.22f))
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        catTitle,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.5.sp,
+                                        color = primaryTextColor
+                                    )
+                                    Text(
+                                        "${String.format(java.util.Locale.US, "%,.0f", catAmt)} $curr",
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontSize = 14.sp,
+                                        color = catColor
+                                    )
                                 }
                             }
                         }
@@ -5185,15 +5559,37 @@ fun OwnerGlobalAiVetPlaceholderScreen(
     currentTheme: AppThemeOption,
     lang: AppLanguage = AppLanguage.AR
 ) {
+    val sessionState = LocalAgritechAppState.current
     val appearance = LocalAppAppearanceState.current
     val isDark = currentTheme.isDark
     val aiAccent = appearance.accentColor
+    val aiPrimaryBtn = appearance.accentOption.primaryColor
     val aiAccentContainer = appearance.accentContainerColor
     val aiCardShape = RoundedCornerShape(appearance.cornerRadiusDp.dp)
     val pillShape = RoundedCornerShape((appearance.cornerRadiusDp - 4).coerceAtLeast(8).dp)
     val primaryText = if (isDark) Color(0xFFFFFFFF) else currentTheme.headingColor
     val secondaryText = if (isDark) Color(0xFFCBD5E1) else Color(0xFF475569)
+    val glassBorderColor = if (isDark) Color.White.copy(alpha = 0.22f) else aiAccent.copy(alpha = 0.35f)
     val coroutineScope = rememberCoroutineScope()
+
+    var isHomePersonalAgentMode by remember(sessionState.currentRole) {
+        mutableStateOf(sessionState.currentRole == AppRole.HOME_PERSONAL)
+    }
+    var card1Approved by remember(isHomePersonalAgentMode) { mutableStateOf(false) }
+    var card1Ignored by remember(isHomePersonalAgentMode) { mutableStateOf(false) }
+    var card2Approved by remember(isHomePersonalAgentMode) { mutableStateOf(false) }
+    var card2Ignored by remember(isHomePersonalAgentMode) { mutableStateOf(false) }
+    var selectedGoalBubbleIdx by remember { mutableStateOf(0) }
+    var selectedQuickChipIdx by remember { mutableStateOf(-1) }
+
+    val goalBubbles = remember(lang) {
+        listOf(
+            Translations.tr("ai_agent_bubble_profit", lang),
+            Translations.tr("ai_agent_bubble_health", lang),
+            Translations.tr("ai_agent_bubble_market", lang),
+            Translations.tr("ai_agent_bubble_bills", lang)
+        )
+    }
 
     val quickChips = remember(lang) {
         listOf(
@@ -5210,194 +5606,549 @@ fun OwnerGlobalAiVetPlaceholderScreen(
         mutableStateOf(
             listOf(
                 Pair(
-                    Translations.tr("ai_vet_welcome_title", lang),
-                    Translations.tr("ai_vet_welcome_body", lang)
+                    Translations.tr("ai_vet_welcome_title", lang).replace("**", ""),
+                    Translations.tr("ai_vet_welcome_body", lang).replace("**", "")
                 )
             )
         )
     }
 
     fun triggerAiConsultation(queryText: String) {
-        val cleanQuery = queryText.trim()
+        val cleanQuery = queryText.trim().replace("**", "")
         if (cleanQuery.isEmpty() || isAnalyzing) return
         isAnalyzing = true
         diagnosisHistory = diagnosisHistory + Pair(
             "${Translations.tr("ai_vet_user_query_prefix", lang)}: $cleanQuery",
-            Translations.tr("ai_vet_analyzing_msg", lang)
+            Translations.tr("ai_vet_analyzing_msg", lang).replace("**", "")
         )
         coroutineScope.launch {
             val reply = try {
-                AiVetGeminiService.generateVetResponse(cleanQuery, lang)
+                AiVetGeminiService.generateVetResponse(cleanQuery, lang).replace("**", "")
             } catch (e: Exception) {
-                Translations.tr("ai_vet_fallback_reply", lang)
+                Translations.tr("ai_vet_fallback_reply", lang).replace("**", "")
             }
             diagnosisHistory = diagnosisHistory.dropLast(1) + Pair(
                 "${Translations.tr("ai_vet_diagnosis_prefix", lang)} ($cleanQuery)",
-                reply
+                reply.replace("**", "")
             )
             isAnalyzing = false
         }
     }
 
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .background(currentTheme.bgColor)
-            .padding(horizontal = 16.dp, vertical = 12.dp)
-            .testTag("global_ai_vet_screen"),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+            .testTag("global_ai_vet_screen")
     ) {
-        Card(
+        // Glassmorphic Radial Light Glow behind AI Agent Cards
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .testTag("ai_vet_interactive_header_card"),
-            shape = aiCardShape,
-            colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
-            border = BorderStroke(1.2.dp, aiAccent.copy(alpha = 0.35f)),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                .height(260.dp)
+                .background(
+                    brush = Brush.radialGradient(
+                        colors = listOf(
+                            aiAccent.copy(alpha = if (isDark) 0.20f else 0.14f),
+                            Color.Transparent
+                        )
+                    )
+                )
+        )
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Column(
+            // Top Glassmorphic AI Agent Employee Persona Header Card
+            Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                    .testTag("ai_vet_interactive_header_card"),
+                shape = aiCardShape,
+                colors = CardDefaults.cardColors(
+                    containerColor = currentTheme.cardColor.copy(alpha = if (isDark) 0.92f else 0.96f)
+                ),
+                border = BorderStroke(1.2.dp, glassBorderColor),
+                elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Surface(
-                        modifier = Modifier.size(44.dp),
-                        shape = CircleShape,
-                        color = aiAccentContainer,
-                        border = BorderStroke(1.2.dp, aiAccent.copy(alpha = 0.45f))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Text("🤖🩺", fontSize = 18.sp)
+                        Surface(
+                            modifier = Modifier.size(44.dp),
+                            shape = CircleShape,
+                            color = aiAccentContainer,
+                            border = BorderStroke(1.2.dp, aiAccent.copy(alpha = 0.5f))
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Text(if (isHomePersonalAgentMode) "🤖🏠" else "🤖🩺", fontSize = 18.sp)
+                            }
+                        }
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = Translations.tr("ai_agent_persona_title", lang),
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 13.5.sp,
+                                color = primaryText,
+                                lineHeight = 18.sp
+                            )
+                            Text(
+                                text = Translations.tr("ai_agent_persona_subtitle", lang),
+                                fontSize = 11.sp,
+                                color = secondaryText
+                            )
                         }
                     }
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = Translations.tr("ai_vet_header_title", lang),
-                            fontWeight = FontWeight.ExtraBold,
-                            fontSize = 15.sp,
-                            color = primaryText
-                        )
-                        Text(
-                            text = Translations.tr("ai_vet_header_subtitle", lang),
-                            fontSize = 11.5.sp,
-                            color = secondaryText
-                        )
+
+                    // Mode Switcher Pill: Farm AI Employee vs Home & Personal AI Employee
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        listOf(
+                            false to Translations.tr("ai_agent_mode_farm", lang),
+                            true to Translations.tr("ai_agent_mode_home", lang)
+                        ).forEach { (homeMode, modeLabel) ->
+                            val isSelectedMode = isHomePersonalAgentMode == homeMode
+                            val modeScale by animateFloatAsState(
+                                targetValue = if (isSelectedMode) 1.03f else 1.0f,
+                                animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+                                label = "ai_mode_scale"
+                            )
+                            Surface(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .scale(modeScale)
+                                    .clip(pillShape)
+                                    .clickable { isHomePersonalAgentMode = homeMode }
+                                    .testTag(if (homeMode) "ai_agent_mode_home_btn" else "ai_agent_mode_farm_btn"),
+                                shape = pillShape,
+                                color = if (isSelectedMode) aiAccentContainer else Color.Transparent,
+                                border = BorderStroke(
+                                    width = if (isSelectedMode) 1.5.dp else 1.dp,
+                                    color = if (isSelectedMode) aiAccent else glassBorderColor
+                                )
+                            ) {
+                                Text(
+                                    text = modeLabel,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = if (isSelectedMode) aiAccent else secondaryText,
+                                    textAlign = TextAlign.Center,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    // Card 3 (One-Tap Floating Glassmorphic Goal Bubbles with 1.0f -> 1.05f pulse)
+                    FlowRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        goalBubbles.forEachIndexed { bIdx, bubbleText ->
+                            val isBubbleSelected = selectedGoalBubbleIdx == bIdx
+                            val bubbleScale by animateFloatAsState(
+                                targetValue = if (isBubbleSelected) 1.05f else 1.0f,
+                                animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+                                label = "goal_bubble_scale_$bIdx"
+                            )
+                            Surface(
+                                modifier = Modifier
+                                    .scale(bubbleScale)
+                                    .clip(RoundedCornerShape(50))
+                                    .clickable(enabled = !isAnalyzing) {
+                                        selectedGoalBubbleIdx = bIdx
+                                        triggerAiConsultation(bubbleText)
+                                    }
+                                    .testTag("ai_agent_goal_bubble_$bIdx"),
+                                shape = RoundedCornerShape(50),
+                                color = if (isBubbleSelected) aiAccentContainer else currentTheme.bgColor.copy(alpha = 0.7f),
+                                border = BorderStroke(
+                                    width = if (isBubbleSelected) 1.4.dp else 1.dp,
+                                    color = if (isBubbleSelected) aiAccent else glassBorderColor
+                                )
+                            ) {
+                                Text(
+                                    text = bubbleText,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isBubbleSelected) aiAccent else primaryText,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    // Clinical Quick Chips (preserving ai_vet_quick_chip_0..3 testTags with spring pulse)
+                    FlowRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        quickChips.forEachIndexed { idx, chipLabel ->
+                            val isChipSel = selectedQuickChipIdx == idx
+                            val chipScale by animateFloatAsState(
+                                targetValue = if (isChipSel) 1.05f else 1.0f,
+                                animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+                                label = "quick_chip_scale_$idx"
+                            )
+                            Surface(
+                                modifier = Modifier
+                                    .scale(chipScale)
+                                    .clip(pillShape)
+                                    .clickable(enabled = !isAnalyzing) {
+                                        selectedQuickChipIdx = idx
+                                        triggerAiConsultation(chipLabel)
+                                    }
+                                    .testTag("ai_vet_quick_chip_$idx"),
+                                shape = pillShape,
+                                color = aiAccentContainer,
+                                border = BorderStroke(1.dp, aiAccent.copy(alpha = 0.45f))
+                            ) {
+                                Text(
+                                    text = chipLabel,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = aiAccent,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            LazyColumn(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .testTag("ai_vet_messages_list"),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                // Proactive AI Agent Card 1: Market Price Comparison (or Home Bill Renewal) with [Approve ✓] & [No ✕]
+                if (!card1Ignored) {
+                    item {
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("ai_agent_proactive_card_1"),
+                            shape = aiCardShape,
+                            colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
+                            border = BorderStroke(1.2.dp, glassBorderColor),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text(
+                                    text = if (isHomePersonalAgentMode) {
+                                        Translations.tr("home_ai_card1_title", lang)
+                                    } else {
+                                        Translations.tr("ai_agent_card1_title", lang)
+                                    },
+                                    fontWeight = FontWeight.ExtraBold,
+                                    fontSize = 13.5.sp,
+                                    color = aiAccent
+                                )
+                                Text(
+                                    text = if (isHomePersonalAgentMode) {
+                                        Translations.tr("home_ai_card1_body", lang)
+                                    } else {
+                                        Translations.tr("ai_agent_card1_body", lang)
+                                    },
+                                    fontSize = 12.5.sp,
+                                    color = primaryText,
+                                    lineHeight = 18.sp
+                                )
+                                if (card1Approved) {
+                                    Surface(
+                                        shape = pillShape,
+                                        color = aiAccentContainer,
+                                        border = BorderStroke(1.dp, aiAccent.copy(alpha = 0.55f)),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .testTag("ai_agent_card1_approved_badge")
+                                    ) {
+                                        Text(
+                                            text = if (isHomePersonalAgentMode) {
+                                                Translations.tr("home_ai_card1_done", lang)
+                                            } else {
+                                                Translations.tr("ai_agent_card1_done", lang)
+                                            },
+                                            fontSize = 11.5.sp,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = aiAccent,
+                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                                        )
+                                    }
+                                } else {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Button(
+                                            onClick = {
+                                                card1Approved = true
+                                                if (isHomePersonalAgentMode) {
+                                                    val targetFarmId = AgritechMockDb.farms.firstOrNull()?.id ?: "farm_1"
+                                                    val targetCycleId = AgritechMockDb.cycles.firstOrNull()?.id ?: "cycle_2026_01"
+                                                    AgritechMockDb.transactions.add(
+                                                        TransactionModel(
+                                                            id = "tx_home_bill_${System.currentTimeMillis()}",
+                                                            farmId = targetFarmId,
+                                                            cycleId = targetCycleId,
+                                                            date = "1",
+                                                            type = TransactionType.EXPENSE,
+                                                            category = "home_cat_electricity_gas",
+                                                            amount = 4500.0,
+                                                            status = "APPROVED"
+                                                        )
+                                                    )
+                                                }
+                                            },
+                                            shape = pillShape,
+                                            colors = ButtonDefaults.buttonColors(containerColor = aiPrimaryBtn),
+                                            modifier = Modifier
+                                                .weight(1.3f)
+                                                .height(40.dp)
+                                                .testTag("btn_ai_agent_card1_approve")
+                                        ) {
+                                            Text(
+                                                text = if (isHomePersonalAgentMode) {
+                                                    Translations.tr("home_ai_card1_approve", lang)
+                                                } else {
+                                                    Translations.tr("ai_agent_card1_approve", lang)
+                                                },
+                                                fontSize = 11.5.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color.White,
+                                                maxLines = 1
+                                            )
+                                        }
+                                        OutlinedButton(
+                                            onClick = { card1Ignored = true },
+                                            shape = pillShape,
+                                            border = BorderStroke(1.dp, secondaryText.copy(alpha = 0.4f)),
+                                            modifier = Modifier
+                                                .weight(0.75f)
+                                                .height(40.dp)
+                                                .testTag("btn_ai_agent_card1_ignore")
+                                        ) {
+                                            Text(
+                                                text = Translations.tr("ai_agent_card1_ignore", lang),
+                                                fontSize = 11.5.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = secondaryText,
+                                                maxLines = 1
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
 
-                FlowRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    quickChips.forEachIndexed { idx, chipLabel ->
-                        Surface(
+                // Proactive AI Agent Card 2: Proactive Deadline / Water Line / Car Insurance Reminder
+                if (!card2Ignored) {
+                    item {
+                        Card(
                             modifier = Modifier
-                                .clip(pillShape)
-                                .clickable(enabled = !isAnalyzing) {
-                                    triggerAiConsultation(chipLabel)
+                                .fillMaxWidth()
+                                .testTag("ai_agent_proactive_card_2"),
+                            shape = aiCardShape,
+                            colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
+                            border = BorderStroke(1.2.dp, glassBorderColor),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text(
+                                    text = if (isHomePersonalAgentMode) {
+                                        Translations.tr("home_ai_card2_title", lang)
+                                    } else {
+                                        Translations.tr("ai_agent_card2_title", lang)
+                                    },
+                                    fontWeight = FontWeight.ExtraBold,
+                                    fontSize = 13.5.sp,
+                                    color = aiAccent
+                                )
+                                Text(
+                                    text = if (isHomePersonalAgentMode) {
+                                        Translations.tr("home_ai_card2_body", lang)
+                                    } else {
+                                        Translations.tr("ai_agent_card2_body", lang)
+                                    },
+                                    fontSize = 12.5.sp,
+                                    color = primaryText,
+                                    lineHeight = 18.sp
+                                )
+                                if (card2Approved) {
+                                    Surface(
+                                        shape = pillShape,
+                                        color = aiAccentContainer,
+                                        border = BorderStroke(1.dp, aiAccent.copy(alpha = 0.55f)),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .testTag("ai_agent_card2_approved_badge")
+                                    ) {
+                                        Text(
+                                            text = if (isHomePersonalAgentMode) {
+                                                Translations.tr("home_ai_card2_done", lang)
+                                            } else {
+                                                Translations.tr("ai_agent_card2_done", lang)
+                                            },
+                                            fontSize = 11.5.sp,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = aiAccent,
+                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                                        )
+                                    }
+                                } else {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Button(
+                                            onClick = { card2Approved = true },
+                                            shape = pillShape,
+                                            colors = ButtonDefaults.buttonColors(containerColor = aiPrimaryBtn),
+                                            modifier = Modifier
+                                                .weight(1.3f)
+                                                .height(40.dp)
+                                                .testTag("btn_ai_agent_card2_approve")
+                                        ) {
+                                            Text(
+                                                text = if (isHomePersonalAgentMode) {
+                                                    Translations.tr("home_ai_card2_approve", lang)
+                                                } else {
+                                                    Translations.tr("ai_agent_card2_approve", lang)
+                                                },
+                                                fontSize = 11.5.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color.White,
+                                                maxLines = 1
+                                            )
+                                        }
+                                        OutlinedButton(
+                                            onClick = { card2Ignored = true },
+                                            shape = pillShape,
+                                            border = BorderStroke(1.dp, secondaryText.copy(alpha = 0.4f)),
+                                            modifier = Modifier
+                                                .weight(0.75f)
+                                                .height(40.dp)
+                                                .testTag("btn_ai_agent_card2_ignore")
+                                        ) {
+                                            Text(
+                                                text = Translations.tr("ai_agent_card2_ignore", lang),
+                                                fontSize = 11.5.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = secondaryText,
+                                                maxLines = 1
+                                            )
+                                        }
+                                    }
                                 }
-                                .testTag("ai_vet_quick_chip_$idx"),
-                            shape = pillShape,
-                            color = aiAccentContainer,
-                            border = BorderStroke(1.dp, aiAccent.copy(alpha = 0.45f))
+                            }
+                        }
+                    }
+                }
+
+                // Structured AI Agent Action Cards for Diagnosis & Consultation History (Zero Raw Markdown **)
+                items(diagnosisHistory) { (headerTitle, bodyText) ->
+                    val sanitizedHeader = headerTitle.replace("**", "")
+                    val sanitizedBody = bodyText.replace("**", "")
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = aiCardShape,
+                        colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
+                        border = BorderStroke(1.dp, glassBorderColor)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(14.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             Text(
-                                text = chipLabel,
-                                fontSize = 11.5.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = aiAccent,
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
+                                text = sanitizedHeader,
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 13.sp,
+                                color = aiAccent
+                            )
+                            Text(
+                                text = sanitizedBody,
+                                fontSize = 13.sp,
+                                color = primaryText,
+                                lineHeight = 19.sp
                             )
                         }
                     }
                 }
             }
-        }
 
-        LazyColumn(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-                .testTag("ai_vet_messages_list"),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            items(diagnosisHistory) { (headerTitle, bodyText) ->
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = aiCardShape,
-                    colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
-                    border = BorderStroke(1.dp, aiAccent.copy(alpha = 0.25f))
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(14.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Text(
-                            text = headerTitle,
-                            fontWeight = FontWeight.ExtraBold,
-                            fontSize = 13.sp,
-                            color = aiAccent
-                        )
-                        Text(
-                            text = bodyText,
-                            fontSize = 13.sp,
-                            color = primaryText,
-                            lineHeight = 19.sp
-                        )
-                    }
-                }
-            }
-        }
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            OutlinedTextField(
-                value = promptInput,
-                onValueChange = { promptInput = it },
-                placeholder = {
-                    Text(
-                        Translations.tr("ai_vet_input_placeholder", lang),
-                        fontSize = 12.sp,
-                        color = secondaryText.copy(alpha = 0.6f)
-                    )
-                },
-                shape = pillShape,
-                singleLine = true,
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = primaryText,
-                    unfocusedTextColor = primaryText,
-                    focusedBorderColor = aiAccent
-                ),
-                modifier = Modifier
-                    .weight(1f)
-                    .testTag("input_global_ai_vet_prompt")
-            )
-            Button(
-                onClick = {
-                    val q = promptInput
-                    promptInput = ""
-                    triggerAiConsultation(q)
-                },
-                enabled = !isAnalyzing && promptInput.isNotBlank(),
-                shape = pillShape,
-                colors = ButtonDefaults.buttonColors(containerColor = appearance.accentOption.primaryColor),
-                modifier = Modifier
-                    .height(52.dp)
-                    .testTag("btn_send_global_ai_vet")
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Icon(Icons.Default.Send, contentDescription = "Send", tint = Color.White, modifier = Modifier.size(18.dp))
+                OutlinedTextField(
+                    value = promptInput,
+                    onValueChange = { promptInput = it },
+                    placeholder = {
+                        Text(
+                            Translations.tr("ai_vet_input_placeholder", lang),
+                            fontSize = 12.sp,
+                            color = secondaryText.copy(alpha = 0.6f)
+                        )
+                    },
+                    shape = pillShape,
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = primaryText,
+                        unfocusedTextColor = primaryText,
+                        focusedBorderColor = aiAccent
+                    ),
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("input_global_ai_vet_prompt")
+                )
+                Button(
+                    onClick = {
+                        val q = promptInput
+                        promptInput = ""
+                        triggerAiConsultation(q)
+                    },
+                    enabled = !isAnalyzing && promptInput.isNotBlank(),
+                    shape = pillShape,
+                    colors = ButtonDefaults.buttonColors(containerColor = aiPrimaryBtn),
+                    modifier = Modifier
+                        .height(52.dp)
+                        .testTag("btn_send_global_ai_vet")
+                ) {
+                    Icon(Icons.Default.Send, contentDescription = "Send", tint = Color.White, modifier = Modifier.size(18.dp))
+                }
             }
         }
     }
@@ -5906,10 +6657,9 @@ fun FarmCard(
                             )
                         }
 
-                        PremiumPillButton(
+                        AnimatedDeleteOrResetButton(
                             text = Translations.tr("btn_reset_cycle", lang),
                             onClick = { showCardResetCycleDialog = true },
-                            variant = PremiumPillVariant.DELETE_RESET,
                             fontSize = 11.5.sp,
                             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
                             modifier = Modifier
@@ -6382,7 +7132,9 @@ fun QrScannerJoinBottomSheet(
                 onQrCodeScanned = { inviteData ->
                     scannedFarmId = inviteData.farmId
                     scannedRole = inviteData.role
-                    detectedQrBanner = "تمت قراءة رمز العنبر (${inviteData.farmId}) • الدور: ${inviteData.role.name}"
+                    detectedQrBanner = Translations.tr("qr_detected_banner_fmt", lang)
+                        .replace("{farmId}", inviteData.farmId)
+                        .replace("{role}", inviteData.role.name)
                     onJoinFarmWithRole?.invoke(inviteData.farmId, inviteData.role)
                     onJoinRole(inviteData.role)
                 }
@@ -6464,7 +7216,7 @@ fun QrScannerJoinBottomSheet(
                 Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    "تأكيد المسح والانضمام فوراً ✓",
+                    Translations.tr("qr_confirm_scan_join_btn", lang),
                     fontWeight = FontWeight.Bold,
                     fontSize = 14.sp,
                     color = Color.White
@@ -6527,6 +7279,7 @@ fun PersonalAccountWhatsAppQrBottomSheet(
         AppRole.CHICK_HATCHERY -> Translations.tr("role_badge_chick_hatchery", lang)
         AppRole.WHOLESALE_TRADER -> Translations.tr("role_badge_wholesale_trader", lang)
         AppRole.VET_IMPORTER -> Translations.tr("role_badge_vet_importer", lang)
+        AppRole.HOME_PERSONAL -> Translations.tr("role_badge_home_personal", lang)
         else -> Translations.tr("role_badge_owner_barn", lang)
     }
     val personalQrPayload = "MYBUSINESS_CONTACT|name=$userDisplayName|role=$roleBadgeLabel|phone=$userPhoneOrEmail"
@@ -8479,27 +9232,15 @@ fun AgritechFarmNotebookScreen(
                                         overflow = TextOverflow.Ellipsis
                                     )
                                 }
-                                OutlinedButton(
+                                AnimatedDeleteOrResetButton(
+                                    text = Translations.tr("btn_reset_cycle", lang),
                                     onClick = { showResetCycleDialog = true },
-                                    shape = RoundedCornerShape(10.dp),
-                                    border = BorderStroke(1.dp, ActionRed.copy(alpha = 0.55f)),
-                                    colors = ButtonDefaults.outlinedButtonColors(
-                                        containerColor = if (currentTheme.isDark) Color(0xFF450A0A).copy(alpha = 0.45f) else Color(0xFFFEF2F2),
-                                        contentColor = ActionRed
-                                    ),
+                                    fontSize = 11.sp,
                                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
                                     modifier = Modifier
                                         .height(34.dp)
                                         .testTag("btn_reset_cycle")
-                                ) {
-                                    Text(
-                                        Translations.tr("btn_reset_cycle", lang),
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (currentTheme.isDark) Color(0xFFFCA5A5) else ActionRed,
-                                        maxLines = 1
-                                    )
-                                }
+                                )
                                 IconButton(onClick = onOpenSettings) {
                                     Icon(
                                         Icons.Default.Settings,
@@ -11367,7 +12108,15 @@ fun BatchShipmentInfoScreen(
                         }
                     }
 
-                    // 4. سعر الكيلوغرام الواحد في السوق اليوم (دج/كغ)
+                    // 4. سعر الكيلوغرام الواحد في السوق اليوم (دج/كغ) مع اهتزاز فيزيائي وإطار أحمر مضيء عند الخطأ
+                    val priceShakeOffset = remember { Animatable(0f) }
+                    LaunchedEffect(priceError) {
+                        if (priceError != null) {
+                            listOf(-12f, 12f, -8f, 8f, 0f).forEach { target ->
+                                priceShakeOffset.animateTo(target, animationSpec = tween(45))
+                            }
+                        }
+                    }
                     OutlinedTextField(
                         value = pricePerKg,
                         onValueChange = onPricePerKgChange,
@@ -11389,20 +12138,21 @@ fun BatchShipmentInfoScreen(
                             Icon(
                                 Icons.Default.Payments,
                                 contentDescription = null,
-                                tint = if (priceError != null) ActionRed else shipAccent
+                                tint = if (priceError != null) Color(0xFFEF4444) else shipAccent
                             )
                         },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         modifier = Modifier
                             .fillMaxWidth()
+                            .offset(x = priceShakeOffset.value.dp)
                             .testTag("input_sales_price_per_kg"),
                         shape = shipFieldShape,
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = shipAccent,
                             focusedLabelColor = shipAccent,
-                            errorBorderColor = ActionRed,
-                            errorLabelColor = ActionRed
+                            errorBorderColor = Color(0xFFEF4444),
+                            errorLabelColor = Color(0xFFEF4444)
                         )
                     )
 
@@ -11627,6 +12377,16 @@ fun BatchQuickWeighingScreen(
         }
     }
 
+    var weighSaveSuccessGlow by remember { mutableStateOf(false) }
+    val weighSaveScale by animateFloatAsState(
+        targetValue = if (weighSaveSuccessGlow) 1.04f else 1.0f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessLow
+        ),
+        label = "weigh_save_spring"
+    )
+
     val submitCurrentWeighRow: () -> Unit = {
         val hadTare = tareInput.isNotBlank()
         val hadGross = grossInput.isNotBlank()
@@ -11652,7 +12412,10 @@ fun BatchQuickWeighingScreen(
         if (addedAny) {
             val targetLastIdx = (maxOf(newTareCount, newGrossCount) - 1).coerceAtLeast(0)
             weighScope.launch {
+                weighSaveSuccessGlow = true
                 listState.animateScrollToItem(targetLastIdx)
+                delay(280)
+                weighSaveSuccessGlow = false
             }
             try {
                 if (hadGross) {
@@ -11844,9 +12607,12 @@ fun BatchQuickWeighingScreen(
             // 2. طريقة الإدخال البسيطة في أعلى الجدول (في نفس الصفحة):
             // خانة لإدخال وزن الفارغ وخانة لإدخال وزن الممتلئ بجانبها مع زر [حفظ ✓]
             Card(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .scale(weighSaveScale),
                 shape = weighCardShape,
                 colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
+                border = if (weighSaveSuccessGlow) BorderStroke(1.8.dp, Color(0xFF10B981)) else null,
                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
             ) {
                 Column(
@@ -12350,6 +13116,10 @@ fun SimpleTransactionDialog(
     val kgUnit = Translations.tr("kg_unit", lang)
     val quintalUnit = Translations.tr("quintal_unit", lang)
 
+    val txScope = rememberCoroutineScope()
+    val txShakeOffset = remember { Animatable(0f) }
+    var txValidationError by remember { mutableStateOf(false) }
+
     AlertDialog(
         containerColor = dialogBg,
         shape = RoundedCornerShape(appearance.cornerRadiusDp.dp),
@@ -12358,7 +13128,10 @@ fun SimpleTransactionDialog(
             Text(title, fontWeight = FontWeight.Bold, color = if (type == TransactionType.INCOME) accentEmerald else ActionRed)
         },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(
+                modifier = Modifier.offset(x = txShakeOffset.value.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
                 Text(Translations.tr("category_label", lang), fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = accentEmerald)
                 WrapFilters(
                     categories = categories,
@@ -12366,6 +13139,7 @@ fun SimpleTransactionDialog(
                     onSelect = { newCat ->
                         if (newCat != selectedCategory) {
                             selectedCategory = newCat
+                            txValidationError = false
                         }
                     }
                 )
@@ -12388,11 +13162,14 @@ fun SimpleTransactionDialog(
                     ) {
                         NeumorphicRecessedField(
                             value = feedQuintalsText,
-                            onValueChange = { feedQuintalsText = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                            onValueChange = {
+                                feedQuintalsText = it.filter { ch -> ch.isDigit() || ch == '.' }
+                                txValidationError = false
+                            },
                             label = Translations.tr("feed_qty_quintals_label", lang),
                             placeholder = "40",
                             isDark = isDark,
-                            accentColor = accentEmerald,
+                            accentColor = if (txValidationError && parsedQuintals <= 0.0) Color(0xFFEF4444) else accentEmerald,
                             keyboardOptions = KeyboardOptions(
                                 keyboardType = KeyboardType.Number,
                                 imeAction = ImeAction.Next
@@ -12404,11 +13181,14 @@ fun SimpleTransactionDialog(
 
                         NeumorphicRecessedField(
                             value = feedPricePerQuintalText,
-                            onValueChange = { feedPricePerQuintalText = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                            onValueChange = {
+                                feedPricePerQuintalText = it.filter { ch -> ch.isDigit() || ch == '.' }
+                                txValidationError = false
+                            },
                             label = Translations.tr("feed_price_quintal_label", lang),
                             placeholder = "8000",
                             isDark = isDark,
-                            accentColor = accentEmerald,
+                            accentColor = if (txValidationError && parsedUnitPrice <= 0.0) Color(0xFFEF4444) else accentEmerald,
                             keyboardOptions = KeyboardOptions(
                                 keyboardType = KeyboardType.Number,
                                 imeAction = ImeAction.Next
@@ -12453,10 +13233,13 @@ fun SimpleTransactionDialog(
                 } else {
                     NeumorphicRecessedField(
                         value = amountText,
-                        onValueChange = { amountText = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                        onValueChange = {
+                            amountText = it.filter { ch -> ch.isDigit() || ch == '.' }
+                            txValidationError = false
+                        },
                         label = Translations.tr("amount_label", lang),
                         isDark = isDark,
-                        accentColor = accentEmerald,
+                        accentColor = if (txValidationError) Color(0xFFEF4444) else accentEmerald,
                         keyboardOptions = KeyboardOptions(
                             keyboardType = KeyboardType.Number,
                             imeAction = ImeAction.Next
@@ -12478,11 +13261,25 @@ fun SimpleTransactionDialog(
                             val qShort = Translations.tr("quintal_short", lang)
                             val formattedCat = "🌾 $cleanDesig (${Translations.formatQuintalNumber(parsedQuintals)} $qShort)"
                             onConfirm(formattedCat, autoCalculatedFeedAmount, addedFeedKg)
+                        } else {
+                            txValidationError = true
+                            txScope.launch {
+                                listOf(-12f, 12f, -8f, 8f, 0f).forEach { target ->
+                                    txShakeOffset.animateTo(target, animationSpec = tween(45))
+                                }
+                            }
                         }
                     } else {
                         val amt = amountText.toDoubleOrNull() ?: 0.0
                         if (amt > 0) {
                             onConfirm(selectedCategory, amt, 0.0)
+                        } else {
+                            txValidationError = true
+                            txScope.launch {
+                                listOf(-12f, 12f, -8f, 8f, 0f).forEach { target ->
+                                    txShakeOffset.animateTo(target, animationSpec = tween(45))
+                                }
+                            }
                         }
                     }
                 },

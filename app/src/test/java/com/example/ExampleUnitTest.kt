@@ -4,6 +4,7 @@ import com.example.models.*
 import com.example.utils.*
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -445,5 +446,76 @@ class ExampleUnitTest {
         assertEquals(3850000.0, expectedRevenue, 0.001)
         assertEquals(910000.0, estimatedNetProfit, 0.001)
     }
+
+    @Test
+    fun nextGenAiAgent_homePersonalLedger_and_14LanguageNotebookLocalization_workCorrectly() {
+        // 1. Verify PersonalAndHouseholdEngine calculations & month-over-month delta
+        val homeSummary = PersonalAndHouseholdEngine.evaluateMonthlyHouseholdBudget(
+            monthlySalaryAndIncome = 120000.0,
+            electricityAndGasExpense = 4500.0,
+            internetAndPhoneExpense = 3200.0,
+            carInsuranceAndMaintenanceExpense = 8500.0,
+            groceriesAndHomeExpense = 28000.0,
+            previousMonthTotalExpense = 50227.27
+        )
+        assertEquals(120000.0, homeSummary.totalIncome, 0.001)
+        assertEquals(44200.0, homeSummary.totalExpenses, 0.001)
+        assertEquals(75800.0, homeSummary.netProfit, 0.001)
+        assertTrue(homeSummary.isProfitable)
+        // Month-over-month expense change should be approx -12%
+        val momChangePct = homeSummary.customKpis["monthOverMonthPct"] ?: 0.0
+        assertEquals(-12.0, momChangePct, 0.1)
+
+        // 2. Verify AppRole.HOME_PERSONAL is in professionalHubRoles & sevenProfessionCatalog
+        assertTrue(AppRole.HOME_PERSONAL.isHomePersonalRole)
+        assertTrue(AppRole.professionalHubRoles.contains(AppRole.HOME_PERSONAL))
+        assertTrue(sevenProfessionCatalog.any { it.role == AppRole.HOME_PERSONAL })
+
+        // 3. Verify 14-language localization for Notebook header, Ledger buttons, QR scanner, and AI Agent Employee
+        val requiredKeys = listOf(
+            "btn_owner_add_daily_report",
+            "chat_worker_title",
+            "chat_vet_title",
+            "climate_header_btn_label",
+            "btn_spend",
+            "btn_income",
+            "qr_confirm_scan_join_btn",
+            "qr_detected_banner_fmt",
+            "ai_agent_persona_title",
+            "ai_agent_card1_market_fmt",
+            "ai_agent_card2_vaccine_fmt",
+            "role_badge_home_personal",
+            "profession_card_home_title",
+            "home_cat_electricity_gas",
+            "home_cat_salary_income"
+        )
+        for (lang in AppLanguage.values()) {
+            for (key in requiredKeys) {
+                val translated = Translations.tr(key, lang)
+                assertFalse("Key $key should not be blank in $lang", translated.isBlank())
+                assertFalse("Key $key should not contain raw markdown ** in $lang", translated.contains("**"))
+            }
+        }
+
+        // Verify Spanish, Turkish, Hindi, Russian, German, Chinese do not fall back to English for Notebook buttons
+        assertNotEquals("📝 + Daily Report", Translations.tr("btn_owner_add_daily_report", AppLanguage.ES))
+        assertNotEquals("📝 + Daily Report", Translations.tr("btn_owner_add_daily_report", AppLanguage.TR))
+        assertNotEquals("📝 + Daily Report", Translations.tr("btn_owner_add_daily_report", AppLanguage.HI))
+        assertNotEquals("📝 + Daily Report", Translations.tr("btn_owner_add_daily_report", AppLanguage.RU))
+        assertNotEquals("📝 + Daily Report", Translations.tr("btn_owner_add_daily_report", AppLanguage.DE))
+        assertNotEquals("📝 + Daily Report", Translations.tr("btn_owner_add_daily_report", AppLanguage.ZH))
+
+        // Verify AI Vet fallback advice never outputs raw ** asterisks
+        val fallbackAdvice = AiVetGeminiService.buildClinicalFallbackAdvice(
+            question = "تحليل صحة القطيع",
+            flockAgeDays = 24,
+            liveBirds = 5800,
+            mortalityPct = 1.2,
+            currentTempC = 23.0,
+            lang = AppLanguage.AR
+        )
+        assertFalse(fallbackAdvice.contains("**"))
+    }
 }
+
 

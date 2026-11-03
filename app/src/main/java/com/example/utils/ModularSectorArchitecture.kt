@@ -33,6 +33,7 @@ object BusinessNotebookEngine {
     const val SECTOR_AGRICULTURE = "AGRICULTURE"
     const val SECTOR_COMMERCIAL = "COMMERCIAL"
     const val SECTOR_FREELANCE = "FREELANCE"
+    const val SECTOR_PERSONAL_HOME = "PERSONAL_HOME"
 
     const val BRANCH_BROILER = "BROILER"
     const val BRANCH_LAYER = "LAYER"
@@ -45,6 +46,7 @@ object BusinessNotebookEngine {
     const val BRANCH_FIELD_CROPS = "FIELD_CROPS"
     const val BRANCH_RETAIL_WHOLESALE = "RETAIL_WHOLESALE"
     const val BRANCH_WORKSHOP_SERVICE = "WORKSHOP_SERVICE"
+    const val BRANCH_HOUSEHOLD_LEDGER = "HOUSEHOLD_LEDGER"
 
     /**
      * التحقق الصارم من المبالغ والمدخلات الرقمية لمنع القيم السالبة أو غير الصالحة.
@@ -296,6 +298,64 @@ object CommercialAndFreelanceEngine {
                 "roiPct" to roiPct,
                 "averageOrderRevenue" to averageOrderRevenue,
                 "completedOrdersCount" to safeOrders.toDouble()
+            )
+        )
+    }
+}
+
+/**
+ * محرك إدارة المنزل والحساب الشخصي للعامل والمشرف والمستخدم الفردي (PersonalAndHouseholdEngine).
+ * يتتبع الفواتير والمصاريف الشهرية المتكررة (كهرباء وغاز، إنترنت وجوال، تأمين وصيانة سيارة، مقاضي البيت)
+ * مقابل الراتب والدخل الشهري، ويحسب نسبة التغير مقارنة بالشهر السابق.
+ */
+object PersonalAndHouseholdEngine {
+
+    val standardExpenseCategoryKeys: List<String> = listOf(
+        "home_cat_electricity_gas",
+        "home_cat_internet_phone",
+        "home_cat_car_insurance",
+        "home_cat_groceries"
+    )
+
+    const val salaryIncomeCategoryKey: String = "home_cat_salary_income"
+
+    fun evaluateMonthlyHouseholdBudget(
+        monthlySalaryAndIncome: Double,
+        electricityAndGasExpense: Double,
+        internetAndPhoneExpense: Double,
+        carInsuranceAndMaintenanceExpense: Double,
+        groceriesAndHomeExpense: Double,
+        previousMonthTotalExpense: Double = 0.0
+    ): BranchFinancialSummary {
+        val safeIncome = if (BusinessNotebookEngine.validateNonNegativeAmount(monthlySalaryAndIncome)) monthlySalaryAndIncome else 0.0
+        val safeElecGas = if (BusinessNotebookEngine.validateNonNegativeAmount(electricityAndGasExpense)) electricityAndGasExpense else 0.0
+        val safeInternet = if (BusinessNotebookEngine.validateNonNegativeAmount(internetAndPhoneExpense)) internetAndPhoneExpense else 0.0
+        val safeCar = if (BusinessNotebookEngine.validateNonNegativeAmount(carInsuranceAndMaintenanceExpense)) carInsuranceAndMaintenanceExpense else 0.0
+        val safeGroceries = if (BusinessNotebookEngine.validateNonNegativeAmount(groceriesAndHomeExpense)) groceriesAndHomeExpense else 0.0
+        val safePrevExpense = if (BusinessNotebookEngine.validateNonNegativeAmount(previousMonthTotalExpense)) previousMonthTotalExpense else 0.0
+
+        val totalExpenses = safeElecGas + safeInternet + safeCar + safeGroceries
+        val netSavings = safeIncome - totalExpenses
+        val savingsRatePct = if (safeIncome > 0.0) (netSavings / safeIncome) * 100.0 else 0.0
+        val monthOverMonthDelta = totalExpenses - safePrevExpense
+        val monthOverMonthPct = if (safePrevExpense > 0.0) (monthOverMonthDelta / safePrevExpense) * 100.0 else 0.0
+
+        return BranchFinancialSummary(
+            sectorId = BusinessNotebookEngine.SECTOR_PERSONAL_HOME,
+            branchId = BusinessNotebookEngine.BRANCH_HOUSEHOLD_LEDGER,
+            totalIncome = safeIncome,
+            totalExpenses = totalExpenses,
+            netProfit = netSavings,
+            profitMarginPct = savingsRatePct,
+            isProfitable = netSavings >= 0.0,
+            unitCost = totalExpenses / 30.0,
+            customKpis = mapOf(
+                "electricityAndGasExpense" to safeElecGas,
+                "internetAndPhoneExpense" to safeInternet,
+                "carInsuranceAndMaintenanceExpense" to safeCar,
+                "groceriesAndHomeExpense" to safeGroceries,
+                "monthOverMonthDelta" to monthOverMonthDelta,
+                "monthOverMonthPct" to monthOverMonthPct
             )
         )
     }
