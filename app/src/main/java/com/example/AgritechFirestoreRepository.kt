@@ -1268,6 +1268,7 @@ class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
      * for the barn in both local state and Cloud Firestore.
      */
     suspend fun resetCycleAndClearBarn(farmId: String, cycleId: String): Result<Unit> {
+        if (farmId == "personal_worker_ledger") return Result.success(Unit)
         val resetCycle = AgritechMockDb.resetCycleAndClearBarn(farmId, cycleId)
         val uid = auth.currentUser?.uid ?: return Result.success(Unit)
         return try {
@@ -1275,7 +1276,7 @@ class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
             for (doc in reportsSnap.documents) {
                 val docCycleId = doc.getString("cycleId").orEmpty()
                 if (docCycleId == cycleId || docCycleId.isBlank()) {
-                    doc.reference.delete().await()
+                    runCatching { doc.reference.delete().await() }
                 }
             }
 
@@ -1283,7 +1284,7 @@ class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
             for (doc in txsSnap.documents) {
                 val docCycleId = doc.getString("cycleId").orEmpty()
                 if (docCycleId == cycleId || docCycleId.isBlank()) {
-                    doc.reference.delete().await()
+                    runCatching { doc.reference.delete().await() }
                 }
             }
 
@@ -1291,7 +1292,7 @@ class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
             for (doc in vetSnap.documents) {
                 val docCycleId = doc.getString("cycleId").orEmpty()
                 if (docCycleId == cycleId || docCycleId.isBlank()) {
-                    doc.reference.delete().await()
+                    runCatching { doc.reference.delete().await() }
                 }
             }
 

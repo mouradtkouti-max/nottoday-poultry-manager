@@ -211,7 +211,7 @@ class AgritechRepositoryRuleTest : FirestoreEmulatorTestBase() {
         }
         assertTrue(repRes.isSuccess)
 
-        // Worker is blocked from writing vetNotes and recording expenses
+        // Worker is blocked from writing vetNotes and recording any farm treasury expenses
         val workerVetRes = withTimeout(5000L) {
             repo.saveVetNote(
                 VetNoteModel(
@@ -227,6 +227,24 @@ class AgritechRepositoryRuleTest : FirestoreEmulatorTestBase() {
             )
         }
         assertTrue(workerVetRes.isFailure)
+
+        val workerTxRes = withTimeout(5000L) {
+            repo.recordTransactionIdempotent(
+                idempotencyKey = "tx_worker_blocked_${UUID.randomUUID()}",
+                tx = TransactionModel(
+                    id = "tx_worker_blocked",
+                    farmId = farmId,
+                    cycleId = "cycle_2026_01",
+                    type = TransactionType.EXPENSE,
+                    category = "MAINTENANCE",
+                    amount = 3500.0,
+                    currency = "دج",
+                    date = "اليوم 4",
+                    status = "PENDING"
+                )
+            )
+        }
+        assertTrue(workerTxRes.isFailure)
     }
 
     @Test

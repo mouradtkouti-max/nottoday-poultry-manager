@@ -35,6 +35,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -262,6 +263,7 @@ object AgritechMockDb {
     val workerPersonalEntries = mutableStateListOf(
         WorkerPersonalEntryModel(
             id = "w_tx_salary_1",
+            farmId = "personal_worker_ledger",
             title = "💵 الراتب والدخل الشهري",
             amount = 65000.0,
             type = TransactionType.INCOME,
@@ -270,6 +272,7 @@ object AgritechMockDb {
         ),
         WorkerPersonalEntryModel(
             id = "w_tx_elec_1",
+            farmId = "personal_worker_ledger",
             title = "⚡ كهرباء وغاز",
             amount = 4500.0,
             type = TransactionType.EXPENSE,
@@ -278,6 +281,7 @@ object AgritechMockDb {
         ),
         WorkerPersonalEntryModel(
             id = "w_tx_net_1",
+            farmId = "personal_worker_ledger",
             title = "🌐 إنترنت وجوال",
             amount = 2600.0,
             type = TransactionType.EXPENSE,
@@ -286,6 +290,7 @@ object AgritechMockDb {
         ),
         WorkerPersonalEntryModel(
             id = "w_tx_car_1",
+            farmId = "personal_worker_ledger",
             title = "🚗 تأمين وصيانة سيارة",
             amount = 6000.0,
             type = TransactionType.EXPENSE,
@@ -294,6 +299,7 @@ object AgritechMockDb {
         ),
         WorkerPersonalEntryModel(
             id = "w_tx_groc_1",
+            farmId = "personal_worker_ledger",
             title = "🛒 مقاضي ومصاريف البيت",
             amount = 18500.0,
             type = TransactionType.EXPENSE,
@@ -920,9 +926,10 @@ object AgritechMockDb {
     }
 
     fun resetCycleAndClearBarn(farmId: String, cycleId: String): CycleModel? {
-        dailyReports.removeAll { it.farmId == farmId && (it.cycleId == cycleId || it.cycleId.isBlank()) }
-        transactions.removeAll { it.farmId == farmId && (it.cycleId == cycleId || it.cycleId.isBlank()) }
-        vetNotes.removeAll { it.farmId == farmId && (it.cycleId == cycleId || it.cycleId.isBlank()) }
+        if (farmId == "personal_worker_ledger") return null
+        dailyReports.removeAll { it.farmId == farmId && it.farmId != "personal_worker_ledger" && (it.cycleId == cycleId || it.cycleId.isBlank()) }
+        transactions.removeAll { it.farmId == farmId && it.farmId != "personal_worker_ledger" && (it.cycleId == cycleId || it.cycleId.isBlank()) }
+        vetNotes.removeAll { it.farmId == farmId && it.farmId != "personal_worker_ledger" && (it.cycleId == cycleId || it.cycleId.isBlank()) }
         val todayIso = java.time.LocalDate.now().toString()
         val idx = cycles.indexOfFirst { it.id == cycleId || (it.farmId == farmId && it.status.equals("active", ignoreCase = true)) }
         val updatedCycle = if (idx >= 0) {
@@ -1465,7 +1472,7 @@ fun AgritechMainApp(
                 firestoreRepo = firestoreRepo,
                 reports = AgritechMockDb.dailyReports.filter { it.farmId == farm.id }.sortedBy { it.dayNumber },
                 vetNotes = AgritechMockDb.vetNotes.filter { it.farmId == farm.id },
-                transactions = AgritechMockDb.transactions.filter { it.farmId == farm.id },
+                transactions = AgritechMockDb.transactions.filter { it.farmId == farm.id && it.farmId != "personal_worker_ledger" },
                 onAddTransaction = { tx, addedFeedKg ->
                     if (AgritechMockDb.transactions.none { it.id == tx.id }) {
                         val normalizedTx = if (addedFeedKg > 0.0 && tx.quantityQuintals <= 0.0) {
@@ -2460,7 +2467,7 @@ fun AgritechOwnerDashboard(
     var selectedGlobalTab by remember {
         mutableStateOf(GlobalDashboardTab.BARNS)
     }
-    var isWorkerNotebookOpen by remember { mutableStateOf(false) }
+    var isWorkerNotebookOpen by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(activeRole) {
         if (activeRole.normalizedHubRole != AppRole.WORKER) {
             isWorkerNotebookOpen = false
@@ -3195,8 +3202,8 @@ fun ManagementHubScreen(
     val normalizedRole = activeRole.normalizedHubRole
     val curr = Translations.tr("currency", lang)
 
-    var selectedVetHubTab by remember { mutableStateOf(0) }
-    var selectedWorkerHubTab by remember { mutableStateOf(0) }
+    var selectedVetHubTab by rememberSaveable { mutableStateOf(0) }
+    var selectedWorkerHubTab by rememberSaveable { mutableStateOf(0) }
     var showPartnerFinancialReqDialog by remember { mutableStateOf(false) }
 
     val roleItems = listOf(
@@ -4127,6 +4134,7 @@ fun ManagementHubScreen(
 
 data class WorkerPersonalEntryModel(
     val id: String,
+    val farmId: String = "personal_worker_ledger",
     val title: String,
     val amount: Double,
     val type: TransactionType,
@@ -4157,10 +4165,10 @@ fun WorkerSmartNotebookScreen(
     val curr = Translations.tr("currency", lang)
 
     val workerBarns = if (farms.isNotEmpty()) farms else AgritechMockDb.supervisedVetFarms
-    val personalEntries = AgritechMockDb.workerPersonalEntries
-    var selectedWorkerHubTab by remember { mutableStateOf(0) }
-    var billCardApproved by remember { mutableStateOf(false) }
-    var billCardDismissed by remember { mutableStateOf(false) }
+    val personalEntries = AgritechMockDb.workerPersonalEntries.filter { it.farmId == "personal_worker_ledger" }
+    var selectedWorkerTab by rememberSaveable { mutableStateOf(0) }
+    var billCardApproved by rememberSaveable { mutableStateOf(false) }
+    var billCardDismissed by rememberSaveable { mutableStateOf(false) }
     var showFreeTxDialog by remember { mutableStateOf(false) }
     var activeTxType by remember { mutableStateOf(TransactionType.EXPENSE) }
     var isAddingInvoiceMode by remember { mutableStateOf(false) }
@@ -4193,6 +4201,7 @@ fun WorkerSmartNotebookScreen(
                     0,
                     WorkerPersonalEntryModel(
                         id = "w_tx_${System.currentTimeMillis()}",
+                        farmId = "personal_worker_ledger",
                         title = customName,
                         amount = amount,
                         type = activeTxType,
@@ -4240,7 +4249,7 @@ fun WorkerSmartNotebookScreen(
                             maxLines = 1
                         )
                         Text(
-                            workerTabs.getOrNull(selectedWorkerHubTab)?.third ?: "",
+                            workerTabs.getOrNull(selectedWorkerTab)?.third ?: "",
                             fontSize = 11.5.sp,
                             color = activeAccent,
                             fontWeight = FontWeight.Bold,
@@ -4269,8 +4278,8 @@ fun WorkerSmartNotebookScreen(
             ) {
                 workerTabs.forEach { (idx, emoji, title) ->
                     NavigationBarItem(
-                        selected = selectedWorkerHubTab == idx,
-                        onClick = { selectedWorkerHubTab = idx },
+                        selected = selectedWorkerTab == idx,
+                        onClick = { selectedWorkerTab = idx },
                         modifier = Modifier.testTag("worker_hub_tab_$idx"),
                         icon = {
                             Text(emoji, fontSize = 17.sp)
@@ -4279,7 +4288,7 @@ fun WorkerSmartNotebookScreen(
                             Text(
                                 title.replace(emoji, "").trim(),
                                 fontSize = 10.5.sp,
-                                fontWeight = if (selectedWorkerHubTab == idx) FontWeight.ExtraBold else FontWeight.Medium,
+                                fontWeight = if (selectedWorkerTab == idx) FontWeight.ExtraBold else FontWeight.Medium,
                                 maxLines = 1
                             )
                         },
@@ -4301,7 +4310,7 @@ fun WorkerSmartNotebookScreen(
                 .padding(padding)
                 .testTag("worker_smart_notebook_screen")
         ) {
-            when (selectedWorkerHubTab) {
+            when (selectedWorkerTab) {
                 0 -> {
                     // التبويب الأول: 💼 الإدارة (العنابر المسؤول عنها لتسجيل البيانات اليومية فقط بدون فواتير المزرعة)
                     LazyColumn(
@@ -4671,6 +4680,7 @@ fun WorkerSmartNotebookScreen(
                                                             0,
                                                             WorkerPersonalEntryModel(
                                                                 id = "w_tx_ai_${System.currentTimeMillis()}",
+                                                                farmId = "personal_worker_ledger",
                                                                 title = Translations.tr("home_cat_electricity_gas", lang),
                                                                 amount = 4500.0,
                                                                 type = TransactionType.EXPENSE,

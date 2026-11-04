@@ -74,6 +74,7 @@ service cloud.firestore {
     function isValidQrMemberSelfJoin() {
       return incoming().diff(existing()).affectedKeys().hasOnly(['members', 'updatedAt']) &&
              incoming().members.diff(existing().members).affectedKeys().hasOnly([request.auth.uid]) &&
+             !(request.auth.uid in existing().members && existing().members[request.auth.uid] == 'OWNER') &&
              (request.auth.uid in incoming().members) &&
              (incoming().members[request.auth.uid] == 'VETERINARIAN' || incoming().members[request.auth.uid] == 'WORKER');
     }
@@ -349,12 +350,11 @@ service cloud.firestore {
       }
 
       // 2d. Financial Transactions Subcollection (/farms/{farmId}/transactions/{transactionId})
-      // OWNER has full access; VETERINARIAN and WORKER can create PENDING expense requests
+      // OWNER has full access; VETERINARIAN can create MEDICATION or PENDING expense requests (WORKER is strictly blocked from farm treasury)
       match /transactions/{transactionId} {
         allow get: if isValidId(transactionId) && (
           isOwnerRole(farmId) ||
-          (isVetRole(farmId) && (resource == null || (resource.data.type == 'EXPENSE' && (resource.data.category == 'MEDICATION' || resource.data.status == 'PENDING')))) ||
-          (isWorkerRole(farmId) && (resource == null || (resource.data.type == 'EXPENSE' && resource.data.status == 'PENDING')))
+          (isVetRole(farmId) && (resource == null || (resource.data.type == 'EXPENSE' && (resource.data.category == 'MEDICATION' || resource.data.status == 'PENDING'))))
         );
         allow list: if isOwnerRole(farmId);
 
@@ -362,8 +362,7 @@ service cloud.firestore {
                          incoming().userId == request.auth.uid &&
                          (
                            isOwnerRole(farmId) ||
-                           (isVetRole(farmId) && request.resource.data.type == 'EXPENSE' && (request.resource.data.category == 'MEDICATION' || (('status' in request.resource.data) && request.resource.data.status == 'PENDING'))) ||
-                           (isWorkerRole(farmId) && request.resource.data.type == 'EXPENSE' && ('status' in request.resource.data) && request.resource.data.status == 'PENDING')
+                           (isVetRole(farmId) && request.resource.data.type == 'EXPENSE' && (request.resource.data.category == 'MEDICATION' || (('status' in request.resource.data) && request.resource.data.status == 'PENDING')))
                          ) &&
                          incoming().keys().hasAll(['userId', 'farmId', 'cycleId', 'type', 'category', 'amount', 'currency', 'date', 'idempotencyKey', 'createdAt', 'updatedAt']) &&
                          incoming().keys().hasOnly([

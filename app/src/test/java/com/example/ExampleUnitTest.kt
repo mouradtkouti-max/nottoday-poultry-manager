@@ -414,6 +414,10 @@ class ExampleUnitTest {
             )
         )
 
+        val initialWorkerEntriesCount = AgritechMockDb.workerPersonalEntries.size
+        assertTrue(initialWorkerEntriesCount >= 5)
+        assertTrue(AgritechMockDb.workerPersonalEntries.all { it.farmId == "personal_worker_ledger" })
+
         val resetCycle = AgritechMockDb.resetCycleAndClearBarn(testFarmId, testCycleId)
         assertTrue(resetCycle != null)
         assertEquals(java.time.LocalDate.now().toString(), resetCycle!!.startDate)
@@ -423,6 +427,12 @@ class ExampleUnitTest {
         assertTrue(AgritechMockDb.dailyReports.none { it.farmId == testFarmId })
         assertTrue(AgritechMockDb.transactions.none { it.farmId == testFarmId })
         assertTrue(AgritechMockDb.vetNotes.none { it.farmId == testFarmId })
+
+        // Verify Worker Personal Ledger (farmId = "personal_worker_ledger") is 100% isolated from barn reset and farm treasury
+        assertEquals(initialWorkerEntriesCount, AgritechMockDb.workerPersonalEntries.size)
+        assertNull(AgritechMockDb.resetCycleAndClearBarn("personal_worker_ledger", testCycleId))
+        assertEquals(initialWorkerEntriesCount, AgritechMockDb.workerPersonalEntries.size)
+        assertTrue(AgritechMockDb.transactions.none { it.farmId == "personal_worker_ledger" })
 
         // Verify new localization keys
         assertEquals("🔄 إعادة الدورة", Translations.tr("btn_reset_cycle", AppLanguage.AR))
