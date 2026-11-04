@@ -1520,11 +1520,11 @@ object Translations {
             "hi" to "🛒 बाज़ार"
         ),
         "global_tab_ai_vet" to mapOf(
-            "ar" to "🤖 AI بيطري",
-            "fr" to "🤖 IA Vétérinaire",
-            "en" to "🤖 AI Vet",
-            "es" to "🤖 IA Veterinario",
-            "hi" to "🤖 AI पशु चिकित्सक"
+            "ar" to "🧠 IA",
+            "fr" to "🧠 IA",
+            "en" to "🧠 IA",
+            "es" to "🧠 IA",
+            "hi" to "🧠 IA"
         ),
         "btn_add_post" to mapOf(
             "ar" to "إضافة إعلان",
@@ -4678,7 +4678,7 @@ object Translations {
         "global_tab_barns" to "Galpões",
         "global_tab_chat" to "Chat",
         "global_tab_market" to "Mercado",
-        "global_tab_ai_vet" to "IA Vet",
+        "global_tab_ai_vet" to "🧠 IA",
         "btn_add_post" to "+ Publicar Anúncio",
         "feed_badge_short" to "Estoque Ração",
         "quintal_short" to "q",

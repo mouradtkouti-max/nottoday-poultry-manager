@@ -1605,7 +1605,6 @@ fun PremiumSettingsModal(
                                     AppRole.OWNER_BARN to Translations.tr("role_badge_owner_barn", selectedLang),
                                     AppRole.VET_CLINIC to Translations.tr("role_badge_vet_clinic", selectedLang),
                                     AppRole.WORKER to Translations.tr("role_badge_worker", selectedLang),
-                                    AppRole.HOME_PERSONAL to Translations.tr("role_badge_home_personal", selectedLang),
                                     AppRole.FEED_SUPPLIER to Translations.tr("role_badge_feed_supplier", selectedLang),
                                     AppRole.CHICK_HATCHERY to Translations.tr("role_badge_chick_hatchery", selectedLang),
                                     AppRole.WHOLESALE_TRADER to Translations.tr("role_badge_wholesale_trader", selectedLang),
@@ -1614,7 +1613,6 @@ fun PremiumSettingsModal(
                                 val activeRoleEmoji = when (activeHubRole) {
                                     AppRole.VET_CLINIC -> "🩺"
                                     AppRole.WORKER -> "👷"
-                                    AppRole.HOME_PERSONAL -> "🏠"
                                     AppRole.FEED_SUPPLIER -> "🌾"
                                     AppRole.CHICK_HATCHERY -> "🐣"
                                     AppRole.WHOLESALE_TRADER -> "🚚"
@@ -4253,12 +4251,6 @@ val sevenProfessionCatalog: List<ProfessionCardItem> = listOf(
         emoji = "👷",
         titleKey = "profession_card_worker_title",
         descKey = "profession_card_worker_desc"
-    ),
-    ProfessionCardItem(
-        role = AppRole.HOME_PERSONAL,
-        emoji = "🏠",
-        titleKey = "profession_card_home_title",
-        descKey = "profession_card_home_desc"
     ),
     ProfessionCardItem(
         role = AppRole.FEED_SUPPLIER,

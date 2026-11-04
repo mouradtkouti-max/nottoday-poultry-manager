@@ -466,13 +466,21 @@ class ExampleUnitTest {
         val momChangePct = homeSummary.customKpis["monthOverMonthPct"] ?: 0.0
         assertEquals(-12.0, momChangePct, 0.1)
 
-        // 2. Verify AppRole.HOME_PERSONAL is in professionalHubRoles & sevenProfessionCatalog
-        assertTrue(AppRole.HOME_PERSONAL.isHomePersonalRole)
-        assertTrue(AppRole.professionalHubRoles.contains(AppRole.HOME_PERSONAL))
-        assertTrue(sevenProfessionCatalog.any { it.role == AppRole.HOME_PERSONAL })
+        // 2. Verify HOME_PERSONAL is merged into WORKER and professionalHubRoles keeps the 7 original professions
+        assertEquals(7, AppRole.professionalHubRoles.size)
+        assertFalse(AppRole.professionalHubRoles.contains(AppRole.HOME_PERSONAL))
+        assertEquals(AppRole.WORKER, AppRole.HOME_PERSONAL.normalizedHubRole)
+        assertEquals(7, sevenProfessionCatalog.size)
+        assertFalse(sevenProfessionCatalog.any { it.role == AppRole.HOME_PERSONAL })
 
-        // 3. Verify 14-language localization for Notebook header, Ledger buttons, QR scanner, and AI Agent Employee
+        // 3. Verify 14-language localization for Notebook header, Worker 4-Tab Notebook, QR scanner, and AI Agent Employee
+        assertEquals("💼 الإدارة", Translations.tr("worker_tab_barns_daily", AppLanguage.AR))
+        assertEquals("💰 الخزنة", Translations.tr("worker_tab_home_wallet", AppLanguage.AR))
+        assertEquals("📊 التحليلات", Translations.tr("worker_tab_analytics_agent", AppLanguage.AR))
+        assertEquals("🧾 الفواتير", Translations.tr("worker_tab_vet_tasks", AppLanguage.AR))
+
         val requiredKeys = listOf(
+            "global_tab_ai_vet",
             "btn_owner_add_daily_report",
             "chat_worker_title",
             "chat_vet_title",
@@ -484,12 +492,23 @@ class ExampleUnitTest {
             "ai_agent_persona_title",
             "ai_agent_card1_market_fmt",
             "ai_agent_card2_vaccine_fmt",
-            "role_badge_home_personal",
-            "profession_card_home_title",
+            "worker_tab_barns_daily",
+            "worker_tab_home_wallet",
+            "worker_tab_analytics_agent",
+            "worker_tab_vet_tasks",
+            "btn_open_worker_smart_notebook",
+            "worker_tx_expense_name_label",
+            "worker_tx_income_name_label",
+            "worker_add_new_bill_btn",
+            "worker_ai_smart_alert_title",
+            "worker_invoices_tab_section_title",
+            "worker_bills_ledger_section_title",
+            "worker_savings_summary_title",
             "home_cat_electricity_gas",
             "home_cat_salary_income"
         )
         for (lang in AppLanguage.values()) {
+            assertEquals("🧠 IA", Translations.tr("global_tab_ai_vet", lang))
             for (key in requiredKeys) {
                 val translated = Translations.tr(key, lang)
                 assertFalse("Key $key should not be blank in $lang", translated.isBlank())

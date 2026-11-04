@@ -259,6 +259,49 @@ object AgritechMockDb {
         )
     )
 
+    val workerPersonalEntries = mutableStateListOf(
+        WorkerPersonalEntryModel(
+            id = "w_tx_salary_1",
+            title = "💵 الراتب والدخل الشهري",
+            amount = 65000.0,
+            type = TransactionType.INCOME,
+            dateLabel = "2026-11-01",
+            isBillOrObligation = false
+        ),
+        WorkerPersonalEntryModel(
+            id = "w_tx_elec_1",
+            title = "⚡ كهرباء وغاز",
+            amount = 4500.0,
+            type = TransactionType.EXPENSE,
+            dateLabel = "2026-11-01",
+            isBillOrObligation = true
+        ),
+        WorkerPersonalEntryModel(
+            id = "w_tx_net_1",
+            title = "🌐 إنترنت وجوال",
+            amount = 2600.0,
+            type = TransactionType.EXPENSE,
+            dateLabel = "2026-11-02",
+            isBillOrObligation = true
+        ),
+        WorkerPersonalEntryModel(
+            id = "w_tx_car_1",
+            title = "🚗 تأمين وصيانة سيارة",
+            amount = 6000.0,
+            type = TransactionType.EXPENSE,
+            dateLabel = "2026-11-02",
+            isBillOrObligation = true
+        ),
+        WorkerPersonalEntryModel(
+            id = "w_tx_groc_1",
+            title = "🛒 مقاضي ومصاريف البيت",
+            amount = 18500.0,
+            type = TransactionType.EXPENSE,
+            dateLabel = "2026-11-03",
+            isBillOrObligation = true
+        )
+    )
+
     fun adjustVetPharmacyStock(itemId: String, delta: Int) {
         val idx = vetPharmacyInventory.indexOfFirst { it.id == itemId }
         if (idx >= 0) {
@@ -1573,9 +1616,6 @@ fun AgritechMainApp(
                         role = newRole,
                         linkedBarns = linkedBarns
                     )
-                    if (newRole == AppRole.WORKER && linkedBarns) {
-                        sessionState.selectedFarmForWorker = AgritechMockDb.farms.firstOrNull()
-                    }
                     if (sessionState.activeFarmId.isNotBlank()) {
                         scope.launch {
                             firestoreRepo?.setUserRoleAndFarm(newRole, sessionState.activeFarmId)
@@ -2420,6 +2460,12 @@ fun AgritechOwnerDashboard(
     var selectedGlobalTab by remember {
         mutableStateOf(GlobalDashboardTab.BARNS)
     }
+    var isWorkerNotebookOpen by remember { mutableStateOf(false) }
+    LaunchedEffect(activeRole) {
+        if (activeRole.normalizedHubRole != AppRole.WORKER) {
+            isWorkerNotebookOpen = false
+        }
+    }
 
     var selectedChatConversation by remember { mutableStateOf<ChatConversationModel?>(null) }
     var showAddMarketPostDialog by remember { mutableStateOf(false) }
@@ -2540,6 +2586,20 @@ fun AgritechOwnerDashboard(
                 showAddMarketPostDialog = false
             }
         )
+    }
+
+    if (isWorkerNotebookOpen && activeRole.normalizedHubRole == AppRole.WORKER) {
+        BackHandler { isWorkerNotebookOpen = false }
+        WorkerSmartNotebookScreen(
+            farms = farms,
+            currentTheme = currentTheme,
+            lang = lang,
+            onOpenDailyReport = onOpenNotebook,
+            onOpenSettings = onOpenSettings,
+            onLogout = onLogout,
+            onBack = { isWorkerNotebookOpen = false }
+        )
+        return
     }
 
     Scaffold(
@@ -2683,7 +2743,7 @@ fun AgritechOwnerDashboard(
                     }
                     add(Triple(GlobalDashboardTab.CHAT, Translations.tr("global_tab_chat", lang), Icons.Default.ChatBubbleOutline))
                     add(Triple(GlobalDashboardTab.MARKET, Translations.tr("global_tab_market", lang), Icons.Default.ShoppingCart))
-                    add(Triple(GlobalDashboardTab.AI_VET, Translations.tr("global_tab_ai_vet", lang), Icons.Default.SmartToy))
+                    add(Triple(GlobalDashboardTab.AI_VET, Translations.tr("global_tab_ai_vet", lang), Icons.Default.Psychology))
                 }
 
                 dynamicGlobalTabs.forEachIndexed { idx, (tabEnum, label, icon) ->
@@ -2696,11 +2756,18 @@ fun AgritechOwnerDashboard(
                             if (tabEnum != GlobalDashboardTab.CHAT) selectedChatConversation = null
                         },
                         icon = {
-                            Icon(
-                                icon,
-                                contentDescription = label,
-                                tint = if (isSelected) accentEmerald else secondaryTextColor
-                            )
+                            if (tabEnum == GlobalDashboardTab.AI_VET) {
+                                Text(
+                                    "🧠",
+                                    fontSize = 18.sp
+                                )
+                            } else {
+                                Icon(
+                                    icon,
+                                    contentDescription = label,
+                                    tint = if (isSelected) accentEmerald else secondaryTextColor
+                                )
+                            }
                         },
                         label = {
                             Text(
@@ -2737,6 +2804,7 @@ fun AgritechOwnerDashboard(
                         },
                         onTapNewBarnOrCycle = onTapNewBarnOrCycle,
                         onOpenNotebook = onOpenNotebook,
+                        onOpenWorkerSmartNotebook = { isWorkerNotebookOpen = true },
                         onStartNewCycleForFarm = { selectedFarm ->
                             targetFarmForCycle = selectedFarm
                             farmNameInput = Translations.getLocalizedFarmName(selectedFarm.id, lang, selectedFarm.name)
@@ -3110,6 +3178,7 @@ fun ManagementHubScreen(
     onSelectRole: (AppRole) -> Unit,
     onTapNewBarnOrCycle: () -> Unit,
     onOpenNotebook: (FarmModel) -> Unit,
+    onOpenWorkerSmartNotebook: () -> Unit = {},
     onStartNewCycleForFarm: (FarmModel) -> Unit,
     onIssueVetInvoiceForFarm: (FarmModel) -> Unit,
     onOpenImporterChat: (String, String) -> Unit
@@ -3127,13 +3196,13 @@ fun ManagementHubScreen(
     val curr = Translations.tr("currency", lang)
 
     var selectedVetHubTab by remember { mutableStateOf(0) }
+    var selectedWorkerHubTab by remember { mutableStateOf(0) }
     var showPartnerFinancialReqDialog by remember { mutableStateOf(false) }
 
     val roleItems = listOf(
         AppRole.OWNER_BARN to Translations.tr("role_badge_owner_barn", lang),
         AppRole.VET_CLINIC to Translations.tr("role_badge_vet_clinic", lang),
         AppRole.WORKER to Translations.tr("role_badge_worker", lang),
-        AppRole.HOME_PERSONAL to Translations.tr("role_badge_home_personal", lang),
         AppRole.FEED_SUPPLIER to Translations.tr("role_badge_feed_supplier", lang),
         AppRole.CHICK_HATCHERY to Translations.tr("role_badge_chick_hatchery", lang),
         AppRole.WHOLESALE_TRADER to Translations.tr("role_badge_wholesale_trader", lang),
@@ -3510,8 +3579,13 @@ fun ManagementHubScreen(
                         item { Spacer(modifier = Modifier.height(24.dp)) }
                     }
                 }
-                AppRole.WORKER -> {
+                AppRole.WORKER, AppRole.HOME_PERSONAL -> {
                     val workerBarns = if (farms.isNotEmpty()) farms else AgritechMockDb.supervisedVetFarms
+                    val personalEntries = AgritechMockDb.workerPersonalEntries
+                    val totalPersonalInc = personalEntries.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
+                    val totalPersonalExp = personalEntries.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
+                    val netPersonalBal = totalPersonalInc - totalPersonalExp
+
                     LazyColumn(
                         modifier = Modifier
                             .fillMaxSize()
@@ -3519,31 +3593,160 @@ fun ManagementHubScreen(
                             .testTag("worker_management_hub"),
                         verticalArrangement = Arrangement.spacedBy(14.dp)
                     ) {
+                        // 1. بطاقة ترحيبية أنيقة للمشرف / العامل مع زر [📖 فتح الدفتر الذكي للمشرف / العامل]
                         item {
-                            Button(
-                                onClick = { showPartnerFinancialReqDialog = true },
+                            Card(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(48.dp)
-                                    .testTag("btn_worker_hub_financial_req"),
-                                shape = pillShape,
-                                colors = ButtonDefaults.buttonColors(containerColor = primaryButtonAccent)
+                                    .testTag("worker_welcome_hub_card"),
+                                shape = cardCornerShape,
+                                colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
+                                border = BorderStroke(1.5.dp, activeAccent.copy(alpha = 0.55f)),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
                             ) {
-                                Text(
-                                    Translations.tr("btn_send_financial_request", lang),
-                                    fontWeight = FontWeight.ExtraBold,
-                                    fontSize = 13.sp,
-                                    color = Color.White
-                                )
+                                Column(
+                                    modifier = Modifier.padding(18.dp),
+                                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Surface(
+                                            shape = CircleShape,
+                                            color = accentBadgeBg,
+                                            modifier = Modifier.size(46.dp)
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center) {
+                                                Text("👷", fontSize = 22.sp)
+                                            }
+                                        }
+                                        Spacer(modifier = Modifier.width(12.dp))
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                Translations.tr("worker_smart_notebook_card_title", lang),
+                                                fontWeight = FontWeight.ExtraBold,
+                                                fontSize = 15.5.sp,
+                                                color = primaryTextColor
+                                            )
+                                            Text(
+                                                Translations.tr("worker_smart_notebook_card_subtitle", lang),
+                                                fontSize = 11.5.sp,
+                                                color = secondaryTextColor,
+                                                lineHeight = 16.sp
+                                            )
+                                        }
+                                    }
+
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Surface(
+                                            modifier = Modifier.weight(1f),
+                                            shape = pillShape,
+                                            color = accentBadgeBg
+                                        ) {
+                                            Column(
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
+                                                horizontalAlignment = Alignment.CenterHorizontally
+                                            ) {
+                                                Text(
+                                                    Translations.tr("worker_tab_barns_daily", lang),
+                                                    fontSize = 10.5.sp,
+                                                    color = secondaryTextColor,
+                                                    maxLines = 1
+                                                )
+                                                Text(
+                                                    "${workerBarns.size} 🏚️",
+                                                    fontWeight = FontWeight.ExtraBold,
+                                                    fontSize = 13.sp,
+                                                    color = activeAccent,
+                                                    maxLines = 1
+                                                )
+                                            }
+                                        }
+                                        Surface(
+                                            modifier = Modifier.weight(1.2f),
+                                            shape = pillShape,
+                                            color = accentBadgeBg
+                                        ) {
+                                            Column(
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
+                                                horizontalAlignment = Alignment.CenterHorizontally
+                                            ) {
+                                                Text(
+                                                    Translations.tr("worker_tab_home_wallet", lang),
+                                                    fontSize = 10.5.sp,
+                                                    color = secondaryTextColor,
+                                                    maxLines = 1
+                                                )
+                                                Text(
+                                                    "${String.format(java.util.Locale.US, "%,.0f", netPersonalBal)} $curr",
+                                                    fontWeight = FontWeight.ExtraBold,
+                                                    fontSize = 12.5.sp,
+                                                    color = if (netPersonalBal >= 0) activeAccent else ActionRed,
+                                                    maxLines = 1,
+                                                    softWrap = false
+                                                )
+                                            }
+                                        }
+                                        Surface(
+                                            modifier = Modifier.weight(1f),
+                                            shape = pillShape,
+                                            color = accentBadgeBg
+                                        ) {
+                                            Column(
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
+                                                horizontalAlignment = Alignment.CenterHorizontally
+                                            ) {
+                                                Text(
+                                                    Translations.tr("worker_tab_vet_tasks", lang),
+                                                    fontSize = 10.5.sp,
+                                                    color = secondaryTextColor,
+                                                    maxLines = 1
+                                                )
+                                                Text(
+                                                    "${personalEntries.count { it.type == TransactionType.EXPENSE }} 🧾",
+                                                    fontWeight = FontWeight.ExtraBold,
+                                                    fontSize = 13.sp,
+                                                    color = activeAccent,
+                                                    maxLines = 1
+                                                )
+                                            }
+                                        }
+                                    }
+
+                                    Button(
+                                        onClick = onOpenWorkerSmartNotebook,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(48.dp)
+                                            .testTag("btn_open_worker_smart_notebook"),
+                                        shape = pillShape,
+                                        colors = ButtonDefaults.buttonColors(containerColor = primaryButtonAccent)
+                                    ) {
+                                        Text(
+                                            Translations.tr("btn_open_worker_smart_notebook", lang),
+                                            fontWeight = FontWeight.ExtraBold,
+                                            fontSize = 13.5.sp,
+                                            color = Color.White,
+                                            maxLines = 1
+                                        )
+                                    }
+                                }
                             }
                         }
+
+                        // 2. العنابر المسؤول عنها لتسجيل البيانات اليومية فقط (بدون أي زر لإرسال فواتير للمزرعة)
                         items(workerBarns, key = { it.id }) { farm ->
                             val cycle = AgritechMockDb.cycles.firstOrNull { it.farmId == farm.id }
                             Card(
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = cardCornerShape,
                                 colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
-                                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                                border = BorderStroke(1.dp, activeAccent.copy(alpha = 0.22f))
                             ) {
                                 Column(modifier = Modifier.padding(18.dp)) {
                                     Row(
@@ -3603,279 +3806,6 @@ fun ManagementHubScreen(
                                             color = Color.White
                                         )
                                     }
-                                }
-                            }
-                        }
-                        item { Spacer(modifier = Modifier.height(90.dp)) }
-                    }
-                }
-                AppRole.HOME_PERSONAL -> {
-                    var elecGasAmount by remember { mutableStateOf(4500.0) }
-                    var internetAmount by remember { mutableStateOf(2600.0) }
-                    var carMaintenanceAmount by remember { mutableStateOf(6000.0) }
-                    var groceriesAmount by remember { mutableStateOf(18500.0) }
-                    var monthlySalaryAmount by remember { mutableStateOf(65000.0) }
-                    var billCardApproved by remember { mutableStateOf(false) }
-                    var billCardDismissed by remember { mutableStateOf(false) }
-                    var showAddHomeBillDialog by remember { mutableStateOf(false) }
-                    var activeHomeTxType by remember { mutableStateOf(TransactionType.EXPENSE) }
-
-                    val homeCategories = remember(lang) {
-                        listOf(
-                            Translations.tr("home_cat_electricity_gas", lang),
-                            Translations.tr("home_cat_internet_phone", lang),
-                            Translations.tr("home_cat_car_insurance", lang),
-                            Translations.tr("home_cat_groceries", lang)
-                        )
-                    }
-                    val homeIncomeCategories = remember(lang) {
-                        listOf(
-                            Translations.tr("home_cat_salary_income", lang),
-                            Translations.tr("tx_other_inc", lang)
-                        )
-                    }
-
-                    if (showAddHomeBillDialog) {
-                        SimpleTransactionDialog(
-                            title = if (activeHomeTxType == TransactionType.EXPENSE) Translations.tr("btn_spend", lang) else Translations.tr("btn_income", lang),
-                            type = activeHomeTxType,
-                            lang = lang,
-                            categories = if (activeHomeTxType == TransactionType.EXPENSE) homeCategories else homeIncomeCategories,
-                            onDismiss = { showAddHomeBillDialog = false },
-                            onConfirm = { chosenCat, amt, _ ->
-                                when {
-                                    activeHomeTxType == TransactionType.INCOME -> monthlySalaryAmount += amt
-                                    chosenCat.contains("كهرباء") || chosenCat.contains("Electric", true) || chosenCat.contains("Électric", true) -> elecGasAmount += amt
-                                    chosenCat.contains("إنترنت") || chosenCat.contains("Internet", true) -> internetAmount += amt
-                                    chosenCat.contains("سيارة") || chosenCat.contains("Car", true) || chosenCat.contains("Auto", true) -> carMaintenanceAmount += amt
-                                    else -> groceriesAmount += amt
-                                }
-                                showAddHomeBillDialog = false
-                            }
-                        )
-                    }
-
-                    val homeSummary = remember(monthlySalaryAmount, elecGasAmount, internetAmount, carMaintenanceAmount, groceriesAmount) {
-                        PersonalAndHouseholdEngine.evaluateMonthlyHouseholdBudget(
-                            monthlySalaryAndIncome = monthlySalaryAmount,
-                            electricityAndGasExpense = elecGasAmount,
-                            internetAndPhoneExpense = internetAmount,
-                            carInsuranceAndMaintenanceExpense = carMaintenanceAmount,
-                            groceriesAndHomeExpense = groceriesAmount,
-                            previousMonthTotalExpense = 36000.0
-                        )
-                    }
-
-                    LazyColumn(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(horizontal = 16.dp, vertical = 8.dp)
-                            .testTag("home_personal_management_hub"),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        item {
-                            Card(
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = cardCornerShape,
-                                colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
-                                border = BorderStroke(1.2.dp, activeAccent.copy(alpha = 0.35f))
-                            ) {
-                                Column(
-                                    modifier = Modifier.padding(16.dp),
-                                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                                ) {
-                                    Text(
-                                        Translations.tr("home_ledger_title", lang),
-                                        fontWeight = FontWeight.ExtraBold,
-                                        fontSize = 15.sp,
-                                        color = primaryTextColor
-                                    )
-                                    Text(
-                                        Translations.tr("home_ledger_subtitle", lang),
-                                        fontSize = 12.sp,
-                                        color = secondaryTextColor
-                                    )
-                                    NeumorphicRecessedDisplay(
-                                        isDark = currentTheme.isDark,
-                                        contentPadding = PaddingValues(12.dp)
-                                    ) {
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.SpaceBetween
-                                        ) {
-                                            CalmFinancialItem(
-                                                Translations.tr("total_income", lang),
-                                                "${String.format(java.util.Locale.US, "%,.0f", homeSummary.totalIncome)} $curr",
-                                                activeAccent
-                                            )
-                                            CalmFinancialItem(
-                                                Translations.tr("total_expenses", lang),
-                                                "${String.format(java.util.Locale.US, "%,.0f", homeSummary.totalExpenses)} $curr",
-                                                ActionRed
-                                            )
-                                            CalmFinancialItem(
-                                                Translations.tr("net_balance", lang),
-                                                "${String.format(java.util.Locale.US, "%,.0f", homeSummary.netProfit)} $curr",
-                                                if (homeSummary.netProfit >= 0) activeAccent else ActionRed
-                                            )
-                                        }
-                                    }
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                                    ) {
-                                        PremiumPillButton(
-                                            text = Translations.tr("btn_spend", lang),
-                                            onClick = {
-                                                activeHomeTxType = TransactionType.EXPENSE
-                                                showAddHomeBillDialog = true
-                                            },
-                                            variant = PremiumPillVariant.DELETE_RESET,
-                                            fontSize = 12.sp,
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .height(44.dp)
-                                                .testTag("btn_home_add_expense")
-                                        )
-                                        PremiumPillButton(
-                                            text = Translations.tr("btn_income", lang),
-                                            onClick = {
-                                                activeHomeTxType = TransactionType.INCOME
-                                                showAddHomeBillDialog = true
-                                            },
-                                            variant = PremiumPillVariant.SALES_INCOME,
-                                            fontSize = 12.sp,
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .height(44.dp)
-                                                .testTag("btn_home_add_income")
-                                        )
-                                    }
-                                }
-                            }
-                        }
-
-                        if (!billCardDismissed) {
-                            item {
-                                Card(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .testTag("home_proactive_ai_bill_card"),
-                                    shape = cardCornerShape,
-                                    colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
-                                    border = BorderStroke(1.2.dp, activeAccent.copy(alpha = 0.45f))
-                                ) {
-                                    Column(
-                                        modifier = Modifier.padding(16.dp),
-                                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                                    ) {
-                                        Text(
-                                            Translations.tr("home_ai_card1_title", lang),
-                                            fontWeight = FontWeight.ExtraBold,
-                                            fontSize = 14.sp,
-                                            color = activeAccent
-                                        )
-                                        Text(
-                                            Translations.tr("home_ai_card1_body", lang),
-                                            fontSize = 12.5.sp,
-                                            color = primaryTextColor,
-                                            lineHeight = 18.sp
-                                        )
-                                        if (billCardApproved) {
-                                            Surface(
-                                                shape = pillShape,
-                                                color = appearance.accentContainerColor,
-                                                border = BorderStroke(1.dp, activeAccent.copy(alpha = 0.5f)),
-                                                modifier = Modifier.fillMaxWidth()
-                                            ) {
-                                                Text(
-                                                    Translations.tr("home_ai_card1_done", lang),
-                                                    fontSize = 12.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = activeAccent,
-                                                    modifier = Modifier.padding(10.dp)
-                                                )
-                                            }
-                                        } else {
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                            ) {
-                                                Button(
-                                                    onClick = {
-                                                        elecGasAmount += 4500.0
-                                                        billCardApproved = true
-                                                    },
-                                                    shape = pillShape,
-                                                    colors = ButtonDefaults.buttonColors(containerColor = primaryButtonAccent),
-                                                    modifier = Modifier
-                                                        .weight(1.3f)
-                                                        .height(40.dp)
-                                                        .testTag("btn_home_ai_approve_bill")
-                                                ) {
-                                                    Text(
-                                                        Translations.tr("home_ai_card1_approve", lang),
-                                                        fontSize = 11.5.sp,
-                                                        fontWeight = FontWeight.Bold,
-                                                        color = Color.White,
-                                                        maxLines = 1
-                                                    )
-                                                }
-                                                OutlinedButton(
-                                                    onClick = { billCardDismissed = true },
-                                                    shape = pillShape,
-                                                    border = BorderStroke(1.dp, secondaryTextColor.copy(alpha = 0.4f)),
-                                                    modifier = Modifier
-                                                        .weight(0.7f)
-                                                        .height(40.dp)
-                                                ) {
-                                                    Text(
-                                                        Translations.tr("ai_agent_card2_ignore", lang),
-                                                        fontSize = 11.5.sp,
-                                                        fontWeight = FontWeight.Bold,
-                                                        color = secondaryTextColor
-                                                    )
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        val breakdownRows = listOf(
-                            Triple(Translations.tr("home_cat_electricity_gas", lang), elecGasAmount, ActionRed),
-                            Triple(Translations.tr("home_cat_internet_phone", lang), internetAmount, ActionRed),
-                            Triple(Translations.tr("home_cat_car_insurance", lang), carMaintenanceAmount, ActionRed),
-                            Triple(Translations.tr("home_cat_groceries", lang), groceriesAmount, ActionRed),
-                            Triple(Translations.tr("home_cat_salary_income", lang), monthlySalaryAmount, activeAccent)
-                        )
-                        items(breakdownRows) { (catTitle, catAmt, catColor) ->
-                            Card(
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = cardCornerShape,
-                                colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
-                                border = BorderStroke(1.dp, activeAccent.copy(alpha = 0.22f))
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 16.dp, vertical = 14.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        catTitle,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 13.5.sp,
-                                        color = primaryTextColor
-                                    )
-                                    Text(
-                                        "${String.format(java.util.Locale.US, "%,.0f", catAmt)} $curr",
-                                        fontWeight = FontWeight.ExtraBold,
-                                        fontSize = 14.sp,
-                                        color = catColor
-                                    )
                                 }
                             }
                         }
@@ -4193,6 +4123,867 @@ fun ManagementHubScreen(
             }
         }
     }
+}
+
+data class WorkerPersonalEntryModel(
+    val id: String,
+    val title: String,
+    val amount: Double,
+    val type: TransactionType,
+    val dateLabel: String,
+    val isBillOrObligation: Boolean = true
+)
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun WorkerSmartNotebookScreen(
+    farms: List<FarmModel>,
+    currentTheme: AppThemeOption,
+    lang: AppLanguage,
+    onOpenDailyReport: (FarmModel) -> Unit,
+    onOpenSettings: () -> Unit,
+    onLogout: () -> Unit,
+    onBack: () -> Unit
+) {
+    val appearance = LocalAppAppearanceState.current
+    val isDark = currentTheme.isDark
+    val primaryTextColor = if (isDark) Color(0xFFFFFFFF) else currentTheme.headingColor
+    val secondaryTextColor = if (isDark) Color(0xFFCBD5E1) else Color(0xFF475569)
+    val activeAccent = appearance.accentColor
+    val primaryButtonAccent = appearance.accentOption.primaryColor
+    val accentBadgeBg = appearance.accentContainerColor
+    val cardCornerShape = RoundedCornerShape(appearance.cornerRadiusDp.dp)
+    val pillShape = RoundedCornerShape((appearance.cornerRadiusDp - 4).coerceAtLeast(8).dp)
+    val curr = Translations.tr("currency", lang)
+
+    val workerBarns = if (farms.isNotEmpty()) farms else AgritechMockDb.supervisedVetFarms
+    val personalEntries = AgritechMockDb.workerPersonalEntries
+    var selectedWorkerHubTab by remember { mutableStateOf(0) }
+    var billCardApproved by remember { mutableStateOf(false) }
+    var billCardDismissed by remember { mutableStateOf(false) }
+    var showFreeTxDialog by remember { mutableStateOf(false) }
+    var activeTxType by remember { mutableStateOf(TransactionType.EXPENSE) }
+    var isAddingInvoiceMode by remember { mutableStateOf(false) }
+
+    val totalIncome = personalEntries.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
+    val totalExpenses = personalEntries.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
+    val netBalance = totalIncome - totalExpenses
+
+    val homeSummary = remember(totalIncome, totalExpenses) {
+        PersonalAndHouseholdEngine.evaluateMonthlyHouseholdBudget(
+            monthlySalaryAndIncome = totalIncome,
+            electricityAndGasExpense = totalExpenses * 0.15,
+            internetAndPhoneExpense = totalExpenses * 0.10,
+            carInsuranceAndMaintenanceExpense = totalExpenses * 0.20,
+            groceriesAndHomeExpense = totalExpenses * 0.55,
+            previousMonthTotalExpense = 36000.0
+        )
+    }
+
+    if (showFreeTxDialog) {
+        WorkerFreeTextTransactionDialog(
+            type = activeTxType,
+            isInvoiceMode = isAddingInvoiceMode,
+            lang = lang,
+            curr = curr,
+            currentTheme = currentTheme,
+            onDismiss = { showFreeTxDialog = false },
+            onConfirm = { customName, amount ->
+                AgritechMockDb.workerPersonalEntries.add(
+                    0,
+                    WorkerPersonalEntryModel(
+                        id = "w_tx_${System.currentTimeMillis()}",
+                        title = customName,
+                        amount = amount,
+                        type = activeTxType,
+                        dateLabel = "2026-11-03",
+                        isBillOrObligation = activeTxType == TransactionType.EXPENSE
+                    )
+                )
+                showFreeTxDialog = false
+            }
+        )
+    }
+
+    val workerTabs = remember(lang) {
+        listOf(
+            Triple(0, "💼", Translations.tr("worker_tab_barns_daily", lang)),
+            Triple(1, "💰", Translations.tr("worker_tab_home_wallet", lang)),
+            Triple(2, "📊", Translations.tr("worker_tab_analytics_agent", lang)),
+            Triple(3, "🧾", Translations.tr("worker_tab_vet_tasks", lang))
+        )
+    }
+
+    Scaffold(
+        containerColor = currentTheme.bgColor,
+        topBar = {
+            TopAppBar(
+                navigationIcon = {
+                    IconButton(
+                        onClick = onBack,
+                        modifier = Modifier.testTag("btn_worker_notebook_back")
+                    ) {
+                        Icon(
+                            Icons.Default.ArrowBack,
+                            contentDescription = "Back",
+                            tint = primaryTextColor
+                        )
+                    }
+                },
+                title = {
+                    Column {
+                        Text(
+                            Translations.tr("worker_smart_notebook_card_title", lang),
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 15.sp,
+                            color = primaryTextColor,
+                            maxLines = 1
+                        )
+                        Text(
+                            workerTabs.getOrNull(selectedWorkerHubTab)?.third ?: "",
+                            fontSize = 11.5.sp,
+                            color = activeAccent,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1
+                        )
+                    }
+                },
+                actions = {
+                    IconButton(onClick = onOpenSettings) {
+                        Icon(Icons.Default.Settings, contentDescription = "Settings", tint = primaryTextColor)
+                    }
+                    IconButton(onClick = onLogout) {
+                        Icon(Icons.Default.Logout, contentDescription = "Logout", tint = primaryTextColor)
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = currentTheme.bgColor)
+            )
+        },
+        bottomBar = {
+            NavigationBar(
+                containerColor = currentTheme.cardColor,
+                tonalElevation = 6.dp,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("worker_hub_bottom_nav")
+            ) {
+                workerTabs.forEach { (idx, emoji, title) ->
+                    NavigationBarItem(
+                        selected = selectedWorkerHubTab == idx,
+                        onClick = { selectedWorkerHubTab = idx },
+                        modifier = Modifier.testTag("worker_hub_tab_$idx"),
+                        icon = {
+                            Text(emoji, fontSize = 17.sp)
+                        },
+                        label = {
+                            Text(
+                                title.replace(emoji, "").trim(),
+                                fontSize = 10.5.sp,
+                                fontWeight = if (selectedWorkerHubTab == idx) FontWeight.ExtraBold else FontWeight.Medium,
+                                maxLines = 1
+                            )
+                        },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = activeAccent,
+                            selectedTextColor = activeAccent,
+                            indicatorColor = accentBadgeBg,
+                            unselectedIconColor = secondaryTextColor,
+                            unselectedTextColor = secondaryTextColor
+                        )
+                    )
+                }
+            }
+        }
+    ) { padding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .testTag("worker_smart_notebook_screen")
+        ) {
+            when (selectedWorkerHubTab) {
+                0 -> {
+                    // التبويب الأول: 💼 الإدارة (العنابر المسؤول عنها لتسجيل البيانات اليومية فقط بدون فواتير المزرعة)
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 16.dp, vertical = 10.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        items(workerBarns, key = { it.id }) { farm ->
+                            val cycle = AgritechMockDb.cycles.firstOrNull { it.farmId == farm.id }
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = cardCornerShape,
+                                colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                                border = BorderStroke(1.dp, activeAccent.copy(alpha = 0.25f))
+                            ) {
+                                Column(modifier = Modifier.padding(18.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                Translations.getLocalizedFarmName(farm.id, lang, farm.name),
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 15.sp,
+                                                color = primaryTextColor
+                                            )
+                                            Text(
+                                                Translations.getLocalizedFarmLocation(farm.id, lang, farm.location),
+                                                fontSize = 12.sp,
+                                                color = secondaryTextColor
+                                            )
+                                        }
+                                        if (cycle != null) {
+                                            Surface(
+                                                shape = pillShape,
+                                                color = accentBadgeBg
+                                            ) {
+                                                Text(
+                                                    Translations.formatDualFeedInventoryBadge(cycle.feedInventoryKg, lang),
+                                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = activeAccent
+                                                )
+                                            }
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    Button(
+                                        onClick = { onOpenDailyReport(farm) },
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(48.dp)
+                                            .testTag("btn_open_worker_daily_report_${farm.id}"),
+                                        shape = pillShape,
+                                        colors = ButtonDefaults.buttonColors(containerColor = primaryButtonAccent)
+                                    ) {
+                                        Icon(
+                                            Icons.Default.EditNote,
+                                            contentDescription = null,
+                                            tint = Color.White,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            Translations.tr("worker_log_title", lang),
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 13.5.sp,
+                                            color = Color.White
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        item { Spacer(modifier = Modifier.height(24.dp)) }
+                    }
+                }
+                1 -> {
+                    // التبويب الثاني: 💰 الخزنة (حساب ذكي خاص بالمشرف أو العامل الحر مع إدخال حر للاسم والمبلغ)
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 16.dp, vertical = 10.dp)
+                            .testTag("home_personal_management_hub"),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        item {
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = cardCornerShape,
+                                colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
+                                border = BorderStroke(1.2.dp, activeAccent.copy(alpha = 0.35f))
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(16.dp),
+                                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    Text(
+                                        Translations.tr("home_ledger_title", lang),
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontSize = 15.sp,
+                                        color = primaryTextColor
+                                    )
+                                    Text(
+                                        Translations.tr("home_ledger_subtitle", lang),
+                                        fontSize = 12.sp,
+                                        color = secondaryTextColor
+                                    )
+                                    NeumorphicRecessedDisplay(
+                                        isDark = currentTheme.isDark,
+                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 14.dp)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            CalmFinancialItem(
+                                                label = Translations.tr("total_income", lang),
+                                                value = "${String.format(java.util.Locale.US, "%,.0f", totalIncome)} $curr",
+                                                color = activeAccent,
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                            CalmFinancialItem(
+                                                label = Translations.tr("total_expenses", lang),
+                                                value = "${String.format(java.util.Locale.US, "%,.0f", totalExpenses)} $curr",
+                                                color = ActionRed,
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                            CalmFinancialItem(
+                                                label = Translations.tr("net_balance", lang),
+                                                value = "${String.format(java.util.Locale.US, "%,.0f", netBalance)} $curr",
+                                                color = if (netBalance >= 0) activeAccent else ActionRed,
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                        }
+                                    }
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        PremiumPillButton(
+                                            text = Translations.tr("btn_spend", lang),
+                                            onClick = {
+                                                activeTxType = TransactionType.EXPENSE
+                                                isAddingInvoiceMode = false
+                                                showFreeTxDialog = true
+                                            },
+                                            variant = PremiumPillVariant.DELETE_RESET,
+                                            fontSize = 12.sp,
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .height(44.dp)
+                                                .testTag("btn_home_add_expense")
+                                        )
+                                        PremiumPillButton(
+                                            text = Translations.tr("btn_income", lang),
+                                            onClick = {
+                                                activeTxType = TransactionType.INCOME
+                                                isAddingInvoiceMode = false
+                                                showFreeTxDialog = true
+                                            },
+                                            variant = PremiumPillVariant.SALES_INCOME,
+                                            fontSize = 12.sp,
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .height(44.dp)
+                                                .testTag("btn_home_add_income")
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        item {
+                            Text(
+                                Translations.tr("worker_bills_ledger_section_title", lang),
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 13.5.sp,
+                                color = primaryTextColor
+                            )
+                        }
+
+                        items(personalEntries, key = { it.id }) { entry ->
+                            val isExp = entry.type == TransactionType.EXPENSE
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = cardCornerShape,
+                                colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
+                                border = BorderStroke(1.dp, activeAccent.copy(alpha = 0.22f))
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            entry.title,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 13.5.sp,
+                                            color = primaryTextColor
+                                        )
+                                        Text(
+                                            entry.dateLabel,
+                                            fontSize = 11.sp,
+                                            color = secondaryTextColor
+                                        )
+                                    }
+                                    Text(
+                                        "${if (isExp) "-" else "+"}${String.format(java.util.Locale.US, "%,.0f", entry.amount)} $curr",
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontSize = 14.sp,
+                                        color = if (isExp) ActionRed else activeAccent
+                                    )
+                                }
+                            }
+                        }
+                        item { Spacer(modifier = Modifier.height(24.dp)) }
+                    }
+                }
+                2 -> {
+                    // التبويب الثالث: 📊 التحليلات (ملخص التوفير الشهرية وتوزيع المصاريف + بطاقة 🧠 تنبيه ذكي ومقارنة شهرية)
+                    val savingsRatePct = homeSummary.customKpis["savingsRatePct"] ?: 0.0
+                    val momChangePct = homeSummary.customKpis["monthOverMonthPct"] ?: -12.0
+                    val expenseEntries = personalEntries.filter { it.type == TransactionType.EXPENSE }
+
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 16.dp, vertical = 10.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        // 1. بطاقة 📈 ملخص نسبة التوفير الشهرية وتوزيع المصاريف (مع ارتفاع داخلي مريح يمنع انقطاع 33,400 DZD)
+                        item {
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = cardCornerShape,
+                                colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
+                                border = BorderStroke(1.2.dp, activeAccent.copy(alpha = 0.35f))
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(16.dp),
+                                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    Text(
+                                        Translations.tr("worker_savings_summary_title", lang),
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontSize = 14.5.sp,
+                                        color = primaryTextColor
+                                    )
+                                    NeumorphicRecessedDisplay(
+                                        isDark = currentTheme.isDark,
+                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 16.dp)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            CalmFinancialItem(
+                                                label = Translations.tr("worker_savings_rate_label", lang),
+                                                value = "${String.format(java.util.Locale.US, "%.1f", savingsRatePct)}%",
+                                                color = activeAccent,
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                            CalmFinancialItem(
+                                                label = Translations.tr("worker_mom_comparison_label", lang),
+                                                value = "${String.format(java.util.Locale.US, "%+.1f", momChangePct)}%",
+                                                color = if (momChangePct <= 0) activeAccent else ActionRed,
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                            CalmFinancialItem(
+                                                label = Translations.tr("net_balance", lang),
+                                                value = "${String.format(java.util.Locale.US, "%,.0f", netBalance)} $curr",
+                                                color = if (netBalance >= 0) activeAccent else ActionRed,
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                        }
+                                    }
+
+                                    // توزيع المصاريف الشخصية للعامل
+                                    expenseEntries.forEach { exp ->
+                                        val sharePct = if (totalExpenses > 0) (exp.amount / totalExpenses) * 100.0 else 0.0
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(vertical = 4.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                "${exp.title} (${String.format(java.util.Locale.US, "%.0f", sharePct)}%)",
+                                                fontSize = 12.5.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = primaryTextColor,
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                            Text(
+                                                "${String.format(java.util.Locale.US, "%,.0f", exp.amount)} $curr",
+                                                fontSize = 12.5.sp,
+                                                fontWeight = FontWeight.ExtraBold,
+                                                color = ActionRed
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // 2. بطاقة الوكيل الذكي 🧠 تنبيه ذكي ومقارنة شهرية
+                        if (!billCardDismissed) {
+                            item {
+                                Card(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .testTag("home_proactive_ai_bill_card"),
+                                    shape = cardCornerShape,
+                                    colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
+                                    border = BorderStroke(1.2.dp, activeAccent.copy(alpha = 0.45f))
+                                ) {
+                                    Column(
+                                        modifier = Modifier.padding(16.dp),
+                                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        Text(
+                                            Translations.tr("worker_ai_smart_alert_title", lang),
+                                            fontWeight = FontWeight.ExtraBold,
+                                            fontSize = 14.sp,
+                                            color = activeAccent
+                                        )
+                                        Text(
+                                            Translations.tr("home_ai_card1_body", lang),
+                                            fontSize = 12.5.sp,
+                                            color = primaryTextColor,
+                                            lineHeight = 18.sp
+                                        )
+                                        if (billCardApproved) {
+                                            Surface(
+                                                shape = pillShape,
+                                                color = appearance.accentContainerColor,
+                                                border = BorderStroke(1.dp, activeAccent.copy(alpha = 0.5f)),
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) {
+                                                Text(
+                                                    Translations.tr("home_ai_card1_done", lang),
+                                                    fontSize = 12.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = activeAccent,
+                                                    modifier = Modifier.padding(10.dp)
+                                                )
+                                            }
+                                        } else {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                            ) {
+                                                Button(
+                                                    onClick = {
+                                                        AgritechMockDb.workerPersonalEntries.add(
+                                                            0,
+                                                            WorkerPersonalEntryModel(
+                                                                id = "w_tx_ai_${System.currentTimeMillis()}",
+                                                                title = Translations.tr("home_cat_electricity_gas", lang),
+                                                                amount = 4500.0,
+                                                                type = TransactionType.EXPENSE,
+                                                                dateLabel = "2026-11-03",
+                                                                isBillOrObligation = true
+                                                            )
+                                                        )
+                                                        billCardApproved = true
+                                                    },
+                                                    shape = pillShape,
+                                                    colors = ButtonDefaults.buttonColors(containerColor = primaryButtonAccent),
+                                                    modifier = Modifier
+                                                        .weight(1.3f)
+                                                        .height(40.dp)
+                                                        .testTag("btn_home_ai_approve_bill")
+                                                ) {
+                                                    Text(
+                                                        Translations.tr("home_ai_card1_approve", lang),
+                                                        fontSize = 11.5.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = Color.White,
+                                                        maxLines = 1
+                                                    )
+                                                }
+                                                OutlinedButton(
+                                                    onClick = { billCardDismissed = true },
+                                                    shape = pillShape,
+                                                    border = BorderStroke(1.dp, secondaryTextColor.copy(alpha = 0.4f)),
+                                                    modifier = Modifier
+                                                        .weight(0.7f)
+                                                        .height(40.dp)
+                                                ) {
+                                                    Text(
+                                                        Translations.tr("ai_agent_card2_ignore", lang),
+                                                        fontSize = 11.5.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = secondaryTextColor
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        item { Spacer(modifier = Modifier.height(24.dp)) }
+                    }
+                }
+                3 -> {
+                    // التبويب الرابع: 🧾 الفواتير (سجل الفواتير والمشتريات والالتزامات الدورية الخاصة بالعامل + زر [+ إضافة فاتورة جديدة])
+                    val invoiceEntries = personalEntries.filter { it.type == TransactionType.EXPENSE }
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 16.dp, vertical = 10.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        item {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    Translations.tr("worker_invoices_tab_section_title", lang),
+                                    fontWeight = FontWeight.ExtraBold,
+                                    fontSize = 13.5.sp,
+                                    color = primaryTextColor,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Button(
+                                    onClick = {
+                                        activeTxType = TransactionType.EXPENSE
+                                        isAddingInvoiceMode = true
+                                        showFreeTxDialog = true
+                                    },
+                                    shape = pillShape,
+                                    colors = ButtonDefaults.buttonColors(containerColor = primaryButtonAccent),
+                                    modifier = Modifier
+                                        .height(40.dp)
+                                        .testTag("btn_worker_add_custom_bill")
+                                ) {
+                                    Text(
+                                        Translations.tr("worker_add_new_bill_btn", lang),
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = Color.White,
+                                        maxLines = 1
+                                    )
+                                }
+                            }
+                        }
+
+                        items(invoiceEntries, key = { it.id }) { bill ->
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = cardCornerShape,
+                                colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
+                                border = BorderStroke(1.dp, activeAccent.copy(alpha = 0.28f))
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            "🧾 ${bill.title}",
+                                            fontWeight = FontWeight.ExtraBold,
+                                            fontSize = 14.sp,
+                                            color = primaryTextColor
+                                        )
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Text(
+                                            "📅 ${bill.dateLabel}",
+                                            fontSize = 11.5.sp,
+                                            color = secondaryTextColor
+                                        )
+                                    }
+                                    Text(
+                                        "${String.format(java.util.Locale.US, "%,.0f", bill.amount)} $curr",
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontSize = 14.5.sp,
+                                        color = ActionRed
+                                    )
+                                }
+                            }
+                        }
+                        item { Spacer(modifier = Modifier.height(24.dp)) }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun WorkerFreeTextTransactionDialog(
+    type: TransactionType,
+    isInvoiceMode: Boolean,
+    lang: AppLanguage,
+    curr: String,
+    currentTheme: AppThemeOption,
+    onDismiss: () -> Unit,
+    onConfirm: (String, Double) -> Unit
+) {
+    val appearance = LocalAppAppearanceState.current
+    val isDark = currentTheme.isDark
+    val dialogBg = if (isDark) Color(0xFF1E293B) else Color.White
+    val primaryText = if (isDark) Color.White else currentTheme.headingColor
+    val secondaryText = if (isDark) Color(0xFFCBD5E1) else Color(0xFF64748B)
+    val activeAccent = appearance.accentColor
+    val primaryButtonAccent = appearance.accentOption.primaryColor
+    val pillShape = RoundedCornerShape((appearance.cornerRadiusDp - 4).coerceAtLeast(8).dp)
+
+    var customTitleInput by remember { mutableStateOf("") }
+    var amountInput by remember { mutableStateOf("") }
+    var validationError by remember { mutableStateOf<String?>(null) }
+
+    val quickChips = remember(type, lang) {
+        if (type == TransactionType.EXPENSE) {
+            listOf(
+                Translations.tr("home_cat_groceries", lang),
+                Translations.tr("home_cat_electricity_gas", lang),
+                Translations.tr("home_cat_internet_phone", lang),
+                Translations.tr("home_cat_car_insurance", lang)
+            )
+        } else {
+            listOf(
+                Translations.tr("home_cat_salary_income", lang),
+                Translations.tr("tx_other_inc", lang)
+            )
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        modifier = Modifier.testTag("worker_free_tx_dialog"),
+        shape = RoundedCornerShape(appearance.cornerRadiusDp.dp),
+        containerColor = dialogBg,
+        title = {
+            Text(
+                text = when {
+                    isInvoiceMode -> Translations.tr("worker_add_new_bill_btn", lang)
+                    type == TransactionType.EXPENSE -> Translations.tr("btn_spend", lang)
+                    else -> Translations.tr("btn_income", lang)
+                },
+                fontWeight = FontWeight.ExtraBold,
+                fontSize = 16.sp,
+                color = primaryText
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                OutlinedTextField(
+                    value = customTitleInput,
+                    onValueChange = {
+                        customTitleInput = it
+                        validationError = null
+                    },
+                    label = {
+                        Text(
+                            if (type == TransactionType.EXPENSE)
+                                Translations.tr("worker_tx_expense_name_label", lang)
+                            else
+                                Translations.tr("worker_tx_income_name_label", lang),
+                            fontSize = 11.5.sp
+                        )
+                    },
+                    placeholder = {
+                        Text(
+                            if (type == TransactionType.EXPENSE)
+                                Translations.tr("worker_tx_expense_name_placeholder", lang)
+                            else
+                                Translations.tr("worker_tx_income_name_placeholder", lang),
+                            fontSize = 11.sp
+                        )
+                    },
+                    singleLine = true,
+                    shape = pillShape,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("input_worker_tx_custom_name")
+                )
+
+                // اختصارات سريعة اختيارية تملأ الحقل النصي مع بقاء حرية التعديل الكاملة
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    quickChips.forEach { chipLabel ->
+                        Surface(
+                            shape = pillShape,
+                            color = if (customTitleInput == chipLabel) appearance.accentContainerColor else Color.Transparent,
+                            border = BorderStroke(1.dp, activeAccent.copy(alpha = 0.4f)),
+                            modifier = Modifier.clickable {
+                                customTitleInput = chipLabel
+                                validationError = null
+                            }
+                        ) {
+                            Text(
+                                text = chipLabel,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = if (customTitleInput == chipLabel) activeAccent else secondaryText,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                            )
+                        }
+                    }
+                }
+
+                OutlinedTextField(
+                    value = amountInput,
+                    onValueChange = {
+                        amountInput = it.filter { ch -> ch.isDigit() || ch == '.' }
+                        validationError = null
+                    },
+                    label = { Text("${Translations.tr("amount_label", lang)} ($curr)") },
+                    placeholder = { Text("1500") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    shape = pillShape,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("input_worker_tx_amount")
+                )
+
+                if (validationError != null) {
+                    Text(
+                        text = validationError!!,
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = ActionRed
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val amt = amountInput.trim().toDoubleOrNull()
+                    val resolvedName = customTitleInput.trim()
+                    if (resolvedName.isBlank() || amt == null || amt <= 0.0) {
+                        validationError = Translations.tr("input_required_error", lang)
+                        return@Button
+                    }
+                    onConfirm(resolvedName, amt)
+                },
+                shape = pillShape,
+                colors = ButtonDefaults.buttonColors(containerColor = primaryButtonAccent),
+                modifier = Modifier.testTag("btn_confirm_worker_free_tx")
+            ) {
+                Text(
+                    Translations.tr("confirm_btn", lang),
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(Translations.tr("cancel_btn", lang), color = secondaryText)
+            }
+        }
+    )
 }
 
 // ============================================================================
@@ -13054,11 +13845,31 @@ fun CalmSummaryItem(label: String, value: String, isAlert: Boolean = false, head
 }
 
 @Composable
-fun CalmFinancialItem(label: String, value: String, color: Color) {
-    Column {
-        Text(label, fontSize = 11.sp, color = Color.Gray)
-        Spacer(modifier = Modifier.height(2.dp))
-        Text(value, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = color)
+fun CalmFinancialItem(
+    label: String,
+    value: String,
+    color: Color,
+    modifier: Modifier = Modifier
+) {
+    val isDark = LocalAppAppearanceState.current.isDark
+    val labelColor = if (isDark) Color(0xFFCBD5E1) else Color(0xFF475569)
+    Column(modifier = modifier.padding(vertical = 2.dp)) {
+        Text(
+            text = label,
+            fontSize = 11.sp,
+            color = labelColor,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = value,
+            fontWeight = FontWeight.ExtraBold,
+            fontSize = 13.5.sp,
+            color = color,
+            maxLines = 1,
+            softWrap = false
+        )
     }
 }
 

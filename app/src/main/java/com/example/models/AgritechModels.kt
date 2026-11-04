@@ -87,6 +87,7 @@ enum class AppRole {
         get() = when (this) {
             OWNER -> OWNER_BARN
             VETERINARIAN -> VET_CLINIC
+            HOME_PERSONAL -> WORKER
             else -> this
         }
 
@@ -95,7 +96,6 @@ enum class AppRole {
             OWNER_BARN,
             VET_CLINIC,
             WORKER,
-            HOME_PERSONAL,
             FEED_SUPPLIER,
             CHICK_HATCHERY,
             WHOLESALE_TRADER,
