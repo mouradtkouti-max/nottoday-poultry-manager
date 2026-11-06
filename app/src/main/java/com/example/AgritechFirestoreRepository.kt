@@ -142,6 +142,8 @@ class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
         )
     )
 
+    constructor() : this(FirebaseFirestore.getInstance())
+
     private val auth: FirebaseAuth
         get() = FirebaseAuth.getInstance()
 
@@ -1305,6 +1307,19 @@ class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
         } catch (e: Exception) {
             Result.failure(e)
         }
+    }
+
+    suspend fun resetCycleAndClearBarn(
+        farmId: String,
+        defaultBirds: Int = 0,
+        defaultTargetWeight: Double = 2.5
+    ): Result<Unit> {
+        if (farmId.isBlank() || farmId == "personal_worker_ledger") return Result.success(Unit)
+        val activeCycle = AgritechMockDb.cycles.firstOrNull {
+            it.farmId == farmId && it.status.equals("active", ignoreCase = true)
+        } ?: AgritechMockDb.cycles.firstOrNull { it.farmId == farmId }
+        val cycleId = activeCycle?.id.orEmpty()
+        return resetCycleAndClearBarn(farmId = farmId, cycleId = cycleId)
     }
 
     /**

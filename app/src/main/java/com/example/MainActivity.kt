@@ -954,8 +954,8 @@ object AgritechMockDb {
     }
 
     /**
-     * Permanently deletes a barn (`farmId`) and all its associated cycles, daily reports, transactions, and vet notes
-     * from local state without touching `personal_worker_ledger`.
+     * Permanently deletes a barn (`farmId`) and all its associated cycles, daily reports, transactions, vet notes,
+     * and supply inventory keys from local state without touching `personal_worker_ledger`.
      */
     fun deleteFarmCompletely(farmId: String) {
         if (farmId.isBlank() || farmId == "personal_worker_ledger") return
@@ -964,6 +964,7 @@ object AgritechMockDb {
         dailyReports.removeAll { it.farmId == farmId && it.farmId != "personal_worker_ledger" }
         transactions.removeAll { it.farmId == farmId && it.farmId != "personal_worker_ledger" }
         vetNotes.removeAll { it.farmId == farmId && it.farmId != "personal_worker_ledger" }
+        barnInventoryCounters.keys.removeAll { it.startsWith("${farmId}_") }
         persistLocalState()
     }
 
@@ -987,6 +988,7 @@ object AgritechMockDb {
         val key = "${farmId}_$supplyKey"
         val current = barnInventoryCounters[key] ?: defaultVal
         barnInventoryCounters[key] = (current + delta).coerceAtLeast(0)
+        persistLocalState()
     }
 }
 
@@ -2100,12 +2102,11 @@ fun PremiumTactileCalcButton(
     Box(
         modifier = modifier
             .height(44.dp)
-            .shadow(
-                elevation = 6.dp,
-                shape = btnShape,
-                spotColor = if (isSelected) accentColor else Color(0xFF64748B)
+            .tactile3DStyle(
+                baseColor = if (isSelected) accentColor else Color(0xFF64748B),
+                cornerRadius = 14.dp,
+                elevation = 6.dp
             )
-            .clip(btnShape)
             .background(brush = innerSurfaceBrush, shape = btnShape)
             .border(width = 1.4.dp, brush = outerBevelBrush, shape = btnShape)
             .border(
@@ -7213,7 +7214,7 @@ fun FarmCard(
             },
             text = {
                 Text(
-                    "${Translations.getLocalizedFarmName(farm.id, lang, farm.name)}\n\n${Translations.tr("delete_barn_dialog_msg", lang)}",
+                    "🏡 ${Translations.getLocalizedFarmName(farm.id, lang, farm.name)}\n\n${Translations.tr("delete_barn_dialog_msg", lang)}",
                     fontSize = 13.sp,
                     color = primaryText,
                     lineHeight = 19.sp
@@ -7241,19 +7242,18 @@ fun FarmCard(
                 )
             },
             dismissButton = {
-                TextButton(
+                PremiumPillButton(
+                    text = Translations.tr("btn_cancel", lang),
                     onClick = {
                         showDeleteBarnConfirmDialog = false
                         showDeleteBarnOverlay = false
                     },
-                    modifier = Modifier.testTag("btn_cancel_delete_farm_${farm.id}")
-                ) {
-                    Text(
-                        Translations.tr("btn_cancel", lang),
-                        color = secondaryText,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
+                    variant = PremiumPillVariant.PRIMARY,
+                    fontSize = 12.sp,
+                    modifier = Modifier
+                        .height(42.dp)
+                        .testTag("btn_cancel_delete_farm_${farm.id}")
+                )
             }
         )
     }
@@ -12240,6 +12240,18 @@ fun AgritechFarmNotebookScreen(
                                 "water" -> 6
                                 else -> 12
                             }
+                            val supplyIcon = when (supplyKey) {
+                                "gas" -> Icons.Default.LocalFireDepartment
+                                "shavings" -> Icons.Default.Grass
+                                "water" -> Icons.Default.WaterDrop
+                                else -> Icons.Default.MedicalServices
+                            }
+                            val supplyIconTint = when (supplyKey) {
+                                "gas" -> Color(0xFFEA580C)
+                                "shavings" -> Color(0xFFD97706)
+                                "water" -> Color(0xFF0284C7)
+                                else -> notebookAccent
+                            }
                             Card(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -12258,23 +12270,35 @@ fun AgritechFarmNotebookScreen(
                                         horizontalArrangement = Arrangement.SpaceBetween,
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Column(
+                                        Row(
                                             modifier = Modifier
                                                 .weight(1f)
                                                 .padding(end = 8.dp),
-                                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(10.dp)
                                         ) {
-                                            Text(
-                                                itemTitle,
-                                                fontWeight = FontWeight.ExtraBold,
-                                                fontSize = 14.sp,
-                                                color = invPrimaryText
+                                            Tactile3DIconBadge(
+                                                icon = supplyIcon,
+                                                tint = supplyIconTint,
+                                                isDark = currentTheme.isDark,
+                                                size = 40.dp,
+                                                iconSize = 20.dp
                                             )
-                                            Text(
-                                                itemSubtitle,
-                                                fontSize = 11.5.sp,
-                                                color = invSecondaryText
-                                            )
+                                            Column(
+                                                verticalArrangement = Arrangement.spacedBy(2.dp)
+                                            ) {
+                                                Text(
+                                                    itemTitle,
+                                                    fontWeight = FontWeight.ExtraBold,
+                                                    fontSize = 14.sp,
+                                                    color = invPrimaryText
+                                                )
+                                                Text(
+                                                    itemSubtitle,
+                                                    fontSize = 11.5.sp,
+                                                    color = invSecondaryText
+                                                )
+                                            }
                                         }
                                         Surface(
                                             shape = RoundedCornerShape(50),
@@ -12310,6 +12334,7 @@ fun AgritechFarmNotebookScreen(
                                             modifier = Modifier
                                                 .weight(1f)
                                                 .height(40.dp)
+                                                .tactile3DStyle(baseColor = Color(0xFF64748B), cornerRadius = 14.dp, elevation = 5.dp)
                                                 .testTag("btn_dec_barn_inv_$supplyKey")
                                         )
                                         PremiumTactileCalcButton(
@@ -12321,6 +12346,7 @@ fun AgritechFarmNotebookScreen(
                                             modifier = Modifier
                                                 .weight(1f)
                                                 .height(40.dp)
+                                                .tactile3DStyle(baseColor = Color(0xFF64748B), cornerRadius = 14.dp, elevation = 5.dp)
                                                 .testTag("btn_inc1_barn_inv_$supplyKey")
                                         )
                                         PremiumTactileCalcButton(
@@ -12333,6 +12359,7 @@ fun AgritechFarmNotebookScreen(
                                             modifier = Modifier
                                                 .weight(1f)
                                                 .height(40.dp)
+                                                .tactile3DStyle(baseColor = notebookButtonAccent, cornerRadius = 14.dp, elevation = 5.dp)
                                                 .testTag("btn_inc5_barn_inv_$supplyKey")
                                         )
                                     }

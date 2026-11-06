@@ -568,36 +568,40 @@ class ExampleUnitTest {
         )
         assertFalse(fallbackAdvice.contains("**"))
 
-        // Verify Barn Supply Inventory counters (Gas, Shavings, Water, Meds) & Complete Barn Deletion
-        assertEquals(18, AgritechMockDb.getBarnSupplyCount("farm_inv_test", "gas", 18))
-        assertEquals(45, AgritechMockDb.getBarnSupplyCount("farm_inv_test", "shavings", 45))
-        assertEquals(6, AgritechMockDb.getBarnSupplyCount("farm_inv_test", "water", 6))
-        assertEquals(14, AgritechMockDb.getBarnSupplyCount("farm_inv_test", "meds", 14))
+        // Verify Barn Supply Inventory counters (Gas, Shavings, Water, Meds) & Complete Barn Deletion (Surgery 6)
+        AgritechMockDb.barnInventoryCounters.remove("farm_test_gas")
+        AgritechMockDb.adjustBarnSupplyCount("farm_test", "gas", 5, 10)
+        assertEquals(15, AgritechMockDb.getBarnSupplyCount("farm_test", "gas", 10))
+        // Clamping at 0 when subtracting a large value
+        AgritechMockDb.adjustBarnSupplyCount("farm_test", "gas", -50, 10)
+        assertEquals(0, AgritechMockDb.getBarnSupplyCount("farm_test", "gas", 10))
 
-        AgritechMockDb.adjustBarnSupplyCount("farm_inv_test", "gas", 5, 18)
-        AgritechMockDb.adjustBarnSupplyCount("farm_inv_test", "shavings", -10, 45)
-        AgritechMockDb.adjustBarnSupplyCount("farm_inv_test", "water", 1, 6)
-        AgritechMockDb.adjustBarnSupplyCount("farm_inv_test", "meds", -4, 14)
-        assertEquals(23, AgritechMockDb.getBarnSupplyCount("farm_inv_test", "gas", 18))
-        assertEquals(35, AgritechMockDb.getBarnSupplyCount("farm_inv_test", "shavings", 45))
-        assertEquals(7, AgritechMockDb.getBarnSupplyCount("farm_inv_test", "water", 6))
-        assertEquals(10, AgritechMockDb.getBarnSupplyCount("farm_inv_test", "meds", 14))
-
-        val tempFarmId = "farm_to_delete_99"
+        // Populate farm_test supply keys and farm record, then verify deleteFarmCompletely removes all farm_test_* keys
+        AgritechMockDb.adjustBarnSupplyCount("farm_test", "gas", 12, 0)
+        AgritechMockDb.adjustBarnSupplyCount("farm_test", "shavings", 30, 0)
+        AgritechMockDb.adjustBarnSupplyCount("farm_test", "water", 4, 0)
+        AgritechMockDb.adjustBarnSupplyCount("farm_test", "meds", 9, 0)
         AgritechMockDb.farms.add(
             FarmModel(
-                id = tempFarmId,
-                name = "عنبر مؤقت للحذف",
+                id = "farm_test",
+                name = "عنبر اختبار الحذف",
                 capacity = 5000
             )
         )
         val workerCountBeforeDelete = AgritechMockDb.workerPersonalEntries.size
-        AgritechMockDb.deleteFarmCompletely(tempFarmId)
-        assertTrue(AgritechMockDb.farms.none { it.id == tempFarmId })
+        assertTrue(AgritechMockDb.barnInventoryCounters.keys.any { it.startsWith("farm_test_") })
+
+        AgritechMockDb.deleteFarmCompletely("farm_test")
+        assertTrue(AgritechMockDb.farms.none { it.id == "farm_test" })
+        assertTrue(AgritechMockDb.barnInventoryCounters.keys.none { it.startsWith("farm_test_") })
+
+        // Verify personal_worker_ledger is 100% protected from deleteFarmCompletely
         AgritechMockDb.deleteFarmCompletely("personal_worker_ledger")
         assertEquals(workerCountBeforeDelete, AgritechMockDb.workerPersonalEntries.size)
+        assertTrue(AgritechMockDb.workerPersonalEntries.all { it.farmId == "personal_worker_ledger" })
     }
 }
+
 
 
 

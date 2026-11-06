@@ -1931,10 +1931,20 @@ fun PremiumSettingsModal(
                                         // Row 5: 🔄 إعادة ضبط وتصفير الدورة الحالية (Moved from FarmCard footer into Settings ⚙️)
                                         var showResetActiveCycleConfirm by remember { mutableStateOf(false) }
                                         var resetCycleDoneBanner by remember { mutableStateOf(false) }
+                                        val resetScope = rememberCoroutineScope()
                                         if (showResetActiveCycleConfirm) {
-                                            val targetFarm = sessionState.selectedFarmForOwner
-                                                ?: com.example.AgritechMockDb.farms.firstOrNull { it.id == sessionState.activeFarmId }
-                                                ?: com.example.AgritechMockDb.farms.firstOrNull()
+                                            val availableFarms = com.example.AgritechMockDb.farms.filter {
+                                                it.id.isNotBlank() && it.id != "personal_worker_ledger"
+                                            }
+                                            val initialFarmId = (sessionState.selectedFarmForOwner?.id
+                                                ?: availableFarms.firstOrNull { it.id == sessionState.activeFarmId }?.id
+                                                ?: availableFarms.firstOrNull()?.id
+                                                ?: "farm_1")
+                                            var selectedFarmIdForReset by remember(availableFarms) {
+                                                mutableStateOf(initialFarmId)
+                                            }
+                                            val targetFarm = availableFarms.firstOrNull { it.id == selectedFarmIdForReset }
+                                                ?: availableFarms.firstOrNull()
                                             val targetCycle = if (targetFarm != null) {
                                                 com.example.AgritechMockDb.cycles.firstOrNull {
                                                     it.farmId == targetFarm.id && it.status.equals("active", ignoreCase = true)
@@ -1954,21 +1964,83 @@ fun PremiumSettingsModal(
                                                     )
                                                 },
                                                 text = {
-                                                    Text(
-                                                        Translations.tr("reset_cycle_dialog_msg", selectedLang),
-                                                        fontSize = 13.sp,
-                                                        color = textPrimary,
-                                                        lineHeight = 19.sp
-                                                    )
+                                                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                                        Text(
+                                                            Translations.tr("reset_cycle_dialog_msg", selectedLang),
+                                                            fontSize = 13.sp,
+                                                            color = textPrimary,
+                                                            lineHeight = 19.sp
+                                                        )
+                                                        if (availableFarms.isNotEmpty()) {
+                                                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                                                availableFarms.forEach { farmItem ->
+                                                                    val isSelectedFarm = farmItem.id == (targetFarm?.id ?: selectedFarmIdForReset)
+                                                                    Surface(
+                                                                        shape = RoundedCornerShape(12.dp),
+                                                                        color = if (isSelectedFarm) {
+                                                                            Color(0xFFE11D48).copy(alpha = if (isDark) 0.25f else 0.12f)
+                                                                        } else {
+                                                                            if (isDark) Color(0xFF0F172A) else Color(0xFFF8FAFC)
+                                                                        },
+                                                                        border = BorderStroke(
+                                                                            width = if (isSelectedFarm) 1.5.dp else 1.dp,
+                                                                            color = if (isSelectedFarm) Color(0xFFE11D48) else borderCol
+                                                                        ),
+                                                                        modifier = Modifier
+                                                                            .fillMaxWidth()
+                                                                            .clip(RoundedCornerShape(12.dp))
+                                                                            .clickable { selectedFarmIdForReset = farmItem.id }
+                                                                            .testTag("chip_select_farm_reset_${farmItem.id}")
+                                                                    ) {
+                                                                        Row(
+                                                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                                                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                                                            verticalAlignment = Alignment.CenterVertically
+                                                                        ) {
+                                                                            Text(
+                                                                                text = "🏡 ${Translations.getLocalizedFarmName(farmItem.id, selectedLang, farmItem.name)}",
+                                                                                fontSize = 12.5.sp,
+                                                                                fontWeight = if (isSelectedFarm) FontWeight.ExtraBold else FontWeight.SemiBold,
+                                                                                color = if (isSelectedFarm) Color(0xFFE11D48) else textPrimary
+                                                                            )
+                                                                            if (isSelectedFarm) {
+                                                                                Text(
+                                                                                    text = "✓",
+                                                                                    fontSize = 13.sp,
+                                                                                    fontWeight = FontWeight.ExtraBold,
+                                                                                    color = Color(0xFFE11D48)
+                                                                                )
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
                                                 },
                                                 confirmButton = {
                                                     Button(
                                                         onClick = {
-                                                            if (targetFarm != null) {
+                                                            val targetFarmId = (targetFarm?.id ?: selectedFarmIdForReset).takeIf {
+                                                                it.isNotBlank() && it != "personal_worker_ledger"
+                                                            }
+                                                            if (targetFarmId != null) {
                                                                 com.example.AgritechMockDb.resetCycleAndClearBarn(
-                                                                    farmId = targetFarm.id,
+                                                                    farmId = targetFarmId,
                                                                     cycleId = targetCycle?.id.orEmpty()
                                                                 )
+                                                                LocalFarmPersistence.saveAll(context)
+                                                                resetScope.launch {
+                                                                    try {
+                                                                        com.example.AgritechFirestoreRepository(context)
+                                                                            .resetCycleAndClearBarn(
+                                                                                farmId = targetFarmId,
+                                                                                defaultBirds = 0,
+                                                                                defaultTargetWeight = 2.5
+                                                                            )
+                                                                    } catch (_: Exception) {
+                                                                    }
+                                                                }
                                                                 resetCycleDoneBanner = true
                                                             }
                                                             showResetActiveCycleConfirm = false
@@ -4642,6 +4714,7 @@ object LocalFarmPersistence {
     private const val KEY_REPORTS = "daily_reports_json"
     private const val KEY_TRANSACTIONS = "transactions_json"
     private const val KEY_VET_NOTES = "vet_notes_json"
+    private const val KEY_INVENTORY_COUNTERS = "barn_inventory_json"
 
     private fun mapToJson(map: Map<String, String>): org.json.JSONObject {
         val obj = org.json.JSONObject()
@@ -4658,6 +4731,25 @@ object LocalFarmPersistence {
         while (keys.hasNext()) {
             val k = keys.next()
             result[k] = obj.optString(k, "")
+        }
+        return result
+    }
+
+    private fun intMapToJson(map: Map<String, Int>): org.json.JSONObject {
+        val obj = org.json.JSONObject()
+        for ((k, v) in map) {
+            obj.put(k, v)
+        }
+        return obj
+    }
+
+    private fun jsonToIntMap(obj: org.json.JSONObject?): Map<String, Int> {
+        if (obj == null) return emptyMap()
+        val result = mutableMapOf<String, Int>()
+        val keys = obj.keys()
+        while (keys.hasNext()) {
+            val k = keys.next()
+            result[k] = obj.optInt(k, 0).coerceAtLeast(0)
         }
         return result
     }
@@ -4682,6 +4774,7 @@ object LocalFarmPersistence {
                     .putString(KEY_REPORTS, prefs.getString(KEY_REPORTS, null))
                     .putString(KEY_TRANSACTIONS, prefs.getString(KEY_TRANSACTIONS, null))
                     .putString(KEY_VET_NOTES, prefs.getString(KEY_VET_NOTES, null))
+                    .putString(KEY_INVENTORY_COUNTERS, prefs.getString(KEY_INVENTORY_COUNTERS, null))
                     .apply()
             }
         } catch (_: Exception) {
@@ -4701,6 +4794,7 @@ object LocalFarmPersistence {
                         .putString(KEY_REPORTS, archive.getString(KEY_REPORTS, null))
                         .putString(KEY_TRANSACTIONS, archive.getString(KEY_TRANSACTIONS, null))
                         .putString(KEY_VET_NOTES, archive.getString(KEY_VET_NOTES, null))
+                        .putString(KEY_INVENTORY_COUNTERS, archive.getString(KEY_INVENTORY_COUNTERS, null))
                         .apply()
                 }
             }
@@ -4840,6 +4934,8 @@ object LocalFarmPersistence {
                 notesArr.put(obj)
             }
 
+            val inventoryJsonStr = intMapToJson(AgritechMockDb.barnInventoryCounters.toMap()).toString()
+
             prefs.edit()
                 .putBoolean(KEY_SAVED, true)
                 .putString(KEY_FARMS, farmsArr.toString())
@@ -4847,6 +4943,7 @@ object LocalFarmPersistence {
                 .putString(KEY_REPORTS, reportsArr.toString())
                 .putString(KEY_TRANSACTIONS, txArr.toString())
                 .putString(KEY_VET_NOTES, notesArr.toString())
+                .putString(KEY_INVENTORY_COUNTERS, inventoryJsonStr)
                 .apply()
 
             val archive = context.getSharedPreferences(PREF_ARCHIVE_NAME, Context.MODE_PRIVATE)
@@ -4857,191 +4954,228 @@ object LocalFarmPersistence {
                 .putString(KEY_REPORTS, reportsArr.toString())
                 .putString(KEY_TRANSACTIONS, txArr.toString())
                 .putString(KEY_VET_NOTES, notesArr.toString())
+                .putString(KEY_INVENTORY_COUNTERS, inventoryJsonStr)
                 .apply()
         } catch (_: Exception) {
         }
     }
+
+    fun loadAll(context: Context) = loadIntoMockDb(context)
 
     fun loadIntoMockDb(context: Context) {
         try {
             val prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
             if (!prefs.getBoolean(KEY_SAVED, false)) return
 
-            val farmsStr = prefs.getString(KEY_FARMS, null)
-            if (!farmsStr.isNullOrBlank()) {
-                val arr = org.json.JSONArray(farmsStr)
-                for (i in 0 until arr.length()) {
-                    val obj = arr.getJSONObject(i)
-                    val farm = FarmModel(
-                        id = obj.optString("id"),
-                        name = obj.optString("name"),
-                        location = obj.optString("location"),
-                        capacity = obj.optInt("capacity", 5000),
-                        assignedWorkerId = obj.optString("assignedWorkerId", "worker_1"),
-                        members = jsonToMap(obj.optJSONObject("members")),
-                        currencyCode = obj.optString("currencyCode", "DZD"),
-                        schemaVersion = obj.optInt("schemaVersion", 2),
-                        sectorId = obj.optString("sectorId", "AGRICULTURE").ifBlank { "AGRICULTURE" },
-                        branchId = obj.optString("branchId", "BROILER").ifBlank { "BROILER" },
-                        customMetrics = jsonToMap(obj.optJSONObject("customMetrics"))
-                    )
-                    if (farm.id.isNotBlank()) {
-                        val idx = AgritechMockDb.farms.indexOfFirst { it.id == farm.id }
-                        if (idx >= 0) AgritechMockDb.farms[idx] = farm else AgritechMockDb.farms.add(farm)
-                    }
-                }
-            }
-
-            val cyclesStr = prefs.getString(KEY_CYCLES, null)
-            if (!cyclesStr.isNullOrBlank()) {
-                val arr = org.json.JSONArray(cyclesStr)
-                for (i in 0 until arr.length()) {
-                    val obj = arr.getJSONObject(i)
-                    val cycle = CycleModel(
-                        id = obj.optString("id"),
-                        farmId = obj.optString("farmId"),
-                        totalBirdsPlaced = obj.optInt("totalBirdsPlaced", 5000),
-                        targetWeight = obj.optDouble("targetWeight", 2.3),
-                        status = obj.optString("status", "active"),
-                        startDate = obj.optString("startDate", "2026-03-01"),
-                        chickPrice = obj.optDouble("chickPrice", 120.0),
-                        feedInventoryKg = obj.optDouble("feedInventoryKg", 0.0),
-                        cumulativeBirdsSold = obj.optInt("cumulativeBirdsSold", 0),
-                        cumulativeSoldWeightKg = obj.optDouble("cumulativeSoldWeightKg", 0.0),
-                        currencyCode = obj.optString("currencyCode", "DZD"),
-                        schemaVersion = obj.optInt("schemaVersion", 2),
-                        sectorId = obj.optString("sectorId", "AGRICULTURE").ifBlank { "AGRICULTURE" },
-                        branchId = obj.optString("branchId", "BROILER").ifBlank { "BROILER" },
-                        customMetrics = jsonToMap(obj.optJSONObject("customMetrics"))
-                    )
-                    if (cycle.id.isNotBlank()) {
-                        val idx = AgritechMockDb.cycles.indexOfFirst { it.id == cycle.id }
-                        if (idx >= 0) AgritechMockDb.cycles[idx] = cycle else AgritechMockDb.cycles.add(cycle)
-                    }
-                }
-            }
-
-            val reportsStr = prefs.getString(KEY_REPORTS, null)
-            if (!reportsStr.isNullOrBlank()) {
-                val arr = org.json.JSONArray(reportsStr)
-                for (i in 0 until arr.length()) {
-                    val obj = arr.getJSONObject(i)
-                    val rep = DailyReportModel(
-                        id = obj.optString("id"),
-                        farmId = obj.optString("farmId"),
-                        cycleId = obj.optString("cycleId"),
-                        dayNumber = obj.optInt("dayNumber", 1),
-                        feedIntakeKg = obj.optDouble("feedIntakeKg", 0.0),
-                        waterIntakeLiters = obj.optDouble("waterIntakeLiters", 0.0),
-                        mortalityCount = obj.optInt("mortalityCount", 0),
-                        temperature = obj.optDouble("temperature", 30.0),
-                        gasUnits = obj.optDouble("gasUnits", 0.0),
-                        ventilationStatus = obj.optString("ventilationStatus", "جيدة"),
-                        generalStatus = obj.optString("generalStatus", "طبيعية"),
-                        isLocked = obj.optBoolean("isLocked", true),
-                        isEdited = obj.optBoolean("isEdited", false),
-                        previousSummary = obj.optString("previousSummary", ""),
-                        actualAvgWeightKg = obj.optDouble("actualAvgWeightKg", 0.0),
-                        medicineGiven = obj.optBoolean("medicineGiven", false),
-                        medicineSummary = obj.optString("medicineSummary", ""),
-                        withdrawalDays = obj.optInt("withdrawalDays", 0),
-                        updatedAtMillis = obj.optLong("updatedAtMillis", 0L)
-                    )
-                    if (rep.id.isNotBlank()) {
-                        val idx = AgritechMockDb.dailyReports.indexOfFirst {
-                            it.id == rep.id || (it.farmId == rep.farmId && it.cycleId == rep.cycleId && it.dayNumber == rep.dayNumber)
-                        }
-                        if (idx >= 0) AgritechMockDb.dailyReports[idx] = rep else AgritechMockDb.dailyReports.add(rep)
-                    }
-                }
-            }
-
-            val txStr = prefs.getString(KEY_TRANSACTIONS, null)
-            if (!txStr.isNullOrBlank()) {
-                val arr = org.json.JSONArray(txStr)
-                for (i in 0 until arr.length()) {
-                    val obj = arr.getJSONObject(i)
-                    val type = try {
-                        TransactionType.valueOf(obj.optString("type", "EXPENSE"))
-                    } catch (_: Exception) {
-                        TransactionType.EXPENSE
-                    }
-                    val invObj = obj.optJSONObject("invoiceData")
-                    val parsedInvoice = if (invObj != null) {
-                        SalesInvoiceModel(
-                            invoiceNumber = invObj.optString("invoiceNumber"),
-                            farmName = invObj.optString("farmName"),
-                            cycleId = invObj.optString("cycleId"),
-                            dateText = invObj.optString("dateText"),
-                            birdAgeDays = invObj.optInt("birdAgeDays", 1),
-                            buyerName = invObj.optString("buyerName"),
-                            truckPlate = invObj.optString("truckPlate"),
-                            totalCrates = invObj.optInt("totalCrates", 0),
-                            birdsPerCrate = invObj.optInt("birdsPerCrate", 10),
-                            totalBirdsSold = invObj.optInt("totalBirdsSold", 0),
-                            totalGrossKg = invObj.optDouble("totalGrossKg", 0.0),
-                            totalTareKg = invObj.optDouble("totalTareKg", 0.0),
-                            totalNetKg = invObj.optDouble("totalNetKg", 0.0),
-                            avgBirdWeightKg = invObj.optDouble("avgBirdWeightKg", 0.0),
-                            pricePerKg = invObj.optDouble("pricePerKg", 0.0),
-                            totalAmount = invObj.optDouble("totalAmount", 0.0),
-                            currency = invObj.optString("currency", "دج"),
-                            tareWeightsCount = invObj.optInt("tareWeightsCount", 0),
-                            grossWeightsCount = invObj.optInt("grossWeightsCount", 0)
-                        )
-                    } else null
-                    val tx = TransactionModel(
-                        id = obj.optString("id"),
-                        farmId = obj.optString("farmId"),
-                        cycleId = obj.optString("cycleId"),
-                        type = type,
-                        category = obj.optString("category"),
-                        amount = obj.optDouble("amount", 0.0),
-                        currency = obj.optString("currency", "دج"),
-                        date = obj.optString("date", "اليوم 1"),
-                        invoiceData = parsedInvoice,
-                        status = obj.optString("status", "APPROVED"),
-                        notes = obj.optString("notes", ""),
-                        quantityQuintals = obj.optDouble("quantityQuintals", 0.0),
-                        approvedBySignature = obj.optString("approvedBySignature", "")
-                    )
-                    if (tx.id.isNotBlank()) {
-                        val idx = AgritechMockDb.transactions.indexOfFirst { it.id == tx.id }
-                        if (idx >= 0) {
-                            val existing = AgritechMockDb.transactions[idx]
-                            AgritechMockDb.transactions[idx] = tx.copy(invoiceData = tx.invoiceData ?: existing.invoiceData)
-                        } else {
-                            AgritechMockDb.transactions.add(tx)
+            if (prefs.contains(KEY_FARMS)) {
+                val farmsStr = prefs.getString(KEY_FARMS, null)
+                if (farmsStr != null) {
+                    val loadedFarms = mutableListOf<FarmModel>()
+                    runCatching {
+                        val arr = org.json.JSONArray(farmsStr)
+                        for (i in 0 until arr.length()) {
+                            val obj = arr.getJSONObject(i)
+                            val farm = FarmModel(
+                                id = obj.optString("id"),
+                                name = obj.optString("name"),
+                                location = obj.optString("location"),
+                                capacity = obj.optInt("capacity", 5000),
+                                assignedWorkerId = obj.optString("assignedWorkerId", "worker_1"),
+                                members = jsonToMap(obj.optJSONObject("members")),
+                                currencyCode = obj.optString("currencyCode", "DZD"),
+                                schemaVersion = obj.optInt("schemaVersion", 2),
+                                sectorId = obj.optString("sectorId", "AGRICULTURE").ifBlank { "AGRICULTURE" },
+                                branchId = obj.optString("branchId", "BROILER").ifBlank { "BROILER" },
+                                customMetrics = jsonToMap(obj.optJSONObject("customMetrics"))
+                            )
+                            if (farm.id.isNotBlank()) {
+                                loadedFarms.add(farm)
+                            }
                         }
                     }
+                    AgritechMockDb.farms.clear()
+                    AgritechMockDb.farms.addAll(loadedFarms)
                 }
             }
 
-            val notesStr = prefs.getString(KEY_VET_NOTES, null)
-            if (!notesStr.isNullOrBlank()) {
-                val arr = org.json.JSONArray(notesStr)
-                for (i in 0 until arr.length()) {
-                    val obj = arr.getJSONObject(i)
-                    val vn = VetNoteModel(
-                        id = obj.optString("id"),
-                        farmId = obj.optString("farmId"),
-                        cycleId = obj.optString("cycleId"),
-                        dayNumber = obj.optInt("dayNumber", 1),
-                        medicineName = obj.optString("medicineName"),
-                        dosage = obj.optString("dosage"),
-                        note = obj.optString("note"),
-                        isUrgent = obj.optBoolean("isUrgent", false),
-                        status = obj.optString("status", "APPROVED"),
-                        linkedTransactionId = obj.optString("linkedTransactionId", ""),
-                        invoiceAmount = obj.optDouble("invoiceAmount", 0.0),
-                        currency = obj.optString("currency", "دج"),
-                        withdrawalDays = obj.optInt("withdrawalDays", 0),
-                        updatedAtMillis = obj.optLong("updatedAtMillis", 0L)
-                    )
-                    if (vn.id.isNotBlank()) {
-                        val idx = AgritechMockDb.vetNotes.indexOfFirst { it.id == vn.id }
-                        if (idx >= 0) AgritechMockDb.vetNotes[idx] = vn else AgritechMockDb.vetNotes.add(vn)
+            if (prefs.contains(KEY_CYCLES)) {
+                val cyclesStr = prefs.getString(KEY_CYCLES, null)
+                if (cyclesStr != null) {
+                    val loadedCycles = mutableListOf<CycleModel>()
+                    runCatching {
+                        val arr = org.json.JSONArray(cyclesStr)
+                        for (i in 0 until arr.length()) {
+                            val obj = arr.getJSONObject(i)
+                            val cycle = CycleModel(
+                                id = obj.optString("id"),
+                                farmId = obj.optString("farmId"),
+                                totalBirdsPlaced = obj.optInt("totalBirdsPlaced", 5000),
+                                targetWeight = obj.optDouble("targetWeight", 2.3),
+                                status = obj.optString("status", "active"),
+                                startDate = obj.optString("startDate", "2026-03-01"),
+                                chickPrice = obj.optDouble("chickPrice", 120.0),
+                                feedInventoryKg = obj.optDouble("feedInventoryKg", 0.0),
+                                cumulativeBirdsSold = obj.optInt("cumulativeBirdsSold", 0),
+                                cumulativeSoldWeightKg = obj.optDouble("cumulativeSoldWeightKg", 0.0),
+                                currencyCode = obj.optString("currencyCode", "DZD"),
+                                schemaVersion = obj.optInt("schemaVersion", 2),
+                                sectorId = obj.optString("sectorId", "AGRICULTURE").ifBlank { "AGRICULTURE" },
+                                branchId = obj.optString("branchId", "BROILER").ifBlank { "BROILER" },
+                                customMetrics = jsonToMap(obj.optJSONObject("customMetrics"))
+                            )
+                            if (cycle.id.isNotBlank()) {
+                                loadedCycles.add(cycle)
+                            }
+                        }
                     }
+                    AgritechMockDb.cycles.clear()
+                    AgritechMockDb.cycles.addAll(loadedCycles)
+                }
+            }
+
+            if (prefs.contains(KEY_REPORTS)) {
+                val reportsStr = prefs.getString(KEY_REPORTS, null)
+                if (reportsStr != null) {
+                    val loadedReports = mutableListOf<DailyReportModel>()
+                    runCatching {
+                        val arr = org.json.JSONArray(reportsStr)
+                        for (i in 0 until arr.length()) {
+                            val obj = arr.getJSONObject(i)
+                            val rep = DailyReportModel(
+                                id = obj.optString("id"),
+                                farmId = obj.optString("farmId"),
+                                cycleId = obj.optString("cycleId"),
+                                dayNumber = obj.optInt("dayNumber", 1),
+                                feedIntakeKg = obj.optDouble("feedIntakeKg", 0.0),
+                                waterIntakeLiters = obj.optDouble("waterIntakeLiters", 0.0),
+                                mortalityCount = obj.optInt("mortalityCount", 0),
+                                temperature = obj.optDouble("temperature", 30.0),
+                                gasUnits = obj.optDouble("gasUnits", 0.0),
+                                ventilationStatus = obj.optString("ventilationStatus", "جيدة"),
+                                generalStatus = obj.optString("generalStatus", "طبيعية"),
+                                isLocked = obj.optBoolean("isLocked", true),
+                                isEdited = obj.optBoolean("isEdited", false),
+                                previousSummary = obj.optString("previousSummary", ""),
+                                actualAvgWeightKg = obj.optDouble("actualAvgWeightKg", 0.0),
+                                medicineGiven = obj.optBoolean("medicineGiven", false),
+                                medicineSummary = obj.optString("medicineSummary", ""),
+                                withdrawalDays = obj.optInt("withdrawalDays", 0),
+                                updatedAtMillis = obj.optLong("updatedAtMillis", 0L)
+                            )
+                            if (rep.id.isNotBlank()) {
+                                loadedReports.add(rep)
+                            }
+                        }
+                    }
+                    AgritechMockDb.dailyReports.clear()
+                    AgritechMockDb.dailyReports.addAll(loadedReports)
+                }
+            }
+
+            if (prefs.contains(KEY_TRANSACTIONS)) {
+                val txStr = prefs.getString(KEY_TRANSACTIONS, null)
+                if (txStr != null) {
+                    val loadedTx = mutableListOf<TransactionModel>()
+                    runCatching {
+                        val arr = org.json.JSONArray(txStr)
+                        for (i in 0 until arr.length()) {
+                            val obj = arr.getJSONObject(i)
+                            val type = try {
+                                TransactionType.valueOf(obj.optString("type", "EXPENSE"))
+                            } catch (_: Exception) {
+                                TransactionType.EXPENSE
+                            }
+                            val invObj = obj.optJSONObject("invoiceData")
+                            val parsedInvoice = if (invObj != null) {
+                                SalesInvoiceModel(
+                                    invoiceNumber = invObj.optString("invoiceNumber"),
+                                    farmName = invObj.optString("farmName"),
+                                    cycleId = invObj.optString("cycleId"),
+                                    dateText = invObj.optString("dateText"),
+                                    birdAgeDays = invObj.optInt("birdAgeDays", 1),
+                                    buyerName = invObj.optString("buyerName"),
+                                    truckPlate = invObj.optString("truckPlate"),
+                                    totalCrates = invObj.optInt("totalCrates", 0),
+                                    birdsPerCrate = invObj.optInt("birdsPerCrate", 10),
+                                    totalBirdsSold = invObj.optInt("totalBirdsSold", 0),
+                                    totalGrossKg = invObj.optDouble("totalGrossKg", 0.0),
+                                    totalTareKg = invObj.optDouble("totalTareKg", 0.0),
+                                    totalNetKg = invObj.optDouble("totalNetKg", 0.0),
+                                    avgBirdWeightKg = invObj.optDouble("avgBirdWeightKg", 0.0),
+                                    pricePerKg = invObj.optDouble("pricePerKg", 0.0),
+                                    totalAmount = invObj.optDouble("totalAmount", 0.0),
+                                    currency = invObj.optString("currency", "دج"),
+                                    tareWeightsCount = invObj.optInt("tareWeightsCount", 0),
+                                    grossWeightsCount = invObj.optInt("grossWeightsCount", 0)
+                                )
+                            } else null
+                            val tx = TransactionModel(
+                                id = obj.optString("id"),
+                                farmId = obj.optString("farmId"),
+                                cycleId = obj.optString("cycleId"),
+                                type = type,
+                                category = obj.optString("category"),
+                                amount = obj.optDouble("amount", 0.0),
+                                currency = obj.optString("currency", "دج"),
+                                date = obj.optString("date", "اليوم 1"),
+                                invoiceData = parsedInvoice,
+                                status = obj.optString("status", "APPROVED"),
+                                notes = obj.optString("notes", ""),
+                                quantityQuintals = obj.optDouble("quantityQuintals", 0.0),
+                                approvedBySignature = obj.optString("approvedBySignature", "")
+                            )
+                            if (tx.id.isNotBlank()) {
+                                loadedTx.add(tx)
+                            }
+                        }
+                    }
+                    AgritechMockDb.transactions.clear()
+                    AgritechMockDb.transactions.addAll(loadedTx)
+                }
+            }
+
+            if (prefs.contains(KEY_VET_NOTES)) {
+                val notesStr = prefs.getString(KEY_VET_NOTES, null)
+                if (notesStr != null) {
+                    val loadedVet = mutableListOf<VetNoteModel>()
+                    runCatching {
+                        val arr = org.json.JSONArray(notesStr)
+                        for (i in 0 until arr.length()) {
+                            val obj = arr.getJSONObject(i)
+                            val vn = VetNoteModel(
+                                id = obj.optString("id"),
+                                farmId = obj.optString("farmId"),
+                                cycleId = obj.optString("cycleId"),
+                                dayNumber = obj.optInt("dayNumber", 1),
+                                medicineName = obj.optString("medicineName"),
+                                dosage = obj.optString("dosage"),
+                                note = obj.optString("note"),
+                                isUrgent = obj.optBoolean("isUrgent", false),
+                                status = obj.optString("status", "APPROVED"),
+                                linkedTransactionId = obj.optString("linkedTransactionId", ""),
+                                invoiceAmount = obj.optDouble("invoiceAmount", 0.0),
+                                currency = obj.optString("currency", "دج"),
+                                withdrawalDays = obj.optInt("withdrawalDays", 0),
+                                updatedAtMillis = obj.optLong("updatedAtMillis", 0L)
+                            )
+                            if (vn.id.isNotBlank()) {
+                                loadedVet.add(vn)
+                            }
+                        }
+                    }
+                    AgritechMockDb.vetNotes.clear()
+                    AgritechMockDb.vetNotes.addAll(loadedVet)
+                }
+            }
+
+            if (prefs.contains(KEY_INVENTORY_COUNTERS)) {
+                val inventoryJson = prefs.getString(KEY_INVENTORY_COUNTERS, null)
+                if (inventoryJson != null) {
+                    val loadedInv: Map<String, Int> = runCatching {
+                        jsonToIntMap(org.json.JSONObject(inventoryJson))
+                    }.getOrNull() ?: emptyMap()
+                    AgritechMockDb.barnInventoryCounters.clear()
+                    AgritechMockDb.barnInventoryCounters.putAll(loadedInv)
                 }
             }
         } catch (_: Exception) {
