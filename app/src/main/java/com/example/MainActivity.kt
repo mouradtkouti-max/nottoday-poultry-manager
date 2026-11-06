@@ -11,10 +11,12 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
@@ -39,6 +41,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -949,6 +952,42 @@ object AgritechMockDb {
         persistLocalState()
         return updatedCycle
     }
+
+    /**
+     * Permanently deletes a barn (`farmId`) and all its associated cycles, daily reports, transactions, and vet notes
+     * from local state without touching `personal_worker_ledger`.
+     */
+    fun deleteFarmCompletely(farmId: String) {
+        if (farmId.isBlank() || farmId == "personal_worker_ledger") return
+        farms.removeAll { it.id == farmId }
+        cycles.removeAll { it.farmId == farmId }
+        dailyReports.removeAll { it.farmId == farmId && it.farmId != "personal_worker_ledger" }
+        transactions.removeAll { it.farmId == farmId && it.farmId != "personal_worker_ledger" }
+        vetNotes.removeAll { it.farmId == farmId && it.farmId != "personal_worker_ledger" }
+        persistLocalState()
+    }
+
+    // Interactive Barn Supply Counters for Tab 4 ("📦 المخزون"): Gas Cylinders, Wood Shavings, Water Tankers, Medicine Packs
+    val barnInventoryCounters = androidx.compose.runtime.mutableStateMapOf(
+        "farm_1_gas" to 14,
+        "farm_1_shavings" to 45,
+        "farm_1_water" to 6,
+        "farm_1_meds" to 12,
+        "farm_2_gas" to 18,
+        "farm_2_shavings" to 60,
+        "farm_2_water" to 8,
+        "farm_2_meds" to 15
+    )
+
+    fun getBarnSupplyCount(farmId: String, supplyKey: String, defaultVal: Int): Int {
+        return barnInventoryCounters["${farmId}_$supplyKey"] ?: defaultVal
+    }
+
+    fun adjustBarnSupplyCount(farmId: String, supplyKey: String, delta: Int, defaultVal: Int) {
+        val key = "${farmId}_$supplyKey"
+        val current = barnInventoryCounters[key] ?: defaultVal
+        barnInventoryCounters[key] = (current + delta).coerceAtLeast(0)
+    }
 }
 
 // ============================================================================
@@ -1731,6 +1770,52 @@ enum class PremiumPillVariant {
     LOGIN_GRADIENT
 }
 
+/**
+ * Universal 3D Keycap & Tactile Embossed UI modifier (`Modifier.tactile3DStyle(baseColor, cornerRadius)`):
+ * Gives buttons, icons, badges, and fields:
+ * - Soft deep 3D shadow (`shadow(elevation = 6.dp)`)
+ * - Top specular highlight (`1.dp` white alpha `0.4f` border)
+ * - Raised 3D Bottom Bevel Lip (`3.dp` darker bottom edge)
+ */
+fun Modifier.tactile3DStyle(
+    baseColor: Color,
+    cornerRadius: androidx.compose.ui.unit.Dp = 14.dp,
+    elevation: androidx.compose.ui.unit.Dp = 6.dp
+): Modifier {
+    val shape = RoundedCornerShape(cornerRadius)
+    val darkLipColor = Color(
+        red = (baseColor.red * 0.62f).coerceIn(0f, 1f),
+        green = (baseColor.green * 0.62f).coerceIn(0f, 1f),
+        blue = (baseColor.blue * 0.68f).coerceIn(0f, 1f),
+        alpha = 0.95f
+    )
+    val bevelBorderBrush = Brush.verticalGradient(
+        colors = listOf(
+            Color.White.copy(alpha = 0.45f),
+            darkLipColor
+        )
+    )
+    return this
+        .shadow(
+            elevation = elevation,
+            shape = shape,
+            spotColor = darkLipColor,
+            ambientColor = darkLipColor
+        )
+        .clip(shape)
+        .border(width = 1.dp, color = Color.White.copy(alpha = 0.4f), shape = shape)
+        .border(width = 1.5.dp, brush = bevelBorderBrush, shape = shape)
+        .drawWithContent {
+            drawContent()
+            val lipPx = 3.dp.toPx()
+            drawRect(
+                color = darkLipColor.copy(alpha = 0.55f),
+                topLeft = androidx.compose.ui.geometry.Offset(0f, size.height - lipPx),
+                size = androidx.compose.ui.geometry.Size(size.width, lipPx)
+            )
+        }
+}
+
 @Composable
 fun PremiumPillButton(
     text: String,
@@ -1746,9 +1831,9 @@ fun PremiumPillButton(
     val pillShape = RoundedCornerShape(50)
     val basePrimary = appearance.accentOption.primaryColor
     val deepPrimary = Color(
-        red = (basePrimary.red * 0.80f).coerceIn(0f, 1f),
-        green = (basePrimary.green * 0.80f).coerceIn(0f, 1f),
-        blue = (basePrimary.blue * 0.85f).coerceIn(0f, 1f),
+        red = (basePrimary.red * 0.72f).coerceIn(0f, 1f),
+        green = (basePrimary.green * 0.72f).coerceIn(0f, 1f),
+        blue = (basePrimary.blue * 0.78f).coerceIn(0f, 1f),
         alpha = 1f
     )
     val gradientColors = when (variant) {
@@ -1777,28 +1862,19 @@ fun PremiumPillButton(
         PremiumPillVariant.LOGIN_GRADIENT -> Color(0xFF6B46FF)
     }
     val activeBrush = if (enabled) {
-        Brush.linearGradient(colors = gradientColors)
+        Brush.verticalGradient(colors = gradientColors)
     } else {
-        Brush.linearGradient(colors = listOf(Color(0xFF94A3B8), Color(0xFF64748B)))
+        Brush.verticalGradient(colors = listOf(Color(0xFF94A3B8), Color(0xFF64748B)))
     }
-    val innerSpecularHighlight = Brush.verticalGradient(
-        colors = listOf(
-            Color.White.copy(alpha = if (enabled) 0.45f else 0.18f),
-            Color.Transparent
-        )
-    )
 
     Box(
         modifier = modifier
-            .shadow(
-                elevation = if (enabled) 8.dp else 0.dp,
-                shape = pillShape,
-                spotColor = spotShadowColor,
-                ambientColor = spotShadowColor
+            .tactile3DStyle(
+                baseColor = if (enabled) spotShadowColor else Color(0xFF64748B),
+                cornerRadius = 50.dp,
+                elevation = if (enabled) 6.dp else 0.dp
             )
-            .clip(pillShape)
             .background(brush = activeBrush, shape = pillShape)
-            .border(width = 1.dp, brush = innerSpecularHighlight, shape = pillShape)
             .clickable(enabled = enabled, onClick = onClick)
             .padding(contentPadding),
         contentAlignment = Alignment.Center
@@ -1919,6 +1995,58 @@ fun AnimatedDeleteOrResetButton(
 }
 
 @Composable
+fun Tactile3DIconBadge(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    tint: Color,
+    isDark: Boolean = LocalAppAppearanceState.current.isDark,
+    modifier: Modifier = Modifier,
+    size: androidx.compose.ui.unit.Dp = 36.dp,
+    iconSize: androidx.compose.ui.unit.Dp = 19.dp
+) {
+    val badgeShape = RoundedCornerShape(12.dp)
+    val bevelBorderBrush = Brush.verticalGradient(
+        colors = listOf(
+            Color.White.copy(alpha = 0.6f),
+            Color(0xFF94A3B8)
+        )
+    )
+    val surfaceBrush = if (isDark) {
+        Brush.verticalGradient(
+            colors = listOf(Color(0xFF283750), Color(0xFF141E30))
+        )
+    } else {
+        Brush.verticalGradient(
+            colors = listOf(Color(0xFFFFFFFF), Color(0xFFE2E8F0))
+        )
+    }
+    Box(
+        modifier = modifier
+            .size(size)
+            .shadow(
+                elevation = 6.dp,
+                shape = badgeShape,
+                spotColor = if (isDark) Color.Black else Color(0xFF64748B)
+            )
+            .clip(badgeShape)
+            .background(brush = surfaceBrush, shape = badgeShape)
+            .border(width = 1.3.dp, brush = bevelBorderBrush, shape = badgeShape)
+            .border(
+                width = 0.7.dp,
+                color = Color.White.copy(alpha = if (isDark) 0.22f else 0.6f),
+                shape = badgeShape
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = tint,
+            modifier = Modifier.size(iconSize)
+        )
+    }
+}
+
+@Composable
 fun PremiumTactileCalcButton(
     label: String,
     onClick: () -> Unit,
@@ -1932,32 +2060,34 @@ fun PremiumTactileCalcButton(
     val outerBevelBrush = if (isSelected) {
         Brush.verticalGradient(
             colors = listOf(
-                Color.White.copy(alpha = 0.55f),
-                accentColor.copy(alpha = 0.9f)
+                Color.White.copy(alpha = 0.65f),
+                Color(0xFF94A3B8)
             )
         )
-    } else if (isDark) {
-        Brush.linearGradient(
-            colors = listOf(Color(0xFF334155), Color(0xFF0F172A))
-        )
     } else {
-        Brush.linearGradient(
-            colors = listOf(Color.White, Color(0xFFCBD5E1))
+        Brush.verticalGradient(
+            colors = listOf(
+                Color.White.copy(alpha = 0.6f),
+                Color(0xFF94A3B8)
+            )
         )
     }
 
     val appearance = LocalAppAppearanceState.current
     val innerSurfaceBrush = if (isSelected) {
-        Brush.linearGradient(
-            colors = listOf(appearance.accentOption.darkModeColor, accentColor)
+        Brush.verticalGradient(
+            colors = listOf(
+                appearance.accentOption.darkModeColor,
+                accentColor
+            )
         )
     } else if (isDark) {
         Brush.verticalGradient(
-            colors = listOf(Color(0xFF26354D), Color(0xFF162032))
+            colors = listOf(Color(0xFF2B3B55), Color(0xFF152033))
         )
     } else {
         Brush.verticalGradient(
-            colors = listOf(Color(0xFFFFFFFF), Color(0xFFE6EEF8))
+            colors = listOf(Color(0xFFFFFFFF), Color(0xFFE2E8F0))
         )
     }
 
@@ -1971,13 +2101,18 @@ fun PremiumTactileCalcButton(
         modifier = modifier
             .height(44.dp)
             .shadow(
-                elevation = if (isSelected) 7.dp else 3.dp,
+                elevation = 6.dp,
                 shape = btnShape,
                 spotColor = if (isSelected) accentColor else Color(0xFF64748B)
             )
             .clip(btnShape)
             .background(brush = innerSurfaceBrush, shape = btnShape)
-            .border(width = 1.2.dp, brush = outerBevelBrush, shape = btnShape)
+            .border(width = 1.4.dp, brush = outerBevelBrush, shape = btnShape)
+            .border(
+                width = 0.7.dp,
+                color = Color.White.copy(alpha = if (isDark) 0.25f else 0.6f),
+                shape = btnShape
+            )
             .clickable(onClick = onClick)
             .padding(horizontal = 8.dp),
         contentAlignment = Alignment.Center
@@ -2691,8 +2826,10 @@ fun AgritechOwnerDashboard(
                             containerColor = primaryButtonAccent,
                             contentColor = Color.White,
                             shape = RoundedCornerShape(activeCornerRadius),
-                            elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 3.dp),
-                            modifier = Modifier.testTag("fab_add_cycle")
+                            elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 6.dp),
+                            modifier = Modifier
+                                .tactile3DStyle(baseColor = primaryButtonAccent, cornerRadius = activeCornerRadius)
+                                .testTag("fab_add_cycle")
                         ) {
                             Row(
                                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
@@ -2701,8 +2838,8 @@ fun AgritechOwnerDashboard(
                                 Icon(Icons.Default.Add, contentDescription = "Add New Farm Cycle", tint = Color.White)
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    Translations.tr("btn_new_cycle", lang),
-                                    fontWeight = FontWeight.Bold,
+                                    "${Translations.tr("btn_new_cycle", lang)} 🐣",
+                                    fontWeight = FontWeight.ExtraBold,
                                     color = Color.White,
                                     fontSize = 14.sp
                                 )
@@ -2717,8 +2854,10 @@ fun AgritechOwnerDashboard(
                         containerColor = primaryButtonAccent,
                         contentColor = Color.White,
                         shape = RoundedCornerShape(activeCornerRadius),
-                        elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 4.dp),
-                        modifier = Modifier.testTag("fab_add_market_post")
+                        elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 6.dp),
+                        modifier = Modifier
+                            .tactile3DStyle(baseColor = primaryButtonAccent, cornerRadius = activeCornerRadius)
+                            .testTag("fab_add_market_post")
                     ) {
                         Row(
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
@@ -3745,77 +3884,7 @@ fun ManagementHubScreen(
                             }
                         }
 
-                        // 2. العنابر المسؤول عنها لتسجيل البيانات اليومية فقط (بدون أي زر لإرسال فواتير للمزرعة)
-                        items(workerBarns, key = { it.id }) { farm ->
-                            val cycle = AgritechMockDb.cycles.firstOrNull { it.farmId == farm.id }
-                            Card(
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = cardCornerShape,
-                                colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
-                                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                                border = BorderStroke(1.dp, activeAccent.copy(alpha = 0.22f))
-                            ) {
-                                Column(modifier = Modifier.padding(18.dp)) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(
-                                                Translations.getLocalizedFarmName(farm.id, lang, farm.name),
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 15.sp,
-                                                color = primaryTextColor
-                                            )
-                                            Text(
-                                                Translations.getLocalizedFarmLocation(farm.id, lang, farm.location),
-                                                fontSize = 12.sp,
-                                                color = secondaryTextColor
-                                            )
-                                        }
-                                        if (cycle != null) {
-                                            Surface(
-                                                shape = pillShape,
-                                                color = accentBadgeBg
-                                            ) {
-                                                Text(
-                                                    Translations.formatDualFeedInventoryBadge(cycle.feedInventoryKg, lang),
-                                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                                                    fontSize = 11.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = activeAccent
-                                                )
-                                            }
-                                        }
-                                    }
-                                    Spacer(modifier = Modifier.height(12.dp))
-                                    Button(
-                                        onClick = { onOpenNotebook(farm) },
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(48.dp)
-                                            .testTag("btn_open_worker_daily_report_${farm.id}"),
-                                        shape = pillShape,
-                                        colors = ButtonDefaults.buttonColors(containerColor = primaryButtonAccent)
-                                    ) {
-                                        Icon(
-                                            Icons.Default.EditNote,
-                                            contentDescription = null,
-                                            tint = Color.White,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Text(
-                                            Translations.tr("worker_log_title", lang),
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 13.5.sp,
-                                            color = Color.White
-                                        )
-                                    }
-                                }
-                            }
-                        }
+                        // بطاقات العنابر مخفية من الشاشة الخارجية للمشرف وتظهر فقط بعد فتح الدفتر الذكي داخل تبويب 💼 الإدارة
                         item { Spacer(modifier = Modifier.height(90.dp)) }
                     }
                 }
@@ -6374,14 +6443,26 @@ fun OwnerGlobalAiVetPlaceholderScreen(
     val coroutineScope = rememberCoroutineScope()
 
     var isHomePersonalAgentMode by remember(sessionState.currentRole) {
-        mutableStateOf(sessionState.currentRole == AppRole.HOME_PERSONAL)
+        mutableStateOf(
+            sessionState.currentRole == AppRole.HOME_PERSONAL ||
+                sessionState.currentRole == AppRole.WORKER
+        )
     }
+    var selectedAiSubTab by rememberSaveable { mutableStateOf(0) }
     var card1Approved by remember(isHomePersonalAgentMode) { mutableStateOf(false) }
     var card1Ignored by remember(isHomePersonalAgentMode) { mutableStateOf(false) }
     var card2Approved by remember(isHomePersonalAgentMode) { mutableStateOf(false) }
     var card2Ignored by remember(isHomePersonalAgentMode) { mutableStateOf(false) }
     var selectedGoalBubbleIdx by remember { mutableStateOf(0) }
     var selectedQuickChipIdx by remember { mutableStateOf(-1) }
+
+    val aiSubTabs = remember(lang) {
+        listOf(
+            0 to Translations.tr("ai_subtab_smart_decisions", lang),
+            1 to Translations.tr("ai_subtab_diagnostics", lang),
+            2 to Translations.tr("ai_subtab_live_chat", lang)
+        )
+    }
 
     val goalBubbles = remember(lang) {
         listOf(
@@ -6414,9 +6495,12 @@ fun OwnerGlobalAiVetPlaceholderScreen(
         )
     }
 
-    fun triggerAiConsultation(queryText: String) {
+    fun triggerAiConsultation(queryText: String, switchToChat: Boolean = false) {
         val cleanQuery = queryText.trim().replace("**", "")
         if (cleanQuery.isEmpty() || isAnalyzing) return
+        if (switchToChat) {
+            selectedAiSubTab = 2
+        }
         isAnalyzing = true
         diagnosisHistory = diagnosisHistory + Pair(
             "${Translations.tr("ai_vet_user_query_prefix", lang)}: $cleanQuery",
@@ -6463,7 +6547,7 @@ fun OwnerGlobalAiVetPlaceholderScreen(
                 .padding(horizontal = 16.dp, vertical = 10.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            // Top Glassmorphic AI Agent Employee Persona Header Card
+            // Top Glassmorphic AI Agent Employee Persona Header Card + 3-Sub-Tab Segmented Control
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -6478,21 +6562,21 @@ fun OwnerGlobalAiVetPlaceholderScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(14.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                        .padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         Surface(
-                            modifier = Modifier.size(44.dp),
+                            modifier = Modifier.size(42.dp),
                             shape = CircleShape,
                             color = aiAccentContainer,
                             border = BorderStroke(1.2.dp, aiAccent.copy(alpha = 0.5f))
                         ) {
                             Box(contentAlignment = Alignment.Center) {
-                                Text(if (isHomePersonalAgentMode) "🤖🏠" else "🤖🩺", fontSize = 18.sp)
+                                Text("🧠", fontSize = 20.sp)
                             }
                         }
                         Column(modifier = Modifier.weight(1f)) {
@@ -6506,7 +6590,9 @@ fun OwnerGlobalAiVetPlaceholderScreen(
                             Text(
                                 text = Translations.tr("ai_agent_persona_subtitle", lang),
                                 fontSize = 11.sp,
-                                color = secondaryText
+                                color = secondaryText,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                     }
@@ -6521,15 +6607,9 @@ fun OwnerGlobalAiVetPlaceholderScreen(
                             true to Translations.tr("ai_agent_mode_home", lang)
                         ).forEach { (homeMode, modeLabel) ->
                             val isSelectedMode = isHomePersonalAgentMode == homeMode
-                            val modeScale by animateFloatAsState(
-                                targetValue = if (isSelectedMode) 1.03f else 1.0f,
-                                animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
-                                label = "ai_mode_scale"
-                            )
                             Surface(
                                 modifier = Modifier
                                     .weight(1f)
-                                    .scale(modeScale)
                                     .clip(pillShape)
                                     .clickable { isHomePersonalAgentMode = homeMode }
                                     .testTag(if (homeMode) "ai_agent_mode_home_btn" else "ai_agent_mode_farm_btn"),
@@ -6548,326 +6628,291 @@ fun OwnerGlobalAiVetPlaceholderScreen(
                                     textAlign = TextAlign.Center,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
                                 )
                             }
                         }
                     }
 
-                    // Card 3 (One-Tap Floating Glassmorphic Goal Bubbles with 1.0f -> 1.05f pulse)
-                    FlowRow(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    // شريط أقسام ثلاثي مفصل وواضح (Segmented Control / 3 Sub-Tabs)
+                    // 0: ⚡ القرارات الذكية | 1: 📊 التشخيص والفحص | 2: 💬 المحادثة المباشرة
+                    NeumorphicRecessedDisplay(
+                        isDark = isDark,
+                        contentPadding = PaddingValues(4.dp)
                     ) {
-                        goalBubbles.forEachIndexed { bIdx, bubbleText ->
-                            val isBubbleSelected = selectedGoalBubbleIdx == bIdx
-                            val bubbleScale by animateFloatAsState(
-                                targetValue = if (isBubbleSelected) 1.05f else 1.0f,
-                                animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
-                                label = "goal_bubble_scale_$bIdx"
-                            )
-                            Surface(
-                                modifier = Modifier
-                                    .scale(bubbleScale)
-                                    .clip(RoundedCornerShape(50))
-                                    .clickable(enabled = !isAnalyzing) {
-                                        selectedGoalBubbleIdx = bIdx
-                                        triggerAiConsultation(bubbleText)
-                                    }
-                                    .testTag("ai_agent_goal_bubble_$bIdx"),
-                                shape = RoundedCornerShape(50),
-                                color = if (isBubbleSelected) aiAccentContainer else currentTheme.bgColor.copy(alpha = 0.7f),
-                                border = BorderStroke(
-                                    width = if (isBubbleSelected) 1.4.dp else 1.dp,
-                                    color = if (isBubbleSelected) aiAccent else glassBorderColor
-                                )
-                            ) {
-                                Text(
-                                    text = bubbleText,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (isBubbleSelected) aiAccent else primaryText,
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
-                                )
-                            }
-                        }
-                    }
-
-                    // Clinical Quick Chips (preserving ai_vet_quick_chip_0..3 testTags with spring pulse)
-                    FlowRow(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        quickChips.forEachIndexed { idx, chipLabel ->
-                            val isChipSel = selectedQuickChipIdx == idx
-                            val chipScale by animateFloatAsState(
-                                targetValue = if (isChipSel) 1.05f else 1.0f,
-                                animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
-                                label = "quick_chip_scale_$idx"
-                            )
-                            Surface(
-                                modifier = Modifier
-                                    .scale(chipScale)
-                                    .clip(pillShape)
-                                    .clickable(enabled = !isAnalyzing) {
-                                        selectedQuickChipIdx = idx
-                                        triggerAiConsultation(chipLabel)
-                                    }
-                                    .testTag("ai_vet_quick_chip_$idx"),
-                                shape = pillShape,
-                                color = aiAccentContainer,
-                                border = BorderStroke(1.dp, aiAccent.copy(alpha = 0.45f))
-                            ) {
-                                Text(
-                                    text = chipLabel,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = aiAccent,
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
-                                )
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("ai_segmented_subtabs_row"),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            aiSubTabs.forEach { (tabIdx, tabTitle) ->
+                                val isSelectedTab = selectedAiSubTab == tabIdx
+                                Surface(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clip(pillShape)
+                                        .clickable { selectedAiSubTab = tabIdx }
+                                        .testTag("ai_subtab_$tabIdx"),
+                                    shape = pillShape,
+                                    color = if (isSelectedTab) aiPrimaryBtn else Color.Transparent,
+                                    shadowElevation = if (isSelectedTab) 4.dp else 0.dp
+                                ) {
+                                    Text(
+                                        text = tabTitle,
+                                        fontSize = 11.sp,
+                                        fontWeight = if (isSelectedTab) FontWeight.ExtraBold else FontWeight.SemiBold,
+                                        color = if (isSelectedTab) Color.White else secondaryText,
+                                        textAlign = TextAlign.Center,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 8.dp)
+                                    )
+                                }
                             }
                         }
                     }
                 }
             }
 
-            LazyColumn(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .testTag("ai_vet_messages_list"),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                // Proactive AI Agent Card 1: Market Price Comparison (or Home Bill Renewal) with [Approve ✓] & [No ✕]
-                if (!card1Ignored) {
-                    item {
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("ai_agent_proactive_card_1"),
-                            shape = aiCardShape,
-                            colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
-                            border = BorderStroke(1.2.dp, glassBorderColor),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                        ) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(14.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Text(
-                                    text = if (isHomePersonalAgentMode) {
-                                        Translations.tr("home_ai_card1_title", lang)
-                                    } else {
-                                        Translations.tr("ai_agent_card1_title", lang)
-                                    },
-                                    fontWeight = FontWeight.ExtraBold,
-                                    fontSize = 13.5.sp,
-                                    color = aiAccent
-                                )
-                                Text(
-                                    text = if (isHomePersonalAgentMode) {
-                                        Translations.tr("home_ai_card1_body", lang)
-                                    } else {
-                                        Translations.tr("ai_agent_card1_body", lang)
-                                    },
-                                    fontSize = 12.5.sp,
-                                    color = primaryText,
-                                    lineHeight = 18.sp
-                                )
-                                if (card1Approved) {
-                                    Surface(
-                                        shape = pillShape,
-                                        color = aiAccentContainer,
-                                        border = BorderStroke(1.dp, aiAccent.copy(alpha = 0.55f)),
+            // محتوى القسم النشط (غير مزدحم ومفصول بدقة)
+            when (selectedAiSubTab) {
+                0 -> {
+                    // القسم الأول: ⚡ القرارات الذكية (بطاقات الموظف الذكي الاستباقية فقط مع أزرار موافق ✓ / لا ✕)
+                    LazyColumn(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                            .testTag("ai_smart_decisions_list"),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        if (!card1Ignored) {
+                            item {
+                                Card(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .testTag("ai_agent_proactive_card_1"),
+                                    shape = aiCardShape,
+                                    colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
+                                    border = BorderStroke(1.2.dp, glassBorderColor),
+                                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                                ) {
+                                    Column(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .testTag("ai_agent_card1_approved_badge")
+                                            .padding(16.dp),
+                                        verticalArrangement = Arrangement.spacedBy(10.dp)
                                     ) {
                                         Text(
                                             text = if (isHomePersonalAgentMode) {
-                                                Translations.tr("home_ai_card1_done", lang)
+                                                Translations.tr("home_ai_card1_title", lang)
                                             } else {
-                                                Translations.tr("ai_agent_card1_done", lang)
+                                                Translations.tr("ai_agent_card1_title", lang)
                                             },
-                                            fontSize = 11.5.sp,
                                             fontWeight = FontWeight.ExtraBold,
-                                            color = aiAccent,
-                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                                            fontSize = 14.sp,
+                                            color = aiAccent
                                         )
-                                    }
-                                } else {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        Button(
-                                            onClick = {
-                                                card1Approved = true
-                                                if (isHomePersonalAgentMode) {
-                                                    val targetFarmId = AgritechMockDb.farms.firstOrNull()?.id ?: "farm_1"
-                                                    val targetCycleId = AgritechMockDb.cycles.firstOrNull()?.id ?: "cycle_2026_01"
-                                                    AgritechMockDb.transactions.add(
-                                                        TransactionModel(
-                                                            id = "tx_home_bill_${System.currentTimeMillis()}",
-                                                            farmId = targetFarmId,
-                                                            cycleId = targetCycleId,
-                                                            date = "1",
-                                                            type = TransactionType.EXPENSE,
-                                                            category = "home_cat_electricity_gas",
-                                                            amount = 4500.0,
-                                                            status = "APPROVED"
-                                                        )
+                                        Text(
+                                            text = if (isHomePersonalAgentMode) {
+                                                Translations.tr("home_ai_card1_body", lang)
+                                            } else {
+                                                Translations.tr("ai_agent_card1_body", lang)
+                                            },
+                                            fontSize = 12.5.sp,
+                                            color = primaryText,
+                                            lineHeight = 19.sp
+                                        )
+                                        if (card1Approved) {
+                                            Surface(
+                                                shape = pillShape,
+                                                color = aiAccentContainer,
+                                                border = BorderStroke(1.dp, aiAccent.copy(alpha = 0.55f)),
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .testTag("ai_agent_card1_approved_badge")
+                                            ) {
+                                                Text(
+                                                    text = if (isHomePersonalAgentMode) {
+                                                        Translations.tr("home_ai_card1_done", lang)
+                                                    } else {
+                                                        Translations.tr("ai_agent_card1_done", lang)
+                                                    },
+                                                    fontSize = 12.sp,
+                                                    fontWeight = FontWeight.ExtraBold,
+                                                    color = aiAccent,
+                                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)
+                                                )
+                                            }
+                                        } else {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                            ) {
+                                                Button(
+                                                    onClick = {
+                                                        card1Approved = true
+                                                        if (isHomePersonalAgentMode) {
+                                                            AgritechMockDb.workerPersonalEntries.add(
+                                                                0,
+                                                                WorkerPersonalEntryModel(
+                                                                    id = "w_tx_ai_${System.currentTimeMillis()}",
+                                                                    farmId = "personal_worker_ledger",
+                                                                    title = Translations.tr("home_cat_electricity_gas", lang),
+                                                                    amount = 4500.0,
+                                                                    type = TransactionType.EXPENSE,
+                                                                    dateLabel = "2026-11-04",
+                                                                    isBillOrObligation = true
+                                                                )
+                                                            )
+                                                        }
+                                                    },
+                                                    shape = pillShape,
+                                                    colors = ButtonDefaults.buttonColors(containerColor = aiPrimaryBtn),
+                                                    modifier = Modifier
+                                                        .weight(1.3f)
+                                                        .height(44.dp)
+                                                        .testTag("btn_ai_agent_card1_approve")
+                                                ) {
+                                                    Text(
+                                                        text = if (isHomePersonalAgentMode) {
+                                                            Translations.tr("home_ai_card1_approve", lang)
+                                                        } else {
+                                                            Translations.tr("ai_agent_card1_approve", lang)
+                                                        },
+                                                        fontSize = 12.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = Color.White,
+                                                        maxLines = 1
                                                     )
                                                 }
-                                            },
-                                            shape = pillShape,
-                                            colors = ButtonDefaults.buttonColors(containerColor = aiPrimaryBtn),
-                                            modifier = Modifier
-                                                .weight(1.3f)
-                                                .height(40.dp)
-                                                .testTag("btn_ai_agent_card1_approve")
-                                        ) {
-                                            Text(
-                                                text = if (isHomePersonalAgentMode) {
-                                                    Translations.tr("home_ai_card1_approve", lang)
-                                                } else {
-                                                    Translations.tr("ai_agent_card1_approve", lang)
-                                                },
-                                                fontSize = 11.5.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = Color.White,
-                                                maxLines = 1
-                                            )
-                                        }
-                                        OutlinedButton(
-                                            onClick = { card1Ignored = true },
-                                            shape = pillShape,
-                                            border = BorderStroke(1.dp, secondaryText.copy(alpha = 0.4f)),
-                                            modifier = Modifier
-                                                .weight(0.75f)
-                                                .height(40.dp)
-                                                .testTag("btn_ai_agent_card1_ignore")
-                                        ) {
-                                            Text(
-                                                text = Translations.tr("ai_agent_card1_ignore", lang),
-                                                fontSize = 11.5.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = secondaryText,
-                                                maxLines = 1
-                                            )
+                                                OutlinedButton(
+                                                    onClick = { card1Ignored = true },
+                                                    shape = pillShape,
+                                                    border = BorderStroke(1.dp, secondaryText.copy(alpha = 0.4f)),
+                                                    modifier = Modifier
+                                                        .weight(0.75f)
+                                                        .height(44.dp)
+                                                        .testTag("btn_ai_agent_card1_ignore")
+                                                ) {
+                                                    Text(
+                                                        text = Translations.tr("ai_agent_card1_ignore", lang),
+                                                        fontSize = 12.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = secondaryText,
+                                                        maxLines = 1
+                                                    )
+                                                }
+                                            }
                                         }
                                     }
                                 }
                             }
                         }
-                    }
-                }
 
-                // Proactive AI Agent Card 2: Proactive Deadline / Water Line / Car Insurance Reminder
-                if (!card2Ignored) {
-                    item {
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("ai_agent_proactive_card_2"),
-                            shape = aiCardShape,
-                            colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
-                            border = BorderStroke(1.2.dp, glassBorderColor),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                        ) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(14.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Text(
-                                    text = if (isHomePersonalAgentMode) {
-                                        Translations.tr("home_ai_card2_title", lang)
-                                    } else {
-                                        Translations.tr("ai_agent_card2_title", lang)
-                                    },
-                                    fontWeight = FontWeight.ExtraBold,
-                                    fontSize = 13.5.sp,
-                                    color = aiAccent
-                                )
-                                Text(
-                                    text = if (isHomePersonalAgentMode) {
-                                        Translations.tr("home_ai_card2_body", lang)
-                                    } else {
-                                        Translations.tr("ai_agent_card2_body", lang)
-                                    },
-                                    fontSize = 12.5.sp,
-                                    color = primaryText,
-                                    lineHeight = 18.sp
-                                )
-                                if (card2Approved) {
-                                    Surface(
-                                        shape = pillShape,
-                                        color = aiAccentContainer,
-                                        border = BorderStroke(1.dp, aiAccent.copy(alpha = 0.55f)),
+                        if (!card2Ignored) {
+                            item {
+                                Card(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .testTag("ai_agent_proactive_card_2"),
+                                    shape = aiCardShape,
+                                    colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
+                                    border = BorderStroke(1.2.dp, glassBorderColor),
+                                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                                ) {
+                                    Column(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .testTag("ai_agent_card2_approved_badge")
+                                            .padding(16.dp),
+                                        verticalArrangement = Arrangement.spacedBy(10.dp)
                                     ) {
                                         Text(
                                             text = if (isHomePersonalAgentMode) {
-                                                Translations.tr("home_ai_card2_done", lang)
+                                                Translations.tr("home_ai_card2_title", lang)
                                             } else {
-                                                Translations.tr("ai_agent_card2_done", lang)
+                                                Translations.tr("ai_agent_card2_title", lang)
                                             },
-                                            fontSize = 11.5.sp,
                                             fontWeight = FontWeight.ExtraBold,
-                                            color = aiAccent,
-                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                                            fontSize = 14.sp,
+                                            color = aiAccent
                                         )
-                                    }
-                                } else {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        Button(
-                                            onClick = { card2Approved = true },
-                                            shape = pillShape,
-                                            colors = ButtonDefaults.buttonColors(containerColor = aiPrimaryBtn),
-                                            modifier = Modifier
-                                                .weight(1.3f)
-                                                .height(40.dp)
-                                                .testTag("btn_ai_agent_card2_approve")
-                                        ) {
-                                            Text(
-                                                text = if (isHomePersonalAgentMode) {
-                                                    Translations.tr("home_ai_card2_approve", lang)
-                                                } else {
-                                                    Translations.tr("ai_agent_card2_approve", lang)
-                                                },
-                                                fontSize = 11.5.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = Color.White,
-                                                maxLines = 1
-                                            )
-                                        }
-                                        OutlinedButton(
-                                            onClick = { card2Ignored = true },
-                                            shape = pillShape,
-                                            border = BorderStroke(1.dp, secondaryText.copy(alpha = 0.4f)),
-                                            modifier = Modifier
-                                                .weight(0.75f)
-                                                .height(40.dp)
-                                                .testTag("btn_ai_agent_card2_ignore")
-                                        ) {
-                                            Text(
-                                                text = Translations.tr("ai_agent_card2_ignore", lang),
-                                                fontSize = 11.5.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = secondaryText,
-                                                maxLines = 1
-                                            )
+                                        Text(
+                                            text = if (isHomePersonalAgentMode) {
+                                                Translations.tr("home_ai_card2_body", lang)
+                                            } else {
+                                                Translations.tr("ai_agent_card2_body", lang)
+                                            },
+                                            fontSize = 12.5.sp,
+                                            color = primaryText,
+                                            lineHeight = 19.sp
+                                        )
+                                        if (card2Approved) {
+                                            Surface(
+                                                shape = pillShape,
+                                                color = aiAccentContainer,
+                                                border = BorderStroke(1.dp, aiAccent.copy(alpha = 0.55f)),
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .testTag("ai_agent_card2_approved_badge")
+                                            ) {
+                                                Text(
+                                                    text = if (isHomePersonalAgentMode) {
+                                                        Translations.tr("home_ai_card2_done", lang)
+                                                    } else {
+                                                        Translations.tr("ai_agent_card2_done", lang)
+                                                    },
+                                                    fontSize = 12.sp,
+                                                    fontWeight = FontWeight.ExtraBold,
+                                                    color = aiAccent,
+                                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)
+                                                )
+                                            }
+                                        } else {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                            ) {
+                                                Button(
+                                                    onClick = { card2Approved = true },
+                                                    shape = pillShape,
+                                                    colors = ButtonDefaults.buttonColors(containerColor = aiPrimaryBtn),
+                                                    modifier = Modifier
+                                                        .weight(1.3f)
+                                                        .height(44.dp)
+                                                        .testTag("btn_ai_agent_card2_approve")
+                                                ) {
+                                                    Text(
+                                                        text = if (isHomePersonalAgentMode) {
+                                                            Translations.tr("home_ai_card2_approve", lang)
+                                                        } else {
+                                                            Translations.tr("ai_agent_card2_approve", lang)
+                                                        },
+                                                        fontSize = 12.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = Color.White,
+                                                        maxLines = 1
+                                                    )
+                                                }
+                                                OutlinedButton(
+                                                    onClick = { card2Ignored = true },
+                                                    shape = pillShape,
+                                                    border = BorderStroke(1.dp, secondaryText.copy(alpha = 0.4f)),
+                                                    modifier = Modifier
+                                                        .weight(0.75f)
+                                                        .height(44.dp)
+                                                        .testTag("btn_ai_agent_card2_ignore")
+                                                ) {
+                                                    Text(
+                                                        text = Translations.tr("ai_agent_card1_ignore", lang),
+                                                        fontSize = 12.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = secondaryText,
+                                                        maxLines = 1
+                                                    )
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -6876,79 +6921,210 @@ fun OwnerGlobalAiVetPlaceholderScreen(
                     }
                 }
 
-                // Structured AI Agent Action Cards for Diagnosis & Consultation History (Zero Raw Markdown **)
-                items(diagnosisHistory) { (headerTitle, bodyText) ->
-                    val sanitizedHeader = headerTitle.replace("**", "")
-                    val sanitizedBody = bodyText.replace("**", "")
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = aiCardShape,
-                        colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
-                        border = BorderStroke(1.dp, glassBorderColor)
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(14.dp),
-                            verticalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Text(
-                                text = sanitizedHeader,
-                                fontWeight = FontWeight.ExtraBold,
-                                fontSize = 13.sp,
-                                color = aiAccent
+                1 -> {
+                    // القسم الثاني: 📊 التشخيص والفحص (بطاقات فحص متخصصة ومفصلة كل بطاقة بشرحها دون خلط أزرار المنزل مع المزرعة)
+                    val diagnosticCards = remember(isHomePersonalAgentMode, lang) {
+                        if (isHomePersonalAgentMode) {
+                            listOf(
+                                Triple(
+                                    "ai_agent_goal_bubble_3",
+                                    Translations.tr("ai_agent_bubble_bills", lang),
+                                    Translations.tr("ai_diag_section_subtitle_home", lang)
+                                ),
+                                Triple(
+                                    "ai_agent_goal_bubble_0",
+                                    Translations.tr("ai_agent_bubble_profit", lang),
+                                    Translations.tr("home_ledger_subtitle", lang)
+                                )
                             )
-                            Text(
-                                text = sanitizedBody,
-                                fontSize = 13.sp,
-                                color = primaryText,
-                                lineHeight = 19.sp
+                        } else {
+                            listOf(
+                                Triple(
+                                    "ai_agent_goal_bubble_0",
+                                    Translations.tr("ai_agent_bubble_profit", lang),
+                                    Translations.tr("ai_diag_card_profit_desc", lang)
+                                ),
+                                Triple(
+                                    "ai_vet_quick_chip_0",
+                                    Translations.tr("ai_vet_chip_0", lang),
+                                    Translations.tr("ai_diag_card_climate_desc", lang)
+                                ),
+                                Triple(
+                                    "ai_vet_quick_chip_1",
+                                    Translations.tr("ai_vet_chip_1", lang),
+                                    Translations.tr("ai_diag_card_vaccine_desc", lang)
+                                ),
+                                Triple(
+                                    "ai_vet_quick_chip_2",
+                                    Translations.tr("ai_vet_chip_2", lang),
+                                    Translations.tr("ai_diag_card_fcr_desc", lang)
+                                ),
+                                Triple(
+                                    "ai_vet_quick_chip_3",
+                                    Translations.tr("ai_vet_chip_3", lang),
+                                    Translations.tr("ai_diag_card_resp_desc", lang)
+                                )
                             )
                         }
                     }
-                }
-            }
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                OutlinedTextField(
-                    value = promptInput,
-                    onValueChange = { promptInput = it },
-                    placeholder = {
-                        Text(
-                            Translations.tr("ai_vet_input_placeholder", lang),
-                            fontSize = 12.sp,
-                            color = secondaryText.copy(alpha = 0.6f)
+                    LazyColumn(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                            .testTag("ai_diagnostics_cards_list"),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        item {
+                            Text(
+                                text = if (isHomePersonalAgentMode) {
+                                    Translations.tr("ai_diag_section_subtitle_home", lang)
+                                } else {
+                                    Translations.tr("ai_diag_section_subtitle_farm", lang)
+                                },
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = secondaryText
+                            )
+                        }
+
+                        items(diagnosticCards.size) { cIdx ->
+                            val (cardTag, cardTitle, cardDesc) = diagnosticCards[cIdx]
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag(cardTag),
+                                shape = aiCardShape,
+                                colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
+                                border = BorderStroke(1.1.dp, glassBorderColor),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(14.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Text(
+                                        text = cardTitle,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontSize = 14.sp,
+                                        color = aiAccent
+                                    )
+                                    Text(
+                                        text = cardDesc,
+                                        fontSize = 12.sp,
+                                        color = primaryText,
+                                        lineHeight = 18.sp
+                                    )
+                                    Button(
+                                        onClick = {
+                                            triggerAiConsultation(cardTitle, switchToChat = true)
+                                        },
+                                        enabled = !isAnalyzing,
+                                        shape = pillShape,
+                                        colors = ButtonDefaults.buttonColors(containerColor = aiPrimaryBtn),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(42.dp)
+                                            .testTag("btn_run_$cardTag")
+                                    ) {
+                                        Text(
+                                            text = Translations.tr("ai_diag_run_check_btn", lang),
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.White
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                2 -> {
+                    // القسم الثالث: 💬 المحادثة المباشرة (شاشة محادثة كاملة ومفرغة ومريحة مع 🧠 IA)
+                    LazyColumn(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                            .testTag("ai_vet_messages_list"),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        items(diagnosisHistory) { (headerTitle, bodyText) ->
+                            val sanitizedHeader = headerTitle.replace("**", "")
+                            val sanitizedBody = bodyText.replace("**", "")
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = aiCardShape,
+                                colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
+                                border = BorderStroke(1.dp, glassBorderColor)
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(14.dp),
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Text(
+                                        text = sanitizedHeader,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontSize = 13.sp,
+                                        color = aiAccent
+                                    )
+                                    Text(
+                                        text = sanitizedBody,
+                                        fontSize = 13.sp,
+                                        color = primaryText,
+                                        lineHeight = 19.sp
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = promptInput,
+                            onValueChange = { promptInput = it },
+                            placeholder = {
+                                Text(
+                                    Translations.tr("ai_vet_input_placeholder", lang),
+                                    fontSize = 12.sp,
+                                    color = secondaryText.copy(alpha = 0.6f)
+                                )
+                            },
+                            shape = pillShape,
+                            singleLine = true,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = primaryText,
+                                unfocusedTextColor = primaryText,
+                                focusedBorderColor = aiAccent
+                            ),
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("input_global_ai_vet_prompt")
                         )
-                    },
-                    shape = pillShape,
-                    singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = primaryText,
-                        unfocusedTextColor = primaryText,
-                        focusedBorderColor = aiAccent
-                    ),
-                    modifier = Modifier
-                        .weight(1f)
-                        .testTag("input_global_ai_vet_prompt")
-                )
-                Button(
-                    onClick = {
-                        val q = promptInput
-                        promptInput = ""
-                        triggerAiConsultation(q)
-                    },
-                    enabled = !isAnalyzing && promptInput.isNotBlank(),
-                    shape = pillShape,
-                    colors = ButtonDefaults.buttonColors(containerColor = aiPrimaryBtn),
-                    modifier = Modifier
-                        .height(52.dp)
-                        .testTag("btn_send_global_ai_vet")
-                ) {
-                    Icon(Icons.Default.Send, contentDescription = "Send", tint = Color.White, modifier = Modifier.size(18.dp))
+                        Button(
+                            onClick = {
+                                val q = promptInput
+                                promptInput = ""
+                                triggerAiConsultation(q, switchToChat = false)
+                            },
+                            enabled = !isAnalyzing && promptInput.isNotBlank(),
+                            shape = pillShape,
+                            colors = ButtonDefaults.buttonColors(containerColor = aiPrimaryBtn),
+                            modifier = Modifier
+                                .height(52.dp)
+                                .testTag("btn_send_global_ai_vet")
+                        ) {
+                            Icon(Icons.Default.Send, contentDescription = "Send", tint = Color.White, modifier = Modifier.size(18.dp))
+                        }
+                    }
                 }
             }
         }
@@ -6961,6 +7137,7 @@ fun OwnerGlobalAiVetPlaceholderScreen(
  * startDate (DD-MM-YYYY), current cycle day, Ross 308 estimated weight, and livability %,
  * or displays a clean empty state ("لا توجد دورة نشطة") with a "Start New Cycle" action.
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun FarmCard(
     farm: FarmModel,
@@ -6970,8 +7147,12 @@ fun FarmCard(
     onOpenNotebook: () -> Unit,
     onStartNewCycle: (FarmModel) -> Unit
 ) {
+    val context = LocalContext.current
     val preferredFeedUnit = LocalFeedUnitPreference.current
     var showTeamQrInviteSheet by remember { mutableStateOf(false) }
+    var showDeleteBarnOverlay by remember(farm.id) { mutableStateOf(false) }
+    var showDeleteBarnConfirmDialog by remember(farm.id) { mutableStateOf(false) }
+    val deleteBarnScope = rememberCoroutineScope()
 
     if (showTeamQrInviteSheet) {
         TeamQrInviteBottomSheet(
@@ -7013,17 +7194,114 @@ fun FarmCard(
     val identityPanelBorder = if (isDark) Color(0xFF334155) else Color(0xFFE0F2F1)
     val qrButtonBg = appearance.accentContainerColor
     val cardCornerShape = RoundedCornerShape(appearance.cornerRadiusDp.dp)
-    val innerCornerShape = RoundedCornerShape((appearance.cornerRadiusDp - 4).coerceAtLeast(4).dp)
+    val innerCornerDp = (appearance.cornerRadiusDp - 4).coerceAtLeast(4).dp
+    val innerCornerShape = RoundedCornerShape(innerCornerDp)
+
+    if (showDeleteBarnConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteBarnConfirmDialog = false },
+            shape = cardCornerShape,
+            containerColor = currentTheme.cardColor,
+            modifier = Modifier.testTag("dialog_confirm_delete_farm_${farm.id}"),
+            title = {
+                Text(
+                    Translations.tr("delete_barn_dialog_title", lang),
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 15.5.sp,
+                    color = ActionRed
+                )
+            },
+            text = {
+                Text(
+                    "${Translations.getLocalizedFarmName(farm.id, lang, farm.name)}\n\n${Translations.tr("delete_barn_dialog_msg", lang)}",
+                    fontSize = 13.sp,
+                    color = primaryText,
+                    lineHeight = 19.sp
+                )
+            },
+            confirmButton = {
+                PremiumPillButton(
+                    text = Translations.tr("delete_barn_confirm_btn", lang),
+                    onClick = {
+                        showDeleteBarnConfirmDialog = false
+                        showDeleteBarnOverlay = false
+                        AgritechMockDb.deleteFarmCompletely(farm.id)
+                        LocalFarmPersistence.saveAll(context)
+                        if (firestoreRepo != null) {
+                            deleteBarnScope.launch {
+                                firestoreRepo.deleteFarmRecord(farm.id)
+                            }
+                        }
+                    },
+                    variant = PremiumPillVariant.DELETE_RESET,
+                    fontSize = 12.sp,
+                    modifier = Modifier
+                        .height(42.dp)
+                        .testTag("btn_confirm_delete_farm_${farm.id}")
+                )
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showDeleteBarnConfirmDialog = false
+                        showDeleteBarnOverlay = false
+                    },
+                    modifier = Modifier.testTag("btn_cancel_delete_farm_${farm.id}")
+                ) {
+                    Text(
+                        Translations.tr("btn_cancel", lang),
+                        color = secondaryText,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+        )
+    }
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
+            .clip(cardCornerShape)
+            .combinedClickable(
+                onClick = onOpenNotebook,
+                onLongClick = { showDeleteBarnOverlay = !showDeleteBarnOverlay }
+            )
             .testTag("farm_card_${farm.id}"),
         shape = cardCornerShape,
         colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        border = if (showDeleteBarnOverlay) BorderStroke(1.8.dp, ActionRed) else null,
+        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
     ) {
         Column(modifier = Modifier.padding(18.dp)) {
+            if (showDeleteBarnOverlay) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    PremiumPillButton(
+                        text = Translations.tr("delete_barn_long_press_badge", lang),
+                        onClick = { showDeleteBarnConfirmDialog = true },
+                        variant = PremiumPillVariant.DELETE_RESET,
+                        fontSize = 12.5.sp,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(44.dp)
+                            .testTag("btn_trigger_delete_farm_${farm.id}")
+                    )
+                    PremiumTactileCalcButton(
+                        label = "✕",
+                        onClick = { showDeleteBarnOverlay = false },
+                        isDark = isDark,
+                        accentColor = ActionRed,
+                        modifier = Modifier
+                            .width(44.dp)
+                            .testTag("btn_dismiss_delete_overlay_${farm.id}")
+                    )
+                }
+            }
             if (activeCycle != null) {
                 // Reactive calculations for liveBirds, cycle day, weight, and livability
                 val reportsForCycle = AgritechMockDb.dailyReports.filter {
@@ -7064,10 +7342,40 @@ fun FarmCard(
                     cycleTransactions = txsForCycle,
                     cycleId = activeCycle.id
                 )
+                val defaultCardWeightKg = actualCardWeightKg ?: PoultryCalculators.getRoss308StandardWeightKg(calculatedDay)
+                var cardInteractiveWeightKg by remember(activeCycle.id, actualCardWeightKg, calculatedDay) {
+                    mutableStateOf(defaultCardWeightKg)
+                }
+                val cumulativeSoldWeightKgForCard = PoultryCalculators.resolveCumulativeSoldWeightKg(activeCycle, txsForCycle)
+                var cardInteractiveFcr by remember(activeCycle.id, totalFeed, cardInteractiveWeightKg) {
+                    mutableStateOf(
+                        if (totalFeed > 0.0) {
+                            PoultryCalculators.calculateFcr(
+                                totalFeedKg = totalFeed,
+                                initialBirds = activeCycle.totalBirdsPlaced,
+                                totalMortality = totalMortality,
+                                birdsSold = totalSold,
+                                ageInDays = calculatedDay,
+                                actualAvgWeightKg = cardInteractiveWeightKg,
+                                cumulativeSoldWeightKg = cumulativeSoldWeightKgForCard
+                            )
+                        } else {
+                            1.68
+                        }
+                    )
+                }
+
                 val formattedStartDate = PoultryCalculators.formatDateDdMmYyyy(activeCycle.startDate)
                 val kgUnit = Translations.tr("kg_unit", lang)
+                val curr = Translations.tr("currency", lang)
 
                 var showCardFeedLedger by remember { mutableStateOf(false) }
+                var showFarmVitalityAndVaccinesSheet by remember { mutableStateOf(false) }
+                var showFarmWeightAndIncomeSummarySheet by remember { mutableStateOf(false) }
+                var showCardSalesCullSimulatorDialog by remember { mutableStateOf(false) }
+                var cardCullBirdsText by remember(activeCycle.id) { mutableStateOf("0") }
+                var cardExpectedPriceText by remember(activeCycle.id) { mutableStateOf("380") }
+
                 if (showCardFeedLedger) {
                     FeedOrdersLedgerBottomSheet(
                         farmName = Translations.getLocalizedFarmName(farm.id, lang, farm.name),
@@ -7078,7 +7386,696 @@ fun FarmCard(
                     )
                 }
 
-                // a) ID Header Row: Clean Barn Avatar on start, full Barn Name + Location subtitle (generous weight), and sleek Day Badge on opposite side
+                // نافذة (ثالثاً): 💉 سجل الحيوية واللقاحات والأدوية المستعملة عند الضغط على مربع الحيوية
+                if (showFarmVitalityAndVaccinesSheet) {
+                    val cycleVetNotes = AgritechMockDb.vetNotes.filter {
+                        it.farmId == farm.id && (it.cycleId == activeCycle.id || it.cycleId.isBlank())
+                    }.sortedByDescending { it.dayNumber }
+                    val waterMedReports = reportsForCycle.filter {
+                        it.medicineGiven || it.medicineSummary.isNotBlank()
+                    }.sortedByDescending { it.dayNumber }
+
+                    androidx.compose.ui.window.Dialog(onDismissRequest = { showFarmVitalityAndVaccinesSheet = false }) {
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("farm_vitality_vaccines_sheet_${farm.id}"),
+                            shape = RoundedCornerShape(24.dp),
+                            colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
+                            border = BorderStroke(1.2.dp, accentEmerald.copy(alpha = 0.4f)),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 10.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .verticalScroll(rememberScrollState())
+                                    .padding(18.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Text(
+                                    Translations.tr("farm_vitality_vaccines_sheet_title", lang),
+                                    fontWeight = FontWeight.ExtraBold,
+                                    fontSize = 15.5.sp,
+                                    color = primaryText
+                                )
+                                Text(
+                                    Translations.tr("farm_vitality_vaccines_sheet_subtitle", lang),
+                                    fontSize = 11.5.sp,
+                                    color = secondaryText
+                                )
+
+                                // شريط ملخص الحيوية: الطيور الحية | إجمالي النفوق | نسبة الحيوية
+                                NeumorphicRecessedDisplay(
+                                    isDark = isDark,
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 12.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        CalmFinancialItem(
+                                            label = Translations.tr("quick_stat_live_birds", lang),
+                                            value = String.format(java.util.Locale.US, "%,d", liveBirds),
+                                            color = accentEmerald,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        CalmFinancialItem(
+                                            label = Translations.tr("sum_mortality", lang),
+                                            value = String.format(java.util.Locale.US, "%,d", totalMortality),
+                                            color = ActionRed,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        CalmFinancialItem(
+                                            label = Translations.tr("livability_label", lang),
+                                            value = String.format(java.util.Locale.US, "%.1f%%", livabilityPct),
+                                            color = accentEmerald,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                    }
+                                }
+
+                                if (cycleVetNotes.isEmpty() && waterMedReports.isEmpty()) {
+                                    Surface(
+                                        shape = innerCornerShape,
+                                        color = identityPanelBg,
+                                        border = BorderStroke(1.dp, identityPanelBorder),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Text(
+                                            Translations.tr("farm_vitality_no_meds_yet", lang),
+                                            fontSize = 12.5.sp,
+                                            color = secondaryText,
+                                            textAlign = TextAlign.Center,
+                                            modifier = Modifier.padding(16.dp)
+                                        )
+                                    }
+                                } else {
+                                    cycleVetNotes.forEach { vNote ->
+                                        Surface(
+                                            shape = innerCornerShape,
+                                            color = identityPanelBg,
+                                            border = BorderStroke(1.dp, accentEmerald.copy(alpha = 0.3f)),
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Column(
+                                                modifier = Modifier.padding(12.dp),
+                                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Text(
+                                                        "💉 ${Translations.getLocalizedMedicine(vNote.id, vNote.medicineName, lang)}",
+                                                        fontWeight = FontWeight.ExtraBold,
+                                                        fontSize = 13.sp,
+                                                        color = primaryText,
+                                                        modifier = Modifier.weight(1f)
+                                                    )
+                                                    Surface(
+                                                        shape = RoundedCornerShape(50),
+                                                        color = pillBgEmerald
+                                                    ) {
+                                                        Text(
+                                                            "${Translations.tr("day_prefix", lang)} ${vNote.dayNumber}",
+                                                            fontSize = 11.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = accentEmerald,
+                                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                                        )
+                                                    }
+                                                }
+                                                Text(
+                                                    "${Translations.getLocalizedDosage(vNote.id, vNote.dosage, lang)} • ${Translations.getLocalizedVetNote(vNote.id, vNote.note, lang)}",
+                                                    fontSize = 11.5.sp,
+                                                    color = secondaryText
+                                                )
+                                                Text(
+                                                    Translations.tr("farm_med_status_vet_prescribed", lang),
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = accentEmerald
+                                                )
+                                            }
+                                        }
+                                    }
+
+                                    waterMedReports.forEach { rep ->
+                                        Surface(
+                                            shape = innerCornerShape,
+                                            color = identityPanelBg,
+                                            border = BorderStroke(1.dp, accentEmerald.copy(alpha = 0.22f)),
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(12.dp),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Column(modifier = Modifier.weight(1f)) {
+                                                    Text(
+                                                        "💊 ${rep.medicineSummary.ifBlank { Translations.tr("med_vitamin", lang) }}",
+                                                        fontWeight = FontWeight.Bold,
+                                                        fontSize = 12.5.sp,
+                                                        color = primaryText
+                                                    )
+                                                    Text(
+                                                        Translations.tr("farm_med_status_water_confirmed", lang),
+                                                        fontSize = 11.sp,
+                                                        fontWeight = FontWeight.SemiBold,
+                                                        color = accentEmerald
+                                                    )
+                                                }
+                                                Surface(
+                                                    shape = RoundedCornerShape(50),
+                                                    color = pillBgEmerald
+                                                ) {
+                                                    Text(
+                                                        "${Translations.tr("day_prefix", lang)} ${rep.dayNumber}",
+                                                        fontSize = 11.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = accentEmerald,
+                                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                PremiumPillButton(
+                                    text = Translations.tr("btn_close_check", lang),
+                                    onClick = { showFarmVitalityAndVaccinesSheet = false },
+                                    variant = PremiumPillVariant.PRIMARY,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(46.dp)
+                                        .testTag("btn_close_vitality_vaccines_sheet_${farm.id}")
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // نافذة (رابعاً): ⚖️ ملخص الوزن التقديري واستهلاك العلف ومعدل الدخل التقديري عند الضغط على مربع الوزن التقديري
+                if (showFarmWeightAndIncomeSummarySheet) {
+                    val approvedExpenses = txsForCycle.filter {
+                        it.type == TransactionType.EXPENSE && it.status.equals("APPROVED", true)
+                    }.sumOf { it.amount }
+                    val approvedIncome = txsForCycle.filter {
+                        it.type == TransactionType.INCOME && it.status.equals("APPROVED", true)
+                    }.sumOf { it.amount }
+                    val cardNetTreasury = approvedIncome - approvedExpenses
+                    val feedPerBirdKg = if (liveBirds > 0) totalFeed / liveBirds.toDouble() else 0.0
+                    val parsedCull = (cardCullBirdsText.toIntOrNull() ?: 0).coerceIn(0, liveBirds)
+                    val marketableBirdsCard = (liveBirds - parsedCull).coerceAtLeast(0)
+                    val simPriceCard = cardExpectedPriceText.toDoubleOrNull() ?: 380.0
+                    val expectedSaleWeightKg = marketableBirdsCard * cardInteractiveWeightKg
+                    val expectedSalesRevenue = expectedSaleWeightKg * simPriceCard
+                    val estimatedCycleNetProfit = expectedSalesRevenue - approvedExpenses
+
+                    fun persistCardAdjustedWeight(newWeightKg: Double) {
+                        val clamped = (kotlin.math.round(newWeightKg * 100.0) / 100.0).coerceIn(0.10, 6.50)
+                        cardInteractiveWeightKg = clamped
+                        if (totalFeed > 0.0) {
+                            cardInteractiveFcr = PoultryCalculators.calculateFcr(
+                                totalFeedKg = totalFeed,
+                                initialBirds = activeCycle.totalBirdsPlaced,
+                                totalMortality = totalMortality,
+                                birdsSold = totalSold,
+                                ageInDays = calculatedDay,
+                                actualAvgWeightKg = clamped,
+                                cumulativeSoldWeightKg = cumulativeSoldWeightKgForCard
+                            )
+                        }
+                        val latestRep = reportsForCycle.maxByOrNull { it.dayNumber }
+                        if (latestRep != null) {
+                            AgritechMockDb.upsertDailyReportWithAudit(
+                                latestRep.copy(actualAvgWeightKg = clamped, isEdited = true)
+                            )
+                        }
+                    }
+
+                    fun persistCardAdjustedFcr(newFcr: Double) {
+                        val clampedFcr = (kotlin.math.round(newFcr * 100.0) / 100.0).coerceIn(1.00, 3.80)
+                        val oldFcr = cardInteractiveFcr.coerceAtLeast(0.1)
+                        cardInteractiveFcr = clampedFcr
+                        val impliedWeight = if (totalFeed > 0.0 && liveBirds > 0) {
+                            val reqBiomass = totalFeed / clampedFcr
+                            val liveBio = (reqBiomass - cumulativeSoldWeightKgForCard).coerceAtLeast(liveBirds * 0.1)
+                            (liveBio / liveBirds).coerceIn(0.10, 6.50)
+                        } else {
+                            (cardInteractiveWeightKg * (oldFcr / clampedFcr)).coerceIn(0.10, 6.50)
+                        }
+                        persistCardAdjustedWeight(impliedWeight)
+                    }
+
+                    androidx.compose.ui.window.Dialog(onDismissRequest = { showFarmWeightAndIncomeSummarySheet = false }) {
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("farm_weight_income_sheet_${farm.id}"),
+                            shape = RoundedCornerShape(24.dp),
+                            colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
+                            border = BorderStroke(1.2.dp, accentEmerald.copy(alpha = 0.4f)),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 10.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .verticalScroll(rememberScrollState())
+                                    .padding(18.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Text(
+                                    Translations.tr("farm_weight_income_sheet_title", lang),
+                                    fontWeight = FontWeight.ExtraBold,
+                                    fontSize = 15.5.sp,
+                                    color = primaryText
+                                )
+                                Text(
+                                    Translations.tr("farm_weight_income_sheet_subtitle", lang),
+                                    fontSize = 11.5.sp,
+                                    color = secondaryText
+                                )
+
+                                // 1. كم أكل القطيع (إجمالي العلف المستهلك بالقنطار والكيلوغرام + استهلاك الدجاجة الواحدة)
+                                Text(
+                                    Translations.tr("farm_feed_consumed_section_title", lang),
+                                    fontWeight = FontWeight.ExtraBold,
+                                    fontSize = 13.sp,
+                                    color = accentEmerald
+                                )
+                                NeumorphicRecessedDisplay(
+                                    isDark = isDark,
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        CalmFinancialItem(
+                                            label = Translations.tr("farm_total_feed_consumed_label", lang),
+                                            value = Translations.formatBulkFeedPurchaseQuantity(totalFeed, lang, preferredFeedUnit),
+                                            color = accentEmerald,
+                                            modifier = Modifier.weight(1.2f)
+                                        )
+                                        CalmFinancialItem(
+                                            label = Translations.tr("farm_feed_per_bird_label", lang),
+                                            value = "${String.format(java.util.Locale.US, "%.2f", feedPerBirdKg)} $kgUnit",
+                                            color = primaryText,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                    }
+                                }
+
+                                // 2. الوزن التقديري ومعامل التحويل مع أزرار [-] و[+] ثلاثية الأبعاد
+                                NeumorphicRecessedDisplay(
+                                    isDark = isDark,
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp)
+                                ) {
+                                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                "🐥 ${Translations.tr("est_weight", lang)}",
+                                                color = secondaryText,
+                                                fontSize = 12.5.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                            ) {
+                                                PremiumTactileCalcButton(
+                                                    label = "-",
+                                                    onClick = { persistCardAdjustedWeight(cardInteractiveWeightKg - 0.1) },
+                                                    isDark = isDark,
+                                                    accentColor = accentEmerald,
+                                                    fontSize = 16.sp,
+                                                    modifier = Modifier
+                                                        .width(42.dp)
+                                                        .testTag("btn_card_weight_minus_${farm.id}")
+                                                )
+                                                Text(
+                                                    "≈ ${String.format(java.util.Locale.US, "%.1f", cardInteractiveWeightKg)} $kgUnit",
+                                                    fontWeight = FontWeight.ExtraBold,
+                                                    fontSize = 14.5.sp,
+                                                    color = accentEmerald,
+                                                    modifier = Modifier.testTag("txt_card_weight_val_${farm.id}")
+                                                )
+                                                PremiumTactileCalcButton(
+                                                    label = "+",
+                                                    onClick = { persistCardAdjustedWeight(cardInteractiveWeightKg + 0.1) },
+                                                    isDark = isDark,
+                                                    accentColor = accentEmerald,
+                                                    fontSize = 16.sp,
+                                                    modifier = Modifier
+                                                        .width(42.dp)
+                                                        .testTag("btn_card_weight_plus_${farm.id}")
+                                                )
+                                            }
+                                        }
+
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                Translations.tr("fcr", lang),
+                                                color = secondaryText,
+                                                fontSize = 12.5.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                            ) {
+                                                PremiumTactileCalcButton(
+                                                    label = "-",
+                                                    onClick = { persistCardAdjustedFcr(cardInteractiveFcr - 0.02) },
+                                                    isDark = isDark,
+                                                    accentColor = accentEmerald,
+                                                    fontSize = 16.sp,
+                                                    modifier = Modifier
+                                                        .width(42.dp)
+                                                        .testTag("btn_card_fcr_minus_${farm.id}")
+                                                )
+                                                Text(
+                                                    "≈ ${String.format(java.util.Locale.US, "%.2f", cardInteractiveFcr)}",
+                                                    fontWeight = FontWeight.ExtraBold,
+                                                    fontSize = 14.5.sp,
+                                                    color = accentEmerald,
+                                                    modifier = Modifier.testTag("txt_card_fcr_val_${farm.id}")
+                                                )
+                                                PremiumTactileCalcButton(
+                                                    label = "+",
+                                                    onClick = { persistCardAdjustedFcr(cardInteractiveFcr + 0.02) },
+                                                    isDark = isDark,
+                                                    accentColor = accentEmerald,
+                                                    fontSize = 16.sp,
+                                                    modifier = Modifier
+                                                        .width(42.dp)
+                                                        .testTag("btn_card_fcr_plus_${farm.id}")
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // 3. معدل دخل العنبر وصافي الربح التقديري (3 أسطر أفقية مستقلة بدون أي تداخل للأرقام)
+                                Text(
+                                    Translations.tr("farm_income_summary_section_title", lang),
+                                    fontWeight = FontWeight.ExtraBold,
+                                    fontSize = 13.sp,
+                                    color = accentEmerald
+                                )
+                                NeumorphicRecessedDisplay(
+                                    isDark = isDark,
+                                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp)
+                                ) {
+                                    Column(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                Translations.tr("quick_stat_net_treasury", lang),
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = secondaryText,
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                            Text(
+                                                "${String.format(java.util.Locale.US, "%+,.0f", cardNetTreasury)} $curr",
+                                                fontSize = 13.5.sp,
+                                                fontWeight = FontWeight.ExtraBold,
+                                                color = if (cardNetTreasury >= 0) accentEmerald else ActionRed,
+                                                maxLines = 1,
+                                                softWrap = false,
+                                                modifier = Modifier.testTag("txt_card_net_treasury_${farm.id}")
+                                            )
+                                        }
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                Translations.tr("sim_total_expected_revenue_label", lang),
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = secondaryText,
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                            Text(
+                                                "${String.format(java.util.Locale.US, "%,.0f", expectedSalesRevenue)} $curr",
+                                                fontSize = 13.5.sp,
+                                                fontWeight = FontWeight.ExtraBold,
+                                                color = accentEmerald,
+                                                maxLines = 1,
+                                                softWrap = false,
+                                                modifier = Modifier.testTag("txt_card_expected_revenue_${farm.id}")
+                                            )
+                                        }
+                                        HorizontalDivider(color = identityPanelBorder)
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                Translations.tr("sim_estimated_net_profit_label", lang),
+                                                fontSize = 12.5.sp,
+                                                fontWeight = FontWeight.ExtraBold,
+                                                color = primaryText,
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                            Text(
+                                                "${String.format(java.util.Locale.US, "%+,.0f", estimatedCycleNetProfit)} $curr",
+                                                fontSize = 14.5.sp,
+                                                fontWeight = FontWeight.ExtraBold,
+                                                color = if (estimatedCycleNetProfit >= 0) accentEmerald else ActionRed,
+                                                maxLines = 1,
+                                                softWrap = false,
+                                                modifier = Modifier.testTag("txt_card_estimated_profit_${farm.id}")
+                                            )
+                                        }
+                                    }
+                                }
+
+                                OutlinedButton(
+                                    onClick = {
+                                        showFarmWeightAndIncomeSummarySheet = false
+                                        showCardSalesCullSimulatorDialog = true
+                                    },
+                                    shape = RoundedCornerShape(50),
+                                    border = BorderStroke(1.3.dp, accentEmerald),
+                                    colors = ButtonDefaults.outlinedButtonColors(
+                                        containerColor = pillBgEmerald,
+                                        contentColor = accentEmerald
+                                    ),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(46.dp)
+                                        .tactile3DStyle(baseColor = accentEmerald, cornerRadius = 50.dp, elevation = 5.dp)
+                                        .testTag("btn_open_card_profit_simulator_${farm.id}")
+                                ) {
+                                    Text(
+                                        Translations.tr("btn_open_sales_cull_simulator", lang),
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontSize = 12.5.sp,
+                                        color = accentEmerald
+                                    )
+                                }
+
+                                PremiumPillButton(
+                                    text = Translations.tr("btn_close_check", lang),
+                                    onClick = { showFarmWeightAndIncomeSummarySheet = false },
+                                    variant = PremiumPillVariant.PRIMARY,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(46.dp)
+                                        .testTag("btn_close_weight_income_sheet_${farm.id}")
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // جدول محاكاة المبيعات والفرزة المفتوح مباشرة من بطاقة العنبر
+                if (showCardSalesCullSimulatorDialog) {
+                    val approvedExpenses = txsForCycle.filter {
+                        it.type == TransactionType.EXPENSE && it.status.equals("APPROVED", true)
+                    }.sumOf { it.amount }
+                    val parsedCullBirds = (cardCullBirdsText.toIntOrNull() ?: 0).coerceIn(0, liveBirds)
+                    val marketableBirds = (liveBirds - parsedCullBirds).coerceAtLeast(0)
+                    val simPricePerKg = cardExpectedPriceText.toDoubleOrNull() ?: 380.0
+                    val expectedTotalSaleWeightKg = marketableBirds * cardInteractiveWeightKg
+                    val expectedTotalSalesRevenue = expectedTotalSaleWeightKg * simPricePerKg
+                    val estimatedNetProfit = expectedTotalSalesRevenue - approvedExpenses
+
+                    androidx.compose.ui.window.Dialog(onDismissRequest = { showCardSalesCullSimulatorDialog = false }) {
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("card_direct_sales_profit_simulator_${farm.id}"),
+                            shape = RoundedCornerShape(24.dp),
+                            colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
+                            border = BorderStroke(1.2.dp, accentEmerald.copy(alpha = 0.35f)),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 10.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .verticalScroll(rememberScrollState())
+                                    .padding(18.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Text(
+                                    Translations.tr("sales_profit_simulator_title", lang),
+                                    fontWeight = FontWeight.ExtraBold,
+                                    fontSize = 15.5.sp,
+                                    color = primaryText
+                                )
+                                Text(
+                                    Translations.tr("sales_profit_simulator_subtitle", lang),
+                                    fontSize = 11.5.sp,
+                                    color = secondaryText
+                                )
+                                NeumorphicRecessedDisplay(
+                                    isDark = isDark,
+                                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            "🐔 ${Translations.tr("marketable_birds_label", lang)}:",
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = primaryText
+                                        )
+                                        Text(
+                                            "${String.format(java.util.Locale.US, "%,d", marketableBirds)} ${Translations.tr("bird_unit", lang)}",
+                                            fontSize = 15.sp,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = accentEmerald
+                                        )
+                                    }
+                                }
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    NeumorphicRecessedField(
+                                        value = cardCullBirdsText,
+                                        onValueChange = { raw -> cardCullBirdsText = raw.filter { it.isDigit() } },
+                                        label = Translations.tr("cull_unfit_birds_label", lang),
+                                        isDark = isDark,
+                                        accentColor = accentEmerald,
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    PremiumTactileCalcButton(
+                                        label = "-10",
+                                        onClick = { cardCullBirdsText = (parsedCullBirds - 10).coerceAtLeast(0).toString() },
+                                        isDark = isDark,
+                                        accentColor = accentEmerald,
+                                        fontSize = 11.5.sp,
+                                        modifier = Modifier.width(48.dp)
+                                    )
+                                    PremiumTactileCalcButton(
+                                        label = "+10",
+                                        onClick = { cardCullBirdsText = (parsedCullBirds + 10).coerceAtMost(liveBirds).toString() },
+                                        isDark = isDark,
+                                        accentColor = accentEmerald,
+                                        fontSize = 11.5.sp,
+                                        modifier = Modifier.width(48.dp)
+                                    )
+                                }
+                                NeumorphicRecessedField(
+                                    value = cardExpectedPriceText,
+                                    onValueChange = { raw -> cardExpectedPriceText = raw.filter { it.isDigit() || it == '.' } },
+                                    label = Translations.tr("sim_expected_price_kg_label", lang),
+                                    isDark = isDark,
+                                    accentColor = accentEmerald,
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                NeumorphicRecessedDisplay(
+                                    isDark = isDark,
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp)
+                                ) {
+                                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Text(Translations.tr("sim_total_expected_weight_label", lang), fontSize = 12.sp, color = secondaryText)
+                                            Text("${String.format(java.util.Locale.US, "%,.1f", expectedTotalSaleWeightKg)} $kgUnit", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = primaryText)
+                                        }
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Text(Translations.tr("sim_total_expected_revenue_label", lang), fontSize = 12.sp, color = secondaryText)
+                                            Text("${String.format(java.util.Locale.US, "%,.0f", expectedTotalSalesRevenue)} $curr", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = accentEmerald)
+                                        }
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Text(Translations.tr("sim_actual_cycle_expenses_label", lang), fontSize = 12.sp, color = secondaryText)
+                                            Text("${String.format(java.util.Locale.US, "%,.0f", approvedExpenses)} $curr", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = ActionRed)
+                                        }
+                                        HorizontalDivider(color = identityPanelBorder)
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Text(Translations.tr("sim_estimated_net_profit_label", lang), fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = primaryText)
+                                            Text(
+                                                "${String.format(java.util.Locale.US, "%+,.0f", estimatedNetProfit)} $curr",
+                                                fontSize = 14.5.sp,
+                                                fontWeight = FontWeight.ExtraBold,
+                                                color = if (estimatedNetProfit >= 0) accentEmerald else ActionRed
+                                            )
+                                        }
+                                    }
+                                }
+                                PremiumPillButton(
+                                    text = Translations.tr("btn_close_check", lang),
+                                    onClick = { showCardSalesCullSimulatorDialog = false },
+                                    variant = PremiumPillVariant.PRIMARY,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(46.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // a) ID Header Row: 3D Barn Avatar (🏡) on start, full Barn Name + Location subtitle, and 3D Day Badge on opposite side
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -7091,13 +8088,15 @@ fun FarmCard(
                             .padding(end = 10.dp)
                     ) {
                         Surface(
-                            shape = CircleShape,
+                            shape = RoundedCornerShape(14.dp),
                             color = pillBgEmerald,
                             border = BorderStroke(1.dp, pillBorderEmerald),
-                            modifier = Modifier.size(44.dp)
+                            modifier = Modifier
+                                .size(46.dp)
+                                .tactile3DStyle(baseColor = accentEmerald, cornerRadius = 14.dp, elevation = 6.dp)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
-                                Text("🏡", fontSize = 20.sp)
+                                Text("🏡", fontSize = 21.sp)
                             }
                         }
                         Spacer(modifier = Modifier.width(12.dp))
@@ -7121,11 +8120,12 @@ fun FarmCard(
                         }
                     }
 
-                    // Sleek Day Badge on opposite side
+                    // 3D Embossed Day Capsule Badge on opposite side
                     Surface(
                         shape = innerCornerShape,
                         color = pillBgEmerald,
-                        border = BorderStroke(1.dp, pillBorderEmerald)
+                        border = BorderStroke(1.dp, pillBorderEmerald),
+                        modifier = Modifier.tactile3DStyle(baseColor = accentEmerald, cornerRadius = innerCornerDp, elevation = 5.dp)
                     ) {
                         Row(
                             modifier = Modifier.padding(horizontal = 11.dp, vertical = 7.dp),
@@ -7146,7 +8146,7 @@ fun FarmCard(
 
                 Spacer(modifier = Modifier.height(14.dp))
 
-                // b) ID Body: Structured bordered container with Active Live Birds + full-width Start Date + 3 equal-width mini stat boxes (NO horizontal scrolling)
+                // b) ID Body: Structured bordered container with Active Live Birds + full-width Start Date + 3 equal-width 3D mini stat boxes
                 val isFeedLow = effectiveFeedInventoryKg < 500.0
                 val feedInventoryColor = if (isFeedLow) {
                     if (isDark) Color(0xFFFCA5A5) else Color(0xFFD32F2F)
@@ -7224,15 +8224,19 @@ fun FarmCard(
                             thickness = 1.dp
                         )
 
-                        // 3 equal-width (Modifier.weight(1f)) mini stat boxes inside the card (NO horizontal scrolling row)
+                        // 3 equal-width (Modifier.weight(1f)) 3D clickable mini stat boxes inside the card
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            // 1) Estimated Weight
+                            // 1) Estimated Weight (قابل للضغط ويعرض ≈ 2.8 كغ مباشرة)
                             Surface(
-                                modifier = Modifier.weight(1f),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .tactile3DStyle(baseColor = accentEmerald, cornerRadius = innerCornerDp, elevation = 5.dp)
+                                    .testTag("badge_estimated_weight_${farm.id}")
+                                    .clickable { showFarmWeightAndIncomeSummarySheet = true },
                                 shape = innerCornerShape,
                                 color = miniBoxBg,
                                 border = BorderStroke(1.dp, miniBoxBorder)
@@ -7253,23 +8257,23 @@ fun FarmCard(
                                     )
                                     Spacer(modifier = Modifier.height(3.dp))
                                     Text(
-                                        if (actualCardWeightKg != null) {
-                                            "${String.format(java.util.Locale.US, "%.3f", actualCardWeightKg)} $kgUnit"
-                                        } else {
-                                            Translations.tr("weight_not_measured_yet", lang)
-                                        },
-                                        fontSize = 11.5.sp,
+                                        "≈ ${String.format(java.util.Locale.US, "%.1f", cardInteractiveWeightKg)} $kgUnit",
+                                        fontSize = 12.sp,
                                         fontWeight = FontWeight.ExtraBold,
-                                        color = if (actualCardWeightKg != null) primaryText else secondaryText,
+                                        color = accentEmerald,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
                                 }
                             }
 
-                            // 2) Livability
+                            // 2) Livability (قابل للضغط لعرض سجل اللقاحات والأدوية)
                             Surface(
-                                modifier = Modifier.weight(1f),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .tactile3DStyle(baseColor = accentEmerald, cornerRadius = innerCornerDp, elevation = 5.dp)
+                                    .testTag("badge_livability_${farm.id}")
+                                    .clickable { showFarmVitalityAndVaccinesSheet = true },
                                 shape = innerCornerShape,
                                 color = miniBoxBg,
                                 border = BorderStroke(1.dp, miniBoxBorder)
@@ -7300,12 +8304,12 @@ fun FarmCard(
                                 }
                             }
 
-                            // 3) Feed Stock (Quintals)
+                            // 3) Feed Stock (Quintals - 3D Capsule)
                             Surface(
                                 modifier = Modifier
                                     .weight(1f)
+                                    .tactile3DStyle(baseColor = feedInventoryColor, cornerRadius = innerCornerDp, elevation = 5.dp)
                                     .testTag("badge_feed_inventory_${farm.id}")
-                                    .clip(innerCornerShape)
                                     .clickable { showCardFeedLedger = true },
                                 shape = innerCornerShape,
                                 color = feedBoxBg,
@@ -7342,72 +8346,12 @@ fun FarmCard(
 
                 Spacer(modifier = Modifier.height(14.dp))
 
-                var showCardResetCycleDialog by remember { mutableStateOf(false) }
-                val cardResetScope = rememberCoroutineScope()
-                if (showCardResetCycleDialog) {
-                    AlertDialog(
-                        onDismissRequest = { showCardResetCycleDialog = false },
-                        shape = cardCornerShape,
-                        containerColor = currentTheme.cardColor,
-                        title = {
-                            Text(
-                                Translations.tr("reset_cycle_dialog_title", lang),
-                                fontWeight = FontWeight.ExtraBold,
-                                fontSize = 15.5.sp,
-                                color = ActionRed
-                            )
-                        },
-                        text = {
-                            Text(
-                                Translations.tr("reset_cycle_dialog_msg", lang),
-                                fontSize = 13.sp,
-                                color = primaryText,
-                                lineHeight = 19.sp
-                            )
-                        },
-                        confirmButton = {
-                            Button(
-                                onClick = {
-                                    AgritechMockDb.resetCycleAndClearBarn(farm.id, activeCycle.id)
-                                    if (firestoreRepo != null) {
-                                        cardResetScope.launch {
-                                            firestoreRepo.resetCycleAndClearBarn(farm.id, activeCycle.id)
-                                        }
-                                    }
-                                    showCardResetCycleDialog = false
-                                },
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFC62828)),
-                                shape = innerCornerShape,
-                                modifier = Modifier.testTag("btn_confirm_reset_cycle_${farm.id}")
-                            ) {
-                                Text(
-                                    Translations.tr("reset_cycle_confirm_btn", lang),
-                                    color = Color.White,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 12.sp
-                                )
-                            }
-                        },
-                        dismissButton = {
-                            TextButton(
-                                onClick = { showCardResetCycleDialog = false },
-                                modifier = Modifier.testTag("btn_cancel_reset_cycle_${farm.id}")
-                            ) {
-                                Text(
-                                    Translations.tr("btn_cancel", lang),
-                                    color = secondaryText,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            }
-                        }
-                    )
-                }
-
-                // c) ID Footer Section: Full-width primary 3D capsule button "📖 فتح الدفتر" on row 1,
-                // and balanced secondary buttons "👥+ فريق" & "🔄 إعادة الدورة" on row 2 so no text clips in any language
-                Column(
+                // c) ID Footer Section: Clean 2-Button 3D Layout ("📖 فتح الدفتر" + "👥+ فريق")
+                // ("🔄 إعادة الدورة" moved to Settings ⚙️ and inner barn notebook header)
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     PremiumPillButton(
                         text = Translations.tr("open_notebook", lang),
@@ -7424,49 +8368,33 @@ fun FarmCard(
                             )
                         },
                         modifier = Modifier
-                            .fillMaxWidth()
+                            .weight(1.45f)
                             .height(48.dp)
                             .testTag("btn_open_notebook_${farm.id}")
                     )
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                    OutlinedButton(
+                        onClick = { showTeamQrInviteSheet = true },
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(48.dp)
+                            .tactile3DStyle(baseColor = accentEmerald, cornerRadius = 50.dp, elevation = 5.dp)
+                            .testTag("btn_add_team_${farm.id}"),
+                        shape = RoundedCornerShape(50),
+                        border = BorderStroke(1.2.dp, accentEmerald.copy(alpha = 0.55f)),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = qrButtonBg,
+                            contentColor = accentEmerald
+                        ),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
                     ) {
-                        OutlinedButton(
-                            onClick = { showTeamQrInviteSheet = true },
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(44.dp)
-                                .testTag("btn_add_team_${farm.id}"),
-                            shape = RoundedCornerShape(50),
-                            border = BorderStroke(1.2.dp, accentEmerald.copy(alpha = 0.55f)),
-                            colors = ButtonDefaults.outlinedButtonColors(
-                                containerColor = qrButtonBg,
-                                contentColor = accentEmerald
-                            ),
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
-                        ) {
-                            Text(
-                                Translations.tr("btn_invite_team_short", lang),
-                                fontWeight = FontWeight.ExtraBold,
-                                fontSize = 11.5.sp,
-                                color = accentEmerald,
-                                maxLines = 1,
-                                softWrap = false
-                            )
-                        }
-
-                        AnimatedDeleteOrResetButton(
-                            text = Translations.tr("btn_reset_cycle", lang),
-                            onClick = { showCardResetCycleDialog = true },
-                            fontSize = 11.5.sp,
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(44.dp)
-                                .testTag("btn_reset_cycle_${farm.id}")
+                        Text(
+                            Translations.tr("btn_invite_team_short", lang),
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 12.sp,
+                            color = accentEmerald,
+                            maxLines = 1,
+                            softWrap = false
                         )
                     }
                 }
@@ -7484,13 +8412,15 @@ fun FarmCard(
                             .padding(end = 10.dp)
                     ) {
                         Surface(
-                            shape = CircleShape,
+                            shape = RoundedCornerShape(14.dp),
                             color = pillBgEmerald,
                             border = BorderStroke(1.dp, pillBorderEmerald),
-                            modifier = Modifier.size(44.dp)
+                            modifier = Modifier
+                                .size(46.dp)
+                                .tactile3DStyle(baseColor = accentEmerald, cornerRadius = 14.dp, elevation = 6.dp)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
-                                Text("🏡", fontSize = 20.sp)
+                                Text("🏡", fontSize = 21.sp)
                             }
                         }
                         Spacer(modifier = Modifier.width(12.dp))
@@ -7517,7 +8447,8 @@ fun FarmCard(
                     Surface(
                         shape = innerCornerShape,
                         color = pillBgEmerald,
-                        border = BorderStroke(1.dp, pillBorderEmerald)
+                        border = BorderStroke(1.dp, pillBorderEmerald),
+                        modifier = Modifier.tactile3DStyle(baseColor = accentEmerald, cornerRadius = innerCornerDp, elevation = 5.dp)
                     ) {
                         Text(
                             "${String.format(java.util.Locale.US, "%,d", farm.capacity)} ${Translations.tr("birds_unit", lang)}",
@@ -7567,32 +8498,26 @@ fun FarmCard(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Button(
+                    PremiumPillButton(
+                        text = Translations.tr("btn_start_new_cycle", lang),
                         onClick = { onStartNewCycle(farm) },
+                        variant = PremiumPillVariant.PRIMARY,
+                        leadingIcon = {
+                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp), tint = Color.White)
+                        },
                         modifier = Modifier
                             .weight(1f)
                             .height(48.dp)
-                            .testTag("btn_start_cycle_${farm.id}"),
-                        shape = innerCornerShape,
-                        colors = ButtonDefaults.buttonColors(containerColor = appearance.accentOption.primaryColor)
-                    ) {
-                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp), tint = Color.White)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            Translations.tr("btn_start_new_cycle", lang),
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
+                            .testTag("btn_start_cycle_${farm.id}")
+                    )
 
                     OutlinedButton(
                         onClick = { showTeamQrInviteSheet = true },
                         modifier = Modifier
                             .height(48.dp)
+                            .tactile3DStyle(baseColor = accentEmerald, cornerRadius = 50.dp, elevation = 5.dp)
                             .testTag("btn_add_team_${farm.id}"),
-                        shape = innerCornerShape,
+                        shape = RoundedCornerShape(50),
                         border = BorderStroke(1.2.dp, accentEmerald.copy(alpha = 0.55f)),
                         colors = ButtonDefaults.outlinedButtonColors(
                             containerColor = qrButtonBg,
@@ -10053,7 +10978,8 @@ fun AgritechFarmNotebookScreen(
 
                             Spacer(modifier = Modifier.height(4.dp))
 
-                            // Row 2: Generous Climate Status Pill (`🌡️`) + Feed Stock Pill (`🌾`)
+                            // Row 2: Generous 3D Climate Status Pill (`🌡️`) + 3D Feed Stock Pill (`🌾`)
+                            val headerPillCornerDp = (appearance.cornerRadiusDp - 6).coerceAtLeast(6).dp
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -10061,12 +10987,12 @@ fun AgritechFarmNotebookScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                // 1. Sleek Top Header Climate Status Pill/Icon Button (`🌡️ 29.0°C • المناخ`)
+                                // 1. Sleek Top Header 3D Climate Status Pill/Icon Button (`🌡️ 29.0°C • المناخ`)
                                 Surface(
                                     modifier = Modifier
                                         .weight(1f)
+                                        .tactile3DStyle(baseColor = climatePillColor, cornerRadius = headerPillCornerDp, elevation = 5.dp)
                                         .testTag("header_climate_status_btn")
-                                        .clip(headerPillShape)
                                         .clickable { showBarnClimateAndStatsDialog = true },
                                     shape = headerPillShape,
                                     color = climatePillBg,
@@ -10090,12 +11016,12 @@ fun AgritechFarmNotebookScreen(
                                     }
                                 }
 
-                                // 2. Dual Smart Feed Unit Header Inventory Badge: e.g., `مخزون: 40 ق 🌾`
+                                // 2. Dual Smart Feed Unit Header 3D Inventory Badge: e.g., `مخزون: 40 ق 🌾`
                                 Surface(
                                     modifier = Modifier
                                         .weight(1f)
+                                        .tactile3DStyle(baseColor = feedStatusColor, cornerRadius = headerPillCornerDp, elevation = 5.dp)
                                         .testTag("header_feed_inventory_indicator")
-                                        .clip(headerPillShape)
                                         .clickable { showFeedLedgerBottomSheet = true },
                                     shape = headerPillShape,
                                     color = if (isLowFeedInventory) {
@@ -10145,8 +11071,10 @@ fun AgritechFarmNotebookScreen(
                         containerColor = appearance.accentOption.primaryColor,
                         contentColor = Color.White,
                         shape = fabCorner,
-                        elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 4.dp),
-                        modifier = Modifier.testTag("fab_worker_chat")
+                        elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 6.dp),
+                        modifier = Modifier
+                            .tactile3DStyle(baseColor = appearance.accentOption.primaryColor, cornerRadius = appearance.cornerRadiusDp.dp)
+                            .testTag("fab_worker_chat")
                     ) {
                         Row(
                             modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
@@ -10168,8 +11096,7 @@ fun AgritechFarmNotebookScreen(
                     }
                 }
                 3 -> {
-                    // Contextual Vet Chat FAB inside Vet Notes Tab (البيطري):
-                    // Keeps only the green consultation button at the bottom so it never overlaps pending invoice cards
+                    // Contextual Vet Chat FAB inside Inventory & Vet Records Tab (📦 المخزون):
                     FloatingActionButton(
                         onClick = {
                             activeContextualChatTitle = Translations.tr("chat_vet_title", lang)
@@ -10178,8 +11105,10 @@ fun AgritechFarmNotebookScreen(
                         containerColor = appearance.accentOption.primaryColor,
                         contentColor = Color.White,
                         shape = fabCorner,
-                        elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 4.dp),
-                        modifier = Modifier.testTag("fab_vet_chat")
+                        elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 6.dp),
+                        modifier = Modifier
+                            .tactile3DStyle(baseColor = appearance.accentOption.primaryColor, cornerRadius = appearance.cornerRadiusDp.dp)
+                            .testTag("fab_vet_chat")
                     ) {
                         Row(
                             modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
@@ -10212,7 +11141,7 @@ fun AgritechFarmNotebookScreen(
                     Triple(0, Translations.tr("tab_ledger", lang), Icons.Default.TableChart),
                     Triple(1, Translations.tr("tab_treasury", lang), Icons.Default.ReceiptLong),
                     Triple(2, Translations.tr("tab_analytics", lang), Icons.Default.Insights),
-                    Triple(3, Translations.tr("tab_vet", lang), Icons.Default.MedicalServices)
+                    Triple(3, Translations.tr("notebook_tab_inventory", lang), Icons.Default.Inventory2)
                 )
 
                 items.forEach { (index, label, icon) ->
@@ -10248,7 +11177,8 @@ fun AgritechFarmNotebookScreen(
         val notebookAccent = appearance.accentColor
         val notebookButtonAccent = appearance.accentOption.primaryColor
         val notebookShape = RoundedCornerShape(appearance.cornerRadiusDp.dp)
-        val notebookBtnShape = RoundedCornerShape((appearance.cornerRadiusDp - 6).coerceAtLeast(4).dp)
+        val notebookBtnCornerDp = (appearance.cornerRadiusDp - 6).coerceAtLeast(4).dp
+        val notebookBtnShape = RoundedCornerShape(notebookBtnCornerDp)
 
         Box(
             modifier = Modifier
@@ -10284,32 +11214,27 @@ fun AgritechFarmNotebookScreen(
                                 fontSize = 15.sp,
                                 color = currentTheme.headingColor
                             )
-                            Button(
+                            PremiumPillButton(
+                                text = Translations.tr("btn_owner_add_daily_report", lang),
                                 onClick = {
                                     editingDailyReport = null
                                     showOwnerDailyReportDialog = true
                                 },
+                                variant = PremiumPillVariant.PRIMARY,
+                                fontSize = 12.sp,
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                leadingIcon = {
+                                    Icon(
+                                        Icons.Default.EditNote,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                },
                                 modifier = Modifier
                                     .height(40.dp)
-                                    .testTag("btn_owner_add_daily_report"),
-                                shape = notebookBtnShape,
-                                colors = ButtonDefaults.buttonColors(containerColor = notebookButtonAccent),
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                            ) {
-                                Icon(
-                                    Icons.Default.EditNote,
-                                    contentDescription = null,
-                                    tint = Color.White,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    Translations.tr("btn_owner_add_daily_report", lang),
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.White
-                                )
-                            }
+                                    .testTag("btn_owner_add_daily_report")
+                            )
                         }
 
                         if (activeWithdrawalDays > 0) {
@@ -11250,47 +12175,213 @@ fun AgritechFarmNotebookScreen(
                     }
                 }
                 3 -> {
-                    // TAB 3: البيطري (Veterinary Records & Invoicing + Owner Approval Workflow)
+                    // TAB 3: 📦 المخزون (Barn Inventory: Gas, Wood Shavings, Water Tankers, Medications + Vet Records & Consultation)
                     val pendingVetNotes = vetNotes.filter { it.status.equals("PENDING", ignoreCase = true) }
+                    val gasCount = AgritechMockDb.getBarnSupplyCount(farm.id, "gas", 14)
+                    val shavingsCount = AgritechMockDb.getBarnSupplyCount(farm.id, "shavings", 45)
+                    val waterCount = AgritechMockDb.getBarnSupplyCount(farm.id, "water", 6)
+                    val medsCount = AgritechMockDb.getBarnSupplyCount(farm.id, "meds", 12)
+                    val invPrimaryText = if (currentTheme.isDark) Color.White else currentTheme.headingColor
+                    val invSecondaryText = if (currentTheme.isDark) Color(0xFFCBD5E1) else Color(0xFF64748B)
+
+                    val barnSupplyItems = listOf(
+                        Triple(
+                            "gas",
+                            Translations.tr("barn_inv_gas_cylinders_title", lang) to Translations.tr("barn_inv_gas_cylinders_sub", lang),
+                            gasCount to Translations.tr("barn_inv_gas_unit", lang)
+                        ),
+                        Triple(
+                            "shavings",
+                            Translations.tr("barn_inv_wood_shavings_title", lang) to Translations.tr("barn_inv_wood_shavings_sub", lang),
+                            shavingsCount to Translations.tr("barn_inv_shavings_unit", lang)
+                        ),
+                        Triple(
+                            "water",
+                            Translations.tr("barn_inv_water_tankers_title", lang) to Translations.tr("barn_inv_water_tankers_sub", lang),
+                            waterCount to Translations.tr("barn_inv_water_unit", lang)
+                        ),
+                        Triple(
+                            "meds",
+                            Translations.tr("barn_inv_meds_packs_title", lang) to Translations.tr("barn_inv_meds_packs_sub", lang),
+                            medsCount to Translations.tr("barn_inv_meds_unit", lang)
+                        )
+                    )
+
                     LazyColumn(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(16.dp),
+                            .padding(16.dp)
+                            .testTag("barn_inventory_and_vet_tab"),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
+                        // القسم الأول (أعلى التبويب): 📦 جرد ومخزون العنبر (الغاز، النشارة، الماء، والأدوية) بأزرار [-1] و[+1] و[+5] ثلاثية الأبعاد
                         item {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                 Text(
-                                    Translations.tr("vet_records_title", lang),
-                                    fontWeight = FontWeight.Bold,
+                                    Translations.tr("barn_inventory_section_title", lang),
+                                    fontWeight = FontWeight.ExtraBold,
                                     fontSize = 15.sp,
-                                    color = currentTheme.headingColor,
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .padding(end = 8.dp)
+                                    color = invPrimaryText
                                 )
+                                Text(
+                                    Translations.tr("barn_inventory_section_subtitle", lang),
+                                    fontSize = 11.5.sp,
+                                    color = invSecondaryText
+                                )
+                            }
+                        }
 
-                                Button(
-                                    onClick = { showVetMedicineInvoiceDialog = true },
-                                    modifier = Modifier
-                                        .widthIn(min = 120.dp)
-                                        .height(40.dp)
-                                        .testTag("btn_open_vet_invoice_dialog"),
-                                    shape = notebookBtnShape,
-                                    colors = ButtonDefaults.buttonColors(containerColor = notebookButtonAccent),
-                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                        items(barnSupplyItems, key = { it.first }) { (supplyKey, titleSub, countUnit) ->
+                            val (itemTitle, itemSubtitle) = titleSub
+                            val (currentCount, unitLabel) = countUnit
+                            val defaultVal = when (supplyKey) {
+                                "gas" -> 14
+                                "shavings" -> 45
+                                "water" -> 6
+                                else -> 12
+                            }
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("barn_inventory_card_$supplyKey"),
+                                shape = notebookShape,
+                                colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
+                                border = BorderStroke(1.dp, notebookAccent.copy(alpha = 0.28f)),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(14.dp),
+                                    verticalArrangement = Arrangement.spacedBy(10.dp)
                                 ) {
-                                    Text(
-                                        "🧾 ${Translations.tr("vet_invoice_btn", lang)}",
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color.White,
-                                        maxLines = 1,
-                                        softWrap = false
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .padding(end = 8.dp),
+                                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                                        ) {
+                                            Text(
+                                                itemTitle,
+                                                fontWeight = FontWeight.ExtraBold,
+                                                fontSize = 14.sp,
+                                                color = invPrimaryText
+                                            )
+                                            Text(
+                                                itemSubtitle,
+                                                fontSize = 11.5.sp,
+                                                color = invSecondaryText
+                                            )
+                                        }
+                                        Surface(
+                                            shape = RoundedCornerShape(50),
+                                            color = appearance.accentContainerColor,
+                                            border = BorderStroke(1.dp, notebookAccent.copy(alpha = 0.45f)),
+                                            modifier = Modifier
+                                                .tactile3DStyle(baseColor = notebookAccent, cornerRadius = 50.dp, elevation = 4.dp)
+                                                .testTag("txt_barn_inv_count_$supplyKey")
+                                        ) {
+                                            Text(
+                                                "$currentCount $unitLabel",
+                                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.ExtraBold,
+                                                color = notebookAccent,
+                                                maxLines = 1,
+                                                softWrap = false
+                                            )
+                                        }
+                                    }
+
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        PremiumTactileCalcButton(
+                                            label = "-1",
+                                            onClick = { AgritechMockDb.adjustBarnSupplyCount(farm.id, supplyKey, -1, defaultVal) },
+                                            isDark = currentTheme.isDark,
+                                            accentColor = notebookAccent,
+                                            fontSize = 12.5.sp,
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .height(40.dp)
+                                                .testTag("btn_dec_barn_inv_$supplyKey")
+                                        )
+                                        PremiumTactileCalcButton(
+                                            label = "+1",
+                                            onClick = { AgritechMockDb.adjustBarnSupplyCount(farm.id, supplyKey, +1, defaultVal) },
+                                            isDark = currentTheme.isDark,
+                                            accentColor = notebookAccent,
+                                            fontSize = 12.5.sp,
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .height(40.dp)
+                                                .testTag("btn_inc1_barn_inv_$supplyKey")
+                                        )
+                                        PremiumTactileCalcButton(
+                                            label = "+5",
+                                            onClick = { AgritechMockDb.adjustBarnSupplyCount(farm.id, supplyKey, +5, defaultVal) },
+                                            isSelected = true,
+                                            isDark = currentTheme.isDark,
+                                            accentColor = notebookButtonAccent,
+                                            fontSize = 12.5.sp,
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .height(40.dp)
+                                                .testTag("btn_inc5_barn_inv_$supplyKey")
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        // القسم الثاني (تحت قسم المخزون في نفس التبويب): 💉 السجل والوصفات الطبية البيطرية + زر 💬 استشارة الطبيب البيطري + زر 🧾 إصدار فاتورة دواء
+                        item {
+                            HorizontalDivider(
+                                color = if (currentTheme.isDark) Color(0xFF334155) else Color(0xFFE2E8F0),
+                                modifier = Modifier.padding(vertical = 4.dp)
+                            )
+                            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Text(
+                                    "💉 ${Translations.tr("vet_records_title", lang)}",
+                                    fontWeight = FontWeight.ExtraBold,
+                                    fontSize = 15.sp,
+                                    color = invPrimaryText
+                                )
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    PremiumPillButton(
+                                        text = "💬 ${Translations.tr("chat_vet_title", lang)}",
+                                        onClick = {
+                                            activeContextualChatTitle = Translations.tr("chat_vet_title", lang)
+                                            activeContextualChatChannel = "${cycle.id}_vet"
+                                        },
+                                        variant = PremiumPillVariant.PRIMARY,
+                                        fontSize = 11.5.sp,
+                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .height(42.dp)
+                                            .testTag("btn_consult_vet_3d")
+                                    )
+                                    PremiumPillButton(
+                                        text = "🧾 ${Translations.tr("vet_invoice_btn", lang)}",
+                                        onClick = { showVetMedicineInvoiceDialog = true },
+                                        variant = PremiumPillVariant.SALES_INCOME,
+                                        fontSize = 11.5.sp,
+                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .height(42.dp)
+                                            .testTag("btn_open_vet_invoice_dialog")
                                     )
                                 }
                             }
@@ -11627,6 +12718,7 @@ fun OwnerDailyReportDialog(
                     ),
                     modifier = Modifier
                         .fillMaxWidth()
+                        .tactile3DStyle(baseColor = accentEmerald, cornerRadius = 12.dp, elevation = 4.dp)
                         .testTag("input_owner_report_day")
                 )
 
@@ -11648,6 +12740,7 @@ fun OwnerDailyReportDialog(
                     ),
                     modifier = Modifier
                         .fillMaxWidth()
+                        .tactile3DStyle(baseColor = accentEmerald, cornerRadius = 12.dp, elevation = 4.dp)
                         .testTag("input_owner_report_feed_quintals")
                 )
 
@@ -11669,6 +12762,7 @@ fun OwnerDailyReportDialog(
                     ),
                     modifier = Modifier
                         .fillMaxWidth()
+                        .tactile3DStyle(baseColor = accentEmerald, cornerRadius = 12.dp, elevation = 4.dp)
                         .testTag("input_owner_report_water")
                 )
 
@@ -11690,6 +12784,7 @@ fun OwnerDailyReportDialog(
                     ),
                     modifier = Modifier
                         .fillMaxWidth()
+                        .tactile3DStyle(baseColor = accentEmerald, cornerRadius = 12.dp, elevation = 4.dp)
                         .testTag("input_owner_report_mortality")
                 )
 
@@ -11707,6 +12802,7 @@ fun OwnerDailyReportDialog(
                     ),
                     modifier = Modifier
                         .fillMaxWidth()
+                        .tactile3DStyle(baseColor = accentEmerald, cornerRadius = 12.dp, elevation = 4.dp)
                         .testTag("input_owner_report_actual_weight_grams")
                 )
 
@@ -11728,6 +12824,7 @@ fun OwnerDailyReportDialog(
                         ),
                         modifier = Modifier
                             .weight(1f)
+                            .tactile3DStyle(baseColor = accentEmerald, cornerRadius = 12.dp, elevation = 4.dp)
                             .testTag("input_owner_report_temp")
                     )
 
@@ -11745,6 +12842,7 @@ fun OwnerDailyReportDialog(
                         ),
                         modifier = Modifier
                             .weight(1f)
+                            .tactile3DStyle(baseColor = accentEmerald, cornerRadius = 12.dp, elevation = 4.dp)
                             .testTag("input_owner_report_gas")
                     )
                 }
@@ -11759,7 +12857,9 @@ fun OwnerDailyReportDialog(
                         if (medicineGivenToggle) accentEmerald.copy(alpha = 0.55f)
                         else if (isDark) Color(0xFF334155) else Color(0xFFE2E8F0)
                     ),
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .tactile3DStyle(baseColor = accentEmerald, cornerRadius = 12.dp, elevation = 4.dp)
                 ) {
                     Column(
                         modifier = Modifier.padding(10.dp),
@@ -11820,14 +12920,15 @@ fun OwnerDailyReportDialog(
             }
         },
         confirmButton = {
-            Button(
+            PremiumPillButton(
+                text = Translations.tr("btn_save", lang),
                 onClick = {
                     val parsedFeedQ = feedQuintalsInput.trim().toDoubleOrNull()
                     val parsedWaterVal = waterLitersInput.trim().toDoubleOrNull()
                     val parsedMortVal = mortalityInput.trim().toIntOrNull()
                     if (parsedFeedQ == null || parsedWaterVal == null || parsedMortVal == null) {
                         dailyReportValidationError = Translations.tr("input_required_error", lang)
-                        return@Button
+                        return@PremiumPillButton
                     }
                     val parsedDay = (dayNumberInput.toIntOrNull() ?: suggestedDayNumber).coerceAtLeast(1)
                     val parsedFeedKg = (parsedFeedQ * 100.0).coerceAtLeast(0.0)
@@ -11867,16 +12968,11 @@ fun OwnerDailyReportDialog(
                     )
                     onSaveReport(reportToSave)
                 },
-                modifier = Modifier.testTag("btn_confirm_owner_daily_report"),
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = appearance.accentOption.primaryColor)
-            ) {
-                Text(
-                    Translations.tr("btn_save", lang),
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold
-                )
-            }
+                variant = PremiumPillVariant.PRIMARY,
+                modifier = Modifier
+                    .height(44.dp)
+                    .testTag("btn_confirm_owner_daily_report")
+            )
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
@@ -12809,15 +13905,13 @@ fun BatchShipmentInfoScreen(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(44.dp)
-                                .clip(CircleShape)
-                                .background(shipAccentContainer),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(Icons.Default.LocalShipping, contentDescription = null, tint = shipAccent, modifier = Modifier.size(24.dp))
-                        }
+                        Tactile3DIconBadge(
+                            icon = Icons.Default.LocalShipping,
+                            tint = shipAccent,
+                            isDark = currentTheme.isDark,
+                            size = 44.dp,
+                            iconSize = 23.dp
+                        )
                         Spacer(modifier = Modifier.width(12.dp))
                         Column {
                             Text(
@@ -12843,7 +13937,11 @@ fun BatchShipmentInfoScreen(
                         label = { Text(Translations.tr("buyer_name_label", lang), fontSize = 13.sp) },
                         placeholder = { Text(Translations.tr("buyer_name_placeholder", lang)) },
                         leadingIcon = {
-                            Icon(Icons.Default.Person, contentDescription = null, tint = shipAccent)
+                            Tactile3DIconBadge(
+                                icon = Icons.Default.Person,
+                                tint = shipAccent,
+                                isDark = currentTheme.isDark
+                            )
                         },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
@@ -12861,7 +13959,11 @@ fun BatchShipmentInfoScreen(
                         label = { Text(Translations.tr("truck_plate_label", lang), fontSize = 13.sp) },
                         placeholder = { Text("04521-122-16") },
                         leadingIcon = {
-                            Icon(Icons.Default.LocalShipping, contentDescription = null, tint = shipAccent)
+                            Tactile3DIconBadge(
+                                icon = Icons.Default.LocalShipping,
+                                tint = shipAccent,
+                                isDark = currentTheme.isDark
+                            )
                         },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
@@ -12883,15 +13985,13 @@ fun BatchShipmentInfoScreen(
                             modifier = Modifier.padding(14.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(40.dp)
-                                    .clip(CircleShape)
-                                    .background(shipAccentContainer),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(Icons.Default.CalendarToday, contentDescription = null, tint = shipAccent, modifier = Modifier.size(20.dp))
-                            }
+                            Tactile3DIconBadge(
+                                icon = Icons.Default.CalendarToday,
+                                tint = shipAccent,
+                                isDark = currentTheme.isDark,
+                                size = 40.dp,
+                                iconSize = 20.dp
+                            )
                             Spacer(modifier = Modifier.width(12.dp))
                             Column {
                                 Text(
@@ -12936,10 +14036,10 @@ fun BatchShipmentInfoScreen(
                             }
                         } else null,
                         leadingIcon = {
-                            Icon(
-                                Icons.Default.Payments,
-                                contentDescription = null,
-                                tint = if (priceError != null) Color(0xFFEF4444) else shipAccent
+                            Tactile3DIconBadge(
+                                icon = Icons.Default.Payments,
+                                tint = if (priceError != null) Color(0xFFEF4444) else shipAccent,
+                                isDark = currentTheme.isDark
                             )
                         },
                         singleLine = true,
@@ -12978,7 +14078,11 @@ fun BatchShipmentInfoScreen(
                             }
                         },
                         leadingIcon = {
-                            Icon(Icons.Default.Inbox, contentDescription = null, tint = if (isCrateCountExceedingLiveBirds) ActionRed else shipAccent)
+                            Tactile3DIconBadge(
+                                icon = Icons.Default.Inbox,
+                                tint = if (isCrateCountExceedingLiveBirds) ActionRed else shipAccent,
+                                isDark = currentTheme.isDark
+                            )
                         },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -13085,7 +14189,11 @@ fun BatchShipmentInfoScreen(
                                 label = { Text(Translations.tr("tare_direct_total_label", lang), fontSize = 13.sp) },
                                 placeholder = { Text("150.0") },
                                 leadingIcon = {
-                                    Icon(Icons.Default.Scale, contentDescription = null, tint = shipAccent)
+                                    Tactile3DIconBadge(
+                                        icon = Icons.Default.Scale,
+                                        tint = shipAccent,
+                                        isDark = currentTheme.isDark
+                                    )
                                 },
                                 singleLine = true,
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
@@ -13103,31 +14211,25 @@ fun BatchShipmentInfoScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // زر عريض في الأسفل: [حفظ وبدء تسجيل الوزنات ➡️]
-            Button(
+            // زر عريض ثلاثي الأبعاد في الأسفل: [حفظ وبدء تسجيل الوزنات ➡️]
+            PremiumPillButton(
+                text = Translations.tr("btn_proceed_to_weighing", lang),
                 onClick = {
                     if (!isCrateCountExceedingLiveBirds) {
                         onProceedToWeighing()
                     }
                 },
                 enabled = !isCrateCountExceedingLiveBirds,
+                variant = PremiumPillVariant.PRIMARY,
+                fontSize = 15.sp,
+                leadingIcon = {
+                    Icon(Icons.Default.ArrowForward, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+                },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(54.dp)
-                    .testTag("btn_proceed_to_weighing"),
-                shape = shipFieldShape,
-                colors = ButtonDefaults.buttonColors(containerColor = appearance.accentOption.primaryColor),
-                elevation = ButtonDefaults.buttonElevation(defaultElevation = 3.dp)
-            ) {
-                Text(
-                    Translations.tr("btn_proceed_to_weighing", lang),
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Icon(Icons.Default.ArrowForward, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
-            }
+                    .testTag("btn_proceed_to_weighing")
+            )
         }
     }
 }
@@ -13445,51 +14547,59 @@ fun BatchQuickWeighingScreen(
                         }
                     }
 
-                    // أزرار اختيار عدد الصناديق [1] [2] [3] [4] [5] بأسلوب الآلة الحاسبة الفاخرة (PremiumTactileCalcButton)
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    // شريط التحكم الرقمي ثلاثي الأبعاد فقط [ - ]   📦 X صناديق (Y طائر)   [ + ] بدون صف الأزرار [1..5] لتوفير المساحة الرأسية
+                    val cratesNum = (cratesPerThisWeigh.toIntOrNull() ?: 5).coerceAtLeast(1)
+                    val birdsInThisWeigh = cratesNum * birdsPerCrate
+                    val stepperDisplayLabel = Translations.tr("weigh_crates_stepper_fmt", lang)
+                        .replace("{crates}", "$cratesNum")
+                        .replace("{birds}", "$birdsInThisWeigh")
+
+                    NeumorphicRecessedDisplay(
+                        isDark = currentTheme.isDark,
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)
                     ) {
-                        val cratesNum = cratesPerThisWeigh.toIntOrNull() ?: 5
-                        val birdsInThisWeigh = cratesNum * birdsPerCrate
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                Translations.tr("weigh_full_crates_label", lang),
-                                fontSize = 11.5.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = weighAccent
+                            PremiumTactileCalcButton(
+                                label = "-",
+                                onClick = {
+                                    cratesPerThisWeigh = (cratesNum - 1).coerceAtLeast(1).toString()
+                                },
+                                isDark = currentTheme.isDark,
+                                accentColor = weighButtonAccent,
+                                fontSize = 17.sp,
+                                modifier = Modifier
+                                    .width(48.dp)
+                                    .testTag("btn_weigh_crates_minus")
                             )
                             Text(
-                                "($birdsInThisWeigh ${Translations.tr("birds_unit_short", lang)})",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = weighAccent.copy(alpha = 0.85f)
+                                text = stepperDisplayLabel,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = weighAccent,
+                                textAlign = TextAlign.Center,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(horizontal = 8.dp)
+                                    .testTag("txt_weigh_crates_stepper_value")
                             )
-                        }
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            listOf("1", "2", "3", "4", "5").forEach { preset ->
-                                val isSelected = cratesPerThisWeigh == preset
-                                PremiumTactileCalcButton(
-                                    label = preset,
-                                    onClick = { cratesPerThisWeigh = preset },
-                                    isSelected = isSelected,
-                                    isDark = currentTheme.isDark,
-                                    accentColor = weighButtonAccent,
-                                    fontSize = 13.5.sp,
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .testTag("crate_count_chip_$preset")
-                                )
-                            }
+                            PremiumTactileCalcButton(
+                                label = "+",
+                                onClick = {
+                                    cratesPerThisWeigh = (cratesNum + 1).toString()
+                                },
+                                isDark = currentTheme.isDark,
+                                accentColor = weighButtonAccent,
+                                fontSize = 17.sp,
+                                modifier = Modifier
+                                    .width(48.dp)
+                                    .testTag("btn_weigh_crates_plus")
+                            )
                         }
                     }
 
@@ -13913,6 +15023,7 @@ fun SimpleTransactionDialog(
     var feedDesignation by remember { mutableStateOf(Translations.tr("feed_designation_default", lang)) }
     var feedQuintalsText by remember { mutableStateOf("") }
     var feedPricePerQuintalText by remember { mutableStateOf("") }
+    var customExpenseOrIncomeName by remember { mutableStateOf("") }
 
     val feedCategoryLabel = Translations.tr("tx_feed", lang)
     val isFeedExpense = type == TransactionType.EXPENSE && (
@@ -13974,6 +15085,7 @@ fun SimpleTransactionDialog(
                         accentColor = accentEmerald,
                         modifier = Modifier
                             .fillMaxWidth()
+                            .tactile3DStyle(baseColor = accentEmerald, cornerRadius = 14.dp, elevation = 4.dp)
                             .testTag("input_feed_designation")
                     )
 
@@ -13997,6 +15109,7 @@ fun SimpleTransactionDialog(
                             ),
                             modifier = Modifier
                                 .weight(1f)
+                                .tactile3DStyle(baseColor = accentEmerald, cornerRadius = 14.dp, elevation = 4.dp)
                                 .testTag("input_feed_quintals")
                         )
 
@@ -14016,6 +15129,7 @@ fun SimpleTransactionDialog(
                             ),
                             modifier = Modifier
                                 .weight(1f)
+                                .tactile3DStyle(baseColor = accentEmerald, cornerRadius = 14.dp, elevation = 4.dp)
                                 .testTag("input_feed_unit_price")
                         )
                     }
@@ -14052,6 +15166,30 @@ fun SimpleTransactionDialog(
                         )
                     }
                 } else {
+                    // Always display a 3D tactile text field above the amount field so the Owner can write what the expense/income is for (e.g. نشارة خشب، صهريج ماء، تصليح، كهرباء...)
+                    NeumorphicRecessedField(
+                        value = customExpenseOrIncomeName,
+                        onValueChange = { customExpenseOrIncomeName = it },
+                        label = if (type == TransactionType.EXPENSE) {
+                            Translations.tr("expense_custom_name_label", lang)
+                        } else {
+                            Translations.tr("income_custom_name_label", lang)
+                        },
+                        placeholder = if (type == TransactionType.EXPENSE) {
+                            Translations.tr("expense_custom_name_placeholder", lang)
+                        } else "",
+                        isDark = isDark,
+                        accentColor = accentEmerald,
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Text,
+                            imeAction = ImeAction.Next
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .tactile3DStyle(baseColor = accentEmerald, cornerRadius = 14.dp, elevation = 4.dp)
+                            .testTag("input_tx_custom_designation")
+                    )
+
                     NeumorphicRecessedField(
                         value = amountText,
                         onValueChange = {
@@ -14067,6 +15205,7 @@ fun SimpleTransactionDialog(
                         ),
                         modifier = Modifier
                             .fillMaxWidth()
+                            .tactile3DStyle(baseColor = accentEmerald, cornerRadius = 14.dp, elevation = 4.dp)
                             .testTag("input_tx_amount")
                     )
                 }
@@ -14093,7 +15232,13 @@ fun SimpleTransactionDialog(
                     } else {
                         val amt = amountText.toDoubleOrNull() ?: 0.0
                         if (amt > 0) {
-                            onConfirm(selectedCategory, amt, 0.0)
+                            val cleanCustomName = customExpenseOrIncomeName.trim()
+                            val finalCategory = if (cleanCustomName.isNotEmpty()) {
+                                "$selectedCategory • $cleanCustomName"
+                            } else {
+                                selectedCategory
+                            }
+                            onConfirm(finalCategory, amt, 0.0)
                         } else {
                             txValidationError = true
                             txScope.launch {

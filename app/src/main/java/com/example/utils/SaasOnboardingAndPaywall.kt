@@ -1925,6 +1925,97 @@ fun PremiumSettingsModal(
                                             secondaryTestTag = "settings_nav_subscription",
                                             onClick = { showPaywallFromSettings = true }
                                         )
+
+                                        HorizontalDivider(color = borderCol, thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp))
+
+                                        // Row 5: 🔄 إعادة ضبط وتصفير الدورة الحالية (Moved from FarmCard footer into Settings ⚙️)
+                                        var showResetActiveCycleConfirm by remember { mutableStateOf(false) }
+                                        var resetCycleDoneBanner by remember { mutableStateOf(false) }
+                                        if (showResetActiveCycleConfirm) {
+                                            val targetFarm = sessionState.selectedFarmForOwner
+                                                ?: com.example.AgritechMockDb.farms.firstOrNull { it.id == sessionState.activeFarmId }
+                                                ?: com.example.AgritechMockDb.farms.firstOrNull()
+                                            val targetCycle = if (targetFarm != null) {
+                                                com.example.AgritechMockDb.cycles.firstOrNull {
+                                                    it.farmId == targetFarm.id && it.status.equals("active", ignoreCase = true)
+                                                } ?: com.example.AgritechMockDb.cycles.firstOrNull { it.farmId == targetFarm.id }
+                                            } else null
+
+                                            AlertDialog(
+                                                onDismissRequest = { showResetActiveCycleConfirm = false },
+                                                shape = previewShape,
+                                                containerColor = cardBg,
+                                                title = {
+                                                    Text(
+                                                        Translations.tr("reset_cycle_dialog_title", selectedLang),
+                                                        fontWeight = FontWeight.ExtraBold,
+                                                        fontSize = 15.5.sp,
+                                                        color = Color(0xFFE11D48)
+                                                    )
+                                                },
+                                                text = {
+                                                    Text(
+                                                        Translations.tr("reset_cycle_dialog_msg", selectedLang),
+                                                        fontSize = 13.sp,
+                                                        color = textPrimary,
+                                                        lineHeight = 19.sp
+                                                    )
+                                                },
+                                                confirmButton = {
+                                                    Button(
+                                                        onClick = {
+                                                            if (targetFarm != null) {
+                                                                com.example.AgritechMockDb.resetCycleAndClearBarn(
+                                                                    farmId = targetFarm.id,
+                                                                    cycleId = targetCycle?.id.orEmpty()
+                                                                )
+                                                                resetCycleDoneBanner = true
+                                                            }
+                                                            showResetActiveCycleConfirm = false
+                                                        },
+                                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE11D48)),
+                                                        shape = previewShape,
+                                                        modifier = Modifier.testTag("btn_confirm_settings_reset_cycle")
+                                                    ) {
+                                                        Text(
+                                                            Translations.tr("reset_cycle_confirm_btn", selectedLang),
+                                                            color = Color.White,
+                                                            fontWeight = FontWeight.Bold,
+                                                            fontSize = 12.sp
+                                                        )
+                                                    }
+                                                },
+                                                dismissButton = {
+                                                    TextButton(
+                                                        onClick = { showResetActiveCycleConfirm = false },
+                                                        modifier = Modifier.testTag("btn_cancel_settings_reset_cycle")
+                                                    ) {
+                                                        Text(
+                                                            Translations.tr("btn_cancel", selectedLang),
+                                                            color = textSecondary,
+                                                            fontWeight = FontWeight.SemiBold
+                                                        )
+                                                    }
+                                                }
+                                            )
+                                        }
+
+                                        WhatsAppSettingsHubRow(
+                                            iconEmoji = "🔄",
+                                            iconBg = if (isDark) Color(0xFF450A0A) else Color(0xFFFFE4E6),
+                                            title = Translations.tr("settings_row_reset_active_cycle_title", selectedLang),
+                                            subtitle = if (resetCycleDoneBanner) {
+                                                "✓ ${Translations.tr("reset_cycle_success_msg", selectedLang)}"
+                                            } else {
+                                                Translations.tr("settings_row_reset_active_cycle_sub", selectedLang)
+                                            },
+                                            textPrimary = textPrimary,
+                                            textSecondary = if (resetCycleDoneBanner) activeAccent else Color(0xFFE11D48),
+                                            accentColor = Color(0xFFE11D48),
+                                            testTag = "settings_row_reset_active_cycle",
+                                            secondaryTestTag = "btn_settings_reset_active_cycle",
+                                            onClick = { showResetActiveCycleConfirm = true }
+                                        )
                                     }
                                 }
                             }

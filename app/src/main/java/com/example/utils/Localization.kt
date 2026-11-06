@@ -4511,6 +4511,390 @@ object Translations {
             "es" to "Cerrar ✓",
             "pt" to "Fechar ✓",
             "hi" to "बंद करें ✓"
+        ),
+        "weigh_crates_stepper_fmt" to mapOf(
+            "ar" to "📦 {crates} صناديق ({birds} طائر)",
+            "fr" to "📦 {crates} caisses ({birds} sujets)",
+            "en" to "📦 {crates} Crates ({birds} birds)",
+            "es" to "📦 {crates} jaulas ({birds} aves)",
+            "pt" to "📦 {crates} caixas ({birds} aves)",
+            "hi" to "📦 {crates} क्रेट ({birds} पक्षी)"
+        ),
+        "farm_vitality_vaccines_sheet_title" to mapOf(
+            "ar" to "💉 سجل الحيوية واللقاحات والأدوية المستعملة",
+            "fr" to "💉 Registre de Viabilité, Vaccins et Traitements",
+            "en" to "💉 Vitality, Vaccines & Medications Log",
+            "es" to "💉 Registro de Viabilidad, Vacunas y Medicamentos",
+            "pt" to "💉 Registro de Viabilidade, Vacinas e Medicamentos",
+            "hi" to "💉 जीवित रहने की दर, टीके और दवाओं का रिकॉर्ड"
+        ),
+        "farm_vitality_vaccines_sheet_subtitle" to mapOf(
+            "ar" to "ملخص الطيور الحية والنفوق وجميع التحصينات والأدوية المقدمة في هذه الدورة",
+            "fr" to "Résumé des sujets vivants, mortalité et tous les vaccins/traitements du cycle",
+            "en" to "Summary of live birds, mortality, and all vaccines & treatments administered this cycle",
+            "es" to "Resumen de aves vivas, mortalidad y todas las vacunas y tratamientos del ciclo",
+            "pt" to "Resumo de aves vivas, mortalidade e todas as vacinas e tratamentos do lote",
+            "hi" to "इस चक्र में जीवित पक्षियों, मृत्यु दर और दिए गए सभी टीकों व दवाओं का विवरण"
+        ),
+        "farm_vitality_no_meds_yet" to mapOf(
+            "ar" to "لم يتم تسجيل لقاحات أو أدوية في هذه الدورة حتى الآن",
+            "fr" to "Aucun vaccin ou médicament enregistré dans ce cycle pour le moment",
+            "en" to "No vaccines or medications recorded in this cycle yet",
+            "es" to "Aún no se han registrado vacunas ni medicamentos en este ciclo",
+            "pt" to "Nenhuma vacina ou medicamento registrado neste lote ainda",
+            "hi" to "इस चक्र में अभी तक कोई टीका या दवा दर्ज नहीं की गई है"
+        ),
+        "farm_med_status_water_confirmed" to mapOf(
+            "ar" to "✓ أُعطي في مياه الشرب",
+            "fr" to "✓ Administré dans l'eau",
+            "en" to "✓ Given in drinking water",
+            "es" to "✓ Administrado en agua",
+            "pt" to "✓ Administrado na água",
+            "hi" to "✓ पीने के पानी में दी गई"
+        ),
+        "farm_med_status_vet_prescribed" to mapOf(
+            "ar" to "🩺 وصفة وتحصين بيطري",
+            "fr" to "🩺 Prescription & vaccin vétérinaire",
+            "en" to "🩺 Vet prescription & vaccine",
+            "es" to "🩺 Receta y vacuna veterinaria",
+            "pt" to "🩺 Prescrição e vacina veterinária",
+            "hi" to "🩺 पशु चिकित्सक नुस्खा और टीका"
+        ),
+        "farm_weight_income_sheet_title" to mapOf(
+            "ar" to "⚖️ ملخص الوزن التقديري واستهلاك العلف والدخل",
+            "fr" to "⚖️ Résumé du Poids, Consommation & Revenu Estimé",
+            "en" to "⚖️ Estimated Weight, Feed Intake & Income Summary",
+            "es" to "⚖️ Resumen de Peso Estimado, Consumo e Ingresos",
+            "pt" to "⚖️ Resumo de Peso Estimado, Consumo e Renda",
+            "hi" to "⚖️ अनुमानित वजन, चारा खपत और आय सारांश"
+        ),
+        "farm_weight_income_sheet_subtitle" to mapOf(
+            "ar" to "كم أكل القطيع، تعديل الوزن ومعامل التحويل، ومعدل الدخل وصافي الربح التقديري",
+            "fr" to "Consommation du lot, ajustement poids/FCR et estimation du bénéfice net",
+            "en" to "Flock feed intake, weight/FCR adjustment, and estimated barn income & net profit",
+            "es" to "Consumo del lote, ajuste de peso/FCR e ingresos y ganancia neta estimada",
+            "pt" to "Consumo do lote, ajuste de peso/FCR e renda e lucro líquido estimado",
+            "hi" to "झुंड की चारा खपत, वजन/FCR समायोजन और अनुमानित शुद्ध लाभ"
+        ),
+        "farm_feed_consumed_section_title" to mapOf(
+            "ar" to "🌾 كم أكل القطيع منذ بداية الدورة",
+            "fr" to "🌾 Consommation totale d'aliment du lot",
+            "en" to "🌾 Total Flock Feed Consumption",
+            "es" to "🌾 Consumo total de alimento del lote",
+            "pt" to "🌾 Consumo total de ração do lote",
+            "hi" to "🌾 झुंड द्वारा कुल चारा खपत"
+        ),
+        "farm_total_feed_consumed_label" to mapOf(
+            "ar" to "إجمالي العلف المستهلك",
+            "fr" to "Total aliment consommé",
+            "en" to "Total Feed Consumed",
+            "es" to "Total alimento consumido",
+            "pt" to "Total de ração consumida",
+            "hi" to "कुल खपत चारा"
+        ),
+        "farm_feed_per_bird_label" to mapOf(
+            "ar" to "استهلاك الدجاجة الواحدة",
+            "fr" to "Consommation par sujet",
+            "en" to "Feed Intake per Bird",
+            "es" to "Consumo por ave",
+            "pt" to "Consumo por ave",
+            "hi" to "प्रति पक्षी चारा खपत"
+        ),
+        "farm_income_summary_section_title" to mapOf(
+            "ar" to "💰 معدل دخل العنبر وصافي الربح التقديري",
+            "fr" to "💰 Revenu Estimé du Bâtiment & Bénéfice Net",
+            "en" to "💰 Estimated Barn Income & Net Profit",
+            "es" to "💰 Ingreso Estimado del Galpón y Ganancia Neta",
+            "pt" to "💰 Renda Estimada do Galpão e Lucro Líquido",
+            "hi" to "💰 बार्न की अनुमानित आय और शुद्ध लाभ"
+        ),
+        "btn_open_sales_cull_simulator" to mapOf(
+            "ar" to "📊 فتح جدول محاكاة المبيعات والفرزة",
+            "fr" to "📊 Ouvrir le simulateur de vente & tri",
+            "en" to "📊 Open Sales & Cull Simulator Table",
+            "es" to "📊 Abrir simulador de ventas y descarte",
+            "pt" to "📊 Abrir simulador de vendas e refugo",
+            "hi" to "📊 बिक्री और छंटाई सिम्युलेटर खोलें"
+        ),
+        "ai_subtab_smart_decisions" to mapOf(
+            "ar" to "⚡ القرارات الذكية",
+            "fr" to "⚡ Décisions IA",
+            "en" to "⚡ Smart Decisions",
+            "es" to "⚡ Decisiones IA",
+            "pt" to "⚡ Decisões IA",
+            "hi" to "⚡ स्मार्ट निर्णय"
+        ),
+        "ai_subtab_diagnostics" to mapOf(
+            "ar" to "📊 التشخيص والفحص",
+            "fr" to "📊 Diagnostic & Audit",
+            "en" to "📊 Diagnostics & Audit",
+            "es" to "📊 Diagnóstico y Control",
+            "pt" to "📊 Diagnóstico e Inspeção",
+            "hi" to "📊 निदान और जांच"
+        ),
+        "ai_subtab_live_chat" to mapOf(
+            "ar" to "💬 المحادثة المباشرة",
+            "fr" to "💬 Chat Direct",
+            "en" to "💬 Live Chat",
+            "es" to "💬 Chat en Vivo",
+            "pt" to "💬 Chat ao Vivo",
+            "hi" to "💬 लाइव चैट"
+        ),
+        "ai_diag_section_subtitle_farm" to mapOf(
+            "ar" to "اختر الفحص المتخصص لتحليل بيانات عنبرك وإصدار تقرير فوري مفصل",
+            "fr" to "Choisissez une inspection spécialisée pour analyser votre bâtiment instantanément",
+            "en" to "Select a specialized diagnostic check to analyze your barn data instantly",
+            "es" to "Seleccione un análisis especializado para auditar los datos de su galpón",
+            "pt" to "Selecione uma inspeção especializada para analisar os dados do seu galpão",
+            "hi" to "अपने बार्न डेटा का तुरंत विश्लेषण करने के लिए विशेष जांच चुनें"
+        ),
+        "ai_diag_section_subtitle_home" to mapOf(
+            "ar" to "فحوصات ذكية لميزانية المنزل، الفواتير الشهرية، ونسبة التوفير",
+            "fr" to "Analyses intelligentes du budget maison, factures mensuelles et taux d'épargne",
+            "en" to "Smart diagnostics for household budget, monthly bills, and savings rate",
+            "es" to "Análisis inteligente del presupuesto familiar, facturas y ahorro mensual",
+            "pt" to "Análise inteligente do orçamento doméstico, contas mensais e taxa de economia",
+            "hi" to "घरेलू बजट, मासिक बिल और बचत दर के लिए स्मार्ट जांच"
+        ),
+        "ai_diag_run_check_btn" to mapOf(
+            "ar" to "🔍 بدء الفحص وعرض التقرير",
+            "fr" to "🔍 Lancer l'analyse & voir le rapport",
+            "en" to "🔍 Run Check & View Report",
+            "es" to "🔍 Iniciar análisis y ver informe",
+            "pt" to "🔍 Iniciar análise e ver relatório",
+            "hi" to "🔍 जांच शुरू करें और रिपोर्ट देखें"
+        ),
+        "ai_diag_card_profit_desc" to mapOf(
+            "ar" to "مراجعة تكلفة الكيلو، استهلاك العلف، وتقدير صافي ربح الدورة مقارنة بسعر السوق اليوم",
+            "fr" to "Analyse du coût par kg, consommation d'aliment et bénéfice net estimé au prix du marché",
+            "en" to "Review cost per kg, feed consumption, and estimated net profit against today's market price",
+            "es" to "Revisión de costo por kg, consumo de alimento y ganancia neta estimada según el mercado",
+            "pt" to "Revisão de custo por kg, consumo de ração e lucro líquido estimado pelo preço de mercado",
+            "hi" to "आज के बाजार मूल्य के मुकाबले प्रति किलो लागत, चारा खपत और अनुमानित शुद्ध लाभ की समीक्षा"
+        ),
+        "ai_diag_card_climate_desc" to mapOf(
+            "ar" to "فحص درجات الحرارة، مستوى الأمونيا، وكفاءة التهوية لمنع الإجهاد الحراري والأمراض التنفسية",
+            "fr" to "Contrôle température, ammoniac et ventilation pour prévenir le stress thermique",
+            "en" to "Inspect temperature, ammonia levels, and ventilation efficiency to prevent heat stress",
+            "es" to "Inspección de temperatura, amoníaco y ventilación para prevenir estrés térmico",
+            "pt" to "Inspeção de temperatura, amônia e ventilação para evitar estresse térmico",
+            "hi" to "गर्मी के तनाव और श्वसन रोगों को रोकने के लिए तापमान, अमोनिया और वेंटिलेशन की जांच"
+        ),
+        "ai_diag_card_vaccine_desc" to mapOf(
+            "ar" to "جدول تحصينات السلالة القياسي (نيوكاسل، جمبورو، التهاب القصبات) والفيتامينات حسب عمر الطير",
+            "fr" to "Programme de vaccination Ross 308 (Newcastle, Gumboro, Bronchite) et vitamines selon l'âge",
+            "en" to "Ross 308 vaccination schedule (Newcastle, Gumboro, Bronchitis) & vitamins by flock age",
+            "es" to "Programa de vacunación Ross 308 (Newcastle, Gumboro, Bronquitis) y vitaminas por edad",
+            "pt" to "Programa de vacinação Ross 308 (Newcastle, Gumboro, Bronquite) e vitaminas por idade",
+            "hi" to "पक्षी की आयु के अनुसार रॉस 308 टीकाकरण अनुसूची (न्यूकैसल, गम्बोरो) और विटामिन"
+        ),
+        "ai_diag_card_fcr_desc" to mapOf(
+            "ar" to "مقارنة معامل التحويل الغذائي الحالي والوزن الحي مع معيار Ross 308 العالمي وكشف الهدر",
+            "fr" to "Comparaison de l'indice de consommation FCR et du poids vif avec le standard Ross 308",
+            "en" to "Compare current FCR and live weight against Ross 308 benchmarks and detect feed waste",
+            "es" to "Comparación de conversión alimenticia FCR y peso vivo con el estándar Ross 308",
+            "pt" to "Comparação da conversão alimentar FCR e peso vivo com o padrão Ross 308",
+            "hi" to "रॉस 308 मानकों के साथ वर्तमान FCR और जीवित वजन की तुलना करें और चारे की बर्बादी रोकें"
+        ),
+        "ai_diag_card_resp_desc" to mapOf(
+            "ar" to "تشخيص العطس، الحشرجة التنفسية، والإسهالات مع بروتوكول العلاج البيطري وفترة السحب الآمنة",
+            "fr" to "Diagnostic des symptômes respiratoires et diarrhées avec protocole et délai d'attente",
+            "en" to "Diagnose sneezing, respiratory rales, and diarrhea with treatment protocol & withdrawal days",
+            "es" to "Diagnóstico de síntomas respiratorios y diarreas con protocolo y período de retiro",
+            "pt" to "Diagnóstico de sintomas respiratórios e diarreias com protocolo e período de carência",
+            "hi" to "श्वसन लक्षणों और दस्त का निदान, पशु चिकित्सा उपचार प्रोटोकॉल और सुरक्षित निकासी अवधि"
+        ),
+        "notebook_tab_inventory" to mapOf(
+            "ar" to "📦 المخزون",
+            "fr" to "📦 Stock",
+            "en" to "📦 Inventory",
+            "es" to "📦 Inventario",
+            "pt" to "📦 Estoque",
+            "hi" to "📦 स्टॉक"
+        ),
+        "barn_inventory_section_title" to mapOf(
+            "ar" to "📦 جرد ومخزون العنبر (الغاز، النشارة، الماء، والأدوية)",
+            "fr" to "📦 Inventaire du Bâtiment (Gaz, Copeaux, Eau & Médicaments)",
+            "en" to "📦 Barn Inventory (Gas, Wood Shavings, Water & Meds)",
+            "es" to "📦 Inventario del Galpón (Gas, Viruta, Agua y Medicinas)",
+            "pt" to "📦 Estoque do Galpão (Gás, Maravalha, Água e Remédios)",
+            "hi" to "📦 बार्न इन्वेंटरी (गैस, बुरादा, पानी और दवाइयां)"
+        ),
+        "barn_inventory_section_subtitle" to mapOf(
+            "ar" to "عدادات تفاعلية ثلاثية الأبعاد لمتابعة مستلزمات العنبر لحظة بلحظة",
+            "fr" to "Compteurs interactifs 3D pour suivre les fournitures du bâtiment en temps réel",
+            "en" to "Interactive 3D counters to track barn supplies in real time",
+            "es" to "Contadores interactivos 3D para controlar los insumos del galpón en tiempo real",
+            "pt" to "Contadores interativos 3D para acompanhar os insumos do galpão em tempo real",
+            "hi" to "बार्न की आपूर्ति को ट्रैक करने के लिए इंटरैक्टिव 3D काउंटर"
+        ),
+        "barn_inv_gas_cylinders_title" to mapOf(
+            "ar" to "🔥 قارورات غاز التدفئة",
+            "fr" to "🔥 Bouteilles de Gaz de Chauffage",
+            "en" to "🔥 Heating Gas Cylinders",
+            "es" to "🔥 Bombonas de Gas de Calefacción",
+            "pt" to "🔥 Botijões de Gás de Aquecimento",
+            "hi" to "🔥 हीटिंग गैस सिलेंडर"
+        ),
+        "barn_inv_gas_cylinders_sub" to mapOf(
+            "ar" to "عداد القارورات المتوفرة والمستهلكة في العنبر",
+            "fr" to "Compteur des bouteilles disponibles et consommées",
+            "en" to "Counter of available and consumed gas cylinders",
+            "es" to "Contador de bombonas disponibles y consumidas",
+            "pt" to "Contador de botijões disponíveis e consumidos",
+            "hi" to "उपलब्ध और खपत किए गए गैस सिलेंडरों की संख्या"
+        ),
+        "barn_inv_gas_unit" to mapOf(
+            "ar" to "قارورة",
+            "fr" to "bouteilles",
+            "en" to "cylinders",
+            "es" to "bombonas",
+            "pt" to "botijões",
+            "hi" to "सिलेंडर"
+        ),
+        "barn_inv_wood_shavings_title" to mapOf(
+            "ar" to "🪵 أكياس النشارة والفرشة",
+            "fr" to "🪵 Sacs de Copeaux de Bois & Litière",
+            "en" to "🪵 Wood Shavings & Litter Bags",
+            "es" to "🪵 Sacos de Viruta de Madera y Cama",
+            "pt" to "🪵 Sacos de Maravalha e Cama",
+            "hi" to "🪵 लकड़ी का बुरादा और बिछावन बैग"
+        ),
+        "barn_inv_wood_shavings_sub" to mapOf(
+            "ar" to "عداد أكياس النشارة المتوفرة في المستودع",
+            "fr" to "Compteur de sacs de copeaux en stock",
+            "en" to "Counter of wood shavings bags in warehouse",
+            "es" to "Contador de sacos de viruta en almacén",
+            "pt" to "Contador de sacos de maravalha no depósito",
+            "hi" to "गोदाम में उपलब्ध बुरादे के बैगों की संख्या"
+        ),
+        "barn_inv_shavings_unit" to mapOf(
+            "ar" to "كيس",
+            "fr" to "sacs",
+            "en" to "bags",
+            "es" to "sacos",
+            "pt" to "sacos",
+            "hi" to "बैग"
+        ),
+        "barn_inv_water_tankers_title" to mapOf(
+            "ar" to "💧 شاحنات / صهاريج الماء",
+            "fr" to "💧 Camions / Citernes d'Eau",
+            "en" to "💧 Water Tankers / Trucks",
+            "es" to "💧 Camiones / Cisternas de Agua",
+            "pt" to "💧 Caminhões-Pipa / Tanques de Água",
+            "hi" to "💧 पानी के टैंकर / ट्रक"
+        ),
+        "barn_inv_water_tankers_sub" to mapOf(
+            "ar" to "عداد كم مرة دخلت شاحنة / صهريج الماء للعنبر",
+            "fr" to "Nombre de livraisons de citernes d'eau au bâtiment",
+            "en" to "Count of water tanker deliveries to the barn",
+            "es" to "Cantidad de ingresos de camiones cisterna al galpón",
+            "pt" to "Quantidade de entregas de caminhão-pipa no galpão",
+            "hi" to "बार्न में पानी के टैंकर आने की कुल संख्या"
+        ),
+        "barn_inv_water_unit" to mapOf(
+            "ar" to "صهريج",
+            "fr" to "citernes",
+            "en" to "tankers",
+            "es" to "cisternas",
+            "pt" to "tanques",
+            "hi" to "टैंकर"
+        ),
+        "barn_inv_meds_packs_title" to mapOf(
+            "ar" to "💊 مخزون الأدوية واللقاحات والفيتامينات",
+            "fr" to "💊 Stock de Médicaments, Vaccins & Vitamines",
+            "en" to "💊 Medications, Vaccines & Vitamins Stock",
+            "es" to "💊 Stock de Medicamentos, Vacunas y Vitaminas",
+            "pt" to "💊 Estoque de Medicamentos, Vacinas e Vitaminas",
+            "hi" to "💊 दवाइयों, टीकों और विटामिन का स्टॉक"
+        ),
+        "barn_inv_meds_packs_sub" to mapOf(
+            "ar" to "عداد العبوات والقوارير المتوفرة في صيدلية العنبر",
+            "fr" to "Compteur de flacons et boîtes disponibles au bâtiment",
+            "en" to "Counter of vials and bottles available in the barn",
+            "es" to "Contador de frascos y envases disponibles en el galpón",
+            "pt" to "Contador de frascos e embalagens disponíveis no galpão",
+            "hi" to "बार्न में उपलब्ध दवा की बोतलों और पैकेटों की संख्या"
+        ),
+        "barn_inv_meds_unit" to mapOf(
+            "ar" to "عبوة",
+            "fr" to "flacons",
+            "en" to "bottles",
+            "es" to "frascos",
+            "pt" to "frascos",
+            "hi" to "बोतल"
+        ),
+        "expense_custom_name_label" to mapOf(
+            "ar" to "بيان / اسم المصروف (اكتب فِيمَ صُرف المبلغ)",
+            "fr" to "Libellé / Nom de la dépense (précisez l'objet)",
+            "en" to "Expense Description / Item Name (what was it spent on?)",
+            "es" to "Concepto / Nombre del gasto (¿en qué se gastó?)",
+            "pt" to "Descrição / Nome da despesa (em que foi gasto?)",
+            "hi" to "खर्च का विवरण / नाम (राशि किस पर खर्च की गई?)"
+        ),
+        "expense_custom_name_placeholder" to mapOf(
+            "ar" to "مثال: نشارة خشب، صهريج ماء، تصليح، كهرباء...",
+            "fr" to "Ex: Copeaux de bois, citerne d'eau, réparation, électricité...",
+            "en" to "e.g., Wood shavings, water tanker, repair, electricity...",
+            "es" to "Ej: Viruta de madera, cisterna de agua, reparación, luz...",
+            "pt" to "Ex: Maravalha, caminhão-pipa, conserto, energia...",
+            "hi" to "उदा: लकड़ी का बुरादा, पानी का टैंकर, मरम्मत, बिजली..."
+        ),
+        "income_custom_name_label" to mapOf(
+            "ar" to "بيان / تفاصيل الدخل (اختياري)",
+            "fr" to "Libellé / Détails du revenu (optionnel)",
+            "en" to "Income Description / Details (optional)",
+            "es" to "Concepto / Detalles del ingreso (opcional)",
+            "pt" to "Descrição / Detalhes da receita (opcional)",
+            "hi" to "आय का विवरण / नाम (वैकल्पिक)"
+        ),
+        "delete_barn_long_press_badge" to mapOf(
+            "ar" to "🗑️ حذف هذا العنبر نهائياً",
+            "fr" to "🗑️ Supprimer ce bâtiment définitivement",
+            "en" to "🗑️ Delete This Barn Permanently",
+            "es" to "🗑️ Eliminar este galpón permanentemente",
+            "pt" to "🗑️ Excluir este galpão permanentemente",
+            "hi" to "🗑️ इस बार्न को स्थायी रूप से हटाएं"
+        ),
+        "delete_barn_dialog_title" to mapOf(
+            "ar" to "🗑️ تأكيد حذف العنبر نهائياً",
+            "fr" to "🗑️ Confirmer la suppression définitive du bâtiment",
+            "en" to "🗑️ Confirm Permanent Barn Deletion",
+            "es" to "🗑️ Confirmar eliminación permanente del galpón",
+            "pt" to "🗑️ Confirmar exclusão permanente do galpão",
+            "hi" to "🗑️ बार्न को स्थायी रूप से हटाने की पुष्टि करें"
+        ),
+        "delete_barn_dialog_msg" to mapOf(
+            "ar" to "هل أنت متأكد من حذف هذا العنبر نهائياً مع جميع سجلاته من الشاشة؟ لا يمكن التراجع عن هذا الإجراء.",
+            "fr" to "Voulez-vous vraiment supprimer ce bâtiment et tous ses registres ? Cette action est irréversible.",
+            "en" to "Are you sure you want to permanently delete this barn and all its records? This action cannot be undone.",
+            "es" to "¿Está seguro de eliminar este galpón y todos sus registros permanentemente? Esta acción no se puede deshacer.",
+            "pt" to "Tem certeza de que deseja excluir permanentemente este galpão e todos os seus registros?",
+            "hi" to "क्या आप वाकई इस बार्न और इसके सभी रिकॉर्ड को स्थायी रूप से हटाना चाहते हैं?"
+        ),
+        "delete_barn_confirm_btn" to mapOf(
+            "ar" to "نعم، احذف العنبر نهائياً 🗑️",
+            "fr" to "Oui, supprimer définitivement 🗑️",
+            "en" to "Yes, Delete Permanently 🗑️",
+            "es" to "Sí, eliminar permanentemente 🗑️",
+            "pt" to "Sim, excluir permanentemente 🗑️",
+            "hi" to "हां, स्थायी रूप से हटाएं 🗑️"
+        ),
+        "settings_row_reset_active_cycle_title" to mapOf(
+            "ar" to "🔄 إعادة ضبط وتصفير الدورة الحالية",
+            "fr" to "🔄 Réinitialiser et remettre à zéro le lot actuel",
+            "en" to "🔄 Reset & Clear Current Active Cycle",
+            "es" to "🔄 Reiniciar y poner a cero el lote actual",
+            "pt" to "🔄 Reiniciar e zerar o lote ativo atual",
+            "hi" to "🔄 वर्तमान सक्रिय चक्र को रीसेट और साफ़ करें"
+        ),
+        "settings_row_reset_active_cycle_sub" to mapOf(
+            "ar" to "مسح سجلات الدورة الحالية وإعادة العنبر لليوم 1",
+            "fr" to "Effacer les registres du lot actuel et repartir au Jour 1",
+            "en" to "Clear current cycle records and reset barn to Day 1",
+            "es" to "Borrar registros del lote actual y volver al Día 1",
+            "pt" to "Limpar registros do lote atual e voltar ao Dia 1",
+            "hi" to "वर्तमान चक्र रिकॉर्ड साफ़ करें और बार्न को दिन 1 पर रीसेट करें"
         )
     )
 
@@ -4775,7 +5159,31 @@ object Translations {
         "tap_to_edit_weight_fcr_hint" to "Toque para editar ✏️",
         "tap_to_estimate_sales_profit_hint" to "Toque para estimar vendas e lucro 📊",
         "fcr_weight_editor_dialog_title" to "⚖️ Ajustar Peso Estimado e FCR",
-        "btn_close_check" to "Fechar ✓"
+        "btn_close_check" to "Fechar ✓",
+        "weigh_crates_stepper_fmt" to "📦 {crates} caixas ({birds} aves)",
+        "farm_vitality_vaccines_sheet_title" to "💉 Registro de Viabilidade, Vacinas e Medicamentos",
+        "farm_vitality_vaccines_sheet_subtitle" to "Resumo de aves vivas, mortalidade e todas as vacinas e tratamentos do lote",
+        "farm_vitality_no_meds_yet" to "Nenhuma vacina ou medicamento registrado neste lote ainda",
+        "farm_med_status_water_confirmed" to "✓ Administrado na água",
+        "farm_med_status_vet_prescribed" to "🩺 Prescrição e vacina veterinária",
+        "farm_weight_income_sheet_title" to "⚖️ Resumo de Peso Estimado, Consumo e Renda",
+        "farm_weight_income_sheet_subtitle" to "Consumo do lote, ajuste de peso/FCR e renda e lucro líquido estimado",
+        "farm_feed_consumed_section_title" to "🌾 Consumo total de ração do lote",
+        "farm_total_feed_consumed_label" to "Total de ração consumida",
+        "farm_feed_per_bird_label" to "Consumo por ave",
+        "farm_income_summary_section_title" to "💰 Renda Estimada do Galpão e Lucro Líquido",
+        "btn_open_sales_cull_simulator" to "📊 Abrir simulador de vendas e refugo",
+        "ai_subtab_smart_decisions" to "⚡ Decisões IA",
+        "ai_subtab_diagnostics" to "📊 Diagnóstico e Inspeção",
+        "ai_subtab_live_chat" to "💬 Chat ao Vivo",
+        "ai_diag_section_subtitle_farm" to "Selecione uma inspeção especializada para analisar os dados do seu galpão",
+        "ai_diag_section_subtitle_home" to "Análise inteligente do orçamento doméstico, contas mensais e taxa de economia",
+        "ai_diag_run_check_btn" to "🔍 Iniciar análise e ver relatório",
+        "ai_diag_card_profit_desc" to "Revisão de custo por kg, consumo de ração e lucro líquido estimado pelo preço de mercado",
+        "ai_diag_card_climate_desc" to "Inspeção de temperatura, amônia e ventilação para evitar estresse térmico",
+        "ai_diag_card_vaccine_desc" to "Programa de vacinação Ross 308 (Newcastle, Gumboro, Bronquite) e vitaminas por idade",
+        "ai_diag_card_fcr_desc" to "Comparação da conversão alimentar FCR e peso vivo com o padrão Ross 308",
+        "ai_diag_card_resp_desc" to "Diagnóstico de sintomas respiratórios e diarreias com protocolo e período de carência"
     )
 
     fun hasKey(key: String): Boolean {

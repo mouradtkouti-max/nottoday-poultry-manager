@@ -1306,5 +1306,40 @@ class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
             Result.failure(e)
         }
     }
+
+    /**
+     * Permanently deletes a farm and its associated subcollections (cycles, dailyReports, transactions, vetNotes)
+     * from both local state (`AgritechMockDb`) and Cloud Firestore (`/farms/{farmId}`).
+     */
+    suspend fun deleteFarmRecord(farmId: String): Result<Unit> {
+        if (farmId.isBlank() || farmId == "personal_worker_ledger") return Result.success(Unit)
+        AgritechMockDb.deleteFarmCompletely(farmId)
+        val uid = auth.currentUser?.uid ?: return Result.success(Unit)
+        return try {
+            val reportsSnap = farmReportsRef(farmId).get().await()
+            for (doc in reportsSnap.documents) {
+                runCatching { doc.reference.delete().await() }
+            }
+            val txsSnap = farmTransactionsRef(farmId).get().await()
+            for (doc in txsSnap.documents) {
+                runCatching { doc.reference.delete().await() }
+            }
+            val vetSnap = farmVetNotesRef(farmId).get().await()
+            for (doc in vetSnap.documents) {
+                runCatching { doc.reference.delete().await() }
+            }
+            val cyclesSnap = farmCyclesRef(farmId).get().await()
+            for (doc in cyclesSnap.documents) {
+                runCatching { doc.reference.delete().await() }
+            }
+            runCatching { farmDocRef(farmId).delete().await() }
+            Result.success(Unit)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }
+
 
