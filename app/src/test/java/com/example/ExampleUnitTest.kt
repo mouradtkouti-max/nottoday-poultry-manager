@@ -594,9 +594,16 @@ class ExampleUnitTest {
         AgritechMockDb.deleteFarmCompletely("farm_test")
         assertTrue(AgritechMockDb.farms.none { it.id == "farm_test" })
         assertTrue(AgritechMockDb.barnInventoryCounters.keys.none { it.startsWith("farm_test_") })
+        assertTrue(AgritechMockDb.deletedFarmIds.contains("farm_test"))
+
+        // Verify concise 1-line AI sub-tab labels in Arabic
+        assertEquals("⚡ القرارات", Translations.tr("ai_subtab_smart_decisions", AppLanguage.AR))
+        assertEquals("🔍 الفحوصات", Translations.tr("ai_subtab_diagnostics", AppLanguage.AR))
+        assertEquals("💬 المحادثة", Translations.tr("ai_subtab_live_chat", AppLanguage.AR))
 
         // Verify personal_worker_ledger is 100% protected from deleteFarmCompletely
         AgritechMockDb.deleteFarmCompletely("personal_worker_ledger")
+        assertFalse(AgritechMockDb.deletedFarmIds.contains("personal_worker_ledger"))
         assertEquals(workerCountBeforeDelete, AgritechMockDb.workerPersonalEntries.size)
         assertTrue(AgritechMockDb.workerPersonalEntries.all { it.farmId == "personal_worker_ledger" })
     }

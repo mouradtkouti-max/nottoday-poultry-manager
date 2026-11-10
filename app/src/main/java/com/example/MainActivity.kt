@@ -953,12 +953,15 @@ object AgritechMockDb {
         return updatedCycle
     }
 
+    val deletedFarmIds = mutableSetOf<String>()
+
     /**
      * Permanently deletes a barn (`farmId`) and all its associated cycles, daily reports, transactions, vet notes,
      * and supply inventory keys from local state without touching `personal_worker_ledger`.
      */
     fun deleteFarmCompletely(farmId: String) {
         if (farmId.isBlank() || farmId == "personal_worker_ledger") return
+        deletedFarmIds.add(farmId)
         farms.removeAll { it.id == farmId }
         cycles.removeAll { it.farmId == farmId }
         dailyReports.removeAll { it.farmId == farmId && it.farmId != "personal_worker_ledger" }
@@ -1279,8 +1282,9 @@ fun AgritechMainApp(
                     launch {
                         try {
                             firestoreRepo.observeFarms(activeFarmId).collectLatest { cloudFarms ->
-                                if (cloudFarms.isNotEmpty()) {
-                                    cloudFarms.forEach { farm ->
+                                val validCloudFarms = cloudFarms.filterNot { it.id in AgritechMockDb.deletedFarmIds }
+                                if (validCloudFarms.isNotEmpty()) {
+                                    validCloudFarms.forEach { farm ->
                                         val idx = AgritechMockDb.farms.indexOfFirst { it.id == farm.id }
                                         if (idx >= 0) {
                                             AgritechMockDb.farms[idx] = farm
@@ -1435,20 +1439,22 @@ fun AgritechMainApp(
                     if (isAlreadySignedIn) {
                         LocalFarmPersistence.restoreFromReloginArchiveIfNeeded(context)
                         LocalFarmPersistence.loadIntoMockDb(context)
+                        val validActiveId = AgritechMockDb.farms.firstOrNull { it.id !in AgritechMockDb.deletedFarmIds }?.id.orEmpty()
                         sessionState.markAuthenticated(
                             context = context,
                             role = role,
                             linkedBarns = linkedBarns,
+                            farmId = validActiveId,
                             uid = AgritechAuthHelper.currentUserUid()
                         )
                         if (role == AppRole.WORKER && linkedBarns) {
-                            sessionState.selectedFarmForWorker = AgritechMockDb.farms.firstOrNull()
+                            sessionState.selectedFarmForWorker = AgritechMockDb.farms.firstOrNull { it.id !in AgritechMockDb.deletedFarmIds }
                         }
-                        if (sessionState.activeFarmId.isNotBlank()) {
+                        if (sessionState.activeFarmId.isNotBlank() && sessionState.activeFarmId !in AgritechMockDb.deletedFarmIds) {
                             scope.launch {
                                 firestoreRepo?.setUserRoleAndFarm(role, sessionState.activeFarmId)
                                 if (role == AppRole.OWNER) {
-                                    AgritechMockDb.farms.firstOrNull { it.id == sessionState.activeFarmId }?.let { farm ->
+                                    AgritechMockDb.farms.firstOrNull { it.id == sessionState.activeFarmId && it.id !in AgritechMockDb.deletedFarmIds }?.let { farm ->
                                         firestoreRepo?.saveFarmRecord(farm, AppRole.OWNER)
                                     }
                                 }
@@ -1462,20 +1468,22 @@ fun AgritechMainApp(
                                 authErrorBanner = null
                                 LocalFarmPersistence.restoreFromReloginArchiveIfNeeded(context)
                                 LocalFarmPersistence.loadIntoMockDb(context)
+                                val validActiveId = AgritechMockDb.farms.firstOrNull { it.id !in AgritechMockDb.deletedFarmIds }?.id.orEmpty()
                                 sessionState.markAuthenticated(
                                     context = context,
                                     role = role,
                                     linkedBarns = linkedBarns,
+                                    farmId = validActiveId,
                                     uid = AgritechAuthHelper.currentUserUid()
                                 )
                                 if (role == AppRole.WORKER && linkedBarns) {
-                                    sessionState.selectedFarmForWorker = AgritechMockDb.farms.firstOrNull()
+                                    sessionState.selectedFarmForWorker = AgritechMockDb.farms.firstOrNull { it.id !in AgritechMockDb.deletedFarmIds }
                                 }
-                                if (sessionState.activeFarmId.isNotBlank()) {
+                                if (sessionState.activeFarmId.isNotBlank() && sessionState.activeFarmId !in AgritechMockDb.deletedFarmIds) {
                                     scope.launch {
                                         firestoreRepo?.setUserRoleAndFarm(role, sessionState.activeFarmId)
                                         if (role == AppRole.OWNER) {
-                                            AgritechMockDb.farms.firstOrNull { it.id == sessionState.activeFarmId }?.let { farm ->
+                                            AgritechMockDb.farms.firstOrNull { it.id == sessionState.activeFarmId && it.id !in AgritechMockDb.deletedFarmIds }?.let { farm ->
                                                 firestoreRepo?.saveFarmRecord(farm, AppRole.OWNER)
                                             }
                                         }
@@ -6496,11 +6504,181 @@ fun OwnerGlobalAiVetPlaceholderScreen(
         )
     }
 
-    fun triggerAiConsultation(queryText: String, switchToChat: Boolean = false) {
+    val curr = Translations.tr("currency", lang)
+    val qUnit = Translations.tr("quintal_short", lang)
+    val kgUnit = Translations.tr("kg_unit", lang)
+
+    fun buildLiveDiagnosticReport(cardTag: String, cardTitle: String): Pair<String, String>? {
+        val activeFarm = AgritechMockDb.farms.firstOrNull {
+            it.id == sessionState.activeFarmId && it.id !in AgritechMockDb.deletedFarmIds
+        } ?: AgritechMockDb.farms.firstOrNull { it.id !in AgritechMockDb.deletedFarmIds }
+
+        val activeCycle = activeFarm?.let { farm ->
+            AgritechMockDb.cycles.firstOrNull {
+                it.farmId == farm.id && it.status.equals("active", ignoreCase = true)
+            } ?: AgritechMockDb.cycles.firstOrNull { it.farmId == farm.id }
+        }
+        val farmReports = if (activeFarm != null) {
+            AgritechMockDb.dailyReports.filter {
+                it.farmId == activeFarm.id && (activeCycle == null || it.cycleId == activeCycle.id)
+            }.sortedBy { it.dayNumber }
+        } else emptyList()
+
+        val farmTxs = if (activeFarm != null) {
+            AgritechMockDb.transactions.filter {
+                it.farmId == activeFarm.id && (activeCycle == null || it.cycleId == activeCycle.id) &&
+                    !it.status.equals("PENDING", ignoreCase = true)
+            }
+        } else emptyList()
+
+        val barnDisplayName = if (activeFarm != null) {
+            Translations.getLocalizedFarmName(activeFarm.id, lang, activeFarm.name)
+        } else {
+            Translations.tr("no_active_cycle", lang)
+        }
+        val maxReportDay = farmReports.maxOfOrNull { it.dayNumber } ?: 1
+        val ageDays = if (activeCycle != null) {
+            PoultryCalculators.calculateCycleDay(activeCycle.startDate, maxReportDay)
+        } else maxReportDay
+        val totalMortality = farmReports.sumOf { it.mortalityCount }
+        val placedBirds = activeCycle?.totalBirdsPlaced ?: activeFarm?.capacity ?: 0
+        val soldBirds = activeCycle?.cumulativeBirdsSold ?: 0
+        val liveBirds = (placedBirds - totalMortality - soldBirds).coerceAtLeast(0)
+        val totalFeedKg = farmReports.sumOf { it.feedIntakeKg }
+        val totalFeedQuintals = totalFeedKg / 100.0
+        val latestMeasuredWeightKg = farmReports.lastOrNull { it.actualAvgWeightKg > 0.0 }?.actualAvgWeightKg ?: 0.0
+        val rossTargetWeightKg = PoultryCalculators.getRoss308StandardWeightKg(ageDays)
+        val currentWeightKg = if (latestMeasuredWeightKg > 0.0) latestMeasuredWeightKg else rossTargetWeightKg
+
+        return when (cardTag) {
+            "ai_agent_goal_bubble_0" -> {
+                if (isHomePersonalAgentMode) {
+                    val entries = AgritechMockDb.workerPersonalEntries
+                    val totalInc = entries.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
+                    val totalExp = entries.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
+                    val net = totalInc - totalExp
+                    val savingsPct = if (totalInc > 0.0) ((net / totalInc) * 100.0).coerceIn(-100.0, 100.0) else 0.0
+                    Pair(
+                        "📊 ${Translations.tr("ai_vet_diagnosis_prefix", lang)} ($cardTitle)",
+                        "• إجمالي الدخل المسجل: ${String.format(java.util.Locale.US, "%,.0f", totalInc)} $curr\n" +
+                            "• إجمالي المصاريف والفواتير: ${String.format(java.util.Locale.US, "%,.0f", totalExp)} $curr\n" +
+                            "• صافي الرصيد المتبقي: ${String.format(java.util.Locale.US, "%,.0f", net)} $curr\n" +
+                            "• نسبة التوفير الفعلية: ${String.format(java.util.Locale.US, "%.1f%%", savingsPct)}\n" +
+                            "💡 توصية الموظف الذكي: خصص 15% من الدخل الشهري في صندوق الطوارئ وتجنب المصاريف غير المجدولة."
+                    )
+                } else {
+                    val totalExpenses = farmTxs.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
+                    val totalIncome = farmTxs.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
+                    val estBiomassKg = liveBirds * currentWeightKg
+                    val costPerBird = if (liveBirds > 0) totalExpenses / liveBirds else 0.0
+                    val costPerKg = if (estBiomassKg > 0.0) totalExpenses / estBiomassKg else 0.0
+                    val estMarketRevenue = estBiomassKg * 250.0
+                    val estNetProfit = (estMarketRevenue + totalIncome) - totalExpenses
+                    Pair(
+                        "💰 ${Translations.tr("ai_vet_diagnosis_prefix", lang)} ($cardTitle — $barnDisplayName)",
+                        "• العنبر النشط: $barnDisplayName (العمر: اليوم $ageDays • الطيور الحية: ${String.format(java.util.Locale.US, "%,d", liveBirds)})\n" +
+                            "• إجمالي المصاريف المسجلة بالخزنة: ${String.format(java.util.Locale.US, "%,.0f", totalExpenses)} $curr\n" +
+                            "• تكلفة الطائر الحي حتى اليوم: ${String.format(java.util.Locale.US, "%,.1f", costPerBird)} $curr\n" +
+                            "• تكلفة إنتاج 1 $kgUnit حي: ${String.format(java.util.Locale.US, "%,.1f", costPerKg)} $curr / $kgUnit\n" +
+                            "• صافي الربح التقديري (بسعر 250 $curr/$kgUnit): ${String.format(java.util.Locale.US, "%+,.0f", estNetProfit)} $curr\n" +
+                            "💡 التوصية المالية: تكلفة الكيلو (${String.format(java.util.Locale.US, "%.0f", costPerKg)} $curr) ${if (costPerKg <= 215.0) "ممتازة وتمنح هامش ربح آمن" else "مرتفعة نسبياً، راقب هدر العلف لرفع هامش الربح"}."
+                    )
+                }
+            }
+            "ai_vet_quick_chip_2" -> {
+                val standingBiomassKg = liveBirds * currentWeightKg
+                val soldWeightKg = activeCycle?.cumulativeSoldWeightKg ?: 0.0
+                val totalProducedWeightKg = standingBiomassKg + soldWeightKg
+                val actualFcr = if (totalProducedWeightKg > 0.0 && totalFeedKg > 0.0) {
+                    totalFeedKg / totalProducedWeightKg
+                } else 0.0
+                val standardFcr = when {
+                    ageDays <= 14 -> 1.18
+                    ageDays <= 28 -> 1.42
+                    ageDays <= 35 -> 1.56
+                    else -> 1.68
+                }
+                Pair(
+                    "⚖️ ${Translations.tr("ai_vet_diagnosis_prefix", lang)} ($cardTitle — $barnDisplayName)",
+                    "• العنبر: $barnDisplayName (اليوم $ageDays • الطيور الحية: ${String.format(java.util.Locale.US, "%,d", liveBirds)})\n" +
+                        "• إجمالي العلف المستهلك: ${Translations.formatQuintalNumber(totalFeedQuintals)} $qUnit (${String.format(java.util.Locale.US, "%,.0f", totalFeedKg)} $kgUnit)\n" +
+                        "• متوسط الوزن الحالي للطير: ${String.format(java.util.Locale.US, "%.2f", currentWeightKg)} $kgUnit (معيار Ross 308 لليوم $ageDays: ${String.format(java.util.Locale.US, "%.2f", rossTargetWeightKg)} $kgUnit)\n" +
+                        "• معامل التحويل المحسوب (FCR): ${String.format(java.util.Locale.US, "%.2f", actualFcr)} (المعيار القياسي: ${String.format(java.util.Locale.US, "%.2f", standardFcr)})\n" +
+                        "💡 التوصية الفنية: ${if (actualFcr in 0.1..standardFcr) "معامل التحويل ممتاز وأفضل من المعيار العالمي، حافظ على ضبط ارتفاع المعالف." else "يرجى فحص مستوى المعالف لمنع بعثرة العلف وضبط حرارة العنبر لتحسين التحويل."}"
+                )
+            }
+            "ai_agent_goal_bubble_3" -> {
+                if (isHomePersonalAgentMode) {
+                    val bills = AgritechMockDb.workerPersonalEntries.filter { it.type == TransactionType.EXPENSE }
+                    val totalBills = bills.sumOf { it.amount }
+                    val topBill = bills.maxByOrNull { it.amount }
+                    val latestThree = bills.take(3).joinToString("\n") {
+                        "  - ${it.title}: ${String.format(java.util.Locale.US, "%,.0f", it.amount)} $curr (${it.dateLabel})"
+                    }
+                    Pair(
+                        "📋 ${Translations.tr("ai_vet_diagnosis_prefix", lang)} ($cardTitle)",
+                        "• عدد الفواتير والمصاريف المسجلة: ${bills.size} فاتورة/قيد\n" +
+                            "• إجمالي المصاريف: ${String.format(java.util.Locale.US, "%,.0f", totalBills)} $curr\n" +
+                            "• أكبر بند استهلاكاً للميزانية: ${topBill?.title ?: "-"} (${String.format(java.util.Locale.US, "%,.0f", topBill?.amount ?: 0.0)} $curr)\n" +
+                            "• أحدث الفواتير المسجلة:\n$latestThree"
+                    )
+                } else {
+                    val expenseTxs = farmTxs.filter { it.type == TransactionType.EXPENSE }
+                    val totalExp = expenseTxs.sumOf { it.amount }
+                    val topExp = expenseTxs.maxByOrNull { it.amount }
+                    val latestList = expenseTxs.takeLast(3).reversed().joinToString("\n") {
+                        "  - ${Translations.getLocalizedTxCategory(it.category, lang)}: ${String.format(java.util.Locale.US, "%,.0f", it.amount)} $curr (${it.date})"
+                    }.ifBlank { "  - لا توجد فواتير مسجلة" }
+                    Pair(
+                        "📋 ${Translations.tr("ai_vet_diagnosis_prefix", lang)} ($cardTitle — $barnDisplayName)",
+                        "• إجمالي مصاريف الخزنة ($barnDisplayName): ${String.format(java.util.Locale.US, "%,.0f", totalExp)} $curr\n" +
+                            "• أكبر بند استهلاكاً للميزانية: ${topExp?.let { Translations.getLocalizedTxCategory(it.category, lang) } ?: "-"} (${String.format(java.util.Locale.US, "%,.0f", topExp?.amount ?: 0.0)} $curr)\n" +
+                            "• آخر الفواتير المسجلة:\n$latestList"
+                    )
+                }
+            }
+            "ai_vet_quick_chip_0" -> {
+                val latestReport = farmReports.lastOrNull()
+                val recordedTempC = latestReport?.temperature ?: 24.0
+                val idealTempC = when {
+                    ageDays <= 3 -> 33.0
+                    ageDays <= 7 -> 31.0
+                    ageDays <= 14 -> 29.0
+                    ageDays <= 21 -> 27.0
+                    ageDays <= 28 -> 24.0
+                    else -> 21.0
+                }
+                val tempDiff = recordedTempC - idealTempC
+                val ventStatus = latestReport?.let { Translations.getLocalizedVentilation(it.ventilationStatus, lang) }
+                    ?: Translations.tr("vent_good", lang)
+                Pair(
+                    "🌡️ ${Translations.tr("ai_vet_diagnosis_prefix", lang)} ($cardTitle — $barnDisplayName)",
+                    "• العنبر: $barnDisplayName (العمر الحالي: اليوم $ageDays)\n" +
+                        "• آخر درجة حرارة مسجلة بالسجل: ${String.format(java.util.Locale.US, "%.1f°C", recordedTempC)} (الهدف المثالي لليوم $ageDays: ${String.format(java.util.Locale.US, "%.1f°C", idealTempC)})\n" +
+                        "• حالة التهوية المسجلة: $ventStatus (الفارق الحراري: ${String.format(java.util.Locale.US, "%+.1f°C", tempDiff)})\n" +
+                        "💡 التوصية البيئية: ${
+                            when {
+                                tempDiff > 2.0 -> "تنبيه إجهاد حراري (+${String.format(java.util.Locale.US, "%.1f°C", tempDiff)} فوق الهدف): ارفع سرعة الشفاطات تدريجياً وأضف فيتامين C وإلكتروليت في مياه الشرب."
+                                tempDiff < -2.0 -> "الحرارة أقل من الهدف المثالي: اضبط التدفئة وتأكد من عدم وجود تيارات هوائية باردة لمنع تجمع الطيور."
+                                else -> "درجة الحرارة والتهوية مثالية تماماً لعمر $ageDays يوم وفق دليل Ross 308."
+                            }
+                        }"
+                )
+            }
+            else -> null
+        }
+    }
+
+    fun triggerAiConsultation(queryText: String, switchToChat: Boolean = false, diagnosticTag: String? = null) {
         val cleanQuery = queryText.trim().replace("**", "")
         if (cleanQuery.isEmpty() || isAnalyzing) return
         if (switchToChat) {
             selectedAiSubTab = 2
+        }
+        val instantReport = diagnosticTag?.let { buildLiveDiagnosticReport(it, cleanQuery) }
+        if (instantReport != null) {
+            diagnosisHistory = diagnosisHistory + instantReport
+            return
         }
         isAnalyzing = true
         diagnosisHistory = diagnosisHistory + Pair(
@@ -6545,10 +6723,11 @@ fun OwnerGlobalAiVetPlaceholderScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 16.dp, vertical = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             // Top Glassmorphic AI Agent Employee Persona Header Card + 3-Sub-Tab Segmented Control
+            // When in Tab 2 (💬 المحادثة), collapse the top persona & mode switcher so 75%+ of screen height is dedicated to chat & reports
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -6563,80 +6742,84 @@ fun OwnerGlobalAiVetPlaceholderScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                        .padding(if (selectedAiSubTab == 2) 8.dp else 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Surface(
-                            modifier = Modifier.size(42.dp),
-                            shape = CircleShape,
-                            color = aiAccentContainer,
-                            border = BorderStroke(1.2.dp, aiAccent.copy(alpha = 0.5f))
+                    if (selectedAiSubTab != 2) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Text("🧠", fontSize = 20.sp)
-                            }
-                        }
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = Translations.tr("ai_agent_persona_title", lang),
-                                fontWeight = FontWeight.ExtraBold,
-                                fontSize = 13.5.sp,
-                                color = primaryText,
-                                lineHeight = 18.sp
-                            )
-                            Text(
-                                text = Translations.tr("ai_agent_persona_subtitle", lang),
-                                fontSize = 11.sp,
-                                color = secondaryText,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                    }
-
-                    // Mode Switcher Pill: Farm AI Employee vs Home & Personal AI Employee
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        listOf(
-                            false to Translations.tr("ai_agent_mode_farm", lang),
-                            true to Translations.tr("ai_agent_mode_home", lang)
-                        ).forEach { (homeMode, modeLabel) ->
-                            val isSelectedMode = isHomePersonalAgentMode == homeMode
                             Surface(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clip(pillShape)
-                                    .clickable { isHomePersonalAgentMode = homeMode }
-                                    .testTag(if (homeMode) "ai_agent_mode_home_btn" else "ai_agent_mode_farm_btn"),
-                                shape = pillShape,
-                                color = if (isSelectedMode) aiAccentContainer else Color.Transparent,
-                                border = BorderStroke(
-                                    width = if (isSelectedMode) 1.5.dp else 1.dp,
-                                    color = if (isSelectedMode) aiAccent else glassBorderColor
-                                )
+                                modifier = Modifier.size(40.dp),
+                                shape = CircleShape,
+                                color = aiAccentContainer,
+                                border = BorderStroke(1.2.dp, aiAccent.copy(alpha = 0.5f))
                             ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Text("🧠", fontSize = 19.sp)
+                                }
+                            }
+                            Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = modeLabel,
-                                    fontSize = 11.sp,
+                                    text = Translations.tr("ai_agent_persona_title", lang),
                                     fontWeight = FontWeight.ExtraBold,
-                                    color = if (isSelectedMode) aiAccent else secondaryText,
-                                    textAlign = TextAlign.Center,
+                                    fontSize = 13.sp,
+                                    color = primaryText,
+                                    lineHeight = 17.sp,
                                     maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
+                                    overflow = TextOverflow.Ellipsis
                                 )
+                                Text(
+                                    text = Translations.tr("ai_agent_persona_subtitle", lang),
+                                    fontSize = 11.sp,
+                                    color = secondaryText,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+
+                        // Mode Switcher Pill: Farm AI Employee vs Home & Personal AI Employee
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            listOf(
+                                false to Translations.tr("ai_agent_mode_farm", lang),
+                                true to Translations.tr("ai_agent_mode_home", lang)
+                            ).forEach { (homeMode, modeLabel) ->
+                                val isSelectedMode = isHomePersonalAgentMode == homeMode
+                                Surface(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clip(pillShape)
+                                        .clickable { isHomePersonalAgentMode = homeMode }
+                                        .testTag(if (homeMode) "ai_agent_mode_home_btn" else "ai_agent_mode_farm_btn"),
+                                    shape = pillShape,
+                                    color = if (isSelectedMode) aiAccentContainer else Color.Transparent,
+                                    border = BorderStroke(
+                                        width = if (isSelectedMode) 1.5.dp else 1.dp,
+                                        color = if (isSelectedMode) aiAccent else glassBorderColor
+                                    )
+                                ) {
+                                    Text(
+                                        text = modeLabel,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = if (isSelectedMode) aiAccent else secondaryText,
+                                        textAlign = TextAlign.Center,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
+                                    )
+                                }
                             }
                         }
                     }
 
-                    // شريط أقسام ثلاثي مفصل وواضح (Segmented Control / 3 Sub-Tabs)
-                    // 0: ⚡ القرارات الذكية | 1: 📊 التشخيص والفحص | 2: 💬 المحادثة المباشرة
+                    // شريط أقسام ثلاثي رشيق في سطر واحد بدون اقتطاع:
+                    // 0: ⚡ القرارات | 1: 🔍 الفحوصات | 2: 💬 المحادثة
                     NeumorphicRecessedDisplay(
                         isDark = isDark,
                         contentPadding = PaddingValues(4.dp)
@@ -6645,7 +6828,7 @@ fun OwnerGlobalAiVetPlaceholderScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .testTag("ai_segmented_subtabs_row"),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             aiSubTabs.forEach { (tabIdx, tabTitle) ->
@@ -6662,13 +6845,13 @@ fun OwnerGlobalAiVetPlaceholderScreen(
                                 ) {
                                     Text(
                                         text = tabTitle,
-                                        fontSize = 11.sp,
+                                        fontSize = 11.5.sp,
                                         fontWeight = if (isSelectedTab) FontWeight.ExtraBold else FontWeight.SemiBold,
                                         color = if (isSelectedTab) Color.White else secondaryText,
                                         textAlign = TextAlign.Center,
                                         maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 8.dp)
+                                        softWrap = false,
+                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 7.dp)
                                     )
                                 }
                             }
@@ -6680,7 +6863,7 @@ fun OwnerGlobalAiVetPlaceholderScreen(
             // محتوى القسم النشط (غير مزدحم ومفصول بدقة)
             when (selectedAiSubTab) {
                 0 -> {
-                    // القسم الأول: ⚡ القرارات الذكية (بطاقات الموظف الذكي الاستباقية فقط مع أزرار موافق ✓ / لا ✕)
+                    // القسم الأول: ⚡ القرارات (بطاقات الموظف الذكي الاستباقية فقط مع أزرار موافق ✓ / لا ✕)
                     LazyColumn(
                         modifier = Modifier
                             .weight(1f)
@@ -6923,7 +7106,7 @@ fun OwnerGlobalAiVetPlaceholderScreen(
                 }
 
                 1 -> {
-                    // القسم الثاني: 📊 التشخيص والفحص (بطاقات فحص متخصصة ومفصلة كل بطاقة بشرحها دون خلط أزرار المنزل مع المزرعة)
+                    // القسم الثاني: 🔍 الفحوصات (بطاقات فحص متخصصة مرتبطة ببيانات العنبر النشط الفعلية)
                     val diagnosticCards = remember(isHomePersonalAgentMode, lang) {
                         if (isHomePersonalAgentMode) {
                             listOf(
@@ -6946,6 +7129,16 @@ fun OwnerGlobalAiVetPlaceholderScreen(
                                     Translations.tr("ai_diag_card_profit_desc", lang)
                                 ),
                                 Triple(
+                                    "ai_vet_quick_chip_2",
+                                    Translations.tr("ai_vet_chip_2", lang),
+                                    Translations.tr("ai_diag_card_fcr_desc", lang)
+                                ),
+                                Triple(
+                                    "ai_agent_goal_bubble_3",
+                                    Translations.tr("ai_agent_bubble_bills", lang),
+                                    Translations.tr("ai_diag_section_subtitle_home", lang)
+                                ),
+                                Triple(
                                     "ai_vet_quick_chip_0",
                                     Translations.tr("ai_vet_chip_0", lang),
                                     Translations.tr("ai_diag_card_climate_desc", lang)
@@ -6954,11 +7147,6 @@ fun OwnerGlobalAiVetPlaceholderScreen(
                                     "ai_vet_quick_chip_1",
                                     Translations.tr("ai_vet_chip_1", lang),
                                     Translations.tr("ai_diag_card_vaccine_desc", lang)
-                                ),
-                                Triple(
-                                    "ai_vet_quick_chip_2",
-                                    Translations.tr("ai_vet_chip_2", lang),
-                                    Translations.tr("ai_diag_card_fcr_desc", lang)
                                 ),
                                 Triple(
                                     "ai_vet_quick_chip_3",
@@ -7020,7 +7208,7 @@ fun OwnerGlobalAiVetPlaceholderScreen(
                                     )
                                     Button(
                                         onClick = {
-                                            triggerAiConsultation(cardTitle, switchToChat = true)
+                                            triggerAiConsultation(cardTitle, switchToChat = true, diagnosticTag = cardTag)
                                         },
                                         enabled = !isAnalyzing,
                                         shape = pillShape,
@@ -7044,7 +7232,12 @@ fun OwnerGlobalAiVetPlaceholderScreen(
                 }
 
                 2 -> {
-                    // القسم الثالث: 💬 المحادثة المباشرة (شاشة محادثة كاملة ومفرغة ومريحة مع 🧠 IA)
+                    // القسم الثالث: 💬 المحادثة (75%+ من ارتفاع الشاشة مخصص لقراءة التقارير والرسائل بدون بطاقة ترحيب ضخمة تحجب المحتوى)
+                    val visibleHistory = if (diagnosisHistory.size > 1) {
+                        diagnosisHistory.drop(1).reversed()
+                    } else {
+                        diagnosisHistory
+                    }
                     LazyColumn(
                         modifier = Modifier
                             .weight(1f)
@@ -7052,7 +7245,7 @@ fun OwnerGlobalAiVetPlaceholderScreen(
                             .testTag("ai_vet_messages_list"),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        items(diagnosisHistory) { (headerTitle, bodyText) ->
+                        items(visibleHistory) { (headerTitle, bodyText) ->
                             val sanitizedHeader = headerTitle.replace("**", "")
                             val sanitizedBody = bodyText.replace("**", "")
                             Card(
@@ -7070,14 +7263,14 @@ fun OwnerGlobalAiVetPlaceholderScreen(
                                     Text(
                                         text = sanitizedHeader,
                                         fontWeight = FontWeight.ExtraBold,
-                                        fontSize = 13.sp,
+                                        fontSize = 13.5.sp,
                                         color = aiAccent
                                     )
                                     Text(
                                         text = sanitizedBody,
                                         fontSize = 13.sp,
                                         color = primaryText,
-                                        lineHeight = 19.sp
+                                        lineHeight = 20.sp
                                     )
                                 }
                             }
@@ -7221,12 +7414,27 @@ fun FarmCard(
                 )
             },
             confirmButton = {
+                val sessionState = LocalAgritechAppState.current
                 PremiumPillButton(
                     text = Translations.tr("delete_barn_confirm_btn", lang),
                     onClick = {
                         showDeleteBarnConfirmDialog = false
                         showDeleteBarnOverlay = false
                         AgritechMockDb.deleteFarmCompletely(farm.id)
+                        val nextFarmId = AgritechMockDb.farms.firstOrNull {
+                            it.id != farm.id && it.id !in AgritechMockDb.deletedFarmIds
+                        }?.id.orEmpty()
+                        if (sessionState.activeFarmId == farm.id) {
+                            sessionState.activeFarmId = nextFarmId
+                            SaasPreferencesManager.saveAuthSession(
+                                context = context,
+                                isLoggedIn = sessionState.isLoggedIn,
+                                role = sessionState.currentRole,
+                                hasLinkedBarns = sessionState.hasLinkedBarns,
+                                activeFarmId = nextFarmId,
+                                userUid = sessionState.currentUserUid
+                            )
+                        }
                         LocalFarmPersistence.saveAll(context)
                         if (firestoreRepo != null) {
                             deleteBarnScope.launch {
@@ -10958,15 +11166,6 @@ fun AgritechFarmNotebookScreen(
                                         overflow = TextOverflow.Ellipsis
                                     )
                                 }
-                                AnimatedDeleteOrResetButton(
-                                    text = Translations.tr("btn_reset_cycle", lang),
-                                    onClick = { showResetCycleDialog = true },
-                                    fontSize = 11.sp,
-                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-                                    modifier = Modifier
-                                        .height(34.dp)
-                                        .testTag("btn_reset_cycle")
-                                )
                                 IconButton(onClick = onOpenSettings) {
                                     Icon(
                                         Icons.Default.Settings,
@@ -11533,24 +11732,76 @@ fun AgritechFarmNotebookScreen(
                                 Spacer(modifier = Modifier.height(12.dp))
                                 NeumorphicRecessedDisplay(
                                     isDark = currentTheme.isDark,
-                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 14.dp)
+                                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp)
                                 ) {
-                                    Row(
+                                    val positiveGreen = notebookAccent
+                                    val labelTextColor = if (currentTheme.isDark) Color(0xFFCBD5E1) else Color(0xFF475569)
+                                    val dividerColor = if (currentTheme.isDark) Color(0xFF334155) else Color(0xFFE2E8F0)
+                                    Column(
                                         modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
                                     ) {
-                                        val positiveGreen = notebookAccent
-                                        Box(modifier = Modifier.weight(1f)) {
-                                            CalmFinancialItem(Translations.tr("total_expenses", lang), "${String.format(java.util.Locale.US, "%,.0f", totalExpenses)} $curr", ActionRed)
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = Translations.tr("total_expenses", lang),
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = labelTextColor
+                                            )
+                                            Text(
+                                                text = "${String.format(java.util.Locale.US, "%,.0f", totalExpenses)} $curr",
+                                                fontSize = 15.sp,
+                                                fontWeight = FontWeight.ExtraBold,
+                                                color = ActionRed,
+                                                maxLines = 1,
+                                                softWrap = false
+                                            )
                                         }
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Box(modifier = Modifier.weight(1f)) {
-                                            CalmFinancialItem(Translations.tr("total_income", lang), "${String.format(java.util.Locale.US, "%,.0f", totalIncome)} $curr", positiveGreen)
+                                        HorizontalDivider(color = dividerColor, thickness = 1.dp)
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = Translations.tr("total_income", lang),
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = labelTextColor
+                                            )
+                                            Text(
+                                                text = "${String.format(java.util.Locale.US, "%,.0f", totalIncome)} $curr",
+                                                fontSize = 15.sp,
+                                                fontWeight = FontWeight.ExtraBold,
+                                                color = positiveGreen,
+                                                maxLines = 1,
+                                                softWrap = false
+                                            )
                                         }
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Box(modifier = Modifier.weight(1.15f)) {
-                                            CalmFinancialItem(Translations.tr("net_balance", lang), "${String.format(java.util.Locale.US, "%,.0f", netBalance)} $curr", if (netBalance >= 0) positiveGreen else ActionRed)
+                                        HorizontalDivider(color = dividerColor, thickness = 1.dp)
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = Translations.tr("net_balance", lang),
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (currentTheme.isDark) Color.White else currentTheme.headingColor
+                                            )
+                                            Text(
+                                                text = "${String.format(java.util.Locale.US, "%,.0f", netBalance)} $curr",
+                                                fontSize = 15.5.sp,
+                                                fontWeight = FontWeight.ExtraBold,
+                                                color = if (netBalance >= 0) positiveGreen else ActionRed,
+                                                maxLines = 1,
+                                                softWrap = false
+                                            )
                                         }
                                     }
                                 }
@@ -12210,8 +12461,9 @@ fun AgritechFarmNotebookScreen(
                     LazyColumn(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(16.dp)
+                            .padding(horizontal = 16.dp, vertical = 12.dp)
                             .testTag("barn_inventory_and_vet_tab"),
+                        contentPadding = PaddingValues(bottom = 96.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         // القسم الأول (أعلى التبويب): 📦 جرد ومخزون العنبر (الغاز، النشارة، الماء، والأدوية) بأزرار [-1] و[+1] و[+5] ثلاثية الأبعاد
@@ -12326,7 +12578,7 @@ fun AgritechFarmNotebookScreen(
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         PremiumTactileCalcButton(
-                                            label = "-1",
+                                            label = "\u200E-1",
                                             onClick = { AgritechMockDb.adjustBarnSupplyCount(farm.id, supplyKey, -1, defaultVal) },
                                             isDark = currentTheme.isDark,
                                             accentColor = notebookAccent,
@@ -12338,7 +12590,7 @@ fun AgritechFarmNotebookScreen(
                                                 .testTag("btn_dec_barn_inv_$supplyKey")
                                         )
                                         PremiumTactileCalcButton(
-                                            label = "+1",
+                                            label = "\u200E+1",
                                             onClick = { AgritechMockDb.adjustBarnSupplyCount(farm.id, supplyKey, +1, defaultVal) },
                                             isDark = currentTheme.isDark,
                                             accentColor = notebookAccent,
@@ -12350,7 +12602,7 @@ fun AgritechFarmNotebookScreen(
                                                 .testTag("btn_inc1_barn_inv_$supplyKey")
                                         )
                                         PremiumTactileCalcButton(
-                                            label = "+5",
+                                            label = "\u200E+5",
                                             onClick = { AgritechMockDb.adjustBarnSupplyCount(farm.id, supplyKey, +5, defaultVal) },
                                             isSelected = true,
                                             isDark = currentTheme.isDark,

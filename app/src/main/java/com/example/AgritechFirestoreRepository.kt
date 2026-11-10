@@ -236,10 +236,14 @@ class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
      * Streams a shared farm document from `/farms/{farmId}`.
      */
     fun observeFarm(farmId: String): Flow<FarmModel?> {
+        if (farmId.isBlank() || farmId in AgritechMockDb.deletedFarmIds) {
+            return kotlinx.coroutines.flow.flowOf(null)
+        }
         val docRef = farmDocRef(farmId)
         return docRef.snapshots()
             .map { snapshot ->
-                if (snapshot.exists()) docToFarm(snapshot) else null
+                val parsed = if (snapshot.exists()) docToFarm(snapshot) else null
+                parsed?.takeUnless { it.id in AgritechMockDb.deletedFarmIds }
             }
             .catch { e ->
                 if (e is Exception) handleFirestoreError(e, OperationType.GET, docRef.path)
@@ -248,13 +252,17 @@ class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
     }
 
     /**
-     * Streams the shared farm as a list for dashboard binding.
+     * Streams the shared farm as a list for dashboard binding, excluding any farm in `AgritechMockDb.deletedFarmIds`.
      */
     fun observeFarms(farmId: String = "farm_1"): Flow<List<FarmModel>> {
+        if (farmId.isBlank() || farmId in AgritechMockDb.deletedFarmIds) {
+            return kotlinx.coroutines.flow.flowOf(emptyList())
+        }
         val docRef = farmDocRef(farmId)
         return docRef.snapshots()
             .map { snapshot ->
                 listOfNotNull(if (snapshot.exists()) docToFarm(snapshot) else null)
+                    .filterNot { it.id in AgritechMockDb.deletedFarmIds }
             }
             .catch { e ->
                 if (e is Exception) handleFirestoreError(e, OperationType.GET, docRef.path)
@@ -263,7 +271,8 @@ class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
     }
 
     /**
-     * Assigns user's role and farmId in `/users/{uid}` AND registers the user in `/farms/{farmId}.members`.
+     * Assigns user's role and farmId in `/users/{uid}` AND registers the user in `/farms/{farmId}.members`
+     * without ever auto-creating a hardcoded default barn for deleted or non-existent farms.
      */
     suspend fun setUserRoleAndFarm(role: AppRole, farmId: String, displayName: String? = null): Result<Unit> {
         val uid = requireUserId()
@@ -272,14 +281,14 @@ class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
             AppRole.WORKER -> "WORKER"
             else -> "OWNER"
         }
+        val sanitizedFarmId = if (farmId in AgritechMockDb.deletedFarmIds) "" else farmId
         val userDocRef = db.collection("users").document(uid)
-        val fRef = farmDocRef(farmId)
         return try {
             val existingUser = userDocRef.get().await()
             if (existingUser.exists()) {
                 val updatePayload = mutableMapOf<String, Any>(
                     "role" to normalizedRoleName,
-                    "farmId" to farmId,
+                    "farmId" to sanitizedFarmId,
                     "updatedAt" to FieldValue.serverTimestamp()
                 )
                 if (!displayName.isNullOrBlank()) {
@@ -290,7 +299,7 @@ class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
                 val createPayload = mutableMapOf<String, Any>(
                     "userId" to uid,
                     "role" to normalizedRoleName,
-                    "farmId" to farmId,
+                    "farmId" to sanitizedFarmId,
                     "createdAt" to FieldValue.serverTimestamp(),
                     "updatedAt" to FieldValue.serverTimestamp()
                 )
@@ -300,7 +309,11 @@ class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
                 userDocRef.set(createPayload).await()
             }
 
-            // Also register membership in the shared /farms/{farmId} document
+            if (sanitizedFarmId.isBlank() || sanitizedFarmId in AgritechMockDb.deletedFarmIds) {
+                return Result.success(Unit)
+            }
+
+            val fRef = farmDocRef(sanitizedFarmId)
             val farmSnap = fRef.get().await()
             if (farmSnap.exists()) {
                 @Suppress("UNCHECKED_CAST")
@@ -313,18 +326,23 @@ class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
                     )
                 ).await()
             } else {
-                fRef.set(
-                    mapOf(
-                        "farmId" to farmId,
-                        "name" to "عنبر البركة النموذجي",
-                        "location" to "المدية - سيدي نعمان",
-                        "capacity" to 12000,
-                        "assignedWorkerId" to if (role == AppRole.WORKER) uid else "worker_1",
-                        "members" to mapOf(uid to normalizedRoleName),
-                        "createdAt" to FieldValue.serverTimestamp(),
-                        "updatedAt" to FieldValue.serverTimestamp()
-                    )
-                ).await()
+                val localFarm = AgritechMockDb.farms.firstOrNull {
+                    it.id == sanitizedFarmId && it.id !in AgritechMockDb.deletedFarmIds
+                }
+                if (localFarm != null) {
+                    fRef.set(
+                        mapOf(
+                            "farmId" to localFarm.id,
+                            "name" to localFarm.name,
+                            "location" to localFarm.location,
+                            "capacity" to localFarm.capacity,
+                            "assignedWorkerId" to if (role == AppRole.WORKER) uid else localFarm.assignedWorkerId.ifBlank { "worker_1" },
+                            "members" to (localFarm.members + (uid to normalizedRoleName)),
+                            "createdAt" to FieldValue.serverTimestamp(),
+                            "updatedAt" to FieldValue.serverTimestamp()
+                        )
+                    ).await()
+                }
             }
             Result.success(Unit)
         } catch (e: CancellationException) {

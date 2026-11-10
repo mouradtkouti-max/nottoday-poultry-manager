@@ -485,6 +485,7 @@ object SaasPreferencesManager {
                 .putBoolean(KEY_IS_LOGGED_IN, false)
                 .remove(KEY_USER_ROLE)
                 .putBoolean(KEY_HAS_LINKED_BARNS, false)
+                .remove(KEY_ACTIVE_FARM_ID)
                 .remove(KEY_CURRENT_USER_UID)
                 .apply()
         } catch (_: Exception) {}
@@ -595,8 +596,10 @@ class AgritechAppSessionState(
     ) {
         LocalFarmPersistence.restoreFromReloginArchiveIfNeeded(context)
         LocalFarmPersistence.loadIntoMockDb(context)
-        val resolvedLinkedBarns = linkedBarns || AgritechMockDb.farms.isNotEmpty()
-        val resolvedFarmId = farmId.ifBlank { AgritechMockDb.farms.firstOrNull()?.id ?: "" }
+        val validFarms = AgritechMockDb.farms.filterNot { it.id in AgritechMockDb.deletedFarmIds }
+        val resolvedLinkedBarns = linkedBarns || validFarms.isNotEmpty()
+        val candidateFarmId = if (farmId in AgritechMockDb.deletedFarmIds || validFarms.none { it.id == farmId }) "" else farmId
+        val resolvedFarmId = candidateFarmId.ifBlank { validFarms.firstOrNull()?.id.orEmpty() }
         isLoggedIn = true
         currentRole = role
         hasLinkedBarns = resolvedLinkedBarns
@@ -618,6 +621,7 @@ class AgritechAppSessionState(
         isLoggedIn = false
         currentRole = null
         hasLinkedBarns = false
+        activeFarmId = ""
         currentUserUid = null
         selectedFarmForOwner = null
         selectedFarmForVet = null
@@ -4715,6 +4719,7 @@ object LocalFarmPersistence {
     private const val KEY_TRANSACTIONS = "transactions_json"
     private const val KEY_VET_NOTES = "vet_notes_json"
     private const val KEY_INVENTORY_COUNTERS = "barn_inventory_json"
+    private const val KEY_DELETED_FARM_IDS = "deleted_farm_ids_json"
 
     private fun mapToJson(map: Map<String, String>): org.json.JSONObject {
         val obj = org.json.JSONObject()
@@ -4754,6 +4759,27 @@ object LocalFarmPersistence {
         return result
     }
 
+    private fun stringSetToJson(set: Set<String>): org.json.JSONArray {
+        val arr = org.json.JSONArray()
+        for (item in set) {
+            if (item.isNotBlank()) arr.put(item)
+        }
+        return arr
+    }
+
+    private fun jsonToStringSet(jsonStr: String?): Set<String> {
+        if (jsonStr.isNullOrBlank()) return emptySet()
+        val result = mutableSetOf<String>()
+        runCatching {
+            val arr = org.json.JSONArray(jsonStr)
+            for (i in 0 until arr.length()) {
+                val id = arr.optString(i, "").trim()
+                if (id.isNotBlank()) result.add(id)
+            }
+        }
+        return result
+    }
+
     fun hasSavedData(context: Context): Boolean {
         val prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
         return prefs.getBoolean(KEY_SAVED, false)
@@ -4761,9 +4787,7 @@ object LocalFarmPersistence {
 
     fun archiveBeforeLogout(context: Context) {
         try {
-            if (AgritechMockDb.farms.isNotEmpty() || AgritechMockDb.cycles.isNotEmpty()) {
-                saveAll(context)
-            }
+            saveAll(context)
             val prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
             if (prefs.getBoolean(KEY_SAVED, false)) {
                 val archive = context.getSharedPreferences(PREF_ARCHIVE_NAME, Context.MODE_PRIVATE)
@@ -4775,6 +4799,7 @@ object LocalFarmPersistence {
                     .putString(KEY_TRANSACTIONS, prefs.getString(KEY_TRANSACTIONS, null))
                     .putString(KEY_VET_NOTES, prefs.getString(KEY_VET_NOTES, null))
                     .putString(KEY_INVENTORY_COUNTERS, prefs.getString(KEY_INVENTORY_COUNTERS, null))
+                    .putString(KEY_DELETED_FARM_IDS, prefs.getString(KEY_DELETED_FARM_IDS, null))
                     .apply()
             }
         } catch (_: Exception) {
@@ -4795,6 +4820,7 @@ object LocalFarmPersistence {
                         .putString(KEY_TRANSACTIONS, archive.getString(KEY_TRANSACTIONS, null))
                         .putString(KEY_VET_NOTES, archive.getString(KEY_VET_NOTES, null))
                         .putString(KEY_INVENTORY_COUNTERS, archive.getString(KEY_INVENTORY_COUNTERS, null))
+                        .putString(KEY_DELETED_FARM_IDS, archive.getString(KEY_DELETED_FARM_IDS, null))
                         .apply()
                 }
             }
@@ -4812,6 +4838,7 @@ object LocalFarmPersistence {
             val prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
             val farmsArr = org.json.JSONArray()
             for (f in AgritechMockDb.farms) {
+                if (f.id in AgritechMockDb.deletedFarmIds) continue
                 val obj = org.json.JSONObject()
                 obj.put("id", f.id)
                 obj.put("name", f.name)
@@ -4829,6 +4856,7 @@ object LocalFarmPersistence {
 
             val cyclesArr = org.json.JSONArray()
             for (c in AgritechMockDb.cycles) {
+                if (c.farmId in AgritechMockDb.deletedFarmIds) continue
                 val obj = org.json.JSONObject()
                 obj.put("id", c.id)
                 obj.put("farmId", c.farmId)
@@ -4850,6 +4878,7 @@ object LocalFarmPersistence {
 
             val reportsArr = org.json.JSONArray()
             for (r in AgritechMockDb.dailyReports) {
+                if (r.farmId in AgritechMockDb.deletedFarmIds) continue
                 val obj = org.json.JSONObject()
                 obj.put("id", r.id)
                 obj.put("farmId", r.farmId)
@@ -4875,6 +4904,7 @@ object LocalFarmPersistence {
 
             val txArr = org.json.JSONArray()
             for (t in AgritechMockDb.transactions) {
+                if (t.farmId in AgritechMockDb.deletedFarmIds) continue
                 val obj = org.json.JSONObject()
                 obj.put("id", t.id)
                 obj.put("farmId", t.farmId)
@@ -4916,6 +4946,7 @@ object LocalFarmPersistence {
 
             val notesArr = org.json.JSONArray()
             for (vn in AgritechMockDb.vetNotes) {
+                if (vn.farmId in AgritechMockDb.deletedFarmIds) continue
                 val obj = org.json.JSONObject()
                 obj.put("id", vn.id)
                 obj.put("farmId", vn.farmId)
@@ -4935,6 +4966,7 @@ object LocalFarmPersistence {
             }
 
             val inventoryJsonStr = intMapToJson(AgritechMockDb.barnInventoryCounters.toMap()).toString()
+            val deletedFarmIdsJsonStr = stringSetToJson(AgritechMockDb.deletedFarmIds.toSet()).toString()
 
             prefs.edit()
                 .putBoolean(KEY_SAVED, true)
@@ -4944,6 +4976,7 @@ object LocalFarmPersistence {
                 .putString(KEY_TRANSACTIONS, txArr.toString())
                 .putString(KEY_VET_NOTES, notesArr.toString())
                 .putString(KEY_INVENTORY_COUNTERS, inventoryJsonStr)
+                .putString(KEY_DELETED_FARM_IDS, deletedFarmIdsJsonStr)
                 .apply()
 
             val archive = context.getSharedPreferences(PREF_ARCHIVE_NAME, Context.MODE_PRIVATE)
@@ -4955,6 +4988,7 @@ object LocalFarmPersistence {
                 .putString(KEY_TRANSACTIONS, txArr.toString())
                 .putString(KEY_VET_NOTES, notesArr.toString())
                 .putString(KEY_INVENTORY_COUNTERS, inventoryJsonStr)
+                .putString(KEY_DELETED_FARM_IDS, deletedFarmIdsJsonStr)
                 .apply()
         } catch (_: Exception) {
         }
@@ -4965,6 +4999,16 @@ object LocalFarmPersistence {
     fun loadIntoMockDb(context: Context) {
         try {
             val prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
+            val archive = context.getSharedPreferences(PREF_ARCHIVE_NAME, Context.MODE_PRIVATE)
+
+            // Restore deletedFarmIds first from both prefs and archive
+            if (prefs.contains(KEY_DELETED_FARM_IDS)) {
+                AgritechMockDb.deletedFarmIds.addAll(jsonToStringSet(prefs.getString(KEY_DELETED_FARM_IDS, null)))
+            }
+            if (archive.contains(KEY_DELETED_FARM_IDS)) {
+                AgritechMockDb.deletedFarmIds.addAll(jsonToStringSet(archive.getString(KEY_DELETED_FARM_IDS, null)))
+            }
+
             if (!prefs.getBoolean(KEY_SAVED, false)) return
 
             if (prefs.contains(KEY_FARMS)) {
@@ -4994,7 +5038,7 @@ object LocalFarmPersistence {
                         }
                     }
                     AgritechMockDb.farms.clear()
-                    AgritechMockDb.farms.addAll(loadedFarms)
+                    AgritechMockDb.farms.addAll(loadedFarms.filterNot { it.id in AgritechMockDb.deletedFarmIds })
                 }
             }
 
@@ -5029,7 +5073,7 @@ object LocalFarmPersistence {
                         }
                     }
                     AgritechMockDb.cycles.clear()
-                    AgritechMockDb.cycles.addAll(loadedCycles)
+                    AgritechMockDb.cycles.addAll(loadedCycles.filterNot { it.farmId in AgritechMockDb.deletedFarmIds })
                 }
             }
 
@@ -5068,7 +5112,7 @@ object LocalFarmPersistence {
                         }
                     }
                     AgritechMockDb.dailyReports.clear()
-                    AgritechMockDb.dailyReports.addAll(loadedReports)
+                    AgritechMockDb.dailyReports.addAll(loadedReports.filterNot { it.farmId in AgritechMockDb.deletedFarmIds })
                 }
             }
 
@@ -5130,7 +5174,7 @@ object LocalFarmPersistence {
                         }
                     }
                     AgritechMockDb.transactions.clear()
-                    AgritechMockDb.transactions.addAll(loadedTx)
+                    AgritechMockDb.transactions.addAll(loadedTx.filterNot { it.farmId in AgritechMockDb.deletedFarmIds })
                 }
             }
 
@@ -5164,7 +5208,7 @@ object LocalFarmPersistence {
                         }
                     }
                     AgritechMockDb.vetNotes.clear()
-                    AgritechMockDb.vetNotes.addAll(loadedVet)
+                    AgritechMockDb.vetNotes.addAll(loadedVet.filterNot { it.farmId in AgritechMockDb.deletedFarmIds })
                 }
             }
 
@@ -5175,7 +5219,11 @@ object LocalFarmPersistence {
                         jsonToIntMap(org.json.JSONObject(inventoryJson))
                     }.getOrNull() ?: emptyMap()
                     AgritechMockDb.barnInventoryCounters.clear()
-                    AgritechMockDb.barnInventoryCounters.putAll(loadedInv)
+                    AgritechMockDb.barnInventoryCounters.putAll(
+                        loadedInv.filterKeys { key ->
+                            AgritechMockDb.deletedFarmIds.none { deletedId -> key.startsWith("${deletedId}_") }
+                        }
+                    )
                 }
             }
         } catch (_: Exception) {

@@ -4617,28 +4617,28 @@ object Translations {
             "hi" to "📊 बिक्री और छंटाई सिम्युलेटर खोलें"
         ),
         "ai_subtab_smart_decisions" to mapOf(
-            "ar" to "⚡ القرارات الذكية",
-            "fr" to "⚡ Décisions IA",
-            "en" to "⚡ Smart Decisions",
-            "es" to "⚡ Decisiones IA",
-            "pt" to "⚡ Decisões IA",
-            "hi" to "⚡ स्मार्ट निर्णय"
+            "ar" to "⚡ القرارات",
+            "fr" to "⚡ Décisions",
+            "en" to "⚡ Decisions",
+            "es" to "⚡ Decisiones",
+            "pt" to "⚡ Decisões",
+            "hi" to "⚡ निर्णय"
         ),
         "ai_subtab_diagnostics" to mapOf(
-            "ar" to "📊 التشخيص والفحص",
-            "fr" to "📊 Diagnostic & Audit",
-            "en" to "📊 Diagnostics & Audit",
-            "es" to "📊 Diagnóstico y Control",
-            "pt" to "📊 Diagnóstico e Inspeção",
-            "hi" to "📊 निदान और जांच"
+            "ar" to "🔍 الفحوصات",
+            "fr" to "🔍 Analyses",
+            "en" to "🔍 Checks",
+            "es" to "🔍 Controles",
+            "pt" to "🔍 Inspeções",
+            "hi" to "🔍 जांच"
         ),
         "ai_subtab_live_chat" to mapOf(
-            "ar" to "💬 المحادثة المباشرة",
-            "fr" to "💬 Chat Direct",
-            "en" to "💬 Live Chat",
-            "es" to "💬 Chat en Vivo",
-            "pt" to "💬 Chat ao Vivo",
-            "hi" to "💬 लाइव चैट"
+            "ar" to "💬 المحادثة",
+            "fr" to "💬 Chat",
+            "en" to "💬 Chat",
+            "es" to "💬 Chat",
+            "pt" to "💬 Chat",
+            "hi" to "💬 चैट"
         ),
         "ai_diag_section_subtitle_farm" to mapOf(
             "ar" to "اختر الفحص المتخصص لتحليل بيانات عنبرك وإصدار تقرير فوري مفصل",
@@ -5173,9 +5173,9 @@ object Translations {
         "farm_feed_per_bird_label" to "Consumo por ave",
         "farm_income_summary_section_title" to "💰 Renda Estimada do Galpão e Lucro Líquido",
         "btn_open_sales_cull_simulator" to "📊 Abrir simulador de vendas e refugo",
-        "ai_subtab_smart_decisions" to "⚡ Decisões IA",
-        "ai_subtab_diagnostics" to "📊 Diagnóstico e Inspeção",
-        "ai_subtab_live_chat" to "💬 Chat ao Vivo",
+        "ai_subtab_smart_decisions" to "⚡ Decisões",
+        "ai_subtab_diagnostics" to "🔍 Inspeções",
+        "ai_subtab_live_chat" to "💬 Chat",
         "ai_diag_section_subtitle_farm" to "Selecione uma inspeção especializada para analisar os dados do seu galpão",
         "ai_diag_section_subtitle_home" to "Análise inteligente do orçamento doméstico, contas mensais e taxa de economia",
         "ai_diag_run_check_btn" to "🔍 Iniciar análise e ver relatório",
