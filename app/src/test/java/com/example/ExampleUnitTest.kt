@@ -607,6 +607,105 @@ class ExampleUnitTest {
         assertEquals(workerCountBeforeDelete, AgritechMockDb.workerPersonalEntries.size)
         assertTrue(AgritechMockDb.workerPersonalEntries.all { it.farmId == "personal_worker_ledger" })
     }
+
+    @Test
+    fun unassignedFarm_guardAndValidation_preventInvalidQueries() {
+        assertEquals("unassigned_farm", AgritechFirestoreRepository.UNASSIGNED_FARM_ID)
+        assertTrue(AgritechFirestoreRepository.isUnassignedFarm("unassigned_farm"))
+        assertTrue(AgritechFirestoreRepository.isUnassignedFarm(""))
+        assertTrue(AgritechFirestoreRepository.isUnassignedFarm("   "))
+        assertTrue(AgritechFirestoreRepository.isUnassignedFarm(null))
+        assertFalse(AgritechFirestoreRepository.isUnassignedFarm("farm_1"))
+        assertFalse(AgritechFirestoreRepository.isUnassignedFarm("farm_my_flock"))
+
+        // When farm is in deletedFarmIds, it's also recognized as unassigned
+        AgritechMockDb.deletedFarmIds.add("farm_deleted_test")
+        assertTrue(AgritechFirestoreRepository.isUnassignedFarm("farm_deleted_test"))
+        AgritechMockDb.deletedFarmIds.remove("farm_deleted_test")
+    }
+
+    @Test
+    fun newBarnInventory_startsAtZero_andIncrementWorksAccurately() {
+        val newFarmId = "farm_new_test_zero"
+        AgritechMockDb.barnInventoryCounters.keys.removeAll { it.startsWith("${newFarmId}_") }
+
+        assertEquals(0, AgritechMockDb.getBarnSupplyCount(newFarmId, "gas"))
+        assertEquals(0, AgritechMockDb.getBarnSupplyCount(newFarmId, "shavings"))
+        assertEquals(0, AgritechMockDb.getBarnSupplyCount(newFarmId, "water"))
+        assertEquals(0, AgritechMockDb.getBarnSupplyCount(newFarmId, "meds"))
+
+        AgritechMockDb.adjustBarnSupplyCount(newFarmId, "gas", +1)
+        assertEquals(1, AgritechMockDb.getBarnSupplyCount(newFarmId, "gas"))
+
+        AgritechMockDb.adjustBarnSupplyCount(newFarmId, "gas", +5)
+        assertEquals(6, AgritechMockDb.getBarnSupplyCount(newFarmId, "gas"))
+
+        AgritechMockDb.adjustBarnSupplyCount(newFarmId, "gas", -10)
+        assertEquals(0, AgritechMockDb.getBarnSupplyCount(newFarmId, "gas"))
+    }
+
+    @Test
+    fun fcrNotCalculated_translationsAndFallback_areAccurate() {
+        for (lang in AppLanguage.values()) {
+            val trFcr = Translations.tr("fcr_not_calculated", lang)
+            assertFalse(trFcr.isBlank())
+            assertFalse(trFcr.contains("_"))
+        }
+        assertEquals("غير محسوب", Translations.tr("fcr_not_calculated", AppLanguage.AR))
+        assertEquals("Not calculated", Translations.tr("fcr_not_calculated", AppLanguage.EN))
+        assertEquals("Non calculé", Translations.tr("fcr_not_calculated", AppLanguage.FR))
+        assertEquals("No calculado", Translations.tr("fcr_not_calculated", AppLanguage.ES))
+        assertEquals("Não calculado", Translations.tr("fcr_not_calculated", AppLanguage.PT))
+
+        // When feed is zero or birds are placed with no consumption yet
+        val initialFeedZero = 0.0
+        val zeroFeedFcr = PoultryCalculators.calculateFcr(
+            totalFeedKg = initialFeedZero,
+            initialBirds = 5000,
+            totalMortality = 0,
+            birdsSold = 0,
+            ageInDays = 1,
+            actualAvgWeightKg = 0.045,
+            cumulativeSoldWeightKg = 0.0
+        )
+        assertEquals(0.0, zeroFeedFcr, 0.001)
+    }
+
+    @Test
+    fun indoorReadingState_modelsAndSeparation_areCorrect() {
+        val noReading = IndoorReadingState.noReading("farm_empty")
+        assertFalse(noReading.hasAnyReading)
+        assertEquals(IndoorReadingSource.MANUAL_REPORT, noReading.source)
+        assertFalse(noReading.isVerifiedSensorConnected)
+        assertNull(noReading.temperatureC)
+        assertNull(noReading.ammoniaPpm)
+
+        val reportWithGasUnits = DailyReportModel(
+            id = "rep_gas_units",
+            farmId = "farm_1",
+            cycleId = "cycle_1",
+            dayNumber = 12,
+            feedIntakeKg = 400.0,
+            waterIntakeLiters = 800.0,
+            mortalityCount = 1,
+            temperature = 26.5,
+            gasUnits = 14.0, // Burner heating gas bottles used, NOT ammonia NH3 ppm
+            ventilationStatus = "ممتازة"
+        )
+        val fromManual = IndoorReadingState.fromManualReport("farm_1", reportWithGasUnits)
+        assertTrue(fromManual.hasAnyReading)
+        assertEquals(26.5, fromManual.temperatureC ?: 0.0, 0.001)
+        // CRITICAL: Gas bottle usage must NEVER be converted to ammonia NH3 ppm!
+        assertNull(fromManual.ammoniaPpm)
+        assertEquals("ممتازة", fromManual.ventilationStatus)
+        assertEquals(IndoorReadingSource.MANUAL_REPORT, fromManual.source)
+        assertFalse(fromManual.isVerifiedSensorConnected)
+
+        val sim = IndoorReadingState.simulation("farm_1")
+        assertTrue(sim.hasAnyReading)
+        assertEquals(IndoorReadingSource.SIMULATION, sim.source)
+        assertFalse(sim.isVerifiedSensorConnected)
+    }
 }
 
 

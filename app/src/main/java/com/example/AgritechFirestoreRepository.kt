@@ -99,6 +99,12 @@ class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
             return role == AppRole.OWNER || role == AppRole.OWNER_BARN
         }
 
+        const val UNASSIGNED_FARM_ID = "unassigned_farm"
+
+        fun isUnassignedFarm(farmId: String?): Boolean {
+            return farmId.isNullOrBlank() || farmId == UNASSIGNED_FARM_ID || farmId in AgritechMockDb.deletedFarmIds
+        }
+
         fun isImmutableFinalizedSaleInvoice(tx: TransactionModel): Boolean {
             val invNo = tx.invoiceData?.invoiceNumber.orEmpty()
             return invNo.startsWith("INV-", ignoreCase = true) && tx.status.equals("APPROVED", ignoreCase = true)
@@ -236,14 +242,14 @@ class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
      * Streams a shared farm document from `/farms/{farmId}`.
      */
     fun observeFarm(farmId: String): Flow<FarmModel?> {
-        if (farmId.isBlank() || farmId in AgritechMockDb.deletedFarmIds) {
+        if (isUnassignedFarm(farmId)) {
             return kotlinx.coroutines.flow.flowOf(null)
         }
         val docRef = farmDocRef(farmId)
         return docRef.snapshots()
             .map { snapshot ->
                 val parsed = if (snapshot.exists()) docToFarm(snapshot) else null
-                parsed?.takeUnless { it.id in AgritechMockDb.deletedFarmIds }
+                parsed?.takeUnless { isUnassignedFarm(it.id) }
             }
             .catch { e ->
                 if (e is Exception) handleFirestoreError(e, OperationType.GET, docRef.path)
@@ -252,17 +258,17 @@ class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
     }
 
     /**
-     * Streams the shared farm as a list for dashboard binding, excluding any farm in `AgritechMockDb.deletedFarmIds`.
+     * Streams the shared farm as a list for dashboard binding, excluding any unassigned or deleted farm.
      */
     fun observeFarms(farmId: String = "farm_1"): Flow<List<FarmModel>> {
-        if (farmId.isBlank() || farmId in AgritechMockDb.deletedFarmIds) {
+        if (isUnassignedFarm(farmId)) {
             return kotlinx.coroutines.flow.flowOf(emptyList())
         }
         val docRef = farmDocRef(farmId)
         return docRef.snapshots()
             .map { snapshot ->
                 listOfNotNull(if (snapshot.exists()) docToFarm(snapshot) else null)
-                    .filterNot { it.id in AgritechMockDb.deletedFarmIds }
+                    .filterNot { isUnassignedFarm(it.id) }
             }
             .catch { e ->
                 if (e is Exception) handleFirestoreError(e, OperationType.GET, docRef.path)
@@ -281,14 +287,15 @@ class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
             AppRole.WORKER -> "WORKER"
             else -> "OWNER"
         }
-        val sanitizedFarmId = if (farmId in AgritechMockDb.deletedFarmIds) "" else farmId
+        val isUnassigned = isUnassignedFarm(farmId)
+        val profileFarmId = if (isUnassigned) UNASSIGNED_FARM_ID else farmId
         val userDocRef = db.collection("users").document(uid)
         return try {
             val existingUser = userDocRef.get().await()
             if (existingUser.exists()) {
                 val updatePayload = mutableMapOf<String, Any>(
                     "role" to normalizedRoleName,
-                    "farmId" to sanitizedFarmId,
+                    "farmId" to profileFarmId,
                     "updatedAt" to FieldValue.serverTimestamp()
                 )
                 if (!displayName.isNullOrBlank()) {
@@ -299,7 +306,7 @@ class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
                 val createPayload = mutableMapOf<String, Any>(
                     "userId" to uid,
                     "role" to normalizedRoleName,
-                    "farmId" to sanitizedFarmId,
+                    "farmId" to profileFarmId,
                     "createdAt" to FieldValue.serverTimestamp(),
                     "updatedAt" to FieldValue.serverTimestamp()
                 )
@@ -309,11 +316,11 @@ class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
                 userDocRef.set(createPayload).await()
             }
 
-            if (sanitizedFarmId.isBlank() || sanitizedFarmId in AgritechMockDb.deletedFarmIds) {
+            if (isUnassigned || profileFarmId == UNASSIGNED_FARM_ID) {
                 return Result.success(Unit)
             }
 
-            val fRef = farmDocRef(sanitizedFarmId)
+            val fRef = farmDocRef(profileFarmId)
             val farmSnap = fRef.get().await()
             if (farmSnap.exists()) {
                 @Suppress("UNCHECKED_CAST")
@@ -327,7 +334,7 @@ class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
                 ).await()
             } else {
                 val localFarm = AgritechMockDb.farms.firstOrNull {
-                    it.id == sanitizedFarmId && it.id !in AgritechMockDb.deletedFarmIds
+                    it.id == profileFarmId && it.id !in AgritechMockDb.deletedFarmIds
                 }
                 if (localFarm != null) {
                     fRef.set(
@@ -446,6 +453,9 @@ class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
      * Streams active cycles for a specific farm from Firestore (/farms/{farmId}/cycles).
      */
     fun streamCycles(farmId: String, status: String = "active"): Flow<List<CycleModel>> {
+        if (isUnassignedFarm(farmId)) {
+            return kotlinx.coroutines.flow.flowOf(emptyList())
+        }
         val colRef = farmCyclesRef(farmId)
         return colRef.snapshots()
             .map { snapshot ->
@@ -466,6 +476,9 @@ class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
     }
 
     fun observeCycles(farmId: String = "farm_1"): Flow<List<CycleModel>> {
+        if (isUnassignedFarm(farmId)) {
+            return kotlinx.coroutines.flow.flowOf(emptyList())
+        }
         val colRef = farmCyclesRef(farmId)
         return colRef.snapshots()
             .map { snapshot ->
@@ -650,6 +663,9 @@ class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
     }
 
     fun observeDailyReports(farmId: String = "farm_1"): Flow<List<DailyReportModel>> {
+        if (isUnassignedFarm(farmId)) {
+            return kotlinx.coroutines.flow.flowOf(emptyList())
+        }
         val colRef = farmReportsRef(farmId)
         return colRef.snapshots()
             .map { snapshot ->
@@ -718,6 +734,9 @@ class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
     }
 
     fun observeVetNotes(farmId: String = "farm_1"): Flow<List<VetNoteModel>> {
+        if (isUnassignedFarm(farmId)) {
+            return kotlinx.coroutines.flow.flowOf(emptyList())
+        }
         val colRef = farmVetNotesRef(farmId)
         return colRef.snapshots()
             .map { snapshot ->
@@ -1051,6 +1070,9 @@ class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
         Companion.calculateNetBalanceFromTransactions(transactions)
 
     fun observeTransactions(farmId: String = "farm_1"): Flow<List<TransactionModel>> {
+        if (isUnassignedFarm(farmId)) {
+            return kotlinx.coroutines.flow.flowOf(emptyList())
+        }
         val colRef = farmTransactionsRef(farmId)
         return colRef.snapshots()
             .map { snapshot ->

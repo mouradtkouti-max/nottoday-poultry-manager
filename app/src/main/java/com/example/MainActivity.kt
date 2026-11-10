@@ -983,11 +983,11 @@ object AgritechMockDb {
         "farm_2_meds" to 15
     )
 
-    fun getBarnSupplyCount(farmId: String, supplyKey: String, defaultVal: Int): Int {
+    fun getBarnSupplyCount(farmId: String, supplyKey: String, defaultVal: Int = 0): Int {
         return barnInventoryCounters["${farmId}_$supplyKey"] ?: defaultVal
     }
 
-    fun adjustBarnSupplyCount(farmId: String, supplyKey: String, delta: Int, defaultVal: Int) {
+    fun adjustBarnSupplyCount(farmId: String, supplyKey: String, delta: Int, defaultVal: Int = 0) {
         val key = "${farmId}_$supplyKey"
         val current = barnInventoryCounters[key] ?: defaultVal
         barnInventoryCounters[key] = (current + delta).coerceAtLeast(0)
@@ -1439,24 +1439,34 @@ fun AgritechMainApp(
                     if (isAlreadySignedIn) {
                         LocalFarmPersistence.restoreFromReloginArchiveIfNeeded(context)
                         LocalFarmPersistence.loadIntoMockDb(context)
-                        val validActiveId = AgritechMockDb.farms.firstOrNull { it.id !in AgritechMockDb.deletedFarmIds }?.id.orEmpty()
+                        // Do not automatically assign the first local farm to a user who doesn't own or belong to it:
+                        // Only retain activeFarmId if it was already selected and valid for this role; otherwise start unassigned ("")
+                        val currentActive = sessionState.activeFarmId.takeIf {
+                            it.isNotBlank() && it !in AgritechMockDb.deletedFarmIds &&
+                                (role != AppRole.OWNER || AgritechMockDb.farms.any { f -> f.id == it })
+                        } ?: if (role == AppRole.OWNER) {
+                            AgritechMockDb.farms.firstOrNull { it.id !in AgritechMockDb.deletedFarmIds }?.id.orEmpty()
+                        } else {
+                            ""
+                        }
                         sessionState.markAuthenticated(
                             context = context,
                             role = role,
                             linkedBarns = linkedBarns,
-                            farmId = validActiveId,
+                            farmId = currentActive,
                             uid = AgritechAuthHelper.currentUserUid()
                         )
                         if (role == AppRole.WORKER && linkedBarns) {
-                            sessionState.selectedFarmForWorker = AgritechMockDb.farms.firstOrNull { it.id !in AgritechMockDb.deletedFarmIds }
+                            sessionState.selectedFarmForWorker = AgritechMockDb.farms.firstOrNull { it.id == currentActive && it.id !in AgritechMockDb.deletedFarmIds }
                         }
-                        if (sessionState.activeFarmId.isNotBlank() && sessionState.activeFarmId !in AgritechMockDb.deletedFarmIds) {
-                            scope.launch {
-                                firestoreRepo?.setUserRoleAndFarm(role, sessionState.activeFarmId)
-                                if (role == AppRole.OWNER) {
-                                    AgritechMockDb.farms.firstOrNull { it.id == sessionState.activeFarmId && it.id !in AgritechMockDb.deletedFarmIds }?.let { farm ->
-                                        firestoreRepo?.saveFarmRecord(farm, AppRole.OWNER)
-                                    }
+                        scope.launch {
+                            val res = firestoreRepo?.setUserRoleAndFarm(role, currentActive)
+                            if (res != null && res.isFailure) {
+                                authErrorBanner = "تنبيه السحابة: تعذر حفظ الملف الشخصي (${res.exceptionOrNull()?.localizedMessage ?: "خطأ غير معروف"})"
+                            }
+                            if (role == AppRole.OWNER && currentActive.isNotBlank() && currentActive !in AgritechMockDb.deletedFarmIds) {
+                                AgritechMockDb.farms.firstOrNull { it.id == currentActive }?.let { farm ->
+                                    firestoreRepo?.saveFarmRecord(farm, AppRole.OWNER)
                                 }
                             }
                         }
@@ -1468,24 +1478,32 @@ fun AgritechMainApp(
                                 authErrorBanner = null
                                 LocalFarmPersistence.restoreFromReloginArchiveIfNeeded(context)
                                 LocalFarmPersistence.loadIntoMockDb(context)
-                                val validActiveId = AgritechMockDb.farms.firstOrNull { it.id !in AgritechMockDb.deletedFarmIds }?.id.orEmpty()
+                                val currentActive = sessionState.activeFarmId.takeIf {
+                                    it.isNotBlank() && it !in AgritechMockDb.deletedFarmIds &&
+                                        (role != AppRole.OWNER || AgritechMockDb.farms.any { f -> f.id == it })
+                                } ?: if (role == AppRole.OWNER) {
+                                    AgritechMockDb.farms.firstOrNull { it.id !in AgritechMockDb.deletedFarmIds }?.id.orEmpty()
+                                } else {
+                                    ""
+                                }
                                 sessionState.markAuthenticated(
                                     context = context,
                                     role = role,
                                     linkedBarns = linkedBarns,
-                                    farmId = validActiveId,
+                                    farmId = currentActive,
                                     uid = AgritechAuthHelper.currentUserUid()
                                 )
                                 if (role == AppRole.WORKER && linkedBarns) {
-                                    sessionState.selectedFarmForWorker = AgritechMockDb.farms.firstOrNull { it.id !in AgritechMockDb.deletedFarmIds }
+                                    sessionState.selectedFarmForWorker = AgritechMockDb.farms.firstOrNull { it.id == currentActive && it.id !in AgritechMockDb.deletedFarmIds }
                                 }
-                                if (sessionState.activeFarmId.isNotBlank() && sessionState.activeFarmId !in AgritechMockDb.deletedFarmIds) {
-                                    scope.launch {
-                                        firestoreRepo?.setUserRoleAndFarm(role, sessionState.activeFarmId)
-                                        if (role == AppRole.OWNER) {
-                                            AgritechMockDb.farms.firstOrNull { it.id == sessionState.activeFarmId && it.id !in AgritechMockDb.deletedFarmIds }?.let { farm ->
-                                                firestoreRepo?.saveFarmRecord(farm, AppRole.OWNER)
-                                            }
+                                scope.launch {
+                                    val res = firestoreRepo?.setUserRoleAndFarm(role, currentActive)
+                                    if (res != null && res.isFailure) {
+                                        authErrorBanner = "تنبيه السحابة: تعذر حفظ الملف الشخصي (${res.exceptionOrNull()?.localizedMessage ?: "خطأ غير معروف"})"
+                                    }
+                                    if (role == AppRole.OWNER && currentActive.isNotBlank() && currentActive !in AgritechMockDb.deletedFarmIds) {
+                                        AgritechMockDb.farms.firstOrNull { it.id == currentActive }?.let { farm ->
+                                            firestoreRepo?.saveFarmRecord(farm, AppRole.OWNER)
                                         }
                                     }
                                 }
@@ -7568,7 +7586,7 @@ fun FarmCard(
                                 cumulativeSoldWeightKg = cumulativeSoldWeightKgForCard
                             )
                         } else {
-                            1.68
+                            0.0
                         }
                     )
                 }
@@ -7972,7 +7990,10 @@ fun FarmCard(
                                             ) {
                                                 PremiumTactileCalcButton(
                                                     label = "-",
-                                                    onClick = { persistCardAdjustedFcr(cardInteractiveFcr - 0.02) },
+                                                    onClick = {
+                                                        val baseFcr = if (cardInteractiveFcr <= 0.0) 1.60 else cardInteractiveFcr
+                                                        persistCardAdjustedFcr(baseFcr - 0.02)
+                                                    },
                                                     isDark = isDark,
                                                     accentColor = accentEmerald,
                                                     fontSize = 16.sp,
@@ -7980,16 +8001,24 @@ fun FarmCard(
                                                         .width(42.dp)
                                                         .testTag("btn_card_fcr_minus_${farm.id}")
                                                 )
+                                                val fcrText = if (cardInteractiveFcr <= 0.0) {
+                                                    Translations.tr("fcr_not_calculated", lang)
+                                                } else {
+                                                    "≈ ${String.format(java.util.Locale.US, "%.2f", cardInteractiveFcr)}"
+                                                }
                                                 Text(
-                                                    "≈ ${String.format(java.util.Locale.US, "%.2f", cardInteractiveFcr)}",
+                                                    fcrText,
                                                     fontWeight = FontWeight.ExtraBold,
-                                                    fontSize = 14.5.sp,
+                                                    fontSize = if (cardInteractiveFcr <= 0.0) 11.5.sp else 14.5.sp,
                                                     color = accentEmerald,
                                                     modifier = Modifier.testTag("txt_card_fcr_val_${farm.id}")
                                                 )
                                                 PremiumTactileCalcButton(
                                                     label = "+",
-                                                    onClick = { persistCardAdjustedFcr(cardInteractiveFcr + 0.02) },
+                                                    onClick = {
+                                                        val baseFcr = if (cardInteractiveFcr <= 0.0) 1.60 else cardInteractiveFcr
+                                                        persistCardAdjustedFcr(baseFcr + 0.02)
+                                                    },
                                                     isDark = isDark,
                                                     accentColor = accentEmerald,
                                                     fontSize = 16.sp,
@@ -8204,7 +8233,7 @@ fun FarmCard(
                                         modifier = Modifier.weight(1f)
                                     )
                                     PremiumTactileCalcButton(
-                                        label = "-10",
+                                        label = "\u200E-10",
                                         onClick = { cardCullBirdsText = (parsedCullBirds - 10).coerceAtLeast(0).toString() },
                                         isDark = isDark,
                                         accentColor = accentEmerald,
@@ -8212,7 +8241,7 @@ fun FarmCard(
                                         modifier = Modifier.width(48.dp)
                                     )
                                     PremiumTactileCalcButton(
-                                        label = "+10",
+                                        label = "\u200E+10",
                                         onClick = { cardCullBirdsText = (parsedCullBirds + 10).coerceAtMost(liveBirds).toString() },
                                         isDark = isDark,
                                         accentColor = accentEmerald,
@@ -10361,7 +10390,7 @@ fun AgritechFarmNotebookScreen(
 
             // Shared interactive state for flexible Owner adjustment of Estimated Weight, FCR, and Net Profit Simulator
             val defaultEstWeightKg = (actualMeasuredWeightKg ?: currentStandardWeightKg).coerceAtLeast(0.1)
-            val defaultFcr = if (accurateFcr > 0.0) accurateFcr else 1.68
+            val defaultFcr = if (accurateFcr > 0.0) accurateFcr else 0.0
             var interactiveWeightKg by remember(activeCycle.id, ageInDays, actualMeasuredWeightKg) {
                 mutableStateOf(defaultEstWeightKg)
             }
@@ -10438,15 +10467,21 @@ fun AgritechFarmNotebookScreen(
             }
 
             val latestReportForHeader = reportsForCycle.maxByOrNull { it.dayNumber }
-            val liveTempC = latestReportForHeader?.temperature ?: 29.0
-            val liveAmmoniaPpm = latestReportForHeader?.gasUnits ?: 8.5
-            val liveVentStatus = latestReportForHeader?.ventilationStatus ?: "جيدة"
-            val isClimateAlert = liveTempC > 33.5 || liveTempC < 19.0 || liveAmmoniaPpm > 18.0
-            val isClimateWarning = !isClimateAlert && (liveTempC > 31.5 || liveAmmoniaPpm > 12.0)
+            val typedIndoorReading = remember(farm.id, latestReportForHeader) {
+                IndoorReadingState.fromManualReport(farm.id, latestReportForHeader)
+            }
+            val liveTempC = typedIndoorReading.temperatureC ?: (latestReportForHeader?.temperature ?: 0.0)
+            val liveAmmoniaPpm = typedIndoorReading.ammoniaPpm ?: 0.0
+            val liveVentStatus = typedIndoorReading.ventilationStatus ?: (latestReportForHeader?.ventilationStatus ?: "جيدة")
+            val isClimateAlert = (liveTempC > 33.5 && liveTempC > 0.0) || (liveTempC < 19.0 && liveTempC > 0.0) || liveAmmoniaPpm > 18.0
+            val isClimateWarning = !isClimateAlert && ((liveTempC > 31.5 && liveTempC > 0.0) || liveAmmoniaPpm > 12.0)
 
             if (showBarnClimateAndStatsDialog) {
                 BarnClimateAndStatsDialog(
                     farmName = Translations.getLocalizedFarmName(farm.id, lang, farm.name),
+                    barnId = farm.id,
+                    accountUid = try { com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid.orEmpty() } catch (_: Exception) { "" },
+                    indoorReading = typedIndoorReading,
                     cycleDay = calculatedCycleDay,
                     temperatureC = liveTempC,
                     ammoniaPpm = liveAmmoniaPpm,
@@ -10567,7 +10602,10 @@ fun AgritechFarmNotebookScreen(
                                     ) {
                                         PremiumTactileCalcButton(
                                             label = "-",
-                                            onClick = { updateFcrAndRecalcWeight(interactiveFcr - 0.02) },
+                                            onClick = {
+                                                val baseF = if (interactiveFcr <= 0.0) 1.60 else interactiveFcr
+                                                updateFcrAndRecalcWeight(baseF - 0.02)
+                                            },
                                             isDark = currentTheme.isDark,
                                             accentColor = dialogAccent,
                                             fontSize = 16.sp,
@@ -10575,16 +10613,24 @@ fun AgritechFarmNotebookScreen(
                                                 .width(44.dp)
                                                 .testTag("btn_dialog_adjust_fcr_minus")
                                         )
+                                        val dialogFcrText = if (interactiveFcr <= 0.0) {
+                                            Translations.tr("fcr_not_calculated", lang)
+                                        } else {
+                                            "≈ ${String.format(java.util.Locale.US, "%.2f", interactiveFcr)}"
+                                        }
                                         Text(
-                                            "≈ ${String.format(java.util.Locale.US, "%.2f", interactiveFcr)}",
+                                            dialogFcrText,
                                             fontWeight = FontWeight.ExtraBold,
-                                            fontSize = 15.sp,
+                                            fontSize = if (interactiveFcr <= 0.0) 11.5.sp else 15.sp,
                                             color = dialogAccent,
                                             modifier = Modifier.testTag("txt_dialog_fcr_value")
                                         )
                                         PremiumTactileCalcButton(
                                             label = "+",
-                                            onClick = { updateFcrAndRecalcWeight(interactiveFcr + 0.02) },
+                                            onClick = {
+                                                val baseF = if (interactiveFcr <= 0.0) 1.60 else interactiveFcr
+                                                updateFcrAndRecalcWeight(baseF + 0.02)
+                                            },
                                             isDark = currentTheme.isDark,
                                             accentColor = dialogAccent,
                                             fontSize = 16.sp,
@@ -10723,7 +10769,7 @@ fun AgritechFarmNotebookScreen(
                                             .testTag("input_cull_unfit_birds")
                                     )
                                     PremiumTactileCalcButton(
-                                        label = "-10",
+                                        label = "\u200E-10",
                                         onClick = {
                                             val nextCull = (parsedCullBirds - 10).coerceAtLeast(0)
                                             cullUnfitBirdsText = nextCull.toString()
@@ -10736,7 +10782,7 @@ fun AgritechFarmNotebookScreen(
                                             .testTag("btn_cull_minus")
                                     )
                                     PremiumTactileCalcButton(
-                                        label = "+10",
+                                        label = "\u200E+10",
                                         onClick = {
                                             val nextCull = (parsedCullBirds + 10).coerceAtMost(liveBirds)
                                             cullUnfitBirdsText = nextCull.toString()
@@ -11294,40 +11340,7 @@ fun AgritechFarmNotebookScreen(
                         }
                     }
                 }
-                3 -> {
-                    // Contextual Vet Chat FAB inside Inventory & Vet Records Tab (📦 المخزون):
-                    FloatingActionButton(
-                        onClick = {
-                            activeContextualChatTitle = Translations.tr("chat_vet_title", lang)
-                            activeContextualChatChannel = "${cycle.id}_vet"
-                        },
-                        containerColor = appearance.accentOption.primaryColor,
-                        contentColor = Color.White,
-                        shape = fabCorner,
-                        elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 6.dp),
-                        modifier = Modifier
-                            .tactile3DStyle(baseColor = appearance.accentOption.primaryColor, cornerRadius = appearance.cornerRadiusDp.dp)
-                            .testTag("fab_vet_chat")
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                Icons.Default.Chat,
-                                contentDescription = Translations.tr("chat_vet_title", lang),
-                                tint = Color.White
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                Translations.tr("chat_vet_title", lang),
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 12.5.sp,
-                                color = Color.White
-                            )
-                        }
-                    }
-                }
+                else -> null
             }
         },
         bottomBar = {
@@ -11446,22 +11459,16 @@ fun AgritechFarmNotebookScreen(
                                     .padding(horizontal = 12.dp, vertical = 6.dp)
                                     .testTag("withdrawal_warning_banner")
                             ) {
-                                Column(
-                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-                                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                                Box(
+                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
                                 ) {
                                     Text(
                                         text = Translations.tr("withdrawal_active_banner_title", lang)
                                             .replace("{days}", activeWithdrawalDays.toString()),
                                         fontWeight = FontWeight.ExtraBold,
-                                        fontSize = 13.sp,
-                                        color = if (currentTheme.isDark) Color(0xFFFCA5A5) else ActionRed
-                                    )
-                                    Text(
-                                        text = Translations.tr("withdrawal_active_sales_blocked", lang)
-                                            .replace("{days}", activeWithdrawalDays.toString()),
-                                        fontSize = 11.5.sp,
-                                        color = if (currentTheme.isDark) Color(0xFFFECACA) else Color(0xFF7F1D1D)
+                                        fontSize = 12.5.sp,
+                                        color = if (currentTheme.isDark) Color(0xFFFCA5A5) else ActionRed,
+                                        lineHeight = 18.sp
                                     )
                                 }
                             }
@@ -12428,10 +12435,10 @@ fun AgritechFarmNotebookScreen(
                 3 -> {
                     // TAB 3: 📦 المخزون (Barn Inventory: Gas, Wood Shavings, Water Tankers, Medications + Vet Records & Consultation)
                     val pendingVetNotes = vetNotes.filter { it.status.equals("PENDING", ignoreCase = true) }
-                    val gasCount = AgritechMockDb.getBarnSupplyCount(farm.id, "gas", 14)
-                    val shavingsCount = AgritechMockDb.getBarnSupplyCount(farm.id, "shavings", 45)
-                    val waterCount = AgritechMockDb.getBarnSupplyCount(farm.id, "water", 6)
-                    val medsCount = AgritechMockDb.getBarnSupplyCount(farm.id, "meds", 12)
+                    val gasCount = AgritechMockDb.getBarnSupplyCount(farm.id, "gas", 0)
+                    val shavingsCount = AgritechMockDb.getBarnSupplyCount(farm.id, "shavings", 0)
+                    val waterCount = AgritechMockDb.getBarnSupplyCount(farm.id, "water", 0)
+                    val medsCount = AgritechMockDb.getBarnSupplyCount(farm.id, "meds", 0)
                     val invPrimaryText = if (currentTheme.isDark) Color.White else currentTheme.headingColor
                     val invSecondaryText = if (currentTheme.isDark) Color(0xFFCBD5E1) else Color(0xFF64748B)
 
@@ -12486,12 +12493,7 @@ fun AgritechFarmNotebookScreen(
                         items(barnSupplyItems, key = { it.first }) { (supplyKey, titleSub, countUnit) ->
                             val (itemTitle, itemSubtitle) = titleSub
                             val (currentCount, unitLabel) = countUnit
-                            val defaultVal = when (supplyKey) {
-                                "gas" -> 14
-                                "shavings" -> 45
-                                "water" -> 6
-                                else -> 12
-                            }
+                            val defaultVal = 0
                             val supplyIcon = when (supplyKey) {
                                 "gas" -> Icons.Default.LocalFireDepartment
                                 "shavings" -> Icons.Default.Grass

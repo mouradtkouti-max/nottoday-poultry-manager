@@ -1265,6 +1265,74 @@ class ExampleRobolectricTest {
         )
         assertEquals("", defaultConv.phoneNumber)
     }
+
+    @Test
+    fun `openMeteoWeather_parsingAndAttribution_workCorrectly`() {
+        val sampleGeocodingJson = """
+            {
+                "results": [
+                    {
+                        "name": "Boufarik",
+                        "latitude": 36.57,
+                        "longitude": 2.91,
+                        "country": "Algeria",
+                        "admin1": "Blida"
+                    },
+                    {
+                        "name": "Setif",
+                        "latitude": 36.19,
+                        "longitude": 5.41,
+                        "country": "Algeria",
+                        "admin1": "Sétif"
+                    }
+                ]
+            }
+        """.trimIndent()
+
+        val parsedLocations = BarnWeatherRepository.parseGeocodingJson(sampleGeocodingJson)
+        assertEquals(2, parsedLocations.size)
+        assertEquals("Boufarik", parsedLocations[0].localityName)
+        assertEquals("Algeria", parsedLocations[0].country)
+        assertEquals("Blida", parsedLocations[0].region)
+        assertEquals(36.57, parsedLocations[0].latitude, 0.001)
+        assertEquals(2.91, parsedLocations[0].longitude, 0.001)
+
+        val testLoc = parsedLocations[0].copy(barnId = "farm_1", isEnabled = true)
+        val sampleWeatherJson = """
+            {
+                "latitude": 36.57,
+                "longitude": 2.91,
+                "current": {
+                    "time": "2026-11-10T12:00",
+                    "temperature_2m": 22.4,
+                    "relative_humidity_2m": 62,
+                    "apparent_temperature": 21.8,
+                    "is_day": 1,
+                    "precipitation": 0.0,
+                    "weather_code": 1,
+                    "wind_speed_10m": 14.5
+                }
+            }
+        """.trimIndent()
+
+        val snapshot = BarnWeatherRepository.parseWeatherJson(testLoc, sampleWeatherJson)
+        assertEquals("farm_1", snapshot.barnId)
+        assertEquals("Boufarik", snapshot.localityName)
+        assertEquals(22.4, snapshot.temperatureC, 0.001)
+        assertEquals(21.8, snapshot.apparentTemperatureC ?: 0.0, 0.001)
+        assertEquals(62, snapshot.relativeHumidityPct)
+        assertEquals(1, snapshot.weatherCode)
+        assertEquals(14.5, snapshot.windSpeedKmh ?: 0.0, 0.001)
+        assertEquals(true, snapshot.isDay)
+        assertTrue(snapshot.isFresh)
+        assertEquals("Open-Meteo (open-meteo.com)", snapshot.providerAttribution)
+        assertTrue(snapshot.conditionDescription("ar").contains("غائم جزئياً"))
+        assertTrue(snapshot.conditionDescription("en").contains("Partly cloudy"))
+
+        // Malformed json should return empty list gracefully without throwing
+        val emptyLocations = BarnWeatherRepository.parseGeocodingJson("{ invalid json }")
+        assertTrue(emptyLocations.isEmpty())
+    }
 }
 
 

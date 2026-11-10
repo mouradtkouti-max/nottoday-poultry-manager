@@ -3434,7 +3434,8 @@ fun LiveBarnClimateBanner(
     cycleDay: Int,
     lang: AppLanguage,
     currentTheme: AppThemeOption,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    indoorReading: IndoorReadingState? = null
 ) {
     val appearance = LocalAppAppearanceState.current
     val isDark = appearance.isDark
@@ -3609,10 +3610,25 @@ fun LiveBarnClimateBanner(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                    val displayTemp = if (indoorReading != null && !indoorReading.hasAnyReading && temperatureC <= 0.0) {
+                        "-- °C"
+                    } else if (temperatureC <= 0.0) {
+                        "-- °C"
+                    } else {
+                        String.format(Locale.US, "%.1f °C", temperatureC)
+                    }
+                    val displayNh3 = if (indoorReading != null && indoorReading.ammoniaPpm == null && ammoniaPpm <= 0.0) {
+                        "-- ppm"
+                    } else if (ammoniaPpm <= 0.0) {
+                        "-- ppm"
+                    } else {
+                        String.format(Locale.US, "%.1f ppm", ammoniaPpm)
+                    }
+
                     ClimateMetricPill(
                         emoji = "🌡️",
                         label = Translations.tr("climate_temp_label", lang),
-                        value = String.format(Locale.US, "%.1f °C", temperatureC),
+                        value = displayTemp,
                         accentColor = statusColor,
                         isDark = isDark,
                         modifier = Modifier
@@ -3622,7 +3638,7 @@ fun LiveBarnClimateBanner(
                     ClimateMetricPill(
                         emoji = "🧪",
                         label = Translations.tr("climate_ammonia_label", lang),
-                        value = String.format(Locale.US, "%.1f ppm", ammoniaPpm),
+                        value = displayNh3,
                         accentColor = if (ammoniaPpm >= 20.0) Color(0xFFEF4444) else appearance.accentColor,
                         isDark = isDark,
                         modifier = Modifier
@@ -3638,6 +3654,27 @@ fun LiveBarnClimateBanner(
                         modifier = Modifier
                             .weight(1f)
                             .testTag("climate_pill_vent")
+                    )
+                }
+
+                // Indoor Reading Source Pill
+                val sourceLabel = when (indoorReading?.source) {
+                    IndoorReadingSource.MANUAL_REPORT -> Translations.tr("indoor_reading_source_manual", lang)
+                    IndoorReadingSource.SIMULATION -> Translations.tr("indoor_reading_source_sim", lang)
+                    IndoorReadingSource.CONNECTED_SENSOR -> "حساس حظيرة متصل 🟢"
+                    else -> if (temperatureC > 0.0) Translations.tr("indoor_reading_source_manual", lang) else Translations.tr("indoor_reading_no_data", lang)
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "📡 $sourceLabel",
+                        fontSize = 11.sp,
+                        color = textSecondary,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.testTag("txt_indoor_reading_source")
                     )
                 }
             }
@@ -3900,6 +3937,9 @@ fun BarnClimateAndStatsDialog(
     currencyCode: String,
     lang: AppLanguage,
     currentTheme: AppThemeOption,
+    barnId: String = "",
+    accountUid: String = "",
+    indoorReading: IndoorReadingState = IndoorReadingState.noReading(barnId),
     onFcrWeightCardClick: (() -> Unit)? = null,
     onNetTreasuryCardClick: (() -> Unit)? = null,
     onDismiss: () -> Unit
@@ -4015,8 +4055,19 @@ fun BarnClimateAndStatsDialog(
                     ventilationStatus = ventilationStatus,
                     cycleDay = cycleDay,
                     lang = lang,
-                    currentTheme = currentTheme
+                    currentTheme = currentTheme,
+                    indoorReading = indoorReading
                 )
+
+                // 1.5 Real Outdoor Weather Card via Open-Meteo
+                if (barnId.isNotBlank()) {
+                    OutdoorWeatherCard(
+                        barnId = barnId,
+                        accountUid = accountUid,
+                        lang = lang,
+                        currentTheme = currentTheme
+                    )
+                }
 
                 // 2. 2x2 Quick Stats Grid
                 QuickStatsGrid(
@@ -4050,6 +4101,465 @@ fun BarnClimateAndStatsDialog(
                         fontSize = 13.5.sp,
                         color = Color.White
                     )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Opt-in Outdoor Weather Card powered by Open-Meteo.
+ * Provides confirmed locality search, coordinate storage, cached readings with 30-min throttling,
+ * stale cache indicators, error handling, and provider attribution.
+ */
+@Composable
+fun OutdoorWeatherCard(
+    barnId: String,
+    accountUid: String,
+    lang: AppLanguage,
+    currentTheme: AppThemeOption,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    val appearance = LocalAppAppearanceState.current
+    val isDark = currentTheme.isDark
+    val scope = rememberCoroutineScope()
+    val cornerShape = RoundedCornerShape(appearance.cornerRadiusDp.dp)
+    val pillShape = RoundedCornerShape((appearance.cornerRadiusDp - 6).coerceAtLeast(6).dp)
+    val cardBg = if (isDark) Color(0xFF1E293B) else currentTheme.cardColor
+    val textPrimary = if (isDark) Color.White else currentTheme.headingColor
+    val textSecondary = if (isDark) Color(0xFFCBD5E1) else Color(0xFF64748B)
+    val accent = appearance.accentColor
+
+    var savedLoc by remember(barnId, accountUid) {
+        mutableStateOf(BarnWeatherRepository.getSavedLocation(context, accountUid, barnId))
+    }
+
+    var weatherResult by remember(barnId, accountUid) {
+        val initialLoc = BarnWeatherRepository.getSavedLocation(context, accountUid, barnId)
+        val state: WeatherResult<OutdoorWeatherSnapshot> = if (initialLoc == null) {
+            WeatherResult.NoLocation
+        } else if (!initialLoc.isEnabled) {
+            WeatherResult.Disabled
+        } else {
+            val cached = BarnWeatherRepository.getCachedSnapshot(context, accountUid, barnId)
+            if (cached != null) WeatherResult.Success(cached, isStale = !cached.isFresh)
+            else WeatherResult.Loading
+        }
+        mutableStateOf(state)
+    }
+
+    var isSearchExpanded by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf("") }
+    var searchResults by remember { mutableStateOf<List<BarnWeatherLocation>>(emptyList()) }
+    var isSearching by remember { mutableStateOf(false) }
+    var searchErrorMessage by remember { mutableStateOf<String?>(null) }
+
+    fun doRefresh(force: Boolean) {
+        val loc = savedLoc ?: return
+        if (!loc.isEnabled) return
+        weatherResult = WeatherResult.Loading
+        scope.launch {
+            val res = BarnWeatherRepository.fetchWeather(context, accountUid, loc, forceRefresh = force)
+            weatherResult = res
+        }
+    }
+
+    LaunchedEffect(savedLoc?.isEnabled, savedLoc?.localityName, savedLoc?.latitude, savedLoc?.longitude) {
+        val loc = savedLoc
+        if (loc != null && loc.isEnabled) {
+            val cached = BarnWeatherRepository.getCachedSnapshot(context, accountUid, barnId)
+            if (cached == null || !cached.isFresh) {
+                doRefresh(force = false)
+            } else {
+                weatherResult = WeatherResult.Success(cached, isStale = false)
+            }
+        } else if (loc != null && !loc.isEnabled) {
+            weatherResult = WeatherResult.Disabled
+        } else {
+            weatherResult = WeatherResult.NoLocation
+        }
+    }
+
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .testTag("outdoor_weather_card"),
+        shape = cornerShape,
+        colors = CardDefaults.cardColors(containerColor = cardBg),
+        border = BorderStroke(1.dp, if (isDark) Color(0xFF334155) else Color(0xFFE2E8F0)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            // Header Row: Title + Enable Switch
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("🌤️", fontSize = 18.sp)
+                    Column {
+                        Text(
+                            text = Translations.tr("outdoor_weather_title", lang),
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 13.5.sp,
+                            color = textPrimary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        val locLabel = savedLoc?.let { "${it.localityName}${if (it.region.isNotBlank()) " • " + it.region else ""}" }
+                        Text(
+                            text = locLabel ?: Translations.tr("outdoor_weather_enable", lang),
+                            fontSize = 11.sp,
+                            color = textSecondary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+
+                Switch(
+                    checked = savedLoc?.isEnabled == true,
+                    onCheckedChange = { isChecked ->
+                        val current = savedLoc
+                        if (current != null) {
+                            val updated = current.copy(isEnabled = isChecked, updatedAtMillis = System.currentTimeMillis())
+                            savedLoc = updated
+                            BarnWeatherRepository.saveLocation(context, accountUid, updated)
+                            if (isChecked) {
+                                doRefresh(force = true)
+                            } else {
+                                weatherResult = WeatherResult.Disabled
+                            }
+                        } else {
+                            isSearchExpanded = true
+                        }
+                    },
+                    modifier = Modifier.testTag("switch_outdoor_weather_enable")
+                )
+            }
+
+            // Search Bar & Results
+            if (isSearchExpanded || savedLoc == null) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(if (isDark) Color(0xFF0F172A) else Color(0xFFF1F5F9), pillShape)
+                        .padding(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedTextField(
+                            value = searchQuery,
+                            onValueChange = { searchQuery = it },
+                            placeholder = {
+                                Text(
+                                    Translations.tr("outdoor_weather_search_placeholder", lang),
+                                    fontSize = 11.5.sp,
+                                    color = textSecondary
+                                )
+                            },
+                            singleLine = true,
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("input_weather_locality_search"),
+                            shape = pillShape,
+                            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp, color = textPrimary)
+                        )
+                        Button(
+                            onClick = {
+                                if (searchQuery.trim().length >= 2) {
+                                    isSearching = true
+                                    searchErrorMessage = null
+                                    scope.launch {
+                                        val results = BarnWeatherRepository.searchLocalities(searchQuery)
+                                        searchResults = results
+                                        isSearching = false
+                                        if (results.isEmpty()) {
+                                            searchErrorMessage = "لم يتم العثور على نتائج"
+                                        }
+                                    }
+                                }
+                            },
+                            shape = pillShape,
+                            colors = ButtonDefaults.buttonColors(containerColor = accent),
+                            modifier = Modifier.testTag("btn_weather_search_locality")
+                        ) {
+                            if (isSearching) {
+                                CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Color.White, strokeWidth = 2.dp)
+                            } else {
+                                Icon(Icons.Default.Search, contentDescription = "Search", tint = Color.White, modifier = Modifier.size(16.dp))
+                            }
+                        }
+                        if (savedLoc != null) {
+                            IconButton(onClick = { isSearchExpanded = false }, modifier = Modifier.size(32.dp)) {
+                                Icon(Icons.Default.Close, contentDescription = "Close", tint = textSecondary, modifier = Modifier.size(16.dp))
+                            }
+                        }
+                    }
+
+                    if (searchErrorMessage != null) {
+                        Text(searchErrorMessage.orEmpty(), fontSize = 11.sp, color = Color(0xFFEF4444))
+                    }
+
+                    if (searchResults.isNotEmpty()) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            searchResults.forEach { locResult ->
+                                Surface(
+                                    onClick = {
+                                        val newLoc = locResult.copy(
+                                            barnId = barnId,
+                                            isEnabled = true,
+                                            updatedAtMillis = System.currentTimeMillis()
+                                        )
+                                        savedLoc = newLoc
+                                        BarnWeatherRepository.saveLocation(context, accountUid, newLoc)
+                                        isSearchExpanded = false
+                                        searchResults = emptyList()
+                                        searchQuery = ""
+                                        doRefresh(force = true)
+                                    },
+                                    shape = pillShape,
+                                    color = if (isDark) Color(0xFF1E293B) else Color.White,
+                                    border = BorderStroke(1.dp, accent.copy(alpha = 0.3f)),
+                                    modifier = Modifier.fillMaxWidth().testTag("locality_result_${locResult.localityName}")
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = "📍 ${locResult.localityName} (${locResult.region}, ${locResult.country})",
+                                            fontSize = 11.5.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = textPrimary
+                                        )
+                                        Text(
+                                            text = String.format(Locale.US, "%.2f, %.2f", locResult.latitude, locResult.longitude),
+                                            fontSize = 10.sp,
+                                            color = textSecondary
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Weather Content State
+            when (val res = weatherResult) {
+                is WeatherResult.Success -> {
+                    val snap = res.data
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Text(
+                                        text = "${snap.temperatureC}°C",
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontSize = 22.sp,
+                                        color = accent,
+                                        modifier = Modifier.testTag("txt_outdoor_temp")
+                                    )
+                                    snap.apparentTemperatureC?.let { appTemp ->
+                                        Text(
+                                            text = "(≈ $appTemp°C)",
+                                            fontSize = 11.5.sp,
+                                            color = textSecondary
+                                        )
+                                    }
+                                }
+                                Text(
+                                    text = snap.conditionDescription(lang.code),
+                                    fontSize = 12.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = textPrimary
+                                )
+                            }
+
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                if (res.isStale || snap.isCached) {
+                                    Surface(
+                                        shape = RoundedCornerShape(50),
+                                        color = if (isDark) Color(0xFF334155) else Color(0xFFE2E8F0)
+                                    ) {
+                                        Text(
+                                            text = Translations.tr("outdoor_weather_stale", lang),
+                                            fontSize = 9.5.sp,
+                                            color = textSecondary,
+                                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
+                                        )
+                                    }
+                                }
+
+                                IconButton(
+                                    onClick = { doRefresh(force = true) },
+                                    modifier = Modifier.size(32.dp).testTag("btn_refresh_outdoor_weather")
+                                ) {
+                                    Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = accent, modifier = Modifier.size(18.dp))
+                                }
+
+                                IconButton(
+                                    onClick = { isSearchExpanded = !isSearchExpanded },
+                                    modifier = Modifier.size(32.dp).testTag("btn_edit_locality")
+                                ) {
+                                    Icon(Icons.Default.EditLocation, contentDescription = "Edit Location", tint = textSecondary, modifier = Modifier.size(18.dp))
+                                }
+                            }
+                        }
+
+                        // Weather metrics row: Humidity, Wind, Precip
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Surface(
+                                modifier = Modifier.weight(1f),
+                                shape = pillShape,
+                                color = if (isDark) Color(0xFF0F172A) else Color(0xFFF1F5F9)
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(8.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Text("💧", fontSize = 12.sp)
+                                    Text(
+                                        text = "${snap.relativeHumidityPct ?: "--"}%",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = textPrimary
+                                    )
+                                }
+                            }
+
+                            Surface(
+                                modifier = Modifier.weight(1f),
+                                shape = pillShape,
+                                color = if (isDark) Color(0xFF0F172A) else Color(0xFFF1F5F9)
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(8.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Text("💨", fontSize = 12.sp)
+                                    Text(
+                                        text = "${snap.windSpeedKmh ?: "--"} km/h",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = textPrimary
+                                    )
+                                }
+                            }
+
+                            if (snap.precipitationMm != null && snap.precipitationMm > 0.0) {
+                                Surface(
+                                    modifier = Modifier.weight(1f),
+                                    shape = pillShape,
+                                    color = if (isDark) Color(0xFF0F172A) else Color(0xFFF1F5F9)
+                                ) {
+                                    Column(
+                                        modifier = Modifier.padding(8.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally
+                                    ) {
+                                        Text("🌧️", fontSize = 12.sp)
+                                        Text(
+                                            text = "${snap.precipitationMm} mm",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = textPrimary
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        // Attribution
+                        Text(
+                            text = Translations.tr("outdoor_weather_source_attribution", lang) + " • " + snap.providerAttribution,
+                            fontSize = 9.5.sp,
+                            color = textSecondary,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth().padding(top = 2.dp)
+                        )
+                    }
+                }
+                is WeatherResult.Loading -> {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = accent)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("جاري استطلاع الطقس الخارجي...", fontSize = 11.sp, color = textSecondary)
+                    }
+                }
+                is WeatherResult.Error -> {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "تعذر جلب الطقس: ${res.message}",
+                            fontSize = 11.sp,
+                            color = Color(0xFFEF4444),
+                            modifier = Modifier.weight(1f)
+                        )
+                        TextButton(onClick = { doRefresh(force = true) }) {
+                            Text("إعادة المحاولة", fontSize = 11.sp, color = accent)
+                        }
+                    }
+                }
+                is WeatherResult.Disabled -> {
+                    Text(
+                        text = "الطقس الخارجي معطل لهذا العنبر. فعّل المفتاح أعلاه لعرض حرارة ورطوبة المنطقة.",
+                        fontSize = 11.sp,
+                        color = textSecondary
+                    )
+                }
+                is WeatherResult.NoLocation -> {
+                    if (!isSearchExpanded) {
+                        TextButton(
+                            onClick = { isSearchExpanded = true },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = "📍 اضغط لتحديد بلدية أو مدينة العنبر لجلب الطقس الخارجي",
+                                fontSize = 11.5.sp,
+                                color = accent
+                            )
+                        }
+                    }
                 }
             }
         }
