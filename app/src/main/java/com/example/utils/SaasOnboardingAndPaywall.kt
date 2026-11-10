@@ -594,8 +594,16 @@ class AgritechAppSessionState(
         farmId: String = activeFarmId,
         uid: String? = currentUserUid
     ) {
-        LocalFarmPersistence.restoreFromReloginArchiveIfNeeded(context)
-        LocalFarmPersistence.loadIntoMockDb(context)
+        val previousUid = currentUserUid
+        val effectiveUid = uid ?: previousUid
+        val newIdentityKey = com.example.AgritechAuthHelper.resolveActiveStorageIdentityKey(effectiveUid)
+        if (previousUid != null && previousUid != effectiveUid) {
+            val prevKey = com.example.AgritechAuthHelper.resolveActiveStorageIdentityKey(previousUid)
+            LocalFarmPersistence.saveAll(context, prevKey)
+        }
+        LocalFarmPersistence.setActiveIdentity(newIdentityKey)
+        AgritechMockDb.resetForAccountSwitch()
+        LocalFarmPersistence.loadIntoMockDb(context, newIdentityKey)
         val validFarms = AgritechMockDb.farms.filterNot { it.id in AgritechMockDb.deletedFarmIds }
         val resolvedLinkedBarns = linkedBarns || validFarms.isNotEmpty()
         val candidateFarmId = if (farmId in AgritechMockDb.deletedFarmIds || validFarms.none { it.id == farmId }) "" else farmId
@@ -604,9 +612,7 @@ class AgritechAppSessionState(
         currentRole = role
         hasLinkedBarns = resolvedLinkedBarns
         activeFarmId = resolvedFarmId
-        if (uid != null) {
-            currentUserUid = uid
-        }
+        currentUserUid = effectiveUid
         SaasPreferencesManager.saveAuthSession(
             context = context,
             isLoggedIn = true,
@@ -618,6 +624,10 @@ class AgritechAppSessionState(
     }
 
     fun performExplicitLogout(context: Context) {
+        val outgoingIdentityKey = com.example.AgritechAuthHelper.resolveActiveStorageIdentityKey(currentUserUid)
+        if (outgoingIdentityKey != "local_guest_default") {
+            LocalFarmPersistence.saveAll(context, outgoingIdentityKey)
+        }
         isLoggedIn = false
         currentRole = null
         hasLinkedBarns = false
@@ -627,9 +637,9 @@ class AgritechAppSessionState(
         selectedFarmForVet = null
         selectedFarmForWorker = null
         SaasPreferencesManager.clearAuthSession(context)
-        LocalFarmPersistence.archiveBeforeLogout(context)
+        LocalFarmPersistence.setActiveIdentity("local_guest_default")
+        LocalFarmPersistence.clear(context, "local_guest_default")
         AgritechMockDb.clearOnExplicitLogout()
-        LocalFarmPersistence.clear(context)
     }
 
     fun updateTheme(context: Context, newTheme: AppThemeOption) {
@@ -5216,12 +5226,13 @@ fun ProfessionOnboardingDialog(
 }
 
 /**
- * Ironclad Local (`SharedPreferences` JSON) Persistence for Farms, Cycles, Daily Reports,
- * Transactions, and Vet Notes (`"agritech_local_state_v1"`).
+ * Ironclad Identity-Scoped Local (`SharedPreferences` JSON) Persistence for Farms, Cycles, Daily Reports,
+ * Transactions, Vet Notes, Deleted Farm Tombstones, and Worker Personal Ledger (`"agritech_local_state_v2_<identity>"`).
  */
 object LocalFarmPersistence {
-    private const val PREF_NAME = "agritech_local_state_v1"
-    private const val PREF_ARCHIVE_NAME = "agritech_local_relogin_archive_v1"
+    private const val LEGACY_PREF_NAME = "agritech_local_state_v1"
+    private const val LEGACY_BACKUP_PREF_NAME = "agritech_legacy_backup_v1"
+    private const val PREF_PREFIX_V2 = "agritech_local_state_v2_"
     private const val KEY_SAVED = "has_saved_state"
     private const val KEY_FARMS = "farms_json"
     private const val KEY_CYCLES = "cycles_json"
@@ -5230,6 +5241,32 @@ object LocalFarmPersistence {
     private const val KEY_VET_NOTES = "vet_notes_json"
     private const val KEY_INVENTORY_COUNTERS = "barn_inventory_json"
     private const val KEY_DELETED_FARM_IDS = "deleted_farm_ids_json"
+    private const val KEY_WORKER_PERSONAL_ENTRIES = "worker_personal_entries_json"
+    private const val KEY_WORKER_ENTRIES_INITIALIZED = "worker_entries_initialized"
+    private const val KEY_LEGACY_BACKED_UP = "legacy_v1_backed_up"
+    private const val KEY_LEGACY_CLAIMED_BY = "legacy_v1_claimed_by"
+
+    @Volatile
+    private var activeIdentityKey: String = "local_guest_default"
+
+    fun setActiveIdentity(identityKey: String?) {
+        val cleaned = identityKey?.trim().orEmpty()
+        activeIdentityKey = if (cleaned.isNotBlank()) {
+            cleaned.replace(Regex("[^a-zA-Z0-9_-]"), "_")
+        } else {
+            com.example.AgritechAuthHelper.resolveActiveStorageIdentityKey(null)
+        }
+    }
+
+    fun getActiveIdentity(): String = activeIdentityKey
+
+    fun resolvePrefNameForIdentity(explicitIdentityKey: String? = null): String {
+        val key = explicitIdentityKey?.trim()?.takeIf { it.isNotBlank() }
+            ?: activeIdentityKey.takeIf { it.isNotBlank() }
+            ?: com.example.AgritechAuthHelper.resolveActiveStorageIdentityKey(null)
+        val sanitized = key.replace(Regex("[^a-zA-Z0-9_-]"), "_")
+        return "$PREF_PREFIX_V2$sanitized"
+    }
 
     private fun mapToJson(map: Map<String, String>): org.json.JSONObject {
         val obj = org.json.JSONObject()
@@ -5290,62 +5327,120 @@ object LocalFarmPersistence {
         return result
     }
 
-    fun hasSavedData(context: Context): Boolean {
-        val prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
+    /**
+     * Non-destructive one-time legacy migration from `agritech_local_state_v1`:
+     * 1. Backs up `agritech_local_state_v1` to `agritech_legacy_backup_v1` without deleting `v1`.
+     * 2. Migrates into the target v2 identity ONLY if provably owned by that identity (matching UID in `members`,
+     *    or unclaimed legacy state with no explicit other UID) and not already claimed by another identity.
+     */
+    fun migrateLegacySharedStateIfNeeded(context: Context, resolvedIdentityKey: String): Boolean {
+        try {
+            val sanitizedKey = resolvedIdentityKey.trim().replace(Regex("[^a-zA-Z0-9_-]"), "_")
+            val targetPrefs = context.getSharedPreferences("$PREF_PREFIX_V2$sanitizedKey", Context.MODE_PRIVATE)
+            if (targetPrefs.getBoolean(KEY_SAVED, false)) return false
+
+            val legacyPrefs = context.getSharedPreferences(LEGACY_PREF_NAME, Context.MODE_PRIVATE)
+            if (!legacyPrefs.getBoolean(KEY_SAVED, false)) return false
+
+            val backupPrefs = context.getSharedPreferences(LEGACY_BACKUP_PREF_NAME, Context.MODE_PRIVATE)
+            val legacyFarmsRaw = legacyPrefs.getString(KEY_FARMS, null)
+                ?: legacyPrefs.getString("saved_farms_v1", null)
+            if (!backupPrefs.getBoolean(KEY_LEGACY_BACKED_UP, false)) {
+                backupPrefs.edit()
+                    .putBoolean(KEY_LEGACY_BACKED_UP, true)
+                    .putBoolean("legacy_migrated_once", true)
+                    .putBoolean(KEY_SAVED, true)
+                    .putString(KEY_FARMS, legacyFarmsRaw)
+                    .putString(KEY_CYCLES, legacyPrefs.getString(KEY_CYCLES, null))
+                    .putString(KEY_REPORTS, legacyPrefs.getString(KEY_REPORTS, null))
+                    .putString(KEY_TRANSACTIONS, legacyPrefs.getString(KEY_TRANSACTIONS, null))
+                    .putString(KEY_VET_NOTES, legacyPrefs.getString(KEY_VET_NOTES, null))
+                    .putString(KEY_INVENTORY_COUNTERS, legacyPrefs.getString(KEY_INVENTORY_COUNTERS, null))
+                    .putString(KEY_DELETED_FARM_IDS, legacyPrefs.getString(KEY_DELETED_FARM_IDS, null))
+                    .commit()
+            }
+
+            val claimedBy = backupPrefs.getString(KEY_LEGACY_CLAIMED_BY, null)
+            if (!claimedBy.isNullOrBlank() && claimedBy != sanitizedKey) {
+                return false
+            }
+
+            var matchesIdentity = false
+            val defaultPlaceholderIds = setOf("owner_1", "worker_1", "worker_2", "vet_1", "trader_1")
+
+            if (!legacyFarmsRaw.isNullOrBlank()) {
+                val arr = org.json.JSONArray(legacyFarmsRaw)
+                val allMemberKeys = mutableSetOf<String>()
+                for (i in 0 until arr.length()) {
+                    val obj = arr.optJSONObject(i) ?: continue
+                    val membersMap = jsonToMap(obj.optJSONObject("members"))
+                    allMemberKeys.addAll(membersMap.keys)
+                }
+                val nonPlaceholderMembers = allMemberKeys - defaultPlaceholderIds
+                val rawUid = sanitizedKey.removePrefix("auth_uid_").removePrefix("local_user_")
+                matchesIdentity = when {
+                    nonPlaceholderMembers.isEmpty() -> true
+                    rawUid in nonPlaceholderMembers || sanitizedKey in nonPlaceholderMembers -> true
+                    else -> false
+                }
+            } else if (sanitizedKey == "local_guest_default") {
+                matchesIdentity = true
+            }
+
+            if (matchesIdentity) {
+                targetPrefs.edit()
+                    .putBoolean(KEY_SAVED, true)
+                    .putString(KEY_FARMS, legacyFarmsRaw)
+                    .putString(KEY_CYCLES, legacyPrefs.getString(KEY_CYCLES, null))
+                    .putString(KEY_REPORTS, legacyPrefs.getString(KEY_REPORTS, null))
+                    .putString(KEY_TRANSACTIONS, legacyPrefs.getString(KEY_TRANSACTIONS, null))
+                    .putString(KEY_VET_NOTES, legacyPrefs.getString(KEY_VET_NOTES, null))
+                    .putString(KEY_INVENTORY_COUNTERS, legacyPrefs.getString(KEY_INVENTORY_COUNTERS, null))
+                    .putString(KEY_DELETED_FARM_IDS, legacyPrefs.getString(KEY_DELETED_FARM_IDS, null))
+                    .commit()
+                backupPrefs.edit()
+                    .putString(KEY_LEGACY_CLAIMED_BY, sanitizedKey)
+                    .putBoolean("legacy_migrated_once", true)
+                    .commit()
+                return true
+            }
+            return false
+        } catch (_: Exception) {
+            return false
+        }
+    }
+
+    fun hasSavedData(context: Context, explicitIdentityKey: String? = null): Boolean {
+        val prefName = resolvePrefNameForIdentity(explicitIdentityKey)
+        val prefs = context.getSharedPreferences(prefName, Context.MODE_PRIVATE)
         return prefs.getBoolean(KEY_SAVED, false)
     }
 
-    fun archiveBeforeLogout(context: Context) {
-        try {
-            saveAll(context)
-            val prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
-            if (prefs.getBoolean(KEY_SAVED, false)) {
-                val archive = context.getSharedPreferences(PREF_ARCHIVE_NAME, Context.MODE_PRIVATE)
-                archive.edit()
-                    .putBoolean(KEY_SAVED, true)
-                    .putString(KEY_FARMS, prefs.getString(KEY_FARMS, null))
-                    .putString(KEY_CYCLES, prefs.getString(KEY_CYCLES, null))
-                    .putString(KEY_REPORTS, prefs.getString(KEY_REPORTS, null))
-                    .putString(KEY_TRANSACTIONS, prefs.getString(KEY_TRANSACTIONS, null))
-                    .putString(KEY_VET_NOTES, prefs.getString(KEY_VET_NOTES, null))
-                    .putString(KEY_INVENTORY_COUNTERS, prefs.getString(KEY_INVENTORY_COUNTERS, null))
-                    .putString(KEY_DELETED_FARM_IDS, prefs.getString(KEY_DELETED_FARM_IDS, null))
-                    .apply()
-            }
-        } catch (_: Exception) {
-        }
+    fun archiveBeforeLogout(context: Context, explicitIdentityKey: String? = null) {
+        saveAll(context, explicitIdentityKey)
     }
 
-    fun restoreFromReloginArchiveIfNeeded(context: Context) {
-        try {
-            val prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
-            if (!prefs.getBoolean(KEY_SAVED, false)) {
-                val archive = context.getSharedPreferences(PREF_ARCHIVE_NAME, Context.MODE_PRIVATE)
-                if (archive.getBoolean(KEY_SAVED, false)) {
-                    prefs.edit()
-                        .putBoolean(KEY_SAVED, true)
-                        .putString(KEY_FARMS, archive.getString(KEY_FARMS, null))
-                        .putString(KEY_CYCLES, archive.getString(KEY_CYCLES, null))
-                        .putString(KEY_REPORTS, archive.getString(KEY_REPORTS, null))
-                        .putString(KEY_TRANSACTIONS, archive.getString(KEY_TRANSACTIONS, null))
-                        .putString(KEY_VET_NOTES, archive.getString(KEY_VET_NOTES, null))
-                        .putString(KEY_INVENTORY_COUNTERS, archive.getString(KEY_INVENTORY_COUNTERS, null))
-                        .putString(KEY_DELETED_FARM_IDS, archive.getString(KEY_DELETED_FARM_IDS, null))
-                        .apply()
-                }
-            }
-        } catch (_: Exception) {
-        }
+    fun restoreFromReloginArchiveIfNeeded(context: Context, explicitIdentityKey: String? = null) {
+        val resolvedKey = explicitIdentityKey?.trim()?.takeIf { it.isNotBlank() }
+            ?: activeIdentityKey.takeIf { it.isNotBlank() }
+            ?: com.example.AgritechAuthHelper.resolveActiveStorageIdentityKey(null)
+        migrateLegacySharedStateIfNeeded(context, resolvedKey.replace(Regex("[^a-zA-Z0-9_-]"), "_"))
     }
 
-    fun clear(context: Context) {
-        val prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
+    fun clear(context: Context, explicitIdentityKey: String? = null) {
+        val prefName = resolvePrefNameForIdentity(explicitIdentityKey)
+        val prefs = context.getSharedPreferences(prefName, Context.MODE_PRIVATE)
         prefs.edit().clear().apply()
     }
 
-    fun saveAll(context: Context) {
+    fun clearAllOnExplicitLogout(context: Context, explicitIdentityKey: String? = null) {
+        clear(context, explicitIdentityKey)
+    }
+
+    fun saveAll(context: Context, explicitIdentityKey: String? = null) {
         try {
-            val prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
+            val prefName = resolvePrefNameForIdentity(explicitIdentityKey)
+            val prefs = context.getSharedPreferences(prefName, Context.MODE_PRIVATE)
             val farmsArr = org.json.JSONArray()
             for (f in AgritechMockDb.farms) {
                 if (f.id in AgritechMockDb.deletedFarmIds) continue
@@ -5378,6 +5473,7 @@ object LocalFarmPersistence {
                 obj.put("feedInventoryKg", c.feedInventoryKg)
                 obj.put("cumulativeBirdsSold", c.cumulativeBirdsSold)
                 obj.put("cumulativeSoldWeightKg", c.cumulativeSoldWeightKg)
+                obj.put("cumulativeMortality", c.cumulativeMortality)
                 obj.put("currencyCode", c.currencyCode)
                 obj.put("schemaVersion", c.schemaVersion)
                 obj.put("sectorId", c.sectorId)
@@ -5475,6 +5571,19 @@ object LocalFarmPersistence {
                 notesArr.put(obj)
             }
 
+            val workerEntriesArr = org.json.JSONArray()
+            for (we in AgritechMockDb.workerPersonalEntries) {
+                val obj = org.json.JSONObject()
+                obj.put("id", we.id)
+                obj.put("farmId", we.farmId.ifBlank { "personal_worker_ledger" })
+                obj.put("title", we.title)
+                obj.put("amount", we.amount)
+                obj.put("type", we.type.name)
+                obj.put("dateLabel", we.dateLabel)
+                obj.put("isBillOrObligation", we.isBillOrObligation)
+                workerEntriesArr.put(obj)
+            }
+
             val inventoryJsonStr = intMapToJson(AgritechMockDb.barnInventoryCounters.toMap()).toString()
             val deletedFarmIdsJsonStr = stringSetToJson(AgritechMockDb.deletedFarmIds.toSet()).toString()
 
@@ -5487,36 +5596,32 @@ object LocalFarmPersistence {
                 .putString(KEY_VET_NOTES, notesArr.toString())
                 .putString(KEY_INVENTORY_COUNTERS, inventoryJsonStr)
                 .putString(KEY_DELETED_FARM_IDS, deletedFarmIdsJsonStr)
-                .apply()
-
-            val archive = context.getSharedPreferences(PREF_ARCHIVE_NAME, Context.MODE_PRIVATE)
-            archive.edit()
-                .putBoolean(KEY_SAVED, true)
-                .putString(KEY_FARMS, farmsArr.toString())
-                .putString(KEY_CYCLES, cyclesArr.toString())
-                .putString(KEY_REPORTS, reportsArr.toString())
-                .putString(KEY_TRANSACTIONS, txArr.toString())
-                .putString(KEY_VET_NOTES, notesArr.toString())
-                .putString(KEY_INVENTORY_COUNTERS, inventoryJsonStr)
-                .putString(KEY_DELETED_FARM_IDS, deletedFarmIdsJsonStr)
+                .putString(KEY_WORKER_PERSONAL_ENTRIES, workerEntriesArr.toString())
+                .putBoolean(KEY_WORKER_ENTRIES_INITIALIZED, true)
                 .apply()
         } catch (_: Exception) {
         }
     }
 
-    fun loadAll(context: Context) = loadIntoMockDb(context)
+    fun loadAll(context: Context, explicitIdentityKey: String? = null) =
+        loadIntoMockDb(context, explicitIdentityKey)
 
-    fun loadIntoMockDb(context: Context) {
+    fun loadIntoMockDb(context: Context, explicitIdentityKey: String? = null) {
         try {
-            val prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
-            val archive = context.getSharedPreferences(PREF_ARCHIVE_NAME, Context.MODE_PRIVATE)
+            val resolvedKey = (explicitIdentityKey?.trim()?.takeIf { it.isNotBlank() }
+                ?: activeIdentityKey.takeIf { it.isNotBlank() }
+                ?: com.example.AgritechAuthHelper.resolveActiveStorageIdentityKey(null))
+                .replace(Regex("[^a-zA-Z0-9_-]"), "_")
 
-            // Restore deletedFarmIds first from both prefs and archive
+            activeIdentityKey = resolvedKey
+            migrateLegacySharedStateIfNeeded(context, resolvedKey)
+
+            val prefName = "$PREF_PREFIX_V2$resolvedKey"
+            val prefs = context.getSharedPreferences(prefName, Context.MODE_PRIVATE)
+
+            AgritechMockDb.deletedFarmIds.clear()
             if (prefs.contains(KEY_DELETED_FARM_IDS)) {
                 AgritechMockDb.deletedFarmIds.addAll(jsonToStringSet(prefs.getString(KEY_DELETED_FARM_IDS, null)))
-            }
-            if (archive.contains(KEY_DELETED_FARM_IDS)) {
-                AgritechMockDb.deletedFarmIds.addAll(jsonToStringSet(archive.getString(KEY_DELETED_FARM_IDS, null)))
             }
 
             if (!prefs.getBoolean(KEY_SAVED, false)) return
@@ -5571,6 +5676,7 @@ object LocalFarmPersistence {
                                 feedInventoryKg = obj.optDouble("feedInventoryKg", 0.0),
                                 cumulativeBirdsSold = obj.optInt("cumulativeBirdsSold", 0),
                                 cumulativeSoldWeightKg = obj.optDouble("cumulativeSoldWeightKg", 0.0),
+                                cumulativeMortality = obj.optInt("cumulativeMortality", 0),
                                 currencyCode = obj.optString("currencyCode", "DZD"),
                                 schemaVersion = obj.optInt("schemaVersion", 2),
                                 sectorId = obj.optString("sectorId", "AGRICULTURE").ifBlank { "AGRICULTURE" },
@@ -5735,6 +5841,38 @@ object LocalFarmPersistence {
                         }
                     )
                 }
+            }
+
+            // Restore Worker Personal Entries (preserving empty state when initialized == true and array is [])
+            val workerInitialized = prefs.getBoolean(KEY_WORKER_ENTRIES_INITIALIZED, false)
+            if (workerInitialized || prefs.contains(KEY_WORKER_PERSONAL_ENTRIES)) {
+                val workerStr = prefs.getString(KEY_WORKER_PERSONAL_ENTRIES, "[]") ?: "[]"
+                val loadedWorkerEntries = mutableListOf<WorkerPersonalEntryModel>()
+                runCatching {
+                    val arr = org.json.JSONArray(workerStr)
+                    for (i in 0 until arr.length()) {
+                        val obj = arr.getJSONObject(i)
+                        val type = try {
+                            TransactionType.valueOf(obj.optString("type", "EXPENSE"))
+                        } catch (_: Exception) {
+                            TransactionType.EXPENSE
+                        }
+                        val entry = WorkerPersonalEntryModel(
+                            id = obj.optString("id"),
+                            farmId = obj.optString("farmId", "personal_worker_ledger").ifBlank { "personal_worker_ledger" },
+                            title = obj.optString("title"),
+                            amount = obj.optDouble("amount", 0.0),
+                            type = type,
+                            dateLabel = obj.optString("dateLabel", java.time.LocalDate.now().toString()),
+                            isBillOrObligation = obj.optBoolean("isBillOrObligation", true)
+                        )
+                        if (entry.id.isNotBlank()) {
+                            loadedWorkerEntries.add(entry)
+                        }
+                    }
+                }
+                AgritechMockDb.workerPersonalEntries.clear()
+                AgritechMockDb.workerPersonalEntries.addAll(loadedWorkerEntries)
             }
         } catch (_: Exception) {
         }

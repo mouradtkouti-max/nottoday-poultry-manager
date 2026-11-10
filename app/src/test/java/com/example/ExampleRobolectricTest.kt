@@ -1333,6 +1333,177 @@ class ExampleRobolectricTest {
         val emptyLocations = BarnWeatherRepository.parseGeocodingJson("{ invalid json }")
         assertTrue(emptyLocations.isEmpty())
     }
+
+    @Test
+    fun `package1_accountIsolation_deletedFarmIdsPerAccount_legacyMigrationBackup_andWorkerLedgerPersistence`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+
+        // 1. Account A vs Account B isolation & per-account deletedFarmIds
+        LocalFarmPersistence.setActiveIdentity("uid_account_A")
+        AgritechMockDb.resetForAccountSwitch()
+        AgritechMockDb.farms.add(FarmModel("farm_shared_1", "عنبر حساب A", "المدية", 9000, "w_a"))
+        AgritechMockDb.cycles.add(CycleModel("cycle_a_1", "farm_shared_1", 9000, 2.3, "active", cumulativeMortality = 12))
+        AgritechMockDb.deleteFarmCompletely("farm_deleted_only_in_A")
+        AgritechMockDb.workerPersonalEntries.clear()
+        AgritechMockDb.workerPersonalEntries.add(
+            WorkerPersonalEntryModel(
+                id = "w_entry_account_A",
+                farmId = "personal_worker_ledger",
+                title = "دفتر عامل حساب A",
+                amount = 42000.0,
+                type = TransactionType.INCOME,
+                dateLabel = java.time.LocalDate.now().toString()
+            )
+        )
+        LocalFarmPersistence.saveAll(context)
+
+        // Switch to Account B: Account A's farms, cycles, deletedFarmIds, and workerPersonalEntries MUST NOT leak
+        LocalFarmPersistence.setActiveIdentity("uid_account_B")
+        AgritechMockDb.resetForAccountSwitch()
+        LocalFarmPersistence.loadIntoMockDb(context)
+
+        assertTrue("Account B must not inherit Account A's farms", AgritechMockDb.farms.none { it.id == "farm_shared_1" })
+        assertTrue("Account B must not inherit Account A's deletedFarmIds", "farm_deleted_only_in_A" !in AgritechMockDb.deletedFarmIds)
+        assertTrue("Account B must not inherit Account A's workerPersonalEntries", AgritechMockDb.workerPersonalEntries.none { it.id == "w_entry_account_A" })
+
+        // Account B can create a farm with ID "farm_deleted_only_in_A" without it being hidden by Account A's tombstone
+        AgritechMockDb.farms.add(FarmModel("farm_deleted_only_in_A", "عنبر حساب B المستقل", "سطيف", 11000, "w_b"))
+        LocalFarmPersistence.saveAll(context)
+        AgritechMockDb.resetForAccountSwitch()
+        LocalFarmPersistence.loadIntoMockDb(context)
+        assertTrue(
+            "Farm deleted in Account A must remain visible in Account B",
+            AgritechMockDb.farms.any { it.id == "farm_deleted_only_in_A" }
+        )
+
+        // Switch back to Account A and verify Account A's state & tombstone are intact
+        LocalFarmPersistence.setActiveIdentity("uid_account_A")
+        AgritechMockDb.resetForAccountSwitch()
+        LocalFarmPersistence.loadIntoMockDb(context)
+        assertTrue(AgritechMockDb.farms.any { it.id == "farm_shared_1" })
+        assertTrue("farm_deleted_only_in_A" in AgritechMockDb.deletedFarmIds)
+        assertEquals(12, AgritechMockDb.cycles.first { it.id == "cycle_a_1" }.cumulativeMortality)
+        assertEquals(1, AgritechMockDb.workerPersonalEntries.size)
+        assertEquals("w_entry_account_A", AgritechMockDb.workerPersonalEntries.first().id)
+
+        // 2. Deleting all worker personal entries persists empty list [] across reload (does NOT re-seed defaults)
+        AgritechMockDb.workerPersonalEntries.clear()
+        LocalFarmPersistence.saveAll(context)
+        AgritechMockDb.workerPersonalEntries.addAll(AgritechMockDb.initialWorkerPersonalEntriesSeed)
+        LocalFarmPersistence.loadIntoMockDb(context)
+        assertEquals(
+            "Deleting all worker personal entries must persist an empty list after reload",
+            0,
+            AgritechMockDb.workerPersonalEntries.size
+        )
+
+        // 3. Non-destructive one-time legacy migration into agritech_legacy_backup_v1 without leaking to another account
+        val legacyPrefs = context.getSharedPreferences("agritech_local_state_v1", Context.MODE_PRIVATE)
+        legacyPrefs.edit()
+            .putBoolean("has_saved_state", true)
+            .putString(
+                "saved_farms_v1",
+                """[{"id":"farm_legacy_1","name":"عنبر قديم","location":"البليدة","capacity":7000,"assignedWorkerId":"w1","currencyCode":"DZD"}]"""
+            )
+            .commit()
+
+        val migratedToOwner = LocalFarmPersistence.migrateLegacySharedStateIfNeeded(context, "uid_legacy_owner")
+        assertTrue("First legacy migration for target identity should succeed", migratedToOwner)
+        assertTrue("Legacy data in agritech_local_state_v1 must not be deleted", legacyPrefs.getBoolean("has_saved_state", false))
+        val backupPrefs = context.getSharedPreferences("agritech_legacy_backup_v1", Context.MODE_PRIVATE)
+        assertTrue("Legacy backup must be saved in agritech_legacy_backup_v1", backupPrefs.getBoolean("legacy_migrated_once", false))
+
+        // Second account must NOT receive the already-migrated legacy data
+        val migratedToSecondAccount = LocalFarmPersistence.migrateLegacySharedStateIfNeeded(context, "uid_second_user")
+        assertEquals(false, migratedToSecondAccount)
+        LocalFarmPersistence.setActiveIdentity("guest_local")
+        LocalFarmPersistence.clearAllOnExplicitLogout(context)
+        AgritechMockDb.resetForAccountSwitch()
+    }
+
+    @Test
+    fun `package1_secondFarmCycleAndReportIsolation_reportDeduplication_andVerifiedQrInvitePayload`() {
+        AgritechMockDb.resetForAccountSwitch()
+        val farm1 = FarmModel("farm_1", "عنبر 1", "المدية", 8000, "w1")
+        val farm2 = FarmModel("farm_2", "عنبر 2", "سطيف", 10000, "w2")
+        AgritechMockDb.farms.addAll(listOf(farm1, farm2))
+        AgritechMockDb.cycles.add(
+            CycleModel(
+                id = "cycle_farm_1_active",
+                farmId = "farm_1",
+                totalBirdsPlaced = 8000,
+                targetWeight = 2.3,
+                status = "active"
+            )
+        )
+
+        // 1. farm_2 has no cycle in AgritechMockDb.cycles -> resolveCycleForFarm(farm2) MUST NOT borrow farm_1's cycle
+        val resolvedFarm2Cycle = AgritechMockDb.resolveCycleForFarm(farm2)
+        assertEquals("farm_2", resolvedFarm2Cycle.farmId)
+        assertEquals(10000, resolvedFarm2Cycle.totalBirdsPlaced)
+        assertTrue(resolvedFarm2Cycle.id != "cycle_farm_1_active")
+
+        // 2. farm_2 has no daily reports -> resolveReportsForFarmAndCycle("farm_2") MUST return emptyList(), never farm_1's reports
+        AgritechMockDb.dailyReports.clear()
+        AgritechMockDb.dailyReports.add(
+            DailyReportModel(
+                id = "rep_f1_d1",
+                farmId = "farm_1",
+                cycleId = "cycle_farm_1_active",
+                dayNumber = 1,
+                feedIntakeKg = 200.0,
+                waterIntakeLiters = 400.0,
+                mortalityCount = 3,
+                temperature = 33.0
+            )
+        )
+        val farm2Reports = AgritechMockDb.resolveReportsForFarmAndCycle("farm_2", resolvedFarm2Cycle.id)
+        assertTrue("Second farm without reports must not borrow farm_1 reports", farm2Reports.isEmpty())
+
+        // 3. Deduplication by (farmId, cycleId, dayNumber) keeps the newest updatedAtMillis
+        val olderDup = DailyReportModel(
+            id = "rep_f1_d5_old",
+            farmId = "farm_1",
+            cycleId = "cycle_farm_1_active",
+            dayNumber = 5,
+            feedIntakeKg = 300.0,
+            waterIntakeLiters = 600.0,
+            mortalityCount = 2,
+            temperature = 31.0,
+            updatedAtMillis = 1000L
+        )
+        val newerDup = olderDup.copy(
+            id = "rep_f1_d5_new",
+            feedIntakeKg = 360.0,
+            mortalityCount = 4,
+            updatedAtMillis = 5000L
+        )
+        val deduped = AgritechMockDb.resolveReportsForFarmAndCycle(
+            farmId = "farm_1",
+            cycleId = "cycle_farm_1_active",
+            extraReports = listOf(olderDup, newerDup)
+        )
+        val day5Reports = deduped.filter { it.dayNumber == 5 }
+        assertEquals("Duplicate reports for the same day must be deduplicated", 1, day5Reports.size)
+        assertEquals(360.0, day5Reports.first().feedIntakeKg, 0.001)
+        assertEquals(4, day5Reports.first().mortalityCount)
+
+        // 4. Verified QR invite payload formatting and parsing preserves inviteId
+        val qrPayload = formatAgritechQrInvitePayload(
+            farmId = "farm_1",
+            role = AppRole.WORKER,
+            inviteId = "inv_token_abc123",
+            farmName = "عنبر 1"
+        )
+        val parsedInvite = parseAgritechQrInvite(qrPayload)
+        assertTrue(parsedInvite != null)
+        assertEquals("farm_1", parsedInvite!!.farmId)
+        assertEquals(AppRole.WORKER, parsedInvite.role)
+        assertEquals("inv_token_abc123", parsedInvite.inviteId)
+
+        AgritechMockDb.resetForAccountSwitch()
+    }
 }
+
 
 

@@ -1,412 +1,520 @@
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Global default-deny safety net
-    match /{document=**} {
-      allow read, write: if false;
-    }
+    // =========================================================================
+    // 1. GLOBAL HELPER FUNCTIONS (Zero-Trust Validation Primitives)
+    // =========================================================================
 
-    // Core Primitives
     function isSignedIn() {
       return request.auth != null;
     }
 
-    function incoming() {
-      return request.resource.data;
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
     }
 
-    function existing() {
-      return resource.data;
+    function isAuthor() {
+      return isSignedIn() && request.resource.data.userId == request.auth.uid;
     }
 
-    function isValidId(id) {
-      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    function isImmutableAuthorAndUnit(farmId) {
+      return request.resource.data.userId == resource.data.userId
+          && request.resource.data.farmId == resource.data.farmId
+          && request.resource.data.farmId == farmId;
     }
 
-    // Shared Farm & User Profile RBAC Helpers
-    function farmDocPath(farmId) {
-      return /databases/$(database)/documents/farms/$(farmId);
+    // Strict Multi-Tenant RBAC Lookup ONLY on /farms/{farmId}
+    // Never falls back to /users/{uid}.farmId
+    function getFarmData(farmId) {
+      return get(/databases/$(database)/documents/farms/$(farmId)).data;
     }
 
-    function userDocPath(userId) {
-      return /databases/$(database)/documents/users/$(userId);
+    function farmExists(farmId) {
+      return exists(/databases/$(database)/documents/farms/$(farmId));
     }
 
-    function getMemberRoleFromFarm(farmId, uid) {
-      return (exists(farmDocPath(farmId)) && ('members' in get(farmDocPath(farmId)).data) && (uid in get(farmDocPath(farmId)).data.members))
-        ? get(farmDocPath(farmId)).data.members[uid]
-        : null;
+    function getMemberRole(farmId, uid) {
+      return !farmExists(farmId) ? '' : (
+        ('members' in getFarmData(farmId) && uid in getFarmData(farmId).members)
+          ? getFarmData(farmId).members[uid]
+          : (getFarmData(farmId).get('assignedOwnerId', '') == uid
+              ? 'OWNER'
+              : (getFarmData(farmId).get('assignedWorkerId', '') == uid
+                  ? 'WORKER'
+                  : ''))
+      );
     }
 
-    function getMemberRoleFromUserProfile(farmId, uid) {
-      return (exists(userDocPath(uid)) && get(userDocPath(uid)).data.farmId == farmId)
-        ? get(userDocPath(uid)).data.role
-        : null;
-    }
-
-    function getFarmRole(farmId) {
-      return !isSignedIn()
-        ? null
-        : getMemberRoleFromFarm(farmId, request.auth.uid);
+    function isAnyFarmMember(farmId) {
+      return isSignedIn() && getMemberRole(farmId, request.auth.uid) in ['OWNER', 'WORKER', 'VETERINARIAN'];
     }
 
     function isOwnerRole(farmId) {
-      return isSignedIn() && getFarmRole(farmId) == 'OWNER';
-    }
-
-    function isVetRole(farmId) {
-      return isSignedIn() && getFarmRole(farmId) == 'VETERINARIAN';
+      return isSignedIn() && getMemberRole(farmId, request.auth.uid) == 'OWNER';
     }
 
     function isWorkerRole(farmId) {
-      return isSignedIn() && getFarmRole(farmId) == 'WORKER';
+      return isSignedIn() && getMemberRole(farmId, request.auth.uid) == 'WORKER';
     }
 
-    function hasAnyFarmRole(farmId) {
+    function isVetRole(farmId) {
+      return isSignedIn() && getMemberRole(farmId, request.auth.uid) == 'VETERINARIAN';
+    }
+
+    function isCycleActive(farmId, cycleId) {
+      return exists(/databases/$(database)/documents/farms/$(farmId)/cycles/$(cycleId))
+          && get(/databases/$(database)/documents/farms/$(farmId)/cycles/$(cycleId)).data.get('status', 'active') == 'active';
+    }
+
+    // =========================================================================
+    // 2. DOMAIN SCHEMA VALIDATORS
+    // =========================================================================
+
+    function isValidUserProfile(userId) {
+      let data = request.resource.data;
+      return data.keys().hasOnly([
+          'uid', 'userId', 'displayName', 'email', 'role', 'farmId',
+          'subscriptionTier', 'subscriptionExpiresAtMillis',
+          'ownedFarmsCount', 'createdAt', 'updatedAt'
+        ])
+        && ((!('uid' in data) && ('userId' in data) && data.userId == userId) || (('uid' in data) && data.uid == userId))
+        && (!('userId' in data) || data.userId == userId)
+        && data.role in ['OWNER', 'WORKER', 'VETERINARIAN', 'TRADER']
+        && (!('displayName' in data) || (data.displayName is string && data.displayName.size() <= 120))
+        && (!('email' in data) || (data.email is string && data.email.size() <= 200))
+        && (!('farmId' in data) || (data.farmId is string && data.farmId.size() <= 120))
+        && (!('subscriptionTier' in data) || data.subscriptionTier in ['FREE', 'PRO_BI_MONTHLY'])
+        && (!('subscriptionExpiresAtMillis' in data) || (data.subscriptionExpiresAtMillis is int && data.subscriptionExpiresAtMillis >= 0))
+        && (!('ownedFarmsCount' in data) || (data.ownedFarmsCount is int && data.ownedFarmsCount >= 0 && data.ownedFarmsCount <= 100));
+    }
+
+    function isValidOperationalUnit() {
+      let data = request.resource.data;
+      let unitId = ('id' in data) ? data.id : data.get('farmId', '');
+      let ownerId = data.get('assignedOwnerId', request.auth.uid);
+      return data.keys().hasOnly([
+          'id', 'farmId', 'name', 'location', 'capacity',
+          'assignedOwnerId', 'assignedWorkerId', 'members',
+          'lastConsumedInviteId', 'currencyCode', 'schemaVersion', 'sectorId', 'branchId',
+          'customMetrics', 'createdAt', 'updatedAt'
+        ])
+        && unitId is string && unitId.size() >= 1 && unitId.size() <= 100
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 120
+        && data.location is string && data.location.size() <= 200
+        && data.capacity is int && data.capacity >= 0 && data.capacity <= 1000000
+        && ownerId is string && ownerId.size() > 0
+        && data.members is map
+        && data.members[ownerId] == 'OWNER'
+        && (!('lastConsumedInviteId' in data) || (data.lastConsumedInviteId is string && data.lastConsumedInviteId.size() <= 120))
+        && (!('currencyCode' in data) || (data.currencyCode is string && data.currencyCode.size() >= 1 && data.currencyCode.size() <= 10))
+        && (!('schemaVersion' in data) || (data.schemaVersion is int && data.schemaVersion >= 1))
+        && (!('sectorId' in data) || (data.sectorId is string && data.sectorId.size() <= 50))
+        && (!('branchId' in data) || (data.branchId is string && data.branchId.size() <= 50))
+        && (!('customMetrics' in data) || data.customMetrics is map);
+    }
+
+    function isValidFarmInviteCreate(farmId, inviteId) {
+      let data = request.resource.data;
+      return data.keys().hasOnly([
+          'inviteId', 'farmId', 'role', 'createdBy',
+          'status', 'expiresAtMillis', 'consumedBy', 'consumedAtMillis',
+          'createdAt', 'updatedAt'
+        ])
+        && data.inviteId == inviteId
+        && data.farmId == farmId
+        && data.createdBy == request.auth.uid
+        && data.role in ['WORKER', 'VETERINARIAN']
+        && data.status == 'ACTIVE'
+        && data.expiresAtMillis is int
+        && data.expiresAtMillis > request.time.toMillis()
+        && (!('consumedBy' in data) || data.consumedBy == '')
+        && (!('consumedAtMillis' in data) || data.consumedAtMillis == 0);
+    }
+
+    function isValidFarmInviteConsume(farmId, inviteId) {
+      let data = request.resource.data;
+      let prev = resource.data;
+      return isSignedIn()
+        && prev.status == 'ACTIVE'
+        && prev.expiresAtMillis is int
+        && prev.expiresAtMillis > request.time.toMillis()
+        && data.inviteId == prev.inviteId
+        && data.inviteId == inviteId
+        && data.farmId == prev.farmId
+        && data.farmId == farmId
+        && data.role == prev.role
+        && data.createdBy == prev.createdBy
+        && data.expiresAtMillis == prev.expiresAtMillis
+        && data.status == 'CONSUMED'
+        && data.consumedBy == request.auth.uid
+        && (!('consumedAtMillis' in data) || (data.consumedAtMillis is int && data.consumedAtMillis > 0));
+    }
+
+    function isValidVerifiedInviteSelfJoin(farmId) {
+      let rawInviteId = request.resource.data.get('lastConsumedInviteId', '');
+      let safeInviteId = (rawInviteId is string && rawInviteId.size() > 0) ? rawInviteId : '___missing_invite___';
+      let invitePath = /databases/$(database)/documents/farms/$(farmId)/invites/$(safeInviteId);
+      return isSignedIn()
+        && rawInviteId is string
+        && rawInviteId.size() > 0
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members', 'assignedWorkerId', 'lastConsumedInviteId', 'updatedAt'])
+        && request.resource.data.members is map
+        && resource.data.members is map
+        && request.resource.data.members.diff(resource.data.members).affectedKeys().hasOnly([request.auth.uid])
+        && request.resource.data.members[request.auth.uid] in ['WORKER', 'VETERINARIAN']
+        && (request.resource.data.get('assignedWorkerId', '') == resource.data.get('assignedWorkerId', '')
+            || (request.resource.data.members[request.auth.uid] == 'WORKER' && request.resource.data.get('assignedWorkerId', '') == request.auth.uid))
+        && exists(invitePath)
+        && get(invitePath).data.status == 'ACTIVE'
+        && get(invitePath).data.expiresAtMillis > request.time.toMillis()
+        && getAfter(invitePath).data.status == 'CONSUMED'
+        && getAfter(invitePath).data.consumedBy == request.auth.uid
+        && getAfter(invitePath).data.farmId == farmId
+        && getAfter(invitePath).data.role == request.resource.data.members[request.auth.uid]
+        && getAfter(invitePath).data.expiresAtMillis > request.time.toMillis();
+    }
+
+    function isValidProductionCycle(farmId) {
+      let data = request.resource.data;
+      let targetW = ('targetWeight' in data) ? data.targetWeight : data.get('targetWeightKg', 2.3);
+      return data.keys().hasOnly([
+          'id', 'farmId', 'userId', 'totalBirdsPlaced', 'targetWeight', 'targetWeightKg',
+          'status', 'startDate', 'chickPrice', 'feedInventoryKg',
+          'cumulativeBirdsSold', 'cumulativeSoldWeightKg', 'cumulativeMortality', 'currencyCode',
+          'schemaVersion', 'sectorId', 'branchId', 'customMetrics',
+          'createdAt', 'updatedAt'
+        ])
+        && data.farmId == farmId
+        && data.totalBirdsPlaced is int && data.totalBirdsPlaced >= 0 && data.totalBirdsPlaced <= 1000000
+        && targetW is number && targetW > 0 && targetW <= 25.0
+        && (!('status' in data) || data.status in ['active', 'completed', 'archived'])
+        && (!('startDate' in data) || (data.startDate is string && data.startDate.size() >= 8 && data.startDate.size() <= 30))
+        && (!('chickPrice' in data) || (data.chickPrice is number && data.chickPrice >= 0))
+        && data.feedInventoryKg is number && data.feedInventoryKg >= 0
+        && (!('cumulativeBirdsSold' in data) || (data.cumulativeBirdsSold is int && data.cumulativeBirdsSold >= 0 && data.cumulativeBirdsSold <= data.totalBirdsPlaced))
+        && (!('cumulativeSoldWeightKg' in data) || (data.cumulativeSoldWeightKg is number && data.cumulativeSoldWeightKg >= 0))
+        && (!('cumulativeMortality' in data) || (data.cumulativeMortality is int && data.cumulativeMortality >= 0 && data.cumulativeMortality <= data.totalBirdsPlaced))
+        && (data.get('cumulativeBirdsSold', 0) + data.get('cumulativeMortality', 0) <= data.totalBirdsPlaced);
+    }
+
+    function isValidDailyReport(farmId) {
+      let data = request.resource.data;
+      return data.keys().hasOnly([
+          'id', 'farmId', 'cycleId', 'userId', 'dayNumber',
+          'feedIntakeKg', 'waterIntakeLiters', 'mortalityCount',
+          'temperature', 'gasUnits', 'ventilationStatus', 'generalStatus', 'litterCondition',
+          'isLocked', 'isEdited', 'previousSummary', 'actualAvgWeightKg',
+          'medicineGiven', 'medicineSummary', 'withdrawalDays',
+          'updatedAtMillis', 'createdAt', 'updatedAt'
+        ])
+        && data.farmId == farmId
+        && data.cycleId is string && data.cycleId.size() > 0
+        && data.dayNumber is int && data.dayNumber >= 1 && data.dayNumber <= 365
+        && data.feedIntakeKg is number && data.feedIntakeKg >= 0 && data.feedIntakeKg <= 100000
+        && data.waterIntakeLiters is number && data.waterIntakeLiters >= 0 && data.waterIntakeLiters <= 200000
+        && data.mortalityCount is int && data.mortalityCount >= 0 && data.mortalityCount <= 1000000
+        && data.temperature is number && data.temperature >= -10 && data.temperature <= 60
+        && (!('isLocked' in data) || data.isLocked is bool)
+        && (!('actualAvgWeightKg' in data) || (data.actualAvgWeightKg is number && data.actualAvgWeightKg >= 0 && data.actualAvgWeightKg <= 25))
+        && (!('withdrawalDays' in data) || (data.withdrawalDays is int && data.withdrawalDays >= 0 && data.withdrawalDays <= 90));
+    }
+
+    function isValidVetPrescription(farmId) {
+      let data = request.resource.data;
+      let medName = ('medicineName' in data) ? data.medicineName : data.get('medication', '');
+      let noteText = ('note' in data) ? data.note : data.get('diagnosis', '');
+      return data.keys().hasOnly([
+          'id', 'farmId', 'cycleId', 'userId', 'dayNumber',
+          'medicineName', 'medication', 'dosage', 'note', 'diagnosis', 'isUrgent',
+          'status', 'linkedTransactionId', 'invoiceAmount', 'currency',
+          'withdrawalDays', 'updatedAtMillis', 'createdAt', 'updatedAt'
+        ])
+        && data.farmId == farmId
+        && data.cycleId is string && data.cycleId.size() > 0
+        && data.dayNumber is int && data.dayNumber >= 1 && data.dayNumber <= 365
+        && medName is string && medName.size() >= 1 && medName.size() <= 200
+        && data.dosage is string && data.dosage.size() <= 200
+        && noteText is string && noteText.size() <= 2000
+        && data.isUrgent is bool
+        && (!('status' in data) || data.status in ['PENDING', 'APPROVED', 'REJECTED'])
+        && (!('invoiceAmount' in data) || (data.invoiceAmount is number && data.invoiceAmount >= 0))
+        && (!('withdrawalDays' in data) || (data.withdrawalDays is int && data.withdrawalDays >= 0 && data.withdrawalDays <= 90));
+    }
+
+    function isValidTreasuryTransaction(farmId) {
+      let data = request.resource.data;
+      return data.keys().hasOnly([
+          'id', 'idempotencyKey', 'farmId', 'farmName', 'cycleId', 'userId', 'type',
+          'category', 'amount', 'currency', 'date',
+          'status', 'notes', 'quantityQuintals', 'approvedBySignature',
+          'invoiceData', 'invoiceNumber', 'buyerName', 'truckPlate', 'birdAgeDays',
+          'totalCrates', 'birdsPerCrate', 'totalBirdsSold', 'totalGrossKg',
+          'totalTareKg', 'totalNetKg', 'avgBirdWeightKg', 'pricePerKg',
+          'tareWeightsCount', 'grossWeightsCount', 'updatedAtMillis', 'createdAt', 'updatedAt'
+        ])
+        && data.farmId == farmId
+        && (!('farmName' in data) || (data.farmName is string && data.farmName.size() <= 120))
+        && data.cycleId is string && data.cycleId.size() > 0
+        && data.type in ['EXPENSE', 'INCOME']
+        && data.category is string && data.category.size() >= 1 && data.category.size() <= 100
+        && data.amount is number && data.amount >= 0 && data.amount <= 1000000000
+        && data.currency is string && data.currency.size() >= 1 && data.currency.size() <= 10
+        && data.date is string && data.date.size() <= 40
+        && (!('status' in data) || data.status in ['PENDING', 'APPROVED', 'REJECTED'])
+        && (!('notes' in data) || (data.notes is string && data.notes.size() <= 1000))
+        && (!('quantityQuintals' in data) || (data.quantityQuintals is number && data.quantityQuintals >= 0))
+        && (!('approvedBySignature' in data) || (data.approvedBySignature is string && data.approvedBySignature.size() <= 200));
+    }
+
+    // =========================================================================
+    // 3. CHAT CHANNEL & UNIFIED MESSAGE HELPERS
+    // =========================================================================
+
+    function isAuthorizedForChannelData(cData) {
       return isSignedIn() && (
-        getFarmRole(farmId) == 'OWNER' ||
-        getFarmRole(farmId) == 'VETERINARIAN' ||
-        getFarmRole(farmId) == 'WORKER'
+        (('farmId' in cData) && cData.farmId is string && cData.farmId.size() > 0 && isAnyFarmMember(cData.farmId))
+        || (('participants' in cData) && cData.participants is list && request.auth.uid in cData.participants)
+        || (('participants' in cData) && cData.participants is map && request.auth.uid in cData.participants)
       );
     }
 
-    function isValidQrMemberSelfJoin() {
-      return incoming().diff(existing()).affectedKeys().hasOnly(['members', 'updatedAt']) &&
-             incoming().members.diff(existing().members).affectedKeys().hasOnly([request.auth.uid]) &&
-             !(request.auth.uid in existing().members && existing().members[request.auth.uid] == 'OWNER') &&
-             (request.auth.uid in incoming().members) &&
-             (incoming().members[request.auth.uid] == 'VETERINARIAN' || incoming().members[request.auth.uid] == 'WORKER');
+    function isChannelParticipant(channelId) {
+      let channelPath = /databases/$(database)/documents/chatChannels/$(channelId);
+      return isSignedIn() && (
+        (exists(channelPath) && isAuthorizedForChannelData(get(channelPath).data))
+        || (!exists(channelPath) && existsAfter(channelPath) && isAuthorizedForChannelData(getAfter(channelPath).data))
+      );
     }
 
-    // Entity Schema Validators
-    function isValidUserProfile(data) {
-      return data.userId is string && data.userId == request.auth.uid &&
-             data.role is string && (data.role == 'OWNER' || data.role == 'VETERINARIAN' || data.role == 'WORKER') &&
-             data.farmId is string && data.farmId.size() >= 1 && data.farmId.size() <= 64 &&
-             (!('displayName' in data) || data.displayName == null || (data.displayName is string && data.displayName.size() <= 120)) &&
-             data.createdAt is timestamp && data.createdAt <= request.time &&
-             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    function isChannelOwner(channelId) {
+      let channelPath = /databases/$(database)/documents/chatChannels/$(channelId);
+      return isSignedIn() && exists(channelPath) && (
+        (('farmId' in get(channelPath).data) && get(channelPath).data.farmId is string && get(channelPath).data.farmId.size() > 0 && isOwnerRole(get(channelPath).data.farmId))
+        || (('ownerId' in get(channelPath).data) && get(channelPath).data.ownerId == request.auth.uid)
+      );
     }
 
-    function isValidFarmRecord(data, farmId) {
-      return data.farmId is string && data.farmId == farmId &&
-             data.name is string && data.name.size() >= 1 && data.name.size() <= 160 &&
-             data.location is string && data.location.size() >= 1 && data.location.size() <= 160 &&
-             data.capacity is int && data.capacity >= 0 && data.capacity <= 1000000 &&
-             data.assignedWorkerId is string && data.assignedWorkerId.size() <= 128 &&
-             (!('currencyCode' in data) || data.currencyCode == null || (data.currencyCode is string && data.currencyCode.size() >= 1 && data.currencyCode.size() <= 16)) &&
-             (!('schemaVersion' in data) || data.schemaVersion == null || (data.schemaVersion is int && data.schemaVersion >= 1 && data.schemaVersion <= 100)) &&
-             (!('sectorId' in data) || data.sectorId == null || (data.sectorId is string && data.sectorId.size() <= 64)) &&
-             (!('branchId' in data) || data.branchId == null || (data.branchId is string && data.branchId.size() <= 64)) &&
-             (!('customMetrics' in data) || data.customMetrics == null || data.customMetrics is map) &&
-             data.members is map &&
-             request.auth.uid in data.members &&
-             (data.members[request.auth.uid] == 'OWNER' ||
-              data.members[request.auth.uid] == 'VETERINARIAN' ||
-              data.members[request.auth.uid] == 'WORKER') &&
-             data.createdAt is timestamp && data.createdAt <= request.time &&
-             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    function isValidChatMessageCreate() {
+      let data = request.resource.data;
+      let isFinancial = (
+        ('isFinancialRequest' in data && data.isFinancialRequest == true)
+        || ('linkedTransactionId' in data && data.linkedTransactionId is string && data.linkedTransactionId.size() > 0)
+        || ('requestAmount' in data && data.requestAmount is number && data.requestAmount > 0)
+      );
+      return data.keys().hasOnly([
+          'id', 'cycleId', 'farmId', 'senderId', 'userId', 'senderName', 'senderRole',
+          'text', 'timestamp', 'timestampText', 'createdAtMillis',
+          'linkedTransactionId', 'linkedVetNoteId', 'isFinancialRequest',
+          'requestCategory', 'requestAmount', 'requestCurrency',
+          'status', 'requestStatus', 'deliveryState', 'createdAt', 'updatedAt'
+        ])
+        && (!('id' in data) || (data.id is string && data.id.size() > 0))
+        && (!('farmId' in data) || data.farmId is string)
+        && data.senderId == request.auth.uid
+        && (!('userId' in data) || data.userId == request.auth.uid)
+        && data.senderName is string && data.senderName.size() >= 1 && data.senderName.size() <= 120
+        && data.senderRole is string && data.senderRole.size() >= 1 && data.senderRole.size() <= 60
+        && data.text is string && data.text.size() >= 1 && data.text.size() <= 4000
+        && (!('cycleId' in data) || data.cycleId is string)
+        && (!('timestamp' in data) || data.timestamp is string)
+        && (!('timestampText' in data) || data.timestampText is string)
+        && (!('createdAtMillis' in data) || (data.createdAtMillis is number && data.createdAtMillis >= 0))
+        && (!('linkedTransactionId' in data) || data.linkedTransactionId is string)
+        && (!('linkedVetNoteId' in data) || data.linkedVetNoteId is string)
+        && (!('isFinancialRequest' in data) || data.isFinancialRequest is bool)
+        && (!('requestCategory' in data) || data.requestCategory is string)
+        && (!('requestAmount' in data) || (data.requestAmount is number && data.requestAmount >= 0))
+        && (!('requestCurrency' in data) || data.requestCurrency is string)
+        && (!('status' in data) || data.status in ['PENDING', 'APPROVED', 'REJECTED', 'SENT'])
+        && (!('requestStatus' in data) || data.requestStatus in ['PENDING', 'APPROVED', 'REJECTED', 'SENT'])
+        && (!isFinancial || (
+          data.get('status', 'PENDING') == 'PENDING'
+          && data.get('requestStatus', 'PENDING') == 'PENDING'
+          && data.get('requestAmount', 0) > 0
+        ));
     }
 
-    function isValidCycleRecord(data, farmId) {
-      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
-             data.farmId is string && data.farmId == farmId &&
-             data.totalBirdsPlaced is int && data.totalBirdsPlaced >= 0 && data.totalBirdsPlaced <= 1000000 &&
-             (data.targetWeightKg is int || data.targetWeightKg is float) && data.targetWeightKg > 0 && data.targetWeightKg <= 20 &&
-             data.cumulativeBirdsSold is int && data.cumulativeBirdsSold >= 0 && data.cumulativeBirdsSold <= 1000000 &&
-             (!('cumulativeSoldWeightKg' in data) || data.cumulativeSoldWeightKg == null || ((data.cumulativeSoldWeightKg is int || data.cumulativeSoldWeightKg is float) && data.cumulativeSoldWeightKg >= 0 && data.cumulativeSoldWeightKg <= 100000000)) &&
-             (!('feedInventoryKg' in data) || data.feedInventoryKg == null || ((data.feedInventoryKg is int || data.feedInventoryKg is float) && data.feedInventoryKg >= 0 && data.feedInventoryKg <= 10000000)) &&
-             (!('status' in data) || data.status == null || (data.status is string && data.status.size() <= 32)) &&
-             (!('startDate' in data) || data.startDate == null || (data.startDate is string && data.startDate.size() <= 32)) &&
-             (!('chickPrice' in data) || data.chickPrice == null || (data.chickPrice is int || data.chickPrice is float)) &&
-             (!('currencyCode' in data) || data.currencyCode == null || (data.currencyCode is string && data.currencyCode.size() >= 1 && data.currencyCode.size() <= 16)) &&
-             (!('schemaVersion' in data) || data.schemaVersion == null || (data.schemaVersion is int && data.schemaVersion >= 1 && data.schemaVersion <= 100)) &&
-             (!('sectorId' in data) || data.sectorId == null || (data.sectorId is string && data.sectorId.size() <= 64)) &&
-             (!('branchId' in data) || data.branchId == null || (data.branchId is string && data.branchId.size() <= 64)) &&
-             (!('customMetrics' in data) || data.customMetrics == null || data.customMetrics is map) &&
-             data.createdAt is timestamp && data.createdAt <= request.time &&
-             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    function isValidChatMessageStatusUpdate(channelId) {
+      let data = request.resource.data;
+      let prev = resource.data;
+      return isChannelOwner(channelId)
+        && data.get('id', '') == prev.get('id', '')
+        && data.senderId == prev.senderId
+        && data.get('userId', prev.senderId) == prev.get('userId', prev.senderId)
+        && data.get('cycleId', '') == prev.get('cycleId', '')
+        && data.text == prev.text
+        && data.get('linkedTransactionId', '') == prev.get('linkedTransactionId', '')
+        && data.get('linkedVetNoteId', '') == prev.get('linkedVetNoteId', '')
+        && data.get('requestCategory', '') == prev.get('requestCategory', '')
+        && data.get('requestAmount', 0) == prev.get('requestAmount', 0)
+        && data.get('requestCurrency', '') == prev.get('requestCurrency', '')
+        && data.get('createdAtMillis', 0) == prev.get('createdAtMillis', 0)
+        && prev.get('status', 'PENDING') == 'PENDING'
+        && data.get('status', 'PENDING') in ['APPROVED', 'REJECTED']
+        && data.get('requestStatus', data.get('status', 'PENDING')) in ['APPROVED', 'REJECTED'];
     }
 
-    function isValidDailyReport(data, farmId) {
-      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
-             data.farmId is string && data.farmId == farmId &&
-             data.cycleId is string && data.cycleId.size() >= 1 && data.cycleId.size() <= 64 &&
-             data.dayNumber is int && data.dayNumber >= 1 && data.dayNumber <= 365 &&
-             (data.feedIntakeKg is int || data.feedIntakeKg is float) && data.feedIntakeKg >= 0 && data.feedIntakeKg <= 100000 &&
-             (data.waterIntakeLiters is int || data.waterIntakeLiters is float) && data.waterIntakeLiters >= 0 && data.waterIntakeLiters <= 200000 &&
-             data.mortalityCount is int && data.mortalityCount >= 0 && data.mortalityCount <= 100000 &&
-             (data.temperature is int || data.temperature is float) && data.temperature >= -10 && data.temperature <= 60 &&
-             (data.gasUnits is int || data.gasUnits is float) && data.gasUnits >= 0 && data.gasUnits <= 10000 &&
-             data.ventilationStatus is string && data.ventilationStatus.size() >= 1 && data.ventilationStatus.size() <= 64 &&
-             data.litterCondition is string && data.litterCondition.size() >= 1 && data.litterCondition.size() <= 64 &&
-             (!('isEdited' in data) || data.isEdited == null || data.isEdited is bool) &&
-             (!('previousSummary' in data) || data.previousSummary == null || (data.previousSummary is string && data.previousSummary.size() <= 500)) &&
-             (!('actualAvgWeightKg' in data) || data.actualAvgWeightKg == null || ((data.actualAvgWeightKg is int || data.actualAvgWeightKg is float) && data.actualAvgWeightKg >= 0 && data.actualAvgWeightKg <= 25)) &&
-             (!('medicineGiven' in data) || data.medicineGiven == null || data.medicineGiven is bool) &&
-             (!('medicineSummary' in data) || data.medicineSummary == null || (data.medicineSummary is string && data.medicineSummary.size() <= 500)) &&
-             (!('withdrawalDays' in data) || data.withdrawalDays == null || (data.withdrawalDays is int && data.withdrawalDays >= 0 && data.withdrawalDays <= 180)) &&
-             (!('updatedAtMillis' in data) || data.updatedAtMillis == null || (data.updatedAtMillis is int && data.updatedAtMillis >= 0)) &&
-             data.createdAt is timestamp && data.createdAt <= request.time &&
-             data.updatedAt is timestamp && data.updatedAt <= request.time;
-    }
+    // =========================================================================
+    // 4. COLLECTION ACCESS RULES
+    // =========================================================================
 
-    function isValidVetNote(data, farmId) {
-      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
-             data.farmId is string && data.farmId == farmId &&
-             data.cycleId is string && data.cycleId.size() >= 1 && data.cycleId.size() <= 64 &&
-             data.dayNumber is int && data.dayNumber >= 1 && data.dayNumber <= 365 &&
-             data.medication is string && data.medication.size() >= 1 && data.medication.size() <= 300 &&
-             data.dosage is string && data.dosage.size() >= 1 && data.dosage.size() <= 200 &&
-             data.diagnosis is string && data.diagnosis.size() >= 1 && data.diagnosis.size() <= 500 &&
-             data.isUrgent is bool &&
-             (!('status' in data) || data.status == null || data.status in ['PENDING', 'APPROVED', 'REJECTED']) &&
-             (!('linkedTransactionId' in data) || data.linkedTransactionId == null || (data.linkedTransactionId is string && data.linkedTransactionId.size() <= 128)) &&
-             (!('invoiceAmount' in data) || data.invoiceAmount == null || (data.invoiceAmount is int || data.invoiceAmount is float)) &&
-             (!('currency' in data) || data.currency == null || (data.currency is string && data.currency.size() <= 16)) &&
-             (!('withdrawalDays' in data) || data.withdrawalDays == null || (data.withdrawalDays is int && data.withdrawalDays >= 0 && data.withdrawalDays <= 180)) &&
-             (!('updatedAtMillis' in data) || data.updatedAtMillis == null || (data.updatedAtMillis is int && data.updatedAtMillis >= 0)) &&
-             data.createdAt is timestamp && data.createdAt <= request.time &&
-             data.updatedAt is timestamp && data.updatedAt <= request.time;
-    }
-
-    function isValidTreasuryTransaction(data, farmId) {
-      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
-             data.farmId is string && data.farmId == farmId &&
-             data.cycleId is string && data.cycleId.size() >= 1 && data.cycleId.size() <= 64 &&
-             data.type is string && (data.type == 'EXPENSE' || data.type == 'INCOME') &&
-             data.category is string && data.category.size() >= 1 && data.category.size() <= 120 &&
-             (data.amount is int || data.amount is float) && data.amount > 0 && data.amount <= 1000000000 &&
-             data.currency is string && data.currency.size() >= 1 && data.currency.size() <= 16 &&
-             data.date is string && data.date.size() >= 1 && data.date.size() <= 120 &&
-             data.idempotencyKey is string && data.idempotencyKey.size() >= 1 && data.idempotencyKey.size() <= 128 &&
-             (!('status' in data) || data.status == null || data.status in ['PENDING', 'APPROVED', 'REJECTED']) &&
-             (!('notes' in data) || data.notes == null || (data.notes is string && data.notes.size() <= 500)) &&
-             (!('quantityQuintals' in data) || data.quantityQuintals == null || ((data.quantityQuintals is int || data.quantityQuintals is float) && data.quantityQuintals >= 0)) &&
-             (!('approvedBySignature' in data) || data.approvedBySignature == null || (data.approvedBySignature is string && data.approvedBySignature.size() <= 200)) &&
-             (!('updatedAtMillis' in data) || data.updatedAtMillis == null || (data.updatedAtMillis is int && data.updatedAtMillis >= 0)) &&
-             (!('invoiceNumber' in data) || data.invoiceNumber == null || (data.invoiceNumber is string && data.invoiceNumber.size() <= 64)) &&
-             (!('buyerName' in data) || data.buyerName == null || (data.buyerName is string && data.buyerName.size() <= 120)) &&
-             (!('truckPlate' in data) || data.truckPlate == null || (data.truckPlate is string && data.truckPlate.size() <= 64)) &&
-             (!('birdAgeDays' in data) || data.birdAgeDays == null || (data.birdAgeDays is int && data.birdAgeDays >= 0)) &&
-             (!('totalCrates' in data) || data.totalCrates == null || (data.totalCrates is int && data.totalCrates >= 0)) &&
-             (!('birdsPerCrate' in data) || data.birdsPerCrate == null || (data.birdsPerCrate is int && data.birdsPerCrate >= 0)) &&
-             (!('totalBirdsSold' in data) || data.totalBirdsSold == null || (data.totalBirdsSold is int && data.totalBirdsSold >= 0)) &&
-             (!('totalGrossKg' in data) || data.totalGrossKg == null || (data.totalGrossKg is int || data.totalGrossKg is float)) &&
-             (!('totalTareKg' in data) || data.totalTareKg == null || (data.totalTareKg is int || data.totalTareKg is float)) &&
-             (!('totalNetKg' in data) || data.totalNetKg == null || (data.totalNetKg is int || data.totalNetKg is float)) &&
-             (!('avgBirdWeightKg' in data) || data.avgBirdWeightKg == null || (data.avgBirdWeightKg is int || data.avgBirdWeightKg is float)) &&
-             (!('pricePerKg' in data) || data.pricePerKg == null || (data.pricePerKg is int || data.pricePerKg is float)) &&
-             (!('tareWeightsCount' in data) || data.tareWeightsCount == null || data.tareWeightsCount is int) &&
-             (!('grossWeightsCount' in data) || data.grossWeightsCount == null || data.grossWeightsCount is int) &&
-             data.createdAt is timestamp && data.createdAt <= request.time &&
-             data.updatedAt is timestamp && data.updatedAt <= request.time;
-    }
-
-    // 1. User Profile Collection (/users/{userId})
     match /users/{userId} {
-      allow get: if isSignedIn() && isValidId(userId) && request.auth.uid == userId;
-      allow list: if isSignedIn() && request.auth.uid == userId;
-
-      allow create: if isSignedIn() &&
-                       isValidId(userId) &&
-                       request.auth.uid == userId &&
-                       incoming().keys().hasAll(['userId', 'role', 'farmId', 'createdAt', 'updatedAt']) &&
-                       incoming().keys().hasOnly(['userId', 'role', 'farmId', 'displayName', 'createdAt', 'updatedAt']) &&
-                       isValidUserProfile(incoming());
-
-      allow update: if isSignedIn() &&
-                       isValidId(userId) &&
-                       request.auth.uid == userId &&
-                       isValidUserProfile(incoming()) &&
-                       incoming().userId == existing().userId &&
-                       incoming().createdAt == existing().createdAt &&
-                       incoming().diff(existing()).affectedKeys().hasOnly(['role', 'farmId', 'displayName', 'updatedAt']);
-
-      allow delete: if isSignedIn() && isValidId(userId) && request.auth.uid == userId;
+      allow get: if isOwner(userId);
+      allow list: if false;
+      allow create: if isOwner(userId) && isValidUserProfile(userId);
+      allow update: if isOwner(userId)
+                    && isValidUserProfile(userId)
+                    && request.resource.data.get('uid', request.resource.data.get('userId', '')) == resource.data.get('uid', resource.data.get('userId', ''));
+      allow delete: if isOwner(userId);
     }
 
-    // 2. Shared Farms Collection (/farms/{farmId})
     match /farms/{farmId} {
-      allow get: if isSignedIn() && isValidId(farmId) && (
-        resource == null ||
-        (('members' in resource.data) && (request.auth.uid in resource.data.members)) ||
-        (getMemberRoleFromUserProfile(farmId, request.auth.uid) in ['VETERINARIAN', 'WORKER'])
-      );
-      allow list: if isSignedIn() && ('members' in resource.data) && (request.auth.uid in resource.data.members);
+      allow get: if isSignedIn();
+      allow list: if isSignedIn();
+      allow create: if isSignedIn()
+                    && isValidOperationalUnit()
+                    && request.resource.data.get('assignedOwnerId', request.auth.uid) == request.auth.uid
+                    && request.resource.data.members[request.auth.uid] == 'OWNER';
+      allow update: if (isOwnerRole(farmId)
+                        && isValidOperationalUnit()
+                        && request.resource.data.get('assignedOwnerId', request.auth.uid) == resource.data.get('assignedOwnerId', request.auth.uid))
+                    || isValidVerifiedInviteSelfJoin(farmId);
+      allow delete: if isOwnerRole(farmId);
 
-      allow create: if isSignedIn() &&
-                       isValidId(farmId) &&
-                       incoming().keys().hasAll(['farmId', 'name', 'location', 'capacity', 'assignedWorkerId', 'members', 'createdAt', 'updatedAt']) &&
-                       incoming().keys().hasOnly(['farmId', 'name', 'location', 'capacity', 'assignedWorkerId', 'currencyCode', 'schemaVersion', 'sectorId', 'branchId', 'customMetrics', 'members', 'createdAt', 'updatedAt']) &&
-                       isValidFarmRecord(incoming(), farmId);
-
-      allow update: if isSignedIn() &&
-                       isValidId(farmId) &&
-                       isValidFarmRecord(incoming(), farmId) &&
-                       incoming().farmId == existing().farmId &&
-                       incoming().createdAt == existing().createdAt &&
-                       (
-                         isOwnerRole(farmId) ||
-                         isValidQrMemberSelfJoin()
-                       );
-
-      allow delete: if isValidId(farmId) && isOwnerRole(farmId);
-
-      // 2a. Cycles Subcollection (/farms/{farmId}/cycles/{cycleId})
-      match /cycles/{cycleId} {
-        allow get, list: if hasAnyFarmRole(farmId);
-
-        allow create: if isValidId(cycleId) &&
-                         isOwnerRole(farmId) &&
-                         incoming().userId == request.auth.uid &&
-                         incoming().keys().hasAll(['userId', 'farmId', 'totalBirdsPlaced', 'targetWeightKg', 'cumulativeBirdsSold', 'createdAt', 'updatedAt']) &&
-                         incoming().keys().hasOnly([
-                           'userId', 'farmId', 'totalBirdsPlaced', 'targetWeightKg', 'cumulativeBirdsSold',
-                           'cumulativeSoldWeightKg', 'feedInventoryKg', 'status', 'startDate', 'chickPrice',
-                           'currencyCode', 'schemaVersion', 'sectorId', 'branchId', 'customMetrics',
-                           'createdAt', 'updatedAt'
-                         ]) &&
-                         isValidCycleRecord(incoming(), farmId);
-
-        allow update: if isValidId(cycleId) &&
-                         isValidCycleRecord(incoming(), farmId) &&
-                         incoming().userId == existing().userId &&
-                         incoming().farmId == existing().farmId &&
-                         incoming().createdAt == existing().createdAt &&
-                         (
-                           (isOwnerRole(farmId) && incoming().diff(existing()).affectedKeys().hasOnly([
-                             'totalBirdsPlaced', 'targetWeightKg', 'cumulativeBirdsSold', 'cumulativeSoldWeightKg',
-                             'feedInventoryKg', 'status', 'startDate', 'chickPrice', 'currencyCode',
-                             'schemaVersion', 'sectorId', 'branchId', 'customMetrics', 'updatedAt'
-                           ])) ||
-                           (isWorkerRole(farmId) && incoming().diff(existing()).affectedKeys().hasOnly(['feedInventoryKg', 'updatedAt']))
-                         );
-
-        allow delete: if isValidId(cycleId) && isOwnerRole(farmId);
-      }
-
-      // 2b. Daily Reports Subcollection (/farms/{farmId}/dailyReports/{reportId})
-      match /dailyReports/{reportId} {
-        allow get, list: if hasAnyFarmRole(farmId);
-
-        allow create: if isValidId(reportId) &&
-                         (isOwnerRole(farmId) || isWorkerRole(farmId)) &&
-                         incoming().userId == request.auth.uid &&
-                         incoming().keys().hasAll(['userId', 'farmId', 'cycleId', 'dayNumber', 'feedIntakeKg', 'waterIntakeLiters', 'mortalityCount', 'temperature', 'gasUnits', 'ventilationStatus', 'litterCondition', 'createdAt', 'updatedAt']) &&
-                         incoming().keys().hasOnly([
-                           'userId', 'farmId', 'cycleId', 'dayNumber', 'feedIntakeKg', 'waterIntakeLiters',
-                           'mortalityCount', 'temperature', 'gasUnits', 'ventilationStatus', 'litterCondition',
-                           'isEdited', 'previousSummary', 'actualAvgWeightKg', 'medicineGiven', 'medicineSummary',
-                           'withdrawalDays', 'updatedAtMillis', 'createdAt', 'updatedAt'
-                         ]) &&
-                         isValidDailyReport(incoming(), farmId);
-
-        allow update: if isValidId(reportId) &&
-                         (isOwnerRole(farmId) || isWorkerRole(farmId)) &&
-                         isValidDailyReport(incoming(), farmId) &&
-                         incoming().farmId == existing().farmId &&
-                         incoming().cycleId == existing().cycleId &&
-                         incoming().createdAt == existing().createdAt &&
-                         incoming().diff(existing()).affectedKeys().hasOnly([
-                           'userId', 'dayNumber', 'feedIntakeKg', 'waterIntakeLiters', 'mortalityCount',
-                           'temperature', 'gasUnits', 'ventilationStatus', 'litterCondition', 'isEdited',
-                           'previousSummary', 'actualAvgWeightKg', 'medicineGiven', 'medicineSummary',
-                           'withdrawalDays', 'updatedAtMillis', 'updatedAt'
-                         ]);
-
-        allow delete: if isValidId(reportId) && isOwnerRole(farmId);
-      }
-
-      // 2c. Vet Notes Subcollection (/farms/{farmId}/vetNotes/{noteId})
-      match /vetNotes/{noteId} {
-        allow get, list: if hasAnyFarmRole(farmId);
-
-        allow create: if isValidId(noteId) &&
-                         (isOwnerRole(farmId) || isVetRole(farmId)) &&
-                         incoming().userId == request.auth.uid &&
-                         incoming().keys().hasAll(['userId', 'farmId', 'cycleId', 'dayNumber', 'medication', 'dosage', 'diagnosis', 'isUrgent', 'createdAt', 'updatedAt']) &&
-                         incoming().keys().hasOnly([
-                           'userId', 'farmId', 'cycleId', 'dayNumber', 'medication', 'dosage', 'diagnosis',
-                           'isUrgent', 'status', 'linkedTransactionId', 'invoiceAmount', 'currency',
-                           'withdrawalDays', 'updatedAtMillis', 'createdAt', 'updatedAt'
-                         ]) &&
-                         isValidVetNote(incoming(), farmId);
-
-        allow update: if isValidId(noteId) &&
-                         (isOwnerRole(farmId) || isVetRole(farmId)) &&
-                         isValidVetNote(incoming(), farmId) &&
-                         incoming().farmId == existing().farmId &&
-                         incoming().cycleId == existing().cycleId &&
-                         incoming().createdAt == existing().createdAt &&
-                         incoming().diff(existing()).affectedKeys().hasOnly([
-                           'userId', 'dayNumber', 'medication', 'dosage', 'diagnosis', 'isUrgent',
-                           'status', 'linkedTransactionId', 'invoiceAmount', 'currency',
-                           'withdrawalDays', 'updatedAtMillis', 'updatedAt'
-                         ]);
-
-        allow delete: if isValidId(noteId) && isOwnerRole(farmId);
-      }
-
-      // 2d. Financial Transactions Subcollection (/farms/{farmId}/transactions/{transactionId})
-      // OWNER has full access; VETERINARIAN can create MEDICATION or PENDING expense requests (WORKER is strictly blocked from farm treasury)
-      match /transactions/{transactionId} {
-        allow get: if isValidId(transactionId) && (
-          isOwnerRole(farmId) ||
-          (isVetRole(farmId) && (resource == null || (resource.data.type == 'EXPENSE' && (resource.data.category == 'MEDICATION' || resource.data.status == 'PENDING'))))
-        );
+      // Verified Farm Invites Subcollection
+      match /invites/{inviteId} {
+        allow get: if isSignedIn();
         allow list: if isOwnerRole(farmId);
+        allow create: if isOwnerRole(farmId) && isValidFarmInviteCreate(farmId, inviteId);
+        allow update: if (isOwnerRole(farmId)
+                          && request.resource.data.status == 'REVOKED'
+                          && request.resource.data.inviteId == resource.data.inviteId
+                          && request.resource.data.farmId == resource.data.farmId
+                          && request.resource.data.role == resource.data.role
+                          && request.resource.data.createdBy == resource.data.createdBy
+                          && request.resource.data.expiresAtMillis == resource.data.expiresAtMillis)
+                      || isValidFarmInviteConsume(farmId, inviteId);
+        allow delete: if isOwnerRole(farmId);
+      }
 
-        allow create: if isValidId(transactionId) &&
-                         incoming().userId == request.auth.uid &&
-                         (
-                           isOwnerRole(farmId) ||
-                           (isVetRole(farmId) && request.resource.data.type == 'EXPENSE' && (request.resource.data.category == 'MEDICATION' || (('status' in request.resource.data) && request.resource.data.status == 'PENDING')))
-                         ) &&
-                         incoming().keys().hasAll(['userId', 'farmId', 'cycleId', 'type', 'category', 'amount', 'currency', 'date', 'idempotencyKey', 'createdAt', 'updatedAt']) &&
-                         incoming().keys().hasOnly([
-                           'userId', 'farmId', 'cycleId', 'type', 'category', 'amount', 'currency', 'date', 'idempotencyKey', 'status',
-                           'notes', 'quantityQuintals', 'approvedBySignature', 'updatedAtMillis',
-                           'invoiceNumber', 'buyerName', 'truckPlate', 'birdAgeDays', 'totalCrates', 'birdsPerCrate',
-                           'totalBirdsSold', 'totalGrossKg', 'totalTareKg', 'totalNetKg', 'avgBirdWeightKg', 'pricePerKg',
-                           'tareWeightsCount', 'grossWeightsCount', 'createdAt', 'updatedAt'
-                         ]) &&
-                         isValidTreasuryTransaction(incoming(), farmId);
+      match /cycles/{cycleId} {
+        allow get, list: if isAnyFarmMember(farmId);
+        allow create: if isOwnerRole(farmId)
+                      && isValidProductionCycle(farmId)
+                      && isAuthor();
+        allow update: if (isOwnerRole(farmId)
+                          && isValidProductionCycle(farmId)
+                          && isImmutableAuthorAndUnit(farmId))
+                      || (isWorkerRole(farmId)
+                          && isValidProductionCycle(farmId)
+                          && isImmutableAuthorAndUnit(farmId)
+                          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['feedInventoryKg', 'cumulativeMortality', 'updatedAt']));
+        allow delete: if isOwnerRole(farmId);
+      }
 
-        allow update: if isValidId(transactionId) &&
-                         isOwnerRole(farmId) &&
-                         isValidTreasuryTransaction(incoming(), farmId) &&
-                         incoming().userId == existing().userId &&
-                         incoming().farmId == existing().farmId &&
-                         incoming().cycleId == existing().cycleId &&
-                         incoming().idempotencyKey == existing().idempotencyKey &&
-                         incoming().createdAt == existing().createdAt &&
-                         incoming().diff(existing()).affectedKeys().hasOnly([
-                           'category', 'amount', 'date', 'status', 'notes', 'quantityQuintals',
-                           'approvedBySignature', 'updatedAtMillis', 'updatedAt'
-                         ]);
+      match /dailyReports/{reportId} {
+        allow get, list: if isAnyFarmMember(farmId);
+        allow create: if (isOwnerRole(farmId) || isWorkerRole(farmId))
+                      && isValidDailyReport(farmId)
+                      && isAuthor()
+                      && isCycleActive(farmId, request.resource.data.cycleId);
+        allow update: if isValidDailyReport(farmId)
+                      && isImmutableAuthorAndUnit(farmId)
+                      && request.resource.data.cycleId == resource.data.cycleId
+                      && request.resource.data.dayNumber == resource.data.dayNumber
+                      && isCycleActive(farmId, resource.data.cycleId)
+                      && (isOwnerRole(farmId)
+                          || (isWorkerRole(farmId)
+                              && resource.data.userId == request.auth.uid
+                              && resource.data.get('isLocked', true) == false));
+        allow delete: if isOwnerRole(farmId);
+      }
 
-        allow delete: if isValidId(transactionId) && isOwnerRole(farmId);
+      match /vetNotes/{noteId} {
+        allow get, list: if isAnyFarmMember(farmId);
+        allow create: if isValidVetPrescription(farmId)
+                      && isAuthor()
+                      && (isOwnerRole(farmId)
+                          || (isVetRole(farmId)
+                              && ((request.resource.data.get('invoiceAmount', 0) == 0
+                                   && request.resource.data.get('linkedTransactionId', '') == '')
+                                  || request.resource.data.get('status', 'PENDING') == 'PENDING')));
+        allow update: if isValidVetPrescription(farmId)
+                      && isImmutableAuthorAndUnit(farmId)
+                      && (isOwnerRole(farmId)
+                          || (isVetRole(farmId)
+                              && resource.data.userId == request.auth.uid
+                              && request.resource.data.get('status', 'PENDING') == resource.data.get('status', 'PENDING')
+                              && ((request.resource.data.get('invoiceAmount', 0) == 0
+                                   && request.resource.data.get('linkedTransactionId', '') == '')
+                                  || request.resource.data.get('status', 'PENDING') == 'PENDING')));
+        allow delete: if isOwnerRole(farmId);
+      }
+
+      match /transactions/{transactionId} {
+        allow get: if isOwnerRole(farmId)
+                   || (isAnyFarmMember(farmId) && (resource == null || resource.data.userId == request.auth.uid));
+        allow list: if isOwnerRole(farmId);
+        allow create: if isValidTreasuryTransaction(farmId)
+                      && isAuthor()
+                      && (isOwnerRole(farmId)
+                          || (isWorkerRole(farmId)
+                              && request.resource.data.type == 'EXPENSE'
+                              && request.resource.data.get('status', 'APPROVED') == 'PENDING'
+                              && request.resource.data.get('approvedBySignature', '') == '')
+                          || (isVetRole(farmId)
+                              && request.resource.data.type == 'EXPENSE'
+                              && request.resource.data.category == 'MEDICATION'
+                              && request.resource.data.get('status', 'APPROVED') == 'PENDING'
+                              && request.resource.data.get('approvedBySignature', '') == ''));
+        allow update: if isOwnerRole(farmId)
+                      && isValidTreasuryTransaction(farmId)
+                      && isImmutableAuthorAndUnit(farmId);
+        allow delete: if isOwnerRole(farmId);
+      }
+
+      match /idempotencyReceipts/{receiptId} {
+        allow get, list: if isAnyFarmMember(farmId);
+        allow create: if isOwnerRole(farmId)
+                      && request.resource.data.farmId == farmId
+                      && request.resource.data.userId == request.auth.uid;
+        allow update: if false;
+        allow delete: if isOwnerRole(farmId);
       }
     }
 
-    // 3. Chat Channels Collection (/chatChannels/{channelId}/messages/{messageId})
-    match /chatChannels/{channelId}/messages/{messageId} {
-      allow get, list: if isSignedIn() && isValidId(channelId);
-      allow create: if isSignedIn() &&
-                       isValidId(channelId) &&
-                       isValidId(messageId) &&
-                       incoming().keys().hasAll(['id', 'cycleId', 'senderRole', 'senderName', 'text', 'timestampText', 'createdAtMillis']) &&
-                       incoming().keys().hasOnly([
-                         'id', 'cycleId', 'senderRole', 'senderName', 'text', 'timestampText', 'createdAtMillis',
-                         'isFinancialRequest', 'linkedTransactionId', 'linkedVetNoteId', 'requestStatus',
-                         'requestAmount', 'requestCurrency', 'createdAt'
-                       ]);
-      allow update: if isSignedIn() &&
-                       isValidId(channelId) &&
-                       isValidId(messageId) &&
-                       incoming().diff(existing()).affectedKeys().hasOnly(['requestStatus']);
+    match /marketPosts/{postId} {
+      allow get, list: if isSignedIn();
+      allow create: if isSignedIn()
+                    && request.resource.data.userId == request.auth.uid
+                    && request.resource.data.title is string
+                    && request.resource.data.title.size() >= 2
+                    && request.resource.data.title.size() <= 150
+                    && request.resource.data.priceDzd is number
+                    && request.resource.data.priceDzd >= 0;
+      allow update: if isSignedIn()
+                    && resource.data.userId == request.auth.uid
+                    && request.resource.data.userId == resource.data.userId;
+      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+
+    match /chatChannels/{channelId} {
+      allow get, list: if isAuthorizedForChannelData(resource.data);
+      allow create: if isAuthorizedForChannelData(request.resource.data);
+      allow update: if isAuthorizedForChannelData(resource.data)
+                    && isAuthorizedForChannelData(request.resource.data);
+      allow delete: if false;
+
+      match /messages/{messageId} {
+        allow get, list: if isChannelParticipant(channelId);
+        allow create: if isChannelParticipant(channelId)
+                      && isValidChatMessageCreate();
+        allow update: if isChannelParticipant(channelId)
+                      && isValidChatMessageStatusUpdate(channelId);
+        allow delete: if false;
+      }
     }
   }
 }

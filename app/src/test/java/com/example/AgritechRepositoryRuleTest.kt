@@ -11,8 +11,10 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.robolectric.annotation.Config
 import java.util.UUID
 
+@Config(sdk = [36])
 class AgritechRepositoryRuleTest : FirestoreEmulatorTestBase() {
 
     @Test
@@ -61,7 +63,55 @@ class AgritechRepositoryRuleTest : FirestoreEmulatorTestBase() {
             grossWeightsCount = 10
         )
 
-        // First submission succeeds and returns true
+        // 0. Before cycle exists: sales invoice and feed purchase MUST fail rather than creating a phantom 12000-bird cycle
+        val missingCycleSale = withTimeout(5000L) {
+            repo.saveSalesInvoiceAndMigrateIdempotent(
+                farmId = farmId,
+                cycleId = "cycle_missing_999",
+                idempotencyKey = "inv_missing_${UUID.randomUUID()}",
+                dateText = "اليوم 5",
+                invoice = sampleInvoice.copy(cycleId = "cycle_missing_999")
+            )
+        }
+        assertTrue("Sale on missing cycle must fail without creating phantom cycle", missingCycleSale.isFailure)
+
+        val missingCycleFeed = withTimeout(5000L) {
+            repo.recordFeedPurchaseAndExpenseIdempotent(
+                idempotencyKey = "feed_missing_${UUID.randomUUID()}",
+                tx = TransactionModel(
+                    id = "tx_feed_missing",
+                    farmId = farmId,
+                    cycleId = "cycle_missing_999",
+                    type = TransactionType.EXPENSE,
+                    category = "🌾 علف",
+                    amount = 80000.0,
+                    currency = "دج",
+                    date = "اليوم 1",
+                    quantityQuintals = 10.0
+                ),
+                addedFeedKg = 1000.0
+            )
+        }
+        assertTrue("Feed purchase on missing cycle must fail without creating phantom cycle", missingCycleFeed.isFailure)
+
+        // Create the real active cycle with 1000 birds placed and 100 cumulative mortality (900 available birds)
+        withTimeout(5000L) {
+            val cycleRes = repo.saveCycleRecord(
+                CycleModel(
+                    id = "cycle_2026_01",
+                    farmId = farmId,
+                    status = "active",
+                    totalBirdsPlaced = 1000,
+                    targetWeight = 2.3,
+                    cumulativeMortality = 100,
+                    cumulativeBirdsSold = 0,
+                    feedInventoryKg = 1500.0
+                )
+            )
+            assertTrue(cycleRes.isSuccess)
+        }
+
+        // First submission (500 birds <= 900 available) succeeds and returns true
         val firstSave = withTimeout(5000L) {
             repo.saveSalesInvoiceAndMigrateIdempotent(
                 farmId = farmId,
@@ -87,6 +137,18 @@ class AgritechRepositoryRuleTest : FirestoreEmulatorTestBase() {
         assertTrue(duplicateSave.isSuccess)
         assertFalse(duplicateSave.getOrThrow())
 
+        // Attempting to sell 500 more birds when only 400 remain (1000 placed - 100 mortality - 500 sold = 400) MUST fail
+        val overSale = withTimeout(5000L) {
+            repo.saveSalesInvoiceAndMigrateIdempotent(
+                farmId = farmId,
+                cycleId = "cycle_2026_01",
+                idempotencyKey = "inv_over_${UUID.randomUUID()}",
+                dateText = "اليوم 6",
+                invoice = sampleInvoice.copy(invoiceNumber = "INV-1-0002", totalBirdsSold = 500)
+            )
+        }
+        assertTrue("Selling more birds than available must fail", overSale.isFailure)
+
         // Record an expense
         val expKey = "exp_${UUID.randomUUID()}"
         val expSave = withTimeout(5000L) {
@@ -107,10 +169,13 @@ class AgritechRepositoryRuleTest : FirestoreEmulatorTestBase() {
         assertTrue(expSave.isSuccess)
         assertTrue(expSave.getOrThrow())
 
-        // Verify single source of truth balance on shared farm
+        // Verify single source of truth balance and preserved farmName on shared farm
         val txs = withTimeout(5000L) {
             repo.observeTransactions(farmId).first { it.size == 2 }
         }
+        val saleTx = txs.first { it.type == TransactionType.INCOME }
+        assertEquals("عنبر البركة 1", saleTx.invoiceData?.farmName)
+
         val summary = repo.calculateNetBalanceFromTransactions(txs)
         assertEquals(380000.0, summary.totalIncome, 0.01)
         assertEquals(80000.0, summary.totalExpenses, 0.01)
@@ -118,20 +183,71 @@ class AgritechRepositoryRuleTest : FirestoreEmulatorTestBase() {
     }
 
     @Test
-    fun sharedFarmCollaboration_vetCanCreateMedicationExpense_andWorkerCanWriteDailyReport() = runBlocking {
+    fun sharedFarmCollaboration_verifiedInviteJoin_unifiedChat_vetMedicationAndWorkerDailyReport() = runBlocking {
         val farmId = "farm_${UUID.randomUUID().toString().take(8)}"
 
-        // 1. Owner initializes farm
-        signInTestUser("owner_${UUID.randomUUID()}@farm.com")
+        // 1. Owner initializes farm, active cycle, and creates verified invites for VET and WORKER
+        val ownerUid = signInTestUser("owner_${UUID.randomUUID()}@farm.com")
         val repo = AgritechFirestoreRepository(firestore)
+        val vetInvite: FarmInviteModel
+        val workerInvite: FarmInviteModel
         withTimeout(5000L) {
             repo.setUserRoleAndFarm(AppRole.OWNER, farmId, "Owner").getOrThrow()
+            repo.saveFarmRecord(
+                FarmModel(
+                    id = farmId,
+                    name = "عنبر التعاون المشترك",
+                    location = "البليدة",
+                    capacity = 8000,
+                    assignedWorkerId = "worker_1",
+                    members = mapOf(ownerUid to "OWNER")
+                ),
+                AppRole.OWNER
+            ).getOrThrow()
+            repo.saveCycleRecord(
+                CycleModel(
+                    id = "cycle_2026_01",
+                    farmId = farmId,
+                    status = "active",
+                    totalBirdsPlaced = 8000,
+                    targetWeight = 2.3,
+                    feedInventoryKg = 2000.0
+                )
+            ).getOrThrow()
+            vetInvite = repo.createFarmInvite(
+                farmId = farmId,
+                role = AppRole.VETERINARIAN,
+                customInviteId = "vet_inv_1"
+            ).getOrThrow()
+            workerInvite = repo.createFarmInvite(
+                farmId = farmId,
+                role = AppRole.WORKER,
+                customInviteId = "worker_inv_1"
+            ).getOrThrow()
         }
 
-        // 2. Vet joins the same shared farm and submits a Medication Invoice + Prescription
-        signInTestUser("vet_${UUID.randomUUID()}@farm.com")
+        // 2. Vet signs in: setUserRoleAndFarm alone does NOT add Vet to farm.members; acceptFarmInvite does!
+        val vetUid = signInTestUser("vet_${UUID.randomUUID()}@farm.com")
         withTimeout(5000L) {
             repo.setUserRoleAndFarm(AppRole.VETERINARIAN, farmId, "Dr. Vet").getOrThrow()
+            // Before accepting invite, Vet is not in farm.members so writing a vetNote fails
+            val preInviteWrite = repo.saveVetNote(
+                VetNoteModel(
+                    id = "vn_pre_invite",
+                    farmId = farmId,
+                    cycleId = "cycle_2026_01",
+                    dayNumber = 4,
+                    medicineName = "PreInviteTest",
+                    dosage = "1ml/L",
+                    note = "Should fail before invite acceptance",
+                    isUrgent = false
+                )
+            )
+            assertTrue("Vet cannot write to farm before accepting verified invite", preInviteWrite.isFailure)
+
+            // Accept verified invite
+            val acceptVetRes = repo.acceptFarmInvite(farmId, vetInvite.inviteId, AppRole.VETERINARIAN)
+            assertTrue(acceptVetRes.isSuccess)
         }
 
         val vetInvKey = "tx_vet_${UUID.randomUUID()}"
@@ -163,6 +279,42 @@ class AgritechRepositoryRuleTest : FirestoreEmulatorTestBase() {
         assertTrue(vetInvRes.isSuccess)
         assertTrue(vetInvRes.getOrThrow())
 
+        // Vet sends a unified financial request chat message and observes it back with full fields
+        val channelId = "cycle_2026_01_vet"
+        val sentChatMsg = ChatMessageModel(
+            id = "msg_vet_${UUID.randomUUID()}",
+            cycleId = channelId,
+            senderId = vetUid,
+            senderName = "Dr. Vet",
+            senderRole = "VETERINARIAN",
+            text = "فاتورة دواء إنروفلوكساسين",
+            timestamp = "09:45 ص",
+            linkedTransactionId = vetInvKey,
+            linkedVetNoteId = "vn_chat_1",
+            isFinancialRequest = true,
+            requestCategory = "Enrofloxacin 20%",
+            requestAmount = 14500.0,
+            requestCurrency = "دج",
+            status = "PENDING",
+            requestStatus = "PENDING"
+        )
+        withTimeout(5000L) {
+            repo.sendChatMessage(sentChatMsg, farmIdHint = farmId)
+            val observedMessages = repo.observeChatMessages(channelId).first { list ->
+                list.any { it.id == sentChatMsg.id }
+            }
+            val observed = observedMessages.first { it.id == sentChatMsg.id }
+            assertEquals(vetInvKey, observed.linkedTransactionId)
+            assertEquals("vn_chat_1", observed.linkedVetNoteId)
+            assertTrue(observed.isFinancialRequest)
+            assertEquals("Enrofloxacin 20%", observed.requestCategory)
+            assertEquals(14500.0, observed.requestAmount, 0.01)
+            assertEquals("دج", observed.requestCurrency)
+            assertEquals("PENDING", observed.status)
+            assertEquals("PENDING", observed.requestStatus)
+            assertEquals("SYNCED", observed.deliveryState)
+        }
+
         // Vet is blocked from recording non-MEDICATION expenses (e.g. FEED)
         val illegalVetTx = withTimeout(5000L) {
             repo.recordTransactionIdempotent(
@@ -181,10 +333,11 @@ class AgritechRepositoryRuleTest : FirestoreEmulatorTestBase() {
         }
         assertTrue(illegalVetTx.isFailure)
 
-        // 3. Worker joins the same shared farm, reads Vet's note, and writes DailyReport
+        // 3. Worker joins the same shared farm via verified invite, reads Vet's note, and writes DailyReport
         signInTestUser("worker_${UUID.randomUUID()}@farm.com")
         withTimeout(5000L) {
             repo.setUserRoleAndFarm(AppRole.WORKER, farmId, "Barn Worker").getOrThrow()
+            repo.acceptFarmInvite(farmId, workerInvite.inviteId, AppRole.WORKER).getOrThrow()
         }
 
         val sharedNotes = withTimeout(5000L) {
@@ -201,7 +354,7 @@ class AgritechRepositoryRuleTest : FirestoreEmulatorTestBase() {
                     dayNumber = 4,
                     feedIntakeKg = 340.0,
                     waterIntakeLiters = 680.0,
-                    mortalityCount = 2,
+                    mortalityCount = 5,
                     temperature = 32.0,
                     gasUnits = 3.5,
                     ventilationStatus = "جيدة",
@@ -211,7 +364,7 @@ class AgritechRepositoryRuleTest : FirestoreEmulatorTestBase() {
         }
         assertTrue(repRes.isSuccess)
 
-        // Worker is blocked from writing vetNotes and recording any farm treasury expenses
+        // Worker is blocked from writing vetNotes and recording non-PENDING or illegal farm treasury expenses
         val workerVetRes = withTimeout(5000L) {
             repo.saveVetNote(
                 VetNoteModel(
@@ -240,7 +393,7 @@ class AgritechRepositoryRuleTest : FirestoreEmulatorTestBase() {
                     amount = 3500.0,
                     currency = "دج",
                     date = "اليوم 4",
-                    status = "PENDING"
+                    status = "APPROVED"
                 )
             )
         }

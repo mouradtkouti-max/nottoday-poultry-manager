@@ -30,10 +30,15 @@ internal fun FirebaseAuth.authStateFlow(): Flow<FirebaseUser?> = callbackFlow {
     awaitClose { removeAuthStateListener(listener) }
 }
 
+enum class AuthSessionMode {
+    AUTHENTICATED,
+    LOCAL_GUEST
+}
+
 object AgritechAuthHelper {
 
     @Volatile
-    var lastAuthProvider: String = "email_or_phone"
+    var lastAuthProvider: String = "local_guest"
         private set
 
     @Volatile
@@ -54,6 +59,33 @@ object AgritechAuthHelper {
         } catch (_: Exception) {
             null
         }
+    }
+
+    fun currentSessionMode(): AuthSessionMode {
+        return if (isSignedIn()) AuthSessionMode.AUTHENTICATED else AuthSessionMode.LOCAL_GUEST
+    }
+
+    /**
+     * Resolves a deterministic, isolated local storage namespace key so authenticated accounts
+     * (`auth_uid_<firebaseUid>`) and local guest sessions (`local_guest_default` or `local_user_<id>`)
+     * never share or leak local state.
+     */
+    fun resolveActiveStorageIdentityKey(explicitSessionUid: String? = null): String {
+        val firebaseUid = currentUserUid()
+        if (!firebaseUid.isNullOrBlank()) {
+            val sanitized = firebaseUid.replace(Regex("[^a-zA-Z0-9_-]"), "_")
+            return "auth_uid_$sanitized"
+        }
+        val cleanedExplicit = explicitSessionUid?.trim().orEmpty()
+        if (cleanedExplicit.isNotBlank() && cleanedExplicit != "local_guest_default") {
+            val sanitized = cleanedExplicit.replace(Regex("[^a-zA-Z0-9_-]"), "_")
+            return if (sanitized.startsWith("auth_uid_") || sanitized.startsWith("local_")) {
+                sanitized
+            } else {
+                "local_user_$sanitized"
+            }
+        }
+        return "local_guest_default"
     }
 
     fun isLikelyPhoneNumber(rawInput: String): Boolean {
@@ -80,19 +112,32 @@ object AgritechAuthHelper {
         onAuthSuccess: (String) -> Unit
     ) {
         val normalized = formatNormalizedIdentifier(rawIdentifier, countryDialCode)
-        lastAuthProvider = if (isLikelyPhoneNumber(rawIdentifier)) "phone" else providerTag
-        lastAuthIdentifier = normalized
-        val uid = currentUserUid() ?: "uid_${lastAuthProvider}_${normalized.hashCode().toUInt()}"
-        onAuthSuccess(uid)
+        val firebaseUid = currentUserUid()
+        if (firebaseUid != null) {
+            lastAuthProvider = if (isLikelyPhoneNumber(rawIdentifier)) "phone" else providerTag
+            lastAuthIdentifier = normalized
+            onAuthSuccess(firebaseUid)
+        } else {
+            lastAuthProvider = "local_guest"
+            lastAuthIdentifier = normalized
+            val localGuestId = "local_guest_${providerTag}_${normalized.hashCode().toUInt()}"
+            onAuthSuccess(localGuestId)
+        }
     }
 
     fun signInWithFacebookQuick(
         onAuthSuccess: (String) -> Unit
     ) {
-        lastAuthProvider = "facebook"
-        lastAuthIdentifier = "fb_my_business_owner"
-        val uid = currentUserUid() ?: "uid_facebook_owner"
-        onAuthSuccess(uid)
+        val firebaseUid = currentUserUid()
+        if (firebaseUid != null) {
+            lastAuthProvider = "facebook"
+            lastAuthIdentifier = "fb_my_business_owner"
+            onAuthSuccess(firebaseUid)
+        } else {
+            lastAuthProvider = "local_guest"
+            lastAuthIdentifier = "fb_my_business_owner"
+            onAuthSuccess("local_guest_facebook_owner")
+        }
     }
 
     fun attemptAutoSignIn(
@@ -160,8 +205,7 @@ object AgritechAuthHelper {
         val clientId = try {
             context.getString(R.string.default_web_client_id)
         } catch (e: Exception) {
-            lastAuthProvider = "google_fallback"
-            onAuthSuccess()
+            onAuthError("Google Sign-In configuration (default_web_client_id) is missing.")
             return
         }
 
@@ -179,19 +223,21 @@ object AgritechAuthHelper {
                     val googleIdToken = GoogleIdTokenCredential.createFrom(credential.data).idToken
                     val authCredential = GoogleAuthProvider.getCredential(googleIdToken, null)
                     FirebaseAuth.getInstance().signInWithCredential(authCredential).await()
-                    lastAuthProvider = "google"
-                    onAuthSuccess()
+                    if (isSignedIn()) {
+                        lastAuthProvider = "google"
+                        onAuthSuccess()
+                    } else {
+                        onAuthError("Firebase Google Sign-In completed without an active user session.")
+                    }
                 } else {
-                    lastAuthProvider = "google_fallback"
-                    onAuthSuccess()
+                    onAuthError("Unsupported credential type returned by Google Sign-In.")
                 }
             } catch (e: GetCredentialCancellationException) {
                 Log.w("Auth", "Google Sign-In cancelled or dismissed: ${e.message}", e)
                 onAuthCancelled()
             } catch (e: Exception) {
-                Log.w("Auth", "Play Services Google picker unavailable, using clean Google fallback: ${e.message}")
-                lastAuthProvider = "google_fallback"
-                onAuthSuccess()
+                Log.w("Auth", "Google Sign-In failed: ${e.message}", e)
+                onAuthError(e.localizedMessage ?: "Google Sign-In failed or is unavailable on this device.")
             }
         }
     }
@@ -203,6 +249,7 @@ object AgritechAuthHelper {
         scope: CoroutineScope
     ) {
         FirebaseAuth.getInstance().signOut()
+        lastAuthProvider = "local_guest"
         scope.launch {
             try {
                 credentialManager.clearCredentialState(ClearCredentialStateRequest())

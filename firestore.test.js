@@ -225,7 +225,7 @@ test("RBAC Vet Medication Invoicing: Vet CAN create EXPENSE + MEDICATION transac
   const now = new Date();
   const vetDb = testEnv.authenticatedContext(VET_UID).firestore();
 
-  // Vet CAN create transaction when type == 'EXPENSE' AND category == 'MEDICATION'
+  // Vet CAN create transaction when type == 'EXPENSE' AND category == 'MEDICATION' AND status == 'PENDING'
   await assertSucceeds(
     vetDb.collection("farms").doc(FARM_ID).collection("transactions").doc("tx_vet_med_1").set({
       userId: VET_UID,
@@ -237,6 +237,25 @@ test("RBAC Vet Medication Invoicing: Vet CAN create EXPENSE + MEDICATION transac
       currency: "دج",
       date: "اليوم 4",
       idempotencyKey: "tx_vet_med_1",
+      status: "PENDING",
+      createdAt: now,
+      updatedAt: now,
+    })
+  );
+
+  // Vet CANNOT create transaction directly with status == 'APPROVED'
+  await assertFails(
+    vetDb.collection("farms").doc(FARM_ID).collection("transactions").doc("tx_vet_med_approved_illegal").set({
+      userId: VET_UID,
+      farmId: FARM_ID,
+      cycleId: "cycle_2026_01",
+      type: "EXPENSE",
+      category: "MEDICATION",
+      amount: 14500.0,
+      currency: "دج",
+      date: "اليوم 4",
+      idempotencyKey: "tx_vet_med_approved_illegal",
+      status: "APPROVED",
       createdAt: now,
       updatedAt: now,
     })
@@ -254,6 +273,7 @@ test("RBAC Vet Medication Invoicing: Vet CAN create EXPENSE + MEDICATION transac
       currency: "دج",
       date: "اليوم 4",
       idempotencyKey: "tx_vet_inc_illegal",
+      status: "PENDING",
       createdAt: now,
       updatedAt: now,
     })
@@ -271,6 +291,7 @@ test("RBAC Vet Medication Invoicing: Vet CAN create EXPENSE + MEDICATION transac
       currency: "دج",
       date: "اليوم 4",
       idempotencyKey: "tx_vet_feed_illegal",
+      status: "PENDING",
       createdAt: now,
       updatedAt: now,
     })
@@ -324,7 +345,7 @@ test("RBAC Owner: has full read/write access to farm, cycles, dailyReports, vetN
   );
 });
 
-test("Security Audit: Stranger cannot escalate to OWNER via /users profile or QR self-join, and Worker can submit PENDING expense request", async () => {
+test("Security Audit: Stranger cannot escalate to OWNER or WORKER via /users profile without verified invite, and Worker can submit PENDING expense request", async () => {
   await seedSharedFarmWithMembers(FARM_ID, {
     [OWNER_UID]: "OWNER",
     [WORKER_UID]: "WORKER",
@@ -334,13 +355,25 @@ test("Security Audit: Stranger cannot escalate to OWNER via /users profile or QR
   const workerDb = testEnv.authenticatedContext(WORKER_UID).firestore();
   const ownerDb = testEnv.authenticatedContext(OWNER_UID).firestore();
 
-  // Stranger writes forged OWNER profile for FARM_ID in their own /users doc
+  // Stranger writes forged WORKER profile for FARM_ID in their own /users doc
   await assertSucceeds(
     strangerDb.collection("users").doc(STRANGER_UID).set({
       userId: STRANGER_UID,
-      role: "OWNER",
+      role: "WORKER",
       farmId: FARM_ID,
       createdAt: now,
+      updatedAt: now,
+    })
+  );
+
+  // Stranger still CANNOT self-join /farms/farm_1.members as WORKER without a verified invite
+  await assertFails(
+    strangerDb.collection("farms").doc(FARM_ID).update({
+      members: {
+        [OWNER_UID]: "OWNER",
+        [WORKER_UID]: "WORKER",
+        [STRANGER_UID]: "WORKER",
+      },
       updatedAt: now,
     })
   );
@@ -399,6 +432,256 @@ test("Security Audit: Stranger cannot escalate to OWNER via /users profile or QR
   );
 });
 
+test("Verified Invite Flow: Owner creates invite, invitee atomically consumes invite to join farm, and replay/mismatch fails", async () => {
+  await seedSharedFarmWithMembers(FARM_ID, {
+    [OWNER_UID]: "OWNER",
+  });
+  const now = new Date();
+  const ownerDb = testEnv.authenticatedContext(OWNER_UID).firestore();
+  const newWorkerUid = "invited_worker_99";
+  const newWorkerDb = testEnv.authenticatedContext(newWorkerUid).firestore();
+  const inviteId = "inv_worker_test_1";
+
+  // 1. Owner creates a verified invite under /farms/farm_1/invites/inv_worker_test_1
+  await assertSucceeds(
+    ownerDb.collection("farms").doc(FARM_ID).collection("invites").doc(inviteId).set({
+      inviteId: inviteId,
+      farmId: FARM_ID,
+      role: "WORKER",
+      status: "ACTIVE",
+      createdBy: OWNER_UID,
+      expiresAtMillis: Date.now() + 86400000,
+      createdAt: now,
+      updatedAt: now,
+    })
+  );
+
+  // 2. Invitee cannot join with a mismatched role (e.g. VETERINARIAN instead of WORKER)
+  const badBatch = newWorkerDb.batch();
+  badBatch.update(newWorkerDb.collection("farms").doc(FARM_ID).collection("invites").doc(inviteId), {
+    status: "CONSUMED",
+    consumedBy: newWorkerUid,
+    updatedAt: now,
+  });
+  badBatch.update(newWorkerDb.collection("farms").doc(FARM_ID), {
+    members: {
+      [OWNER_UID]: "OWNER",
+      [newWorkerUid]: "VETERINARIAN",
+    },
+    lastConsumedInviteId: inviteId,
+    updatedAt: now,
+  });
+  await assertFails(badBatch.commit());
+
+  // 3. Invitee atomically consumes the invite and joins with exact matching role WORKER
+  const validBatch = newWorkerDb.batch();
+  validBatch.update(newWorkerDb.collection("farms").doc(FARM_ID).collection("invites").doc(inviteId), {
+    status: "CONSUMED",
+    consumedBy: newWorkerUid,
+    updatedAt: now,
+  });
+  validBatch.update(newWorkerDb.collection("farms").doc(FARM_ID), {
+    members: {
+      [OWNER_UID]: "OWNER",
+      [newWorkerUid]: "WORKER",
+    },
+    lastConsumedInviteId: inviteId,
+    updatedAt: now,
+  });
+  await assertSucceeds(validBatch.commit());
+
+  // 4. Another user cannot replay the already-CONSUMED invite
+  const replayDb = testEnv.authenticatedContext("replay_attacker_77").firestore();
+  const replayBatch = replayDb.batch();
+  replayBatch.update(replayDb.collection("farms").doc(FARM_ID).collection("invites").doc(inviteId), {
+    status: "CONSUMED",
+    consumedBy: "replay_attacker_77",
+    updatedAt: now,
+  });
+  replayBatch.update(replayDb.collection("farms").doc(FARM_ID), {
+    members: {
+      [OWNER_UID]: "OWNER",
+      [newWorkerUid]: "WORKER",
+      replay_attacker_77: "WORKER",
+    },
+    lastConsumedInviteId: inviteId,
+    updatedAt: now,
+  });
+  await assertFails(replayBatch.commit());
+});
+
+test("Chat Contract & Security: Participants can send/read unified messages, strangers are blocked, senderId forgery and non-owner approval are rejected", async () => {
+  await seedSharedFarmWithMembers(FARM_ID, {
+    [OWNER_UID]: "OWNER",
+    [VET_UID]: "VETERINARIAN",
+    [WORKER_UID]: "WORKER",
+  });
+  const now = new Date();
+  const ownerDb = testEnv.authenticatedContext(OWNER_UID).firestore();
+  const vetDb = testEnv.authenticatedContext(VET_UID).firestore();
+  const workerDb = testEnv.authenticatedContext(WORKER_UID).firestore();
+  const strangerDb = testEnv.authenticatedContext(STRANGER_UID).firestore();
+  const channelId = "cycle_2026_01_vet";
+
+  // 1. Vet initializes chat channel metadata linked to FARM_ID
+  await assertSucceeds(
+    vetDb.collection("chatChannels").doc(channelId).set({
+      channelId: channelId,
+      farmId: FARM_ID,
+      participants: [VET_UID, OWNER_UID],
+      createdBy: VET_UID,
+      createdAt: now,
+      updatedAt: now,
+    })
+  );
+
+  // 2. Vet sends a unified financial request chat message with status == PENDING
+  await assertSucceeds(
+    vetDb.collection("chatChannels").doc(channelId).collection("messages").doc("msg_fin_1").set({
+      userId: VET_UID,
+      senderId: VET_UID,
+      senderName: "د. كمال",
+      senderRole: "VETERINARIAN",
+      cycleId: channelId,
+      farmId: FARM_ID,
+      text: "فاتورة دواء إنروفلوكساسين",
+      timestamp: "09:30 ص",
+      timestampText: "09:30 ص",
+      linkedTransactionId: "tx_vet_1",
+      linkedVetNoteId: "vn_vet_1",
+      isFinancialRequest: true,
+      requestCategory: "MEDICATION",
+      requestAmount: 14500.0,
+      requestCurrency: "DZD",
+      status: "PENDING",
+      requestStatus: "PENDING",
+      deliveryState: "SYNCED",
+      createdAtMillis: Date.now(),
+      createdAt: now,
+      updatedAt: now,
+    })
+  );
+
+  // 3. Stranger CANNOT read or write messages in the channel
+  await assertFails(
+    strangerDb.collection("chatChannels").doc(channelId).collection("messages").doc("msg_fin_1").get()
+  );
+  await assertFails(
+    strangerDb.collection("chatChannels").doc(channelId).collection("messages").doc("msg_stranger").set({
+      userId: STRANGER_UID,
+      senderId: STRANGER_UID,
+      senderName: "غريب",
+      senderRole: "WORKER",
+      cycleId: channelId,
+      farmId: FARM_ID,
+      text: "اختراق",
+      timestamp: "10:00 ص",
+      createdAt: now,
+      updatedAt: now,
+    })
+  );
+
+  // 4. Participant CANNOT forge senderId of another user
+  await assertFails(
+    workerDb.collection("chatChannels").doc(channelId).collection("messages").doc("msg_forged").set({
+      userId: WORKER_UID,
+      senderId: OWNER_UID,
+      senderName: "مالك مزيف",
+      senderRole: "OWNER",
+      cycleId: channelId,
+      farmId: FARM_ID,
+      text: "رسالة مزيفة",
+      timestamp: "10:05 ص",
+      createdAt: now,
+      updatedAt: now,
+    })
+  );
+
+  // 5. Non-owner (Worker/Vet) CANNOT approve a PENDING chat financial request
+  await assertFails(
+    vetDb.collection("chatChannels").doc(channelId).collection("messages").doc("msg_fin_1").update({
+      status: "APPROVED",
+      requestStatus: "APPROVED",
+      updatedAt: now,
+    })
+  );
+
+  // 6. Owner CAN approve a PENDING chat financial request without mutating core message fields
+  await assertSucceeds(
+    ownerDb.collection("chatChannels").doc(channelId).collection("messages").doc("msg_fin_1").update({
+      status: "APPROVED",
+      requestStatus: "APPROVED",
+      updatedAt: now,
+    })
+  );
+});
+
+test("DailyReport Locking & Active Cycle Guard: Worker cannot update a locked dailyReport or write to an inactive cycle", async () => {
+  await seedSharedFarmWithMembers(FARM_ID, {
+    [OWNER_UID]: "OWNER",
+    [WORKER_UID]: "WORKER",
+  });
+  const now = new Date();
+  const ownerDb = testEnv.authenticatedContext(OWNER_UID).firestore();
+  const workerDb = testEnv.authenticatedContext(WORKER_UID).firestore();
+
+  // Create active cycle
+  await assertSucceeds(
+    ownerDb.collection("farms").doc(FARM_ID).collection("cycles").doc("cycle_active_1").set({
+      userId: OWNER_UID,
+      farmId: FARM_ID,
+      status: "active",
+      totalBirdsPlaced: 10000,
+      targetWeightKg: 2.3,
+      cumulativeMortality: 0,
+      cumulativeBirdsSold: 0,
+      feedInventoryKg: 2000.0,
+      createdAt: now,
+      updatedAt: now,
+    })
+  );
+
+  // Seed a locked daily report
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await context.firestore().collection("farms").doc(FARM_ID).collection("dailyReports").doc("rep_locked_1").set({
+      userId: WORKER_UID,
+      farmId: FARM_ID,
+      cycleId: "cycle_active_1",
+      dayNumber: 3,
+      feedIntakeKg: 250.0,
+      waterIntakeLiters: 500.0,
+      mortalityCount: 2,
+      temperature: 31.0,
+      gasUnits: 2.0,
+      ventilationStatus: "جيدة",
+      litterCondition: "طبيعية",
+      isLocked: true,
+      createdAt: now,
+      updatedAt: now,
+    });
+  });
+
+  // Worker CANNOT update a locked daily report
+  await assertFails(
+    workerDb.collection("farms").doc(FARM_ID).collection("dailyReports").doc("rep_locked_1").update({
+      feedIntakeKg: 999.0,
+      isEdited: true,
+      previousSummary: "العلف: 2.5 ق",
+      updatedAt: now,
+    })
+  );
+
+  // Owner CAN update a locked daily report
+  await assertSucceeds(
+    ownerDb.collection("farms").doc(FARM_ID).collection("dailyReports").doc("rep_locked_1").update({
+      feedIntakeKg: 260.0,
+      isEdited: true,
+      previousSummary: "العلف: 2.5 ق",
+      updatedAt: now,
+    })
+  );
+});
+
 test("Schema v2 & Audit Fields: farms, cycles, dailyReports, vetNotes, transactions, and chatChannels allow new optional fields", async () => {
   await seedSharedFarmWithMembers(FARM_ID, {
     [OWNER_UID]: "OWNER",
@@ -429,7 +712,7 @@ test("Schema v2 & Audit Fields: farms, cycles, dailyReports, vetNotes, transacti
     })
   );
 
-  // 2. Create cycle with schemaVersion, sectorId, branchId, customMetrics, status, startDate, chickPrice
+  // 2. Create cycle with schemaVersion, sectorId, branchId, customMetrics, status, startDate, chickPrice, cumulativeMortality
   await assertSucceeds(
     ownerDb.collection("farms").doc(FARM_ID).collection("cycles").doc("cycle_v2").set({
       userId: OWNER_UID,
@@ -439,6 +722,7 @@ test("Schema v2 & Audit Fields: farms, cycles, dailyReports, vetNotes, transacti
       chickPrice: 125.0,
       totalBirdsPlaced: 10000,
       targetWeightKg: 2.8,
+      cumulativeMortality: 0,
       cumulativeBirdsSold: 0,
       cumulativeSoldWeightKg: 0.0,
       feedInventoryKg: 4000.0,
@@ -452,7 +736,7 @@ test("Schema v2 & Audit Fields: farms, cycles, dailyReports, vetNotes, transacti
     })
   );
 
-  // 3. Create dailyReport with medicineGiven, medicineSummary, withdrawalDays, updatedAtMillis
+  // 3. Create dailyReport with medicineGiven, medicineSummary, withdrawalDays, updatedAtMillis, isLocked
   await assertSucceeds(
     workerDb.collection("farms").doc(FARM_ID).collection("dailyReports").doc("rep_v2").set({
       userId: WORKER_UID,
@@ -467,6 +751,7 @@ test("Schema v2 & Audit Fields: farms, cycles, dailyReports, vetNotes, transacti
       ventilationStatus: "جيدة",
       litterCondition: "طبيعية",
       isEdited: false,
+      isLocked: false,
       previousSummary: "",
       actualAvgWeightKg: 0.18,
       medicineGiven: true,
@@ -500,11 +785,12 @@ test("Schema v2 & Audit Fields: farms, cycles, dailyReports, vetNotes, transacti
     })
   );
 
-  // 5. Create transaction with notes, quantityQuintals, approvedBySignature, updatedAtMillis
+  // 5. Create transaction with notes, quantityQuintals, approvedBySignature, updatedAtMillis, farmName
   await assertSucceeds(
     ownerDb.collection("farms").doc(FARM_ID).collection("transactions").doc("tx_feed_v2").set({
       userId: OWNER_UID,
       farmId: FARM_ID,
+      farmName: "عنبر البركة النموذجي",
       cycleId: "cycle_v2",
       type: "EXPENSE",
       category: "🌾 علف (40 ق)",
@@ -522,5 +808,6 @@ test("Schema v2 & Audit Fields: farms, cycles, dailyReports, vetNotes, transacti
     })
   );
 });
+
 
 

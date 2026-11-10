@@ -163,6 +163,7 @@ data class CycleModel(
     val feedInventoryKg: Double = 0.0,
     val cumulativeBirdsSold: Int = 0,
     val cumulativeSoldWeightKg: Double = 0.0,
+    val cumulativeMortality: Int = 0,
     val currencyCode: String = "DZD",
     val schemaVersion: Int = 2,
     val sectorId: String = "AGRICULTURE",
@@ -220,10 +221,17 @@ data class ChatMessageModel(
     val text: String,
     val timestamp: String,
     val linkedTransactionId: String = "",
+    val linkedVetNoteId: String = "",
+    val isFinancialRequest: Boolean = false,
     val requestCategory: String = "",
     val requestAmount: Double = 0.0,
     val requestCurrency: String = "دج",
-    val status: String = "PENDING"
+    val status: String = "PENDING",
+    val requestStatus: String = status,
+    val userId: String = senderId,
+    val timestampText: String = timestamp,
+    val createdAtMillis: Long = System.currentTimeMillis(),
+    val deliveryState: String = "LOCAL_ONLY"
 )
 
 data class ChatConversationModel(
@@ -334,12 +342,24 @@ enum class GlobalDashboardTab {
 }
 
 /**
- * Data model for a parsed QR invitation payload (`AGRITECH_JOIN|farmId=...|role=...`).
+ * Data model for a parsed QR invitation payload (`AGRITECH_JOIN|farmId=...|role=...|inviteId=...`).
  */
 data class QrFarmInviteData(
     val farmId: String,
     val role: AppRole,
-    val rawPayload: String
+    val rawPayload: String,
+    val inviteId: String = ""
+)
+
+data class FarmInviteModel(
+    val inviteId: String,
+    val farmId: String,
+    val role: String,
+    val createdBy: String,
+    val status: String = "ACTIVE",
+    val expiresAtMillis: Long,
+    val consumedBy: String = "",
+    val consumedAtMillis: Long = 0L
 )
 
 /**
@@ -351,4 +371,17 @@ data class AiVetChatMessage(
     val isUser: Boolean,
     val text: String,
     val timestamp: String
+)
+
+/**
+ * Data model for the Worker Personal Ledger (`personal_worker_ledger`).
+ */
+data class WorkerPersonalEntryModel(
+    val id: String,
+    val farmId: String = "personal_worker_ledger",
+    val title: String,
+    val amount: Double,
+    val type: TransactionType,
+    val dateLabel: String,
+    val isBillOrObligation: Boolean = true
 )
