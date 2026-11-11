@@ -4326,34 +4326,48 @@ fun OutdoorWeatherCard(
     var searchResults by remember { mutableStateOf<List<BarnWeatherLocation>>(emptyList()) }
     var isSearching by remember { mutableStateOf(false) }
     var searchErrorMessage by remember { mutableStateOf<String?>(null) }
+    var requestRevision by remember { mutableIntStateOf(0) }
     var activeWeatherJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
 
     fun doRefresh(force: Boolean) {
         val loc = savedLoc
         if (loc == null) {
             activeWeatherJob?.cancel()
+            ++requestRevision
             weatherResult = WeatherResult.NoLocation
             return
         }
         if (!loc.isEnabled) {
             activeWeatherJob?.cancel()
+            ++requestRevision
             weatherResult = WeatherResult.Disabled
             return
         }
         activeWeatherJob?.cancel()
+        val myRevision = ++requestRevision
+        val requestedUid = accountUid
+        val requestedBarnId = loc.barnId
+        val requestedLat = loc.latitude
+        val requestedLon = loc.longitude
         weatherResult = WeatherResult.Loading
         activeWeatherJob = scope.launch {
-            val res = BarnWeatherRepository.fetchWeather(context, accountUid, loc, forceRefresh = force)
-            if (savedLoc?.isEnabled == true &&
-                savedLoc?.let { BarnWeatherRepository.formatCoordKey(it.latitude, it.longitude) } ==
-                BarnWeatherRepository.formatCoordKey(loc.latitude, loc.longitude)
+            val res = BarnWeatherRepository.fetchWeather(context, requestedUid, loc, forceRefresh = force)
+            val currentLoc = savedLoc
+            if (myRevision == requestRevision &&
+                currentLoc != null &&
+                currentLoc.isEnabled &&
+                barnId == requestedBarnId &&
+                currentLoc.barnId == requestedBarnId &&
+                accountUid == requestedUid &&
+                kotlin.math.abs(currentLoc.latitude - requestedLat) < 0.001 &&
+                kotlin.math.abs(currentLoc.longitude - requestedLon) < 0.001
             ) {
                 weatherResult = res
             }
         }
     }
 
-    LaunchedEffect(savedLoc?.isEnabled, savedLoc?.localityName, savedLoc?.latitude, savedLoc?.longitude) {
+    LaunchedEffect(barnId, accountUid, savedLoc?.isEnabled, savedLoc?.localityName, savedLoc?.latitude, savedLoc?.longitude) {
         val loc = savedLoc
         if (loc != null && loc.isEnabled) {
             val cached = BarnWeatherRepository.getCachedSnapshot(context, accountUid, barnId, loc)
@@ -4364,9 +4378,11 @@ fun OutdoorWeatherCard(
             }
         } else if (loc != null && !loc.isEnabled) {
             activeWeatherJob?.cancel()
+            ++requestRevision
             weatherResult = WeatherResult.Disabled
         } else {
             activeWeatherJob?.cancel()
+            ++requestRevision
             weatherResult = WeatherResult.NoLocation
         }
     }
@@ -4430,6 +4446,7 @@ fun OutdoorWeatherCard(
                                 doRefresh(force = true)
                             } else {
                                 activeWeatherJob?.cancel()
+                                ++requestRevision
                                 weatherResult = WeatherResult.Disabled
                             }
                         } else {
@@ -4515,6 +4532,8 @@ fun OutdoorWeatherCard(
                             searchResults.forEach { locResult ->
                                 Surface(
                                     onClick = {
+                                        activeWeatherJob?.cancel()
+                                        ++requestRevision
                                         val newLoc = locResult.copy(
                                             barnId = barnId,
                                             isEnabled = true,
@@ -4560,6 +4579,7 @@ fun OutdoorWeatherCard(
             when (val res = weatherResult) {
                 is WeatherResult.Success -> {
                     val snap = res.data
+                    val isStaleOver30m = res.isStale || !snap.isFresh
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -4598,15 +4618,18 @@ fun OutdoorWeatherCard(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
-                                if (res.isStale || snap.isCached) {
+                                if (isStaleOver30m) {
                                     Surface(
                                         shape = RoundedCornerShape(50),
-                                        color = if (isDark) Color(0xFF334155) else Color(0xFFE2E8F0)
+                                        color = Color(0xFFF59E0B).copy(alpha = 0.18f),
+                                        border = BorderStroke(1.dp, Color(0xFFF59E0B).copy(alpha = 0.55f)),
+                                        modifier = Modifier.testTag("badge_outdoor_weather_stale")
                                     ) {
                                         Text(
-                                            text = Translations.tr("outdoor_weather_stale", lang),
+                                            text = if (lang == AppLanguage.AR) "بيانات قديمة — يرجى التحديث" else Translations.tr("outdoor_weather_stale", lang),
                                             fontSize = 9.5.sp,
-                                            color = textSecondary,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (isDark) Color(0xFFFCD34D) else Color(0xFFB45309),
                                             modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
                                         )
                                     }
@@ -4693,22 +4716,27 @@ fun OutdoorWeatherCard(
                             }
                         }
 
-                        // Attribution & Last Updated Timestamp
-                        val formattedUpdateTime = remember(snap.fetchedAtMillis, snap.providerDataTimeIso) {
+                        // Attribution + Provider Measurement Time (providerDataTimeIso) + Last Fetch Time (fetchedAtMillis)
+                        val formattedFetchTime = remember(snap.fetchedAtMillis) {
                             if (snap.fetchedAtMillis > 0L) {
                                 java.text.SimpleDateFormat("HH:mm", Locale.US).format(java.util.Date(snap.fetchedAtMillis))
-                            } else {
-                                snap.providerDataTimeIso.takeLast(5)
-                            }
+                            } else ""
+                        }
+                        val formattedProviderTime = remember(snap.providerDataTimeIso) {
+                            snap.providerDataTimeIso.takeLast(5).takeIf { it.contains(":") }.orEmpty()
                         }
                         Text(
                             text = buildString {
                                 append(Translations.tr("outdoor_weather_source_attribution", lang))
                                 append(" • ")
                                 append(snap.providerAttribution)
-                                if (formattedUpdateTime.isNotBlank()) {
-                                    append(" • 🕒 ")
-                                    append(formattedUpdateTime)
+                                if (formattedProviderTime.isNotBlank()) {
+                                    append(if (lang == AppLanguage.AR) " • قياس المزود: " else " • Measured: ")
+                                    append(formattedProviderTime)
+                                }
+                                if (formattedFetchTime.isNotBlank()) {
+                                    append(if (lang == AppLanguage.AR) " • آخر جلب: 🕒 " else " • Fetched: 🕒 ")
+                                    append(formattedFetchTime)
                                 }
                             },
                             fontSize = 9.5.sp,
@@ -4774,13 +4802,11 @@ fun OutdoorWeatherCard(
 
 /**
  * Apple-HIG-styled "🤖 روبوت وحساسات العنبر الذكية (Smart Barn IoT)" card:
- * - Mode toggle: `[✋ إدخال يدوي]` | `[🤖 متصل بالروبوت]`
- * - 4 compact live sensor pills:
- *   1) `🧪 الأمونيا (NH3): 12 ppm (🟢 آمن)` (tap-to-simulate alert toggle `26 ppm 🔴 خطر تنفسي`)
- *   2) `💨 الأكسجين وCO2: 1,800 ppm (🟢 جيد)`
- *   3) `🔥 ضغط الغاز: 85% (🟢 مستقر)`
- *   4) `🌡️ الحرارة والرطوبة: 21.3°C • 58%`
- * - One-tap button `"🤖 تحليل قراءات الروبوت والقطيع الآن"` that feeds live telemetry into `AiVetGeminiService`.
+ * - Default state is strictly disconnected (`isRobotConnected = false`):
+ *   shows `"🤖 مستشعرات العنبر والروبوت: غير متصل حالياً"` and explicit demo button
+ *   `"🧪 تشغيل وضع المحاكاة التجريبي (للعرض فقط)"`.
+ * - When simulation is manually enabled (`isRobotConnected = true`), shows prominent disclaimer badge
+ *   `"🧪 محاكاة تجريبية — ليست قراءة حساس حقيقي"` (`badge_iot_simulation_disclaimer`).
  */
 @Composable
 fun SmartBarnRobotIoTCard(
@@ -4895,7 +4921,51 @@ fun SmartBarnRobotIoTCard(
                 }
             }
 
-            // Explicit Demo Sensor Simulation Button ("🧪 تشغيل محاكاة الحساسات التجريبية")
+            if (!isRobotConnected) {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("txt_iot_robot_disconnected_status"),
+                    shape = pillShape,
+                    color = pillSurfaceBg,
+                    border = BorderStroke(1.dp, subtleBorder)
+                ) {
+                    Text(
+                        text = if (lang == AppLanguage.AR) {
+                            "🤖 مستشعرات العنبر والروبوت: غير متصل حالياً"
+                        } else {
+                            Translations.tr("indoor_reading_sensor_disconnected", lang)
+                        },
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = secondaryText,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                    )
+                }
+            } else {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("badge_iot_simulation_disclaimer"),
+                    shape = pillShape,
+                    color = Color(0xFFF59E0B).copy(alpha = 0.16f),
+                    border = BorderStroke(1.dp, Color(0xFFF59E0B).copy(alpha = 0.55f))
+                ) {
+                    Text(
+                        text = if (lang == AppLanguage.AR) {
+                            "🧪 محاكاة تجريبية — ليست قراءة حساس حقيقي"
+                        } else {
+                            Translations.tr("indoor_reading_source_simulation", lang)
+                        },
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = if (isDark) Color(0xFFFCD34D) else Color(0xFFB45309),
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                    )
+                }
+            }
+
+            // Explicit Demo Sensor Simulation Button ("🧪 تشغيل وضع المحاكاة التجريبي (للعرض فقط)")
             OutlinedButton(
                 onClick = { isRobotConnected = !isRobotConnected },
                 modifier = Modifier
@@ -4908,6 +4978,8 @@ fun SmartBarnRobotIoTCard(
                 Text(
                     text = if (isRobotConnected) {
                         Translations.tr("smart_barn_disable_sim_btn", lang)
+                    } else if (lang == AppLanguage.AR) {
+                        "🧪 تشغيل وضع المحاكاة التجريبي (للعرض فقط)"
                     } else {
                         Translations.tr("smart_barn_enable_sim_btn", lang)
                     },

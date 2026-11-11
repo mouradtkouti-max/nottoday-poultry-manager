@@ -872,6 +872,144 @@ class ExampleUnitTest {
         assertEquals(0.0, stateAtZeroCelsius.temperatureC!!, 0.0001)
         assertTrue(stateAtZeroCelsius.hasAnyReading)
     }
+
+    @Test
+    fun package2Of3_weatherCacheLocationIsolation_nullJsonParsing_robotDisconnectedDefault_and_aiContext_workCorrectly() {
+        // 1. Changing barn location from City A to City B invalidates old weather cache and never returns City A's reading
+        val uid = "uid_pkg2_weather"
+        val barnId = "farm_pkg2_1"
+        val cityALoc = com.example.models.BarnWeatherLocation(
+            barnId = barnId,
+            localityName = "بوفاريك",
+            country = "الجزائر",
+            region = "البليدة",
+            latitude = 36.575,
+            longitude = 2.912,
+            isEnabled = true
+        )
+        val cityBLoc = com.example.models.BarnWeatherLocation(
+            barnId = barnId,
+            localityName = "سطيف",
+            country = "الجزائر",
+            region = "سطيف",
+            latitude = 36.191,
+            longitude = 5.414,
+            isEnabled = true
+        )
+
+        BarnWeatherRepository.saveLocation(null, uid, cityALoc)
+        val cityASnapshot = com.example.models.OutdoorWeatherSnapshot(
+            barnId = barnId,
+            localityName = "بوفاريك",
+            latitude = cityALoc.latitude,
+            longitude = cityALoc.longitude,
+            temperatureC = 24.5,
+            apparentTemperatureC = 24.0,
+            relativeHumidityPct = 55,
+            weatherCode = 1,
+            windSpeedKmh = 12.0,
+            precipitationMm = 0.0,
+            isDay = true,
+            providerDataTimeIso = "2026-11-11T12:00",
+            fetchedAtMillis = System.currentTimeMillis()
+        )
+        BarnWeatherRepository.saveCachedSnapshot(null, uid, cityASnapshot)
+        assertNotNull(
+            "City A cached snapshot should be returned when querying City A",
+            BarnWeatherRepository.getCachedSnapshot(null, uid, barnId, cityALoc)
+        )
+        assertNull(
+            "City A cached snapshot must NOT be returned when querying City B coordinates",
+            BarnWeatherRepository.getCachedSnapshot(null, uid, barnId, cityBLoc)
+        )
+
+        // Saving City B location must immediately invalidate City A's cached snapshot for that barn
+        BarnWeatherRepository.saveLocation(null, uid, cityBLoc)
+        assertNull(
+            "Saving City B location must invalidate old cached snapshot for that barn",
+            BarnWeatherRepository.getCachedSnapshot(null, uid, barnId)
+        )
+        assertNull(
+            "Even querying with City A after saveLocation(City B) must not return purged cache",
+            BarnWeatherRepository.getCachedSnapshot(null, uid, barnId, cityALoc)
+        )
+
+        // 2. Weather JSON parser safely handles explicit JSON null in optional fields and missing/null weather_code -> -1 (غير معروف)
+        val jsonWithNullOptionalFieldsAndMissingWeatherCode = """
+            {
+                "current": {
+                    "time": "2026-11-11T15:30",
+                    "temperature_2m": 19.8,
+                    "apparent_temperature": null,
+                    "relative_humidity_2m": null,
+                    "wind_speed_10m": null,
+                    "precipitation": null,
+                    "is_day": null
+                }
+            }
+        """.trimIndent()
+        val parsedMissingCode = BarnWeatherRepository.parseWeatherJson(
+            cityBLoc,
+            jsonWithNullOptionalFieldsAndMissingWeatherCode
+        )
+        assertEquals(19.8, parsedMissingCode.temperatureC, 0.001)
+        assertNull(parsedMissingCode.apparentTemperatureC)
+        assertNull(parsedMissingCode.relativeHumidityPct)
+        assertNull(parsedMissingCode.windSpeedKmh)
+        assertNull(parsedMissingCode.precipitationMm)
+        assertNull(parsedMissingCode.isDay)
+        assertEquals(
+            "Missing weather_code must not be interpreted as 0 (Clear sky)",
+            -1,
+            parsedMissingCode.weatherCode
+        )
+        assertEquals("غير معروف", parsedMissingCode.conditionDescription("ar"))
+        assertEquals("Unknown", parsedMissingCode.conditionDescription("en"))
+
+        val jsonWithExplicitNullWeatherCode = """
+            {
+                "current": {
+                    "time": "2026-11-11T15:45",
+                    "temperature_2m": 18.2,
+                    "weather_code": null
+                }
+            }
+        """.trimIndent()
+        val parsedNullCode = BarnWeatherRepository.parseWeatherJson(cityBLoc, jsonWithExplicitNullWeatherCode)
+        assertEquals(-1, parsedNullCode.weatherCode)
+        assertEquals("غير معروف", parsedNullCode.conditionDescription("ar"))
+
+        // 3. Default state of SmartBarnTelemetrySnapshot has isRobotConnected == false
+        val defaultRobotState = SmartBarnTelemetrySnapshot()
+        assertFalse(
+            "Default state of SmartBarnTelemetrySnapshot must be disconnected (isRobotConnected == false)",
+            defaultRobotState.isRobotConnected
+        )
+
+        // 4. AI Vet fallback for a barn with no reports does NOT contain fake numbers (25 days, 7880 birds, 21.3°C)
+        // and clearly states "غير مسجل" / "لا توجد قراءة"
+        val emptyBarnContext = com.example.utils.BarnAiContext(
+            farmName = "عنبر الاختبار الجديد",
+            cycleAgeDays = null,
+            liveBirdsCount = null,
+            latestTemperatureC = null,
+            cumulativeMortalityPct = null,
+            feedInventoryKg = null
+        )
+        val fallbackResponse = AiVetGeminiService.buildClinicalFallbackAdvice(
+            question = "ما هي نصيحتك للعنبر اليوم؟",
+            lang = AppLanguage.AR,
+            barnContext = emptyBarnContext
+        )
+        assertTrue(fallbackResponse.contains("عنبر الاختبار الجديد"))
+        assertTrue(
+            "Fallback response for barn without reports must indicate غير مسجل / لا توجد قراءة",
+            fallbackResponse.contains("غير مسجل") && fallbackResponse.contains("لا توجد قراءة")
+        )
+        assertFalse("Must not fabricate 25 days", fallbackResponse.contains("25 يوم"))
+        assertFalse("Must not fabricate 7880 birds", fallbackResponse.contains("7880"))
+        assertFalse("Must not fabricate 21.3°C", fallbackResponse.contains("21.3"))
+    }
 }
 
 

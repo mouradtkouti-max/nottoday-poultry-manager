@@ -107,7 +107,7 @@ data class OutdoorWeatherSnapshot(
     val temperatureC: Double,
     val apparentTemperatureC: Double?,
     val relativeHumidityPct: Int?,
-    val weatherCode: Int,
+    val weatherCode: Int = -1,
     val windSpeedKmh: Double?,
     val precipitationMm: Double?,
     val isDay: Boolean?,
@@ -120,16 +120,20 @@ data class OutdoorWeatherSnapshot(
         get() = (System.currentTimeMillis() - fetchedAtMillis) < 30 * 60 * 1000L // 30 minutes fresh cache
 
     fun conditionDescription(lang: String = "ar"): String {
+        val isAr = lang.lowercase().startsWith("ar")
+        if (weatherCode < 0) {
+            return if (isAr) "غير معروف" else "Unknown"
+        }
         return when (weatherCode) {
-            0 -> if (lang == "ar") "سماء صافية ☀️" else "Clear sky ☀️"
-            1, 2, 3 -> if (lang == "ar") "غائم جزئياً ⛅" else "Partly cloudy ⛅"
-            45, 48 -> if (lang == "ar") "ضباب 🌫️" else "Fog 🌫️"
-            51, 53, 55 -> if (lang == "ar") "رذاذ مطر 🌦️" else "Drizzle 🌦️"
-            61, 63, 65 -> if (lang == "ar") "أمطار 🌧️" else "Rain 🌧️"
-            71, 73, 75 -> if (lang == "ar") "ثلوج ❄️" else "Snow ❄️"
-            80, 81, 82 -> if (lang == "ar") "زخات مطرية 🌧️" else "Rain showers 🌧️"
-            95, 96, 99 -> if (lang == "ar") "عواصف رعدية ⛈️" else "Thunderstorm ⛈️"
-            else -> if (lang == "ar") "طقس معتدل 🌤️" else "Moderate 🌤️"
+            0 -> if (isAr) "سماء صافية ☀️" else "Clear sky ☀️"
+            1, 2, 3 -> if (isAr) "غائم جزئياً ⛅" else "Partly cloudy ⛅"
+            45, 48 -> if (isAr) "ضباب 🌫️" else "Fog 🌫️"
+            51, 53, 55 -> if (isAr) "رذاذ مطر 🌦️" else "Drizzle 🌦️"
+            61, 63, 65 -> if (isAr) "أمطار 🌧️" else "Rain 🌧️"
+            71, 73, 75 -> if (isAr) "ثلوج ❄️" else "Snow ❄️"
+            80, 81, 82 -> if (isAr) "زخات مطرية 🌧️" else "Rain showers 🌧️"
+            95, 96, 99 -> if (isAr) "عواصف رعدية ⛈️" else "Thunderstorm ⛈️"
+            else -> if (isAr) "طقس معتدل 🌤️" else "Moderate 🌤️"
         }
     }
 }

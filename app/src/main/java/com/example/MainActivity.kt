@@ -6807,10 +6807,20 @@ fun OwnerGlobalAiVetPlaceholderScreen(
     val qUnit = Translations.tr("quintal_short", lang)
     val kgUnit = Translations.tr("kg_unit", lang)
 
+    val availableAiBarns = AgritechMockDb.farms.filterNot {
+        it.id in AgritechMockDb.deletedFarmIds || AgritechFirestoreRepository.isUnassignedFarm(it.id)
+    }
+    var selectedAiBarnId by rememberSaveable(sessionState.activeFarmId, availableAiBarns.size) {
+        mutableStateOf(
+            availableAiBarns.firstOrNull { it.id == sessionState.activeFarmId }?.id
+                ?: availableAiBarns.firstOrNull()?.id.orEmpty()
+        )
+    }
+    val selectedAiFarm = availableAiBarns.firstOrNull { it.id == selectedAiBarnId }
+        ?: availableAiBarns.firstOrNull()
+
     fun buildLiveDiagnosticReport(cardTag: String, cardTitle: String): Pair<String, String>? {
-        val activeFarm = AgritechMockDb.farms.firstOrNull {
-            it.id == sessionState.activeFarmId && it.id !in AgritechMockDb.deletedFarmIds
-        } ?: AgritechMockDb.farms.firstOrNull { it.id !in AgritechMockDb.deletedFarmIds }
+        val activeFarm = selectedAiFarm
 
         val activeCycle = activeFarm?.let { farm ->
             AgritechMockDb.resolveCycleForFarm(farm)
@@ -6937,8 +6947,8 @@ fun OwnerGlobalAiVetPlaceholderScreen(
                 }
             }
             "ai_vet_quick_chip_0" -> {
-                val latestReport = farmReports.lastOrNull()
-                val recordedTempC = latestReport?.temperature ?: 24.0
+                val latestReport = farmReports.maxByOrNull { it.dayNumber }
+                val recordedTempC: Double? = latestReport?.temperature
                 val idealTempC = when {
                     ageDays <= 3 -> 33.0
                     ageDays <= 7 -> 31.0
@@ -6947,13 +6957,11 @@ fun OwnerGlobalAiVetPlaceholderScreen(
                     ageDays <= 28 -> 24.0
                     else -> 21.0
                 }
-                val tempDiff = recordedTempC - idealTempC
-                val ventStatus = latestReport?.let { Translations.getLocalizedVentilation(it.ventilationStatus, lang) }
-                    ?: Translations.tr("vent_good", lang)
-                Pair(
-                    "🌡️ ${Translations.tr("ai_vet_diagnosis_prefix", lang)} ($cardTitle — $barnDisplayName)",
-                    "• العنبر: $barnDisplayName (العمر الحالي: اليوم $ageDays)\n" +
-                        "• آخر درجة حرارة مسجلة بالسجل: ${String.format(java.util.Locale.US, "%.1f°C", recordedTempC)} (الهدف المثالي لليوم $ageDays: ${String.format(java.util.Locale.US, "%.1f°C", idealTempC)})\n" +
+                val tempSummaryLine = if (recordedTempC != null) {
+                    val tempDiff = recordedTempC - idealTempC
+                    val ventStatus = latestReport?.let { Translations.getLocalizedVentilation(it.ventilationStatus, lang) }
+                        ?: Translations.tr("vent_good", lang)
+                    "• آخر درجة حرارة مسجلة بالسجل: ${String.format(java.util.Locale.US, "%.1f°C", recordedTempC)} (الهدف المثالي لليوم $ageDays: ${String.format(java.util.Locale.US, "%.1f°C", idealTempC)})\n" +
                         "• حالة التهوية المسجلة: $ventStatus (الفارق الحراري: ${String.format(java.util.Locale.US, "%+.1f°C", tempDiff)})\n" +
                         "💡 التوصية البيئية: ${
                             when {
@@ -6962,6 +6970,13 @@ fun OwnerGlobalAiVetPlaceholderScreen(
                                 else -> "درجة الحرارة والتهوية مثالية تماماً لعمر $ageDays يوم وفق دليل Ross 308."
                             }
                         }"
+                } else {
+                    "• آخر درجة حرارة مسجلة بالسجل: غير مسجلة (لا توجد قراءة بعد — الهدف المثالي لليوم $ageDays: ${String.format(java.util.Locale.US, "%.1f°C", idealTempC)})\n" +
+                        "💡 التوصية البيئية: لم يتم إدخال تقرير يومي لهذا العنبر بعد؛ يرجى تسجيل حرارة العنبر في السجل اليومي للحصول على تقييم دقيق."
+                }
+                Pair(
+                    "🌡️ ${Translations.tr("ai_vet_diagnosis_prefix", lang)} ($cardTitle — $barnDisplayName)",
+                    "• العنبر: $barnDisplayName (العمر الحالي: اليوم $ageDays)\n$tempSummaryLine"
                 )
             }
             else -> null
@@ -6985,39 +7000,48 @@ fun OwnerGlobalAiVetPlaceholderScreen(
             Translations.tr("ai_vet_analyzing_msg", lang).replace("**", "")
         )
         coroutineScope.launch {
-            val activeFarm = AgritechMockDb.farms.firstOrNull { !AgritechFirestoreRepository.isUnassignedFarm(it.id) }
+            val activeFarm = selectedAiFarm
             val activeCycle = activeFarm?.let { f ->
-                AgritechMockDb.cycles.firstOrNull { it.farmId == f.id && it.status.equals("active", ignoreCase = true) }
-                    ?: AgritechMockDb.cycles.firstOrNull { it.farmId == f.id }
+                AgritechMockDb.resolveCycleForFarm(f)
             }
             val activeReports = if (activeFarm != null && activeCycle != null) {
                 AgritechMockDb.resolveReportsForFarmAndCycle(activeFarm.id, activeCycle.id, emptyList())
             } else {
                 emptyList()
             }
-            val barnDisplayName = activeFarm?.let { Translations.getLocalizedFarmName(it.id, lang, it.name) }.orEmpty()
-            val realAgeDays = if (activeCycle != null) {
+            val barnDisplayName: String? = activeFarm?.let { Translations.getLocalizedFarmName(it.id, lang, it.name) }
+            val realAgeDays: Int? = if (activeCycle != null) {
                 val maxDay = activeReports.maxOfOrNull { it.dayNumber } ?: 1
                 PoultryCalculators.calculateCycleDay(activeCycle.startDate, maxDay)
             } else {
-                1
+                null
             }
             val realTotalMortality = activeReports.sumOf { it.mortalityCount }
-            val realLiveBirds = if (activeCycle != null) {
+            val realLiveBirds: Int? = if (activeCycle != null) {
                 PoultryCalculators.calculateLiveBirds(
                     totalBirdsPlaced = activeCycle.totalBirdsPlaced,
                     totalMortality = realTotalMortality,
                     cumulativeBirdsSold = activeCycle.cumulativeBirdsSold
                 )
             } else {
-                0
+                null
             }
-            val realMortalityPct = if (activeCycle != null && activeCycle.totalBirdsPlaced > 0) {
+            val realMortalityPct: Double? = if (activeCycle != null && activeCycle.totalBirdsPlaced > 0) {
                 (realTotalMortality.toDouble() / activeCycle.totalBirdsPlaced) * 100.0
             } else {
-                0.0
+                null
             }
-            val latestRecordedTempC = activeReports.maxByOrNull { it.dayNumber }?.temperature?.takeIf { it > 0.0 }
+            val latestRecordedTempC: Double? = activeReports.maxByOrNull { it.dayNumber }?.temperature
+            val remainingFeedKg: Double? = activeCycle?.feedInventoryKg?.takeIf { it > 0.0 || activeReports.isNotEmpty() }
+
+            val barnContext = com.example.utils.BarnAiContext(
+                farmName = barnDisplayName,
+                cycleAgeDays = realAgeDays,
+                liveBirdsCount = realLiveBirds,
+                latestTemperatureC = latestRecordedTempC,
+                cumulativeMortalityPct = realMortalityPct,
+                feedInventoryKg = remainingFeedKg
+            )
 
             val reply = try {
                 AiVetGeminiService.generateVetResponse(
@@ -7027,10 +7051,12 @@ fun OwnerGlobalAiVetPlaceholderScreen(
                     liveBirds = realLiveBirds,
                     mortalityPct = realMortalityPct,
                     currentTempC = latestRecordedTempC,
-                    barnName = barnDisplayName
+                    barnName = barnDisplayName.orEmpty(),
+                    barnContext = barnContext
                 ).replace("**", "")
             } catch (e: Exception) {
-                Translations.tr("ai_vet_fallback_reply", lang).replace("**", "")
+                "${AiVetGeminiService.fallbackNoticeFor(lang)}\n" +
+                    Translations.tr("ai_vet_fallback_reply", lang).replace("**", "")
             }
             diagnosisHistory = diagnosisHistory.dropLast(1) + Pair(
                 "${Translations.tr("ai_vet_diagnosis_prefix", lang)} ($cleanQuery)",
@@ -7154,6 +7180,68 @@ fun OwnerGlobalAiVetPlaceholderScreen(
                                         overflow = TextOverflow.Ellipsis,
                                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
                                     )
+                                }
+                            }
+                        }
+                    }
+
+                    // Active Barn Context Selector Bar for AI Analysis
+                    if (!isHomePersonalAgentMode) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState())
+                                .testTag("ai_vet_selected_barn_bar"),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                text = if (lang == AppLanguage.AR) "🏠 العنبر:" else "🏠 Barn:",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = secondaryText
+                            )
+                            if (availableAiBarns.isEmpty()) {
+                                Surface(
+                                    shape = pillShape,
+                                    color = Color.Transparent,
+                                    border = BorderStroke(1.dp, glassBorderColor)
+                                ) {
+                                    Text(
+                                        text = if (lang == AppLanguage.AR) "لا يوجد عنبر نشط" else Translations.tr("no_active_cycle", lang),
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = secondaryText,
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                    )
+                                }
+                            } else {
+                                availableAiBarns.forEach { barnItem ->
+                                    val isSelectedBarn = selectedAiFarm?.id == barnItem.id
+                                    val localizedBarnTitle = Translations.getLocalizedFarmName(barnItem.id, lang, barnItem.name)
+                                    Surface(
+                                        modifier = Modifier
+                                            .clip(pillShape)
+                                            .clickable {
+                                                selectedAiBarnId = barnItem.id
+                                                sessionState.activeFarmId = barnItem.id
+                                            }
+                                            .testTag("ai_vet_select_barn_${barnItem.id}"),
+                                        shape = pillShape,
+                                        color = if (isSelectedBarn) aiAccentContainer else Color.Transparent,
+                                        border = BorderStroke(
+                                            width = if (isSelectedBarn) 1.5.dp else 1.dp,
+                                            color = if (isSelectedBarn) aiAccent else glassBorderColor
+                                        )
+                                    ) {
+                                        Text(
+                                            text = localizedBarnTitle,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = if (isSelectedBarn) aiAccent else secondaryText,
+                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                        )
+                                    }
                                 }
                             }
                         }
