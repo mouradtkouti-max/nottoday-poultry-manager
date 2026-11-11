@@ -2025,12 +2025,44 @@ object Translations {
             "hi" to "दैनिक रिपोर्ट संपादित करें (ऑडिट ⚠️)"
         ),
         "field_day_number_mid_cycle" to mapOf(
-            "ar" to "رقم اليوم في الدورة (يدعم البدء من منتصف الدورة مثل يوم 20 أو 30)",
-            "fr" to "Numéro du jour (supporte mi-cycle ex: Jour 20 ou 30)",
-            "en" to "Cycle Day Number (supports mid-cycle e.g. Day 20 or 30)",
-            "es" to "Número de día del lote (soporta mitad de ciclo ej. Día 20 o 30)",
-            "pt" to "Número do dia do lote (suporta meio de ciclo ex: Dia 20 ou 30)",
-            "hi" to "चक्र दिन संख्या (मध्य-चक्र का समर्थन करता है जैसे दिन 20 या 30)"
+            "ar" to "📅 رقم اليوم في الدورة",
+            "fr" to "📅 Numéro du jour du lot",
+            "en" to "📅 Cycle Day Number",
+            "es" to "📅 Número de día del lote",
+            "pt" to "📅 Número do dia do lote",
+            "hi" to "📅 चक्र दिन संख्या"
+        ),
+        "field_day_number_mid_cycle_hint" to mapOf(
+            "ar" to "يُكتشف تلقائياً أو أدخل رقم يوم سابق لتعديله",
+            "fr" to "Détecté auto ou entrez un jour précédent à modifier",
+            "en" to "Auto-detected or enter a previous day to edit",
+            "es" to "Auto-detectado o ingrese un día anterior para editar",
+            "pt" to "Detectado auto ou digite um dia anterior para editar",
+            "hi" to "स्वतः पता लगाया गया या संपादित करने के लिए पिछला दिन दर्ज करें"
+        ),
+        "indoor_reading_no_data" to mapOf(
+            "ar" to "لا توجد قراءة مسجلة بعد — أدخل التقرير اليومي",
+            "fr" to "Aucune lecture enregistrée — saisissez le rapport quotidien",
+            "en" to "No reading recorded yet — enter daily report",
+            "es" to "Sin lectura registrada — ingrese el reporte diario",
+            "pt" to "Nenhuma leitura registrada — insira o relatório diário",
+            "hi" to "अभी तक कोई रीडिंग दर्ज नहीं — दैनिक रिपोर्ट दर्ज करें"
+        ),
+        "smart_barn_enable_sim_btn" to mapOf(
+            "ar" to "🧪 تشغيل محاكاة الحساسات التجريبية",
+            "fr" to "🧪 Activer la simulation de capteurs démo",
+            "en" to "🧪 Enable Demo Sensor Simulation",
+            "es" to "🧪 Activar simulación de sensores demo",
+            "pt" to "🧪 Ativar simulação de sensores demo",
+            "hi" to "🧪 डेमो सेंसर सिमुलेशन सक्षम करें"
+        ),
+        "smart_barn_disable_sim_btn" to mapOf(
+            "ar" to "⏹️ إيقاف المحاكاة التجريبية",
+            "fr" to "⏹️ Arrêter la simulation démo",
+            "en" to "⏹️ Stop Demo Simulation",
+            "es" to "⏹️ Detener simulación demo",
+            "pt" to "⏹️ Parar simulação demo",
+            "hi" to "⏹️ डेमो सिमुलेशन रोकें"
         ),
         "th_edit" to mapOf(
             "ar" to "تعديل",

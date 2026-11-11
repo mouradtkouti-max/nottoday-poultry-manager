@@ -3452,25 +3452,32 @@ fun LiveBarnClimateBanner(
     val cornerShape = RoundedCornerShape(appearance.cornerRadiusDp.dp)
 
     // Ideal Ross 308 temperature band shifts by cycle age; evaluate micro-climate status:
-    // Optimal (Emerald), Warning (Amber), Alert (Red)
-    val isAlert = temperatureC > 34.5 || temperatureC < 17.0 || ammoniaPpm >= 25.0
-    val isWarning = !isAlert && (temperatureC > 32.5 || temperatureC < 19.5 || ammoniaPpm >= 16.0)
+    // Optimal (Emerald), Warning (Amber), Alert (Red) — guard against unrecorded 0.0°C before first report
+    val hasTempReading = (indoorReading?.temperatureC ?: temperatureC) > 0.0
+    val hasAnyIndoorReading = indoorReading?.hasAnyReading ?: (hasTempReading || ammoniaPpm > 0.0)
+    val isAlert = (hasTempReading && (temperatureC > 34.5 || temperatureC < 17.0)) || ammoniaPpm >= 25.0
+    val isWarning = !isAlert && (
+        (hasTempReading && (temperatureC > 32.5 || temperatureC < 19.5)) || ammoniaPpm >= 16.0
+    )
 
     val statusColor = when {
         isAlert -> Color(0xFFEF4444)
         isWarning -> Color(0xFFF59E0B)
+        !hasAnyIndoorReading -> if (isDark) Color(0xFF94A3B8) else Color(0xFF64748B)
         else -> appearance.accentColor
     }
 
     val statusBadgeBg = when {
         isAlert -> if (isDark) Color(0xFF450A0A) else Color(0xFFFEE2E2)
         isWarning -> if (isDark) Color(0xFF451A03) else Color(0xFFFEF3C7)
+        !hasAnyIndoorReading -> if (isDark) Color(0xFF334155) else Color(0xFFF1F5F9)
         else -> appearance.accentContainerColor
     }
 
     val statusTextKey = when {
         isAlert -> "climate_status_alert"
         isWarning -> "climate_status_warning"
+        !hasAnyIndoorReading -> "indoor_reading_no_data"
         else -> "climate_status_optimal"
     }
 
@@ -4152,7 +4159,7 @@ fun OutdoorWeatherCard(
         } else if (!initialLoc.isEnabled) {
             WeatherResult.Disabled
         } else {
-            val cached = BarnWeatherRepository.getCachedSnapshot(context, accountUid, barnId)
+            val cached = BarnWeatherRepository.getCachedSnapshot(context, accountUid, barnId, initialLoc)
             if (cached != null) WeatherResult.Success(cached, isStale = !cached.isFresh)
             else WeatherResult.Loading
         }
@@ -4164,29 +4171,47 @@ fun OutdoorWeatherCard(
     var searchResults by remember { mutableStateOf<List<BarnWeatherLocation>>(emptyList()) }
     var isSearching by remember { mutableStateOf(false) }
     var searchErrorMessage by remember { mutableStateOf<String?>(null) }
+    var activeWeatherJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
 
     fun doRefresh(force: Boolean) {
-        val loc = savedLoc ?: return
-        if (!loc.isEnabled) return
+        val loc = savedLoc
+        if (loc == null) {
+            activeWeatherJob?.cancel()
+            weatherResult = WeatherResult.NoLocation
+            return
+        }
+        if (!loc.isEnabled) {
+            activeWeatherJob?.cancel()
+            weatherResult = WeatherResult.Disabled
+            return
+        }
+        activeWeatherJob?.cancel()
         weatherResult = WeatherResult.Loading
-        scope.launch {
+        activeWeatherJob = scope.launch {
             val res = BarnWeatherRepository.fetchWeather(context, accountUid, loc, forceRefresh = force)
-            weatherResult = res
+            if (savedLoc?.isEnabled == true &&
+                savedLoc?.let { BarnWeatherRepository.formatCoordKey(it.latitude, it.longitude) } ==
+                BarnWeatherRepository.formatCoordKey(loc.latitude, loc.longitude)
+            ) {
+                weatherResult = res
+            }
         }
     }
 
     LaunchedEffect(savedLoc?.isEnabled, savedLoc?.localityName, savedLoc?.latitude, savedLoc?.longitude) {
         val loc = savedLoc
         if (loc != null && loc.isEnabled) {
-            val cached = BarnWeatherRepository.getCachedSnapshot(context, accountUid, barnId)
+            val cached = BarnWeatherRepository.getCachedSnapshot(context, accountUid, barnId, loc)
             if (cached == null || !cached.isFresh) {
                 doRefresh(force = false)
             } else {
                 weatherResult = WeatherResult.Success(cached, isStale = false)
             }
         } else if (loc != null && !loc.isEnabled) {
+            activeWeatherJob?.cancel()
             weatherResult = WeatherResult.Disabled
         } else {
+            activeWeatherJob?.cancel()
             weatherResult = WeatherResult.NoLocation
         }
     }
@@ -4249,6 +4274,7 @@ fun OutdoorWeatherCard(
                             if (isChecked) {
                                 doRefresh(force = true)
                             } else {
+                                activeWeatherJob?.cancel()
                                 weatherResult = WeatherResult.Disabled
                             }
                         } else {
@@ -4512,13 +4538,28 @@ fun OutdoorWeatherCard(
                             }
                         }
 
-                        // Attribution
+                        // Attribution & Last Updated Timestamp
+                        val formattedUpdateTime = remember(snap.fetchedAtMillis, snap.providerDataTimeIso) {
+                            if (snap.fetchedAtMillis > 0L) {
+                                java.text.SimpleDateFormat("HH:mm", Locale.US).format(java.util.Date(snap.fetchedAtMillis))
+                            } else {
+                                snap.providerDataTimeIso.takeLast(5)
+                            }
+                        }
                         Text(
-                            text = Translations.tr("outdoor_weather_source_attribution", lang) + " • " + snap.providerAttribution,
+                            text = buildString {
+                                append(Translations.tr("outdoor_weather_source_attribution", lang))
+                                append(" • ")
+                                append(snap.providerAttribution)
+                                if (formattedUpdateTime.isNotBlank()) {
+                                    append(" • 🕒 ")
+                                    append(formattedUpdateTime)
+                                }
+                            },
                             fontSize = 9.5.sp,
                             color = textSecondary,
                             textAlign = TextAlign.Center,
-                            modifier = Modifier.fillMaxWidth().padding(top = 2.dp)
+                            modifier = Modifier.fillMaxWidth().padding(top = 2.dp).testTag("txt_outdoor_weather_updated")
                         )
                     }
                 }
@@ -4609,7 +4650,7 @@ fun SmartBarnRobotIoTCard(
     val cornerShape = RoundedCornerShape(appearance.cornerRadiusDp.dp)
     val pillShape = RoundedCornerShape((appearance.cornerRadiusDp - 6).coerceAtLeast(6).dp)
 
-    var isRobotConnected by remember { mutableStateOf(true) }
+    var isRobotConnected by remember { mutableStateOf(false) }
     var isSimulatedNh3Alert by remember { mutableStateOf(false) }
     var isAnalyzing by remember { mutableStateOf(false) }
     var inlineAiReport by remember { mutableStateOf<String?>(null) }
@@ -4699,7 +4740,30 @@ fun SmartBarnRobotIoTCard(
                 }
             }
 
-            // 4 Compact Live Sensor Pills (2x2 clean grid — Title on line 1, bold value + unit on line 2, no truncation)
+            // Explicit Demo Sensor Simulation Button ("🧪 تشغيل محاكاة الحساسات التجريبية")
+            OutlinedButton(
+                onClick = { isRobotConnected = !isRobotConnected },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 38.dp)
+                    .testTag("btn_iot_toggle_simulation"),
+                shape = pillShape,
+                border = BorderStroke(1.dp, appearance.accentOption.primaryColor.copy(alpha = 0.55f))
+            ) {
+                Text(
+                    text = if (isRobotConnected) {
+                        Translations.tr("smart_barn_disable_sim_btn", lang)
+                    } else {
+                        Translations.tr("smart_barn_enable_sim_btn", lang)
+                    },
+                    fontSize = 11.5.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if (isDark) Color.White else appearance.accentOption.primaryColor,
+                    maxLines = 1
+                )
+            }
+
+            // 4 Compact Sensor Pills (2x2 clean grid — shows "—" when disconnected from demo sensors)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -4711,18 +4775,23 @@ fun SmartBarnRobotIoTCard(
                     Translations.tr("smart_barn_sensor_nh3_safe", lang)
                 }
                 val nh3Parts = nh3Raw.split(":", limit = 2)
-                val nh3Color = if (isSimulatedNh3Alert) (if (isDark) Color(0xFFFCA5A5) else Color(0xFFB91C1C)) else primaryText
+                val nh3Color = if (isRobotConnected && isSimulatedNh3Alert) (if (isDark) Color(0xFFFCA5A5) else Color(0xFFB91C1C)) else primaryText
                 Surface(
-                    onClick = { isSimulatedNh3Alert = !isSimulatedNh3Alert },
+                    onClick = {
+                        if (!isRobotConnected) {
+                            isRobotConnected = true
+                        }
+                        isSimulatedNh3Alert = !isSimulatedNh3Alert
+                    },
                     modifier = Modifier
                         .weight(1f)
                         .heightIn(min = 54.dp)
                         .testTag("iot_pill_nh3_toggle"),
                     shape = pillShape,
-                    color = if (isSimulatedNh3Alert) alertRed.copy(alpha = 0.14f) else pillSurfaceBg,
+                    color = if (isRobotConnected && isSimulatedNh3Alert) alertRed.copy(alpha = 0.14f) else pillSurfaceBg,
                     border = BorderStroke(
                         1.dp,
-                        if (isSimulatedNh3Alert) alertRed else emeraldGreen.copy(alpha = 0.45f)
+                        if (isRobotConnected && isSimulatedNh3Alert) alertRed else emeraldGreen.copy(alpha = 0.45f)
                     )
                 ) {
                     Column(
@@ -4736,7 +4805,7 @@ fun SmartBarnRobotIoTCard(
                             color = secondaryText
                         )
                         Text(
-                            text = nh3Parts.getOrNull(1)?.trim() ?: nh3Raw,
+                            text = if (isRobotConnected) (nh3Parts.getOrNull(1)?.trim() ?: nh3Raw) else "—",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.ExtraBold,
                             color = nh3Color
@@ -4767,7 +4836,7 @@ fun SmartBarnRobotIoTCard(
                             color = secondaryText
                         )
                         Text(
-                            text = o2Parts.getOrNull(1)?.trim() ?: o2Raw,
+                            text = if (isRobotConnected) (o2Parts.getOrNull(1)?.trim() ?: o2Raw) else "—",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.ExtraBold,
                             color = primaryText
@@ -4803,7 +4872,7 @@ fun SmartBarnRobotIoTCard(
                             color = secondaryText
                         )
                         Text(
-                            text = gasParts.getOrNull(1)?.trim() ?: gasRaw,
+                            text = if (isRobotConnected) (gasParts.getOrNull(1)?.trim() ?: gasRaw) else "—",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.ExtraBold,
                             color = primaryText
@@ -4834,7 +4903,7 @@ fun SmartBarnRobotIoTCard(
                             color = secondaryText
                         )
                         Text(
-                            text = tempHumParts.getOrNull(1)?.trim() ?: tempHumRaw,
+                            text = if (isRobotConnected) (tempHumParts.getOrNull(1)?.trim() ?: tempHumRaw) else "—",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.ExtraBold,
                             color = primaryText

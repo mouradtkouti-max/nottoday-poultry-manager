@@ -706,6 +706,71 @@ class ExampleUnitTest {
         assertEquals(IndoorReadingSource.SIMULATION, sim.source)
         assertFalse(sim.isVerifiedSensorConnected)
     }
+
+    @Test
+    fun batch2SurgicalPatches_dailyReportAudit_weatherNullSafety_andAiRealBarnContext() {
+        // 1. Surgery 1: Unchanged daily report save must NOT mark isEdited = true
+        val testFarmId = "farm_b2_audit"
+        val testCycleId = "cycle_b2_audit"
+        AgritechMockDb.dailyReports.removeAll { it.farmId == testFarmId }
+        val initialReport = DailyReportModel(
+            id = "rep_b2_d1",
+            farmId = testFarmId,
+            cycleId = testCycleId,
+            dayNumber = 1,
+            feedIntakeKg = 150.0,
+            waterIntakeLiters = 300.0,
+            mortalityCount = 2,
+            temperature = 31.0,
+            gasUnits = 1.0,
+            actualAvgWeightKg = 0.055,
+            medicineGiven = false,
+            medicineSummary = "",
+            isEdited = false,
+            previousSummary = ""
+        )
+        val inserted = AgritechMockDb.upsertDailyReportWithAudit(initialReport)
+        assertFalse("Initial insert must not be marked edited", inserted.isEdited)
+        assertEquals("", inserted.previousSummary)
+
+        // Saving the exact same report values must keep isEdited = false and previousSummary = ""
+        val savedWithoutChanges = AgritechMockDb.upsertDailyReportWithAudit(inserted.copy())
+        assertFalse("Unchanged edit must not mark report as edited", savedWithoutChanges.isEdited)
+        assertEquals("", savedWithoutChanges.previousSummary)
+
+        // Saving with a real value change (e.g. mortality 2 -> 4) must mark isEdited = true and record previousSummary
+        val savedWithRealChange = AgritechMockDb.upsertDailyReportWithAudit(
+            savedWithoutChanges.copy(mortalityCount = 4)
+        )
+        assertTrue("Changed edit must mark report as edited", savedWithRealChange.isEdited)
+        assertTrue("Changed edit must populate previousSummary", savedWithRealChange.previousSummary.isNotBlank())
+
+        // 2. Surgery 2 & 3: Verify concise day label, hint, and indoor_reading_no_data keys
+        assertEquals("📅 رقم اليوم في الدورة", Translations.tr("field_day_number_mid_cycle", AppLanguage.AR))
+        assertEquals("يُكتشف تلقائياً أو أدخل رقم يوم سابق لتعديله", Translations.tr("field_day_number_mid_cycle_hint", AppLanguage.AR))
+        assertEquals("لا توجد قراءة مسجلة بعد — أدخل التقرير اليومي", Translations.tr("indoor_reading_no_data", AppLanguage.AR))
+
+        // 3. Surgery 4: Weather coordinate key formatting
+        assertEquals("36.753_3.042", BarnWeatherRepository.formatCoordKey(36.7528, 3.0420))
+
+        // 4. Surgery 5: Default disconnected sensor simulation & real barn context in AI Vet fallback
+        val defaultTelemetry = SmartBarnTelemetrySnapshot()
+        assertFalse("Sensor simulation must default to disconnected (false)", defaultTelemetry.isRobotConnected)
+        val aiAdviceNoTemp = AiVetGeminiService.buildClinicalFallbackAdvice(
+            question = "فحص القطيع",
+            flockAgeDays = 1,
+            liveBirds = 15000,
+            mortalityPct = 0.0,
+            currentTempC = null,
+            lang = AppLanguage.AR,
+            barnName = "عنبر السلام"
+        )
+        assertTrue(aiAdviceNoTemp.contains("عنبر السلام"))
+        assertTrue(aiAdviceNoTemp.contains("15000"))
+        assertTrue(aiAdviceNoTemp.contains("غير مسجلة"))
+        assertFalse(aiAdviceNoTemp.contains("21.3"))
+        assertFalse(aiAdviceNoTemp.contains("7880"))
+    }
 }
 
 

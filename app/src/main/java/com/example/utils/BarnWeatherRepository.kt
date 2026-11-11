@@ -37,6 +37,9 @@ object BarnWeatherRepository {
     private const val READ_TIMEOUT_MS = 10000
     private const val CACHE_FRESHNESS_MS = 30 * 60 * 1000L // 30 minutes
 
+    fun formatCoordKey(latitude: Double, longitude: Double): String =
+        String.format(java.util.Locale.US, "%.3f_%.3f", latitude, longitude)
+
     /**
      * Local storage for user-confirmed barn weather locations per account + barn.
      */
@@ -48,8 +51,8 @@ object BarnWeatherRepository {
             BarnWeatherLocation(
                 barnId = json.getString("barnId"),
                 localityName = json.getString("localityName"),
-                country = json.optString("country", ""),
-                region = json.optString("region", ""),
+                country = if (json.has("country") && !json.isNull("country")) json.optString("country", "") else "",
+                region = if (json.has("region") && !json.isNull("region")) json.optString("region", "") else "",
                 latitude = json.getDouble("latitude"),
                 longitude = json.getDouble("longitude"),
                 isEnabled = json.optBoolean("isEnabled", false),
@@ -61,6 +64,9 @@ object BarnWeatherRepository {
     }
 
     fun saveLocation(context: Context, accountUid: String, location: BarnWeatherLocation) {
+        val previous = getSavedLocation(context, accountUid, location.barnId)
+        val coordsChanged = previous == null ||
+            formatCoordKey(previous.latitude, previous.longitude) != formatCoordKey(location.latitude, location.longitude)
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val json = JSONObject().apply {
             put("barnId", location.barnId)
@@ -72,29 +78,68 @@ object BarnWeatherRepository {
             put("isEnabled", location.isEnabled)
             put("updatedAtMillis", location.updatedAtMillis)
         }
-        prefs.edit().putString(locKey(accountUid, location.barnId), json.toString()).apply()
+        val editor = prefs.edit().putString(locKey(accountUid, location.barnId), json.toString())
+        if (coordsChanged || !location.isEnabled) {
+            editor.remove(snapKey(accountUid, location.barnId))
+        }
+        editor.apply()
     }
 
-    fun getCachedSnapshot(context: Context, accountUid: String, barnId: String): OutdoorWeatherSnapshot? {
+    fun getCachedSnapshot(
+        context: Context,
+        accountUid: String,
+        barnId: String,
+        expectedLocation: BarnWeatherLocation? = getSavedLocation(context, accountUid, barnId)
+    ): OutdoorWeatherSnapshot? {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val raw = prefs.getString(snapKey(accountUid, barnId), null) ?: return null
         return try {
             val json = JSONObject(raw)
+            if (!json.has("temperatureC") || json.isNull("temperatureC")) return null
+            val cachedLat = json.getDouble("latitude")
+            val cachedLon = json.getDouble("longitude")
+            if (expectedLocation != null) {
+                val expectedCoordKey = formatCoordKey(expectedLocation.latitude, expectedLocation.longitude)
+                val cachedCoordKey = if (json.has("coordKey") && !json.isNull("coordKey")) {
+                    json.optString("coordKey", "")
+                } else {
+                    formatCoordKey(cachedLat, cachedLon)
+                }
+                if (cachedCoordKey != expectedCoordKey) return null
+            }
             OutdoorWeatherSnapshot(
                 barnId = json.getString("barnId"),
                 localityName = json.getString("localityName"),
-                latitude = json.getDouble("latitude"),
-                longitude = json.getDouble("longitude"),
+                latitude = cachedLat,
+                longitude = cachedLon,
                 temperatureC = json.getDouble("temperatureC"),
-                apparentTemperatureC = if (json.has("apparentTemperatureC")) json.getDouble("apparentTemperatureC") else null,
-                relativeHumidityPct = if (json.has("relativeHumidityPct")) json.getInt("relativeHumidityPct") else null,
-                weatherCode = json.optInt("weatherCode", 0),
-                windSpeedKmh = if (json.has("windSpeedKmh")) json.getDouble("windSpeedKmh") else null,
-                precipitationMm = if (json.has("precipitationMm")) json.getDouble("precipitationMm") else null,
-                isDay = if (json.has("isDay")) json.getBoolean("isDay") else null,
-                providerDataTimeIso = json.optString("providerDataTimeIso", ""),
-                fetchedAtMillis = json.optLong("fetchedAtMillis", 0L),
-                providerAttribution = json.optString("providerAttribution", "Open-Meteo (open-meteo.com)"),
+                apparentTemperatureC = if (json.has("apparentTemperatureC") && !json.isNull("apparentTemperatureC")) {
+                    json.getDouble("apparentTemperatureC")
+                } else null,
+                relativeHumidityPct = if (json.has("relativeHumidityPct") && !json.isNull("relativeHumidityPct")) {
+                    json.getInt("relativeHumidityPct")
+                } else null,
+                weatherCode = if (json.has("weatherCode") && !json.isNull("weatherCode")) {
+                    json.optInt("weatherCode", 0)
+                } else 0,
+                windSpeedKmh = if (json.has("windSpeedKmh") && !json.isNull("windSpeedKmh")) {
+                    json.getDouble("windSpeedKmh")
+                } else null,
+                precipitationMm = if (json.has("precipitationMm") && !json.isNull("precipitationMm")) {
+                    json.getDouble("precipitationMm")
+                } else null,
+                isDay = if (json.has("isDay") && !json.isNull("isDay")) {
+                    json.getBoolean("isDay")
+                } else null,
+                providerDataTimeIso = if (json.has("providerDataTimeIso") && !json.isNull("providerDataTimeIso")) {
+                    json.optString("providerDataTimeIso", "")
+                } else "",
+                fetchedAtMillis = if (json.has("fetchedAtMillis") && !json.isNull("fetchedAtMillis")) {
+                    json.optLong("fetchedAtMillis", 0L)
+                } else 0L,
+                providerAttribution = if (json.has("providerAttribution") && !json.isNull("providerAttribution")) {
+                    json.optString("providerAttribution", "Open-Meteo (open-meteo.com)")
+                } else "Open-Meteo (open-meteo.com)",
                 isCached = true
             )
         } catch (_: Exception) {
@@ -109,6 +154,7 @@ object BarnWeatherRepository {
             put("localityName", snapshot.localityName)
             put("latitude", snapshot.latitude)
             put("longitude", snapshot.longitude)
+            put("coordKey", formatCoordKey(snapshot.latitude, snapshot.longitude))
             put("temperatureC", snapshot.temperatureC)
             snapshot.apparentTemperatureC?.let { put("apparentTemperatureC", it) }
             snapshot.relativeHumidityPct?.let { put("relativeHumidityPct", it) }
@@ -130,23 +176,26 @@ object BarnWeatherRepository {
         val clean = query.trim()
         if (clean.length < 2) return emptyList()
         return withContext(Dispatchers.IO) {
+            var conn: HttpURLConnection? = null
             try {
                 val encoded = URLEncoder.encode(clean, "UTF-8")
                 val urlStr = "https://geocoding-api.open-meteo.com/v1/search?name=$encoded&count=$count&language=ar&format=json"
                 val url = URL(urlStr)
-                val conn = (url.openConnection() as HttpURLConnection).apply {
+                conn = (url.openConnection() as HttpURLConnection).apply {
                     requestMethod = "GET"
                     connectTimeout = CONNECT_TIMEOUT_MS
                     readTimeout = READ_TIMEOUT_MS
                     setRequestProperty("Accept", "application/json")
                 }
                 if (conn.responseCode != 200) return@withContext emptyList()
-                val reader = BufferedReader(InputStreamReader(conn.inputStream))
-                val responseText = reader.readText()
-                reader.close()
+                val responseText = BufferedReader(InputStreamReader(conn.inputStream)).use { it.readText() }
                 parseGeocodingJson(responseText)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (_: Exception) {
                 emptyList()
+            } finally {
+                runCatching { conn?.disconnect() }
             }
         }
     }
@@ -159,8 +208,8 @@ object BarnWeatherRepository {
             for (i in 0 until items.length()) {
                 val item = items.getJSONObject(i)
                 val name = item.getString("name")
-                val country = item.optString("country", "")
-                val admin1 = item.optString("admin1", "")
+                val country = if (item.has("country") && !item.isNull("country")) item.optString("country", "") else ""
+                val admin1 = if (item.has("admin1") && !item.isNull("admin1")) item.optString("admin1", "") else ""
                 val lat = item.getDouble("latitude")
                 val lon = item.getDouble("longitude")
                 results.add(
@@ -190,12 +239,13 @@ object BarnWeatherRepository {
     ): WeatherResult<OutdoorWeatherSnapshot> {
         if (!location.isEnabled) return WeatherResult.Disabled
 
-        val cached = getCachedSnapshot(context, accountUid, location.barnId)
+        val cached = getCachedSnapshot(context, accountUid, location.barnId, location)
         if (!forceRefresh && cached != null && cached.isFresh) {
             return WeatherResult.Success(cached, isStale = false)
         }
 
         return withContext(Dispatchers.IO) {
+            var conn: HttpURLConnection? = null
             try {
                 val lat = location.latitude
                 val lon = location.longitude
@@ -205,7 +255,7 @@ object BarnWeatherRepository {
                     "&timezone=auto"
 
                 val url = URL(urlStr)
-                val conn = (url.openConnection() as HttpURLConnection).apply {
+                conn = (url.openConnection() as HttpURLConnection).apply {
                     requestMethod = "GET"
                     connectTimeout = CONNECT_TIMEOUT_MS
                     readTimeout = READ_TIMEOUT_MS
@@ -220,19 +270,20 @@ object BarnWeatherRepository {
                     }
                 }
 
-                val reader = BufferedReader(InputStreamReader(conn.inputStream))
-                val jsonStr = reader.readText()
-                reader.close()
-
+                val jsonStr = BufferedReader(InputStreamReader(conn.inputStream)).use { it.readText() }
                 val parsed = parseWeatherJson(location, jsonStr)
                 saveCachedSnapshot(context, accountUid, parsed)
                 WeatherResult.Success(parsed, isStale = false)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
                 if (cached != null) {
                     WeatherResult.Success(cached, isStale = true)
                 } else {
                     WeatherResult.Error(e.localizedMessage ?: "Failed to reach weather provider", e)
                 }
+            } finally {
+                runCatching { conn?.disconnect() }
             }
         }
     }
@@ -240,15 +291,32 @@ object BarnWeatherRepository {
     fun parseWeatherJson(location: BarnWeatherLocation, jsonStr: String): OutdoorWeatherSnapshot {
         val root = JSONObject(jsonStr)
         val current = root.getJSONObject("current")
+        if (!current.has("temperature_2m") || current.isNull("temperature_2m")) {
+            throw IllegalArgumentException("Missing temperature_2m")
+        }
         val temp = current.getDouble("temperature_2m")
-        val apparent = if (current.has("apparent_temperature")) current.getDouble("apparent_temperature") else null
-        val humidity = if (current.has("relative_humidity_2m")) current.getInt("relative_humidity_2m") else null
-        val code = current.optInt("weather_code", 0)
-        val wind = if (current.has("wind_speed_10m")) current.getDouble("wind_speed_10m") else null
-        val precip = if (current.has("precipitation")) current.getDouble("precipitation") else null
-        val isDayInt = current.optInt("is_day", -1)
-        val isDay = if (isDayInt >= 0) isDayInt == 1 else null
-        val timeIso = current.optString("time", "")
+        val apparent = if (current.has("apparent_temperature") && !current.isNull("apparent_temperature")) {
+            current.getDouble("apparent_temperature")
+        } else null
+        val humidity = if (current.has("relative_humidity_2m") && !current.isNull("relative_humidity_2m")) {
+            current.getInt("relative_humidity_2m")
+        } else null
+        val code = if (current.has("weather_code") && !current.isNull("weather_code")) {
+            current.optInt("weather_code", 0)
+        } else 0
+        val wind = if (current.has("wind_speed_10m") && !current.isNull("wind_speed_10m")) {
+            current.getDouble("wind_speed_10m")
+        } else null
+        val precip = if (current.has("precipitation") && !current.isNull("precipitation")) {
+            current.getDouble("precipitation")
+        } else null
+        val isDay = if (current.has("is_day") && !current.isNull("is_day")) {
+            val isDayInt = current.optInt("is_day", -1)
+            if (isDayInt >= 0) isDayInt == 1 else null
+        } else null
+        val timeIso = if (current.has("time") && !current.isNull("time")) {
+            current.optString("time", "")
+        } else ""
 
         return OutdoorWeatherSnapshot(
             barnId = location.barnId,

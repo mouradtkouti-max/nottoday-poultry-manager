@@ -1332,6 +1332,48 @@ class ExampleRobolectricTest {
         // Malformed json should return empty list gracefully without throwing
         val emptyLocations = BarnWeatherRepository.parseGeocodingJson("{ invalid json }")
         assertTrue(emptyLocations.isEmpty())
+
+        // Explicit JSON null values in optional Open-Meteo fields must parse safely as null without throwing JSONException
+        val jsonWithExplicitNulls = """
+            {
+                "current": {
+                    "time": "2026-11-11T14:00",
+                    "temperature_2m": 22.4,
+                    "apparent_temperature": null,
+                    "relative_humidity_2m": null,
+                    "weather_code": null,
+                    "wind_speed_10m": null,
+                    "precipitation": null,
+                    "is_day": null
+                }
+            }
+        """.trimIndent()
+        val nullSafeSnap = BarnWeatherRepository.parseWeatherJson(testLoc, jsonWithExplicitNulls)
+        assertEquals(22.4, nullSafeSnap.temperatureC, 0.001)
+        assertEquals(null, nullSafeSnap.apparentTemperatureC)
+        assertEquals(null, nullSafeSnap.relativeHumidityPct)
+        assertEquals(null, nullSafeSnap.windSpeedKmh)
+        assertEquals(null, nullSafeSnap.precipitationMm)
+        assertEquals(null, nullSafeSnap.isDay)
+
+        // Coordinate-aware cache invalidation: changing barn location coordinates invalidates old cached snapshot
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        BarnWeatherRepository.saveLocation(context, "uid_weather_test", testLoc)
+        BarnWeatherRepository.saveCachedSnapshot(context, "uid_weather_test", snapshot)
+        assertTrue(BarnWeatherRepository.getCachedSnapshot(context, "uid_weather_test", "farm_1", testLoc) != null)
+
+        val newCityLoc = parsedLocations[1].copy(barnId = "farm_1", isEnabled = true)
+        assertEquals(
+            "Stale cache from Boufarik must not be returned when querying Setif coordinates",
+            null,
+            BarnWeatherRepository.getCachedSnapshot(context, "uid_weather_test", "farm_1", newCityLoc)
+        )
+        BarnWeatherRepository.saveLocation(context, "uid_weather_test", newCityLoc)
+        assertEquals(
+            "Saving a new location with different coordinates must clear old snapshot cache",
+            null,
+            BarnWeatherRepository.getCachedSnapshot(context, "uid_weather_test", "farm_1")
+        )
     }
 
     @Test

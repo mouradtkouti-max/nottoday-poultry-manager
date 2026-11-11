@@ -967,32 +967,54 @@ object AgritechMockDb {
         }
         val finalReport = if (existingIdx >= 0) {
             val old = dailyReports[existingIdx]
-            val prevSummary = report.previousSummary.ifBlank {
-                old.previousSummary.ifBlank {
-                    "العلف: ${Translations.formatQuintalNumber(old.feedIntakeKg / 100.0)} ق • الماء: ${old.waterIntakeLiters.toInt()} L • النافق: ${old.mortalityCount} • الحرارة: ${String.format(java.util.Locale.US, "%.1f", old.temperature)}°"
+            val hasActualValueChange =
+                kotlin.math.abs(report.feedIntakeKg - old.feedIntakeKg) > 0.001 ||
+                kotlin.math.abs(report.waterIntakeLiters - old.waterIntakeLiters) > 0.001 ||
+                report.mortalityCount != old.mortalityCount ||
+                kotlin.math.abs(report.temperature - old.temperature) > 0.01 ||
+                kotlin.math.abs(report.gasUnits - old.gasUnits) > 0.01 ||
+                kotlin.math.abs(report.actualAvgWeightKg - old.actualAvgWeightKg) > 0.001 ||
+                report.medicineGiven != old.medicineGiven ||
+                report.medicineSummary.trim() != old.medicineSummary.trim()
+
+            if (!hasActualValueChange) {
+                val unchanged = report.copy(
+                    id = old.id,
+                    isEdited = old.isEdited,
+                    previousSummary = old.previousSummary,
+                    withdrawalDays = maxOf(report.withdrawalDays, old.withdrawalDays),
+                    updatedAtMillis = old.updatedAtMillis
+                )
+                dailyReports[existingIdx] = unchanged
+                unchanged
+            } else {
+                val prevSummary = report.previousSummary.ifBlank {
+                    old.previousSummary.ifBlank {
+                        "العلف: ${Translations.formatQuintalNumber(old.feedIntakeKg / 100.0)} ق • الماء: ${old.waterIntakeLiters.toInt()} L • النافق: ${old.mortalityCount} • الحرارة: ${String.format(java.util.Locale.US, "%.1f", old.temperature)}°"
+                    }
                 }
-            }
-            val updated = report.copy(
-                id = old.id,
-                isEdited = true,
-                previousSummary = prevSummary,
-                withdrawalDays = maxOf(report.withdrawalDays, old.withdrawalDays),
-                updatedAtMillis = System.currentTimeMillis()
-            )
-            dailyReports[existingIdx] = updated
-            val feedDeltaKg = updated.feedIntakeKg - old.feedIntakeKg
-            val mortalityDelta = updated.mortalityCount - old.mortalityCount
-            if (kotlin.math.abs(feedDeltaKg) > 0.0001 || mortalityDelta != 0) {
-                val cycleIdx = cycles.indexOfFirst { it.id == updated.cycleId || (it.farmId == updated.farmId && it.status.equals("active", true)) }
-                if (cycleIdx >= 0) {
-                    val c = cycles[cycleIdx]
-                    cycles[cycleIdx] = c.copy(
-                        feedInventoryKg = (c.feedInventoryKg - feedDeltaKg).coerceAtLeast(0.0),
-                        cumulativeMortality = (c.cumulativeMortality + mortalityDelta).coerceAtLeast(0)
-                    )
+                val updated = report.copy(
+                    id = old.id,
+                    isEdited = true,
+                    previousSummary = prevSummary,
+                    withdrawalDays = maxOf(report.withdrawalDays, old.withdrawalDays),
+                    updatedAtMillis = System.currentTimeMillis()
+                )
+                dailyReports[existingIdx] = updated
+                val feedDeltaKg = updated.feedIntakeKg - old.feedIntakeKg
+                val mortalityDelta = updated.mortalityCount - old.mortalityCount
+                if (kotlin.math.abs(feedDeltaKg) > 0.0001 || mortalityDelta != 0) {
+                    val cycleIdx = cycles.indexOfFirst { it.id == updated.cycleId || (it.farmId == updated.farmId && it.status.equals("active", true)) }
+                    if (cycleIdx >= 0) {
+                        val c = cycles[cycleIdx]
+                        cycles[cycleIdx] = c.copy(
+                            feedInventoryKg = (c.feedInventoryKg - feedDeltaKg).coerceAtLeast(0.0),
+                            cumulativeMortality = (c.cumulativeMortality + mortalityDelta).coerceAtLeast(0)
+                        )
+                    }
                 }
+                updated
             }
-            updated
         } else {
             val stamped = report.copy(updatedAtMillis = System.currentTimeMillis())
             dailyReports.add(stamped)
@@ -6805,8 +6827,50 @@ fun OwnerGlobalAiVetPlaceholderScreen(
             Translations.tr("ai_vet_analyzing_msg", lang).replace("**", "")
         )
         coroutineScope.launch {
+            val activeFarm = AgritechMockDb.farms.firstOrNull { !AgritechFirestoreRepository.isUnassignedFarm(it.id) }
+            val activeCycle = activeFarm?.let { f ->
+                AgritechMockDb.cycles.firstOrNull { it.farmId == f.id && it.status.equals("active", ignoreCase = true) }
+                    ?: AgritechMockDb.cycles.firstOrNull { it.farmId == f.id }
+            }
+            val activeReports = if (activeFarm != null && activeCycle != null) {
+                AgritechMockDb.resolveReportsForFarmAndCycle(activeFarm.id, activeCycle.id, emptyList())
+            } else {
+                emptyList()
+            }
+            val barnDisplayName = activeFarm?.let { Translations.getLocalizedFarmName(it.id, lang, it.name) }.orEmpty()
+            val realAgeDays = if (activeCycle != null) {
+                val maxDay = activeReports.maxOfOrNull { it.dayNumber } ?: 1
+                PoultryCalculators.calculateCycleDay(activeCycle.startDate, maxDay)
+            } else {
+                1
+            }
+            val realTotalMortality = activeReports.sumOf { it.mortalityCount }
+            val realLiveBirds = if (activeCycle != null) {
+                PoultryCalculators.calculateLiveBirds(
+                    totalBirdsPlaced = activeCycle.totalBirdsPlaced,
+                    totalMortality = realTotalMortality,
+                    cumulativeBirdsSold = activeCycle.cumulativeBirdsSold
+                )
+            } else {
+                0
+            }
+            val realMortalityPct = if (activeCycle != null && activeCycle.totalBirdsPlaced > 0) {
+                (realTotalMortality.toDouble() / activeCycle.totalBirdsPlaced) * 100.0
+            } else {
+                0.0
+            }
+            val latestRecordedTempC = activeReports.maxByOrNull { it.dayNumber }?.temperature?.takeIf { it > 0.0 }
+
             val reply = try {
-                AiVetGeminiService.generateVetResponse(cleanQuery, lang).replace("**", "")
+                AiVetGeminiService.generateVetResponse(
+                    question = cleanQuery,
+                    lang = lang,
+                    flockAgeDays = realAgeDays,
+                    liveBirds = realLiveBirds,
+                    mortalityPct = realMortalityPct,
+                    currentTempC = latestRecordedTempC,
+                    barnName = barnDisplayName
+                ).replace("**", "")
             } catch (e: Exception) {
                 Translations.tr("ai_vet_fallback_reply", lang).replace("**", "")
             }
@@ -10435,7 +10499,7 @@ fun AgritechFarmNotebookScreen(
                 onFinalizeAndMigrate = {
                     if (totalSalesValue > 0.0 && totalNetKg > 0.0 && totalBirdsSold in 1..liveBirds) {
                         val invoiceNumber = "INV-${farm.id.takeLast(1).uppercase()}-${String.format(java.util.Locale.US, "%04d", transactions.count { it.type == TransactionType.INCOME } + 1)}"
-                        val invoiceIdempKey = "tx_sale_${farm.id}_${cycle.id}_${invoiceNumber}"
+                        val invoiceIdempKey = "sale_${farm.id}_${cycle.id}_${System.currentTimeMillis()}"
                         if (invoiceIdempKey != lastSubmittedIdempotencyKey) {
                             lastSubmittedIdempotencyKey = invoiceIdempKey
                             val completedInvoice = SalesInvoiceModel(
@@ -10590,10 +10654,11 @@ fun AgritechFarmNotebookScreen(
                 IndoorReadingState.fromManualReport(farm.id, latestReportForHeader)
             }
             val liveTempC = typedIndoorReading.temperatureC ?: (latestReportForHeader?.temperature ?: 0.0)
+            val hasRecordedTemperature = liveTempC > 0.0
             val liveAmmoniaPpm = typedIndoorReading.ammoniaPpm ?: 0.0
             val liveVentStatus = typedIndoorReading.ventilationStatus ?: (latestReportForHeader?.ventilationStatus ?: "جيدة")
-            val isClimateAlert = (liveTempC > 33.5 && liveTempC > 0.0) || (liveTempC < 19.0 && liveTempC > 0.0) || liveAmmoniaPpm > 18.0
-            val isClimateWarning = !isClimateAlert && ((liveTempC > 31.5 && liveTempC > 0.0) || liveAmmoniaPpm > 12.0)
+            val isClimateAlert = (hasRecordedTemperature && (liveTempC > 33.5 || liveTempC < 19.0)) || liveAmmoniaPpm > 18.0
+            val isClimateWarning = !isClimateAlert && ((hasRecordedTemperature && liveTempC > 31.5) || liveAmmoniaPpm > 12.0)
 
             if (showBarnClimateAndStatsDialog) {
                 BarnClimateAndStatsDialog(
@@ -11369,8 +11434,13 @@ fun AgritechFarmNotebookScreen(
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.Center
                                     ) {
+                                        val climateHeaderBtnText = if (hasRecordedTemperature) {
+                                            "🌡️ ${String.format(java.util.Locale.US, "%.1f°C", liveTempC)} • ${Translations.tr("climate_header_btn_label", lang)}"
+                                        } else {
+                                            "🌡️ ${Translations.tr("climate_header_btn_label", lang)} • —"
+                                        }
                                         Text(
-                                            "🌡️ ${String.format(java.util.Locale.US, "%.1f°C", liveTempC)} • ${Translations.tr("climate_header_btn_label", lang)}",
+                                            climateHeaderBtnText,
                                             fontSize = 11.sp,
                                             fontWeight = FontWeight.ExtraBold,
                                             color = climatePillColor,
@@ -13107,7 +13177,24 @@ fun OwnerDailyReportDialog(
                     value = dayNumberInput,
                     onValueChange = { if (!isEditMode) dayNumberInput = it.filter { ch -> ch.isDigit() } },
                     readOnly = isEditMode,
-                    label = { Text(Translations.tr("field_day_number_mid_cycle", lang), fontSize = 11.5.sp, color = secondaryText) },
+                    label = {
+                        Text(
+                            Translations.tr("field_day_number_mid_cycle", lang),
+                            fontSize = 11.5.sp,
+                            color = secondaryText,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    },
+                    supportingText = {
+                        Text(
+                            Translations.tr("field_day_number_mid_cycle_hint", lang),
+                            fontSize = 10.5.sp,
+                            color = secondaryText.copy(alpha = 0.85f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     shape = RoundedCornerShape(12.dp),
@@ -13348,6 +13435,17 @@ fun OwnerDailyReportDialog(
                         ""
                     }
 
+                    val hasActualValueChange = initialReport != null && (
+                        kotlin.math.abs(parsedFeedKg - initialReport.feedIntakeKg) > 0.001 ||
+                            kotlin.math.abs(parsedWater - initialReport.waterIntakeLiters) > 0.001 ||
+                            parsedMortality != initialReport.mortalityCount ||
+                            kotlin.math.abs(parsedTemp - initialReport.temperature) > 0.01 ||
+                            kotlin.math.abs(parsedGas - initialReport.gasUnits) > 0.01 ||
+                            kotlin.math.abs(resolvedActualWeightKg - initialReport.actualAvgWeightKg) > 0.001 ||
+                            medicineGivenToggle != initialReport.medicineGiven ||
+                            resolvedMedName.trim() != initialReport.medicineSummary.trim()
+                    )
+
                     val reportId = initialReport?.id ?: "rep_${farm.id}_${cycle.id}_d$parsedDay"
                     val reportToSave = DailyReportModel(
                         id = reportId,
@@ -13361,8 +13459,18 @@ fun OwnerDailyReportDialog(
                         gasUnits = parsedGas,
                         ventilationStatus = initialReport?.ventilationStatus ?: "جيدة",
                         actualAvgWeightKg = resolvedActualWeightKg,
-                        isEdited = isEditMode,
-                        previousSummary = initialReport?.previousSummary ?: "",
+                        isEdited = if (initialReport != null) {
+                            initialReport.isEdited || hasActualValueChange
+                        } else {
+                            false
+                        },
+                        previousSummary = if (initialReport != null && hasActualValueChange) {
+                            initialReport.previousSummary.ifBlank {
+                                "العلف: ${Translations.formatQuintalNumber(initialReport.feedIntakeKg / 100.0)} ق • الماء: ${initialReport.waterIntakeLiters.toInt()} L • النافق: ${initialReport.mortalityCount} • الحرارة: ${String.format(java.util.Locale.US, "%.1f", initialReport.temperature)}°"
+                            }
+                        } else {
+                            initialReport?.previousSummary ?: ""
+                        },
                         medicineGiven = medicineGivenToggle,
                         medicineSummary = resolvedMedName
                     )

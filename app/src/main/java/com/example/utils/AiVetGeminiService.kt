@@ -24,7 +24,7 @@ fun configureAppCheck(context: Context, intent: Intent?) {
  * Data model for live Smart Barn Robot & Gas/Climate IoT Telemetry ("🤖 روبوت وحساسات العنبر الذكية").
  */
 data class SmartBarnTelemetrySnapshot(
-    val isRobotConnected: Boolean = true,
+    val isRobotConnected: Boolean = false,
     val ammoniaNh3Ppm: Int = 12,
     val co2Ppm: Int = 1800,
     val gasPressurePct: Int = 85,
@@ -112,13 +112,14 @@ object AiVetGeminiService {
         flockAgeDays: Int,
         liveBirds: Int,
         mortalityPct: Double,
-        currentTempC: Double,
+        currentTempC: Double?,
         lang: AppLanguage,
-        telemetry: SmartBarnTelemetrySnapshot? = null
+        telemetry: SmartBarnTelemetrySnapshot? = null,
+        barnName: String = ""
     ): String = withContext(Dispatchers.IO) {
         val cleanQuestion = question.trim()
         if (cleanQuestion.isEmpty()) {
-            return@withContext buildClinicalFallbackAdvice("", flockAgeDays, liveBirds, mortalityPct, currentTempC, lang, telemetry)
+            return@withContext buildClinicalFallbackAdvice("", flockAgeDays, liveBirds, mortalityPct, currentTempC, lang, telemetry, barnName)
         }
 
         val langInstruction = when (lang) {
@@ -129,9 +130,13 @@ object AiVetGeminiService {
             else -> "Respond in English as an expert broiler poultry veterinarian (Ross 308), using concise, actionable bullet points (Likely Diagnosis, Immediate Barn Action, Suggested Treatment, Withdrawal Period)."
         }
 
-        val telemetrySection = if (telemetry != null) {
+        val hasValidTemp = currentTempC != null && currentTempC > 0.0
+        val tempLabelEn = if (hasValidTemp) "${String.format(java.util.Locale.US, "%.1f", currentTempC)}°C" else "Not recorded"
+        val barnHeaderLine = if (barnName.isNotBlank()) "- Active Barn: $barnName\n            " else ""
+
+        val telemetrySection = if (telemetry != null && telemetry.isRobotConnected) {
             """
-            - Smart Barn Robot Telemetry: Mode=${if (telemetry.isRobotConnected) "Connected to Robot" else "Manual"}, Ammonia (NH3)=${telemetry.ammoniaNh3Ppm} ppm, CO2=${telemetry.co2Ppm} ppm, Gas Pressure=${telemetry.gasPressurePct}%, Barn Temp=${telemetry.temperatureC}°C, Humidity=${telemetry.humidityPct}%
+            - Smart Barn Sensor Simulation Telemetry: Ammonia (NH3)=${telemetry.ammoniaNh3Ppm} ppm, CO2=${telemetry.co2Ppm} ppm, Gas Pressure=${telemetry.gasPressurePct}%, Barn Temp=${telemetry.temperatureC}°C, Humidity=${telemetry.humidityPct}%
             """.trimIndent()
         } else {
             ""
@@ -140,10 +145,10 @@ object AiVetGeminiService {
         val systemContext = """
             You are an expert Broiler Poultry Veterinarian & Smart Barn IoT Specialist.
             Current Barn Telemetry:
-            - Flock Age: $flockAgeDays days
+            ${barnHeaderLine}- Flock Age: $flockAgeDays days
             - Live Birds: $liveBirds birds
             - Cumulative Mortality: ${String.format(java.util.Locale.US, "%.2f", mortalityPct)}%
-            - Barn Temperature: ${String.format(java.util.Locale.US, "%.1f", currentTempC)}°C
+            - Barn Temperature: $tempLabelEn
             $telemetrySection
             $langInstruction
         """.trimIndent()
@@ -166,7 +171,7 @@ object AiVetGeminiService {
             // Safe fallback when offline, unauthenticated, or when Firebase AI Logic is unavailable
         }
 
-        buildClinicalFallbackAdvice(cleanQuestion, flockAgeDays, liveBirds, mortalityPct, currentTempC, lang, telemetry)
+        buildClinicalFallbackAdvice(cleanQuestion, flockAgeDays, liveBirds, mortalityPct, currentTempC, lang, telemetry, barnName)
     }
 
     /**
@@ -182,17 +187,30 @@ object AiVetGeminiService {
         telemetry: SmartBarnTelemetrySnapshot,
         lang: AppLanguage
     ): String {
+        val effectiveTemp = if (telemetry.isRobotConnected) telemetry.temperatureC else null
         val prompt = when (lang) {
-            AppLanguage.AR -> "قم بتحليل قراءات روبوت العنبر الذكي: الأمونيا NH3=${telemetry.ammoniaNh3Ppm} ppm، ثاني أكسيد الكربون CO2=${telemetry.co2Ppm} ppm، ضغط الغاز=${telemetry.gasPressurePct}%، الحرارة=${telemetry.temperatureC}°C، الرطوبة=${telemetry.humidityPct}%، عمر القطيع $flockAgeDays يوم، استهلاك العلف ${String.format(java.util.Locale.US, "%.1f", dailyFeedQuintals)} قنطار."
-            AppLanguage.FR -> "Analysez la télémétrie du robot du poulailler : NH3=${telemetry.ammoniaNh3Ppm} ppm, CO2=${telemetry.co2Ppm} ppm, Gaz=${telemetry.gasPressurePct}%, Temp=${telemetry.temperatureC}°C, Humidité=${telemetry.humidityPct}%, Âge=$flockAgeDays j."
-            else -> "Analyze Smart Barn Robot telemetry: Ammonia NH3=${telemetry.ammoniaNh3Ppm} ppm, CO2=${telemetry.co2Ppm} ppm, Gas Pressure=${telemetry.gasPressurePct}%, Temp=${telemetry.temperatureC}°C, Humidity=${telemetry.humidityPct}%, Flock Age=$flockAgeDays days."
+            AppLanguage.AR -> if (telemetry.isRobotConnected) {
+                "قم بتحليل قراءات روبوت العنبر الذكي: الأمونيا NH3=${telemetry.ammoniaNh3Ppm} ppm، ثاني أكسيد الكربون CO2=${telemetry.co2Ppm} ppm، ضغط الغاز=${telemetry.gasPressurePct}%، الحرارة=${telemetry.temperatureC}°C، الرطوبة=${telemetry.humidityPct}%، عمر القطيع $flockAgeDays يوم، استهلاك العلف ${String.format(java.util.Locale.US, "%.1f", dailyFeedQuintals)} قنطار."
+            } else {
+                "قم بتحليل مؤشرات القطيع في الوضع اليدوي (بدون حساسات متصلة): عمر القطيع $flockAgeDays يوم، الطيور الحية $liveBirds، استهلاك العلف ${String.format(java.util.Locale.US, "%.1f", dailyFeedQuintals)} قنطار."
+            }
+            AppLanguage.FR -> if (telemetry.isRobotConnected) {
+                "Analysez la télémétrie du robot du poulailler : NH3=${telemetry.ammoniaNh3Ppm} ppm, CO2=${telemetry.co2Ppm} ppm, Gaz=${telemetry.gasPressurePct}%, Temp=${telemetry.temperatureC}°C, Humidité=${telemetry.humidityPct}%, Âge=$flockAgeDays j."
+            } else {
+                "Analysez le troupeau en mode manuel (capteurs déconnectés) : Âge=$flockAgeDays j, Oiseaux=$liveBirds."
+            }
+            else -> if (telemetry.isRobotConnected) {
+                "Analyze Smart Barn Robot telemetry: Ammonia NH3=${telemetry.ammoniaNh3Ppm} ppm, CO2=${telemetry.co2Ppm} ppm, Gas Pressure=${telemetry.gasPressurePct}%, Temp=${telemetry.temperatureC}°C, Humidity=${telemetry.humidityPct}%, Flock Age=$flockAgeDays days."
+            } else {
+                "Analyze flock in manual mode (sensors disconnected): Flock Age=$flockAgeDays days, Live Birds=$liveBirds."
+            }
         }
         return askAiVeterinarian(
             question = prompt,
             flockAgeDays = flockAgeDays,
             liveBirds = liveBirds,
             mortalityPct = mortalityPct,
-            currentTempC = telemetry.temperatureC,
+            currentTempC = effectiveTemp,
             lang = lang,
             telemetry = telemetry
         )
@@ -201,10 +219,11 @@ object AiVetGeminiService {
     suspend fun generateVetResponse(
         question: String,
         lang: AppLanguage,
-        flockAgeDays: Int = 25,
-        liveBirds: Int = 7880,
-        mortalityPct: Double = 1.5,
-        currentTempC: Double = 21.3
+        flockAgeDays: Int = 1,
+        liveBirds: Int = 0,
+        mortalityPct: Double = 0.0,
+        currentTempC: Double? = null,
+        barnName: String = ""
     ): String {
         return askAiVeterinarian(
             question = question,
@@ -212,59 +231,70 @@ object AiVetGeminiService {
             liveBirds = liveBirds,
             mortalityPct = mortalityPct,
             currentTempC = currentTempC,
-            lang = lang
+            lang = lang,
+            barnName = barnName
         )
     }
 
     fun buildClinicalFallbackAdvice(
         question: String,
-        flockAgeDays: Int = 25,
-        liveBirds: Int = 7880,
-        mortalityPct: Double = 1.5,
-        currentTempC: Double = 21.3,
+        flockAgeDays: Int = 1,
+        liveBirds: Int = 0,
+        mortalityPct: Double = 0.0,
+        currentTempC: Double? = null,
         lang: AppLanguage = AppLanguage.AR,
-        telemetry: SmartBarnTelemetrySnapshot? = null
+        telemetry: SmartBarnTelemetrySnapshot? = null,
+        barnName: String = ""
     ): String {
         val q = question.lowercase()
-        val isAmmoniaHigh = (telemetry?.ammoniaNh3Ppm ?: 12) >= 20 || q.contains("nh3") || q.contains("أمونيا") || q.contains("امونيا") || q.contains("ammonia")
-        val isRobotTelemetryQuery = telemetry != null || q.contains("روبوت") || q.contains("robot") || q.contains("حساسات")
+        val hasConnectedTelemetry = telemetry != null && telemetry.isRobotConnected
+        val isAmmoniaHigh = (hasConnectedTelemetry && (telemetry?.ammoniaNh3Ppm ?: 0) >= 20) || q.contains("nh3") || q.contains("أمونيا") || q.contains("امونيا") || q.contains("ammonia")
+        val isRobotTelemetryQuery = hasConnectedTelemetry || q.contains("روبوت") || q.contains("robot") || q.contains("حساسات")
         val isRespiratory = q.contains("تنفس") || q.contains("شخير") || q.contains("عطس") || q.contains("حشرجة") ||
             q.contains("respir") || q.contains("cough") || q.contains("râle") || q.contains("toux")
         val isCoccidiosis = q.contains("كوكسيديا") || q.contains("إسهال") || q.contains("اسهال") || q.contains("مدمم") ||
             q.contains("أحمر") || q.contains("بني") || q.contains("coccid") || q.contains("diarr") || q.contains("blood")
+        val hasValidTemp = currentTempC != null && currentTempC > 0.0
         val isHeatStress = q.contains("حرارة") || q.contains("نهجان") || q.contains("احتباس") ||
-            q.contains("heat") || q.contains("chaleur") || currentTempC >= 31.0
+            q.contains("heat") || q.contains("chaleur") || (hasValidTemp && currentTempC!! >= 31.0)
+
+        val tempDisplayAr = if (hasValidTemp) "${String.format(java.util.Locale.US, "%.1f", currentTempC)}°C" else "غير مسجلة"
+        val tempDisplayFr = if (hasValidTemp) "${String.format(java.util.Locale.US, "%.1f", currentTempC)}°C" else "Non enregistrée"
+        val tempDisplayEn = if (hasValidTemp) "${String.format(java.util.Locale.US, "%.1f", currentTempC)}°C" else "Not recorded"
+        val barnLabelAr = if (barnName.isNotBlank()) "$barnName • " else ""
+        val barnLabelFr = if (barnName.isNotBlank()) "$barnName • " else ""
+        val barnLabelEn = if (barnName.isNotBlank()) "$barnName • " else ""
 
         val rawText = when (lang) {
             AppLanguage.AR -> when {
                 isAmmoniaHigh -> """
                     🚨 تحليل روبوت العنبر: تنبيه ارتفاع غاز الأمونيا (NH3 = ${telemetry?.ammoniaNh3Ppm ?: 26} ppm 🔴 خطر تنفسي)
-                    • التشخيص الميداني (العمر $flockAgeDays يوم • $liveBirds طائر): تجاوز الأمونيا حد 20 ppm يسبب تهيج الأغشية المخاطية للقصبة الهوائية ويضعف المناعة الموضعية ضد النيوكاسل والـ CRD.
+                    • التشخيص الميداني (${barnLabelAr}العمر $flockAgeDays يوم • $liveBirds طائر): تجاوز الأمونيا حد 20 ppm يسبب تهيج الأغشية المخاطية للقصبة الهوائية ويضعف المناعة الموضعية ضد النيوكاسل والـ CRD.
                     • الإجراء الفوري للتهوية والفرشة:
                       1. رفع دورة شفاطات التهوية الدنيا بنسبة 25% لمدة 30 دقيقة لطرد الغازات الثقيلة دون إحداث تيار بارد مباشر.
                       2. فحص خطوط الحلمات (Nipples) وتقليب البقع الرطبة في الفرشة مع نثر الجير المطفي أو سوبر فوسفات وفوقها طبقة نشارة جافة.
                       3. إعطاء مقشع وموسع شعب (المنثول + الأوكاليبتوس) في مياه الشرب لمدة 3 أيام مع فيتامين C.
                 """.trimIndent()
                 isRobotTelemetryQuery -> """
-                    🤖 تقرير الفحص الذكي لروبوت العنبر (العمر $flockAgeDays يوم • $liveBirds طائر):
-                    • قراءات الحساسات الحية: الأمونيا NH3 = ${telemetry?.ammoniaNh3Ppm ?: 12} ppm (🟢 آمن < 20 ppm) | ثاني أكسيد الكربون CO2 = ${telemetry?.co2Ppm ?: 1800} ppm (🟢 جيد) | ضغط الغاز = ${telemetry?.gasPressurePct ?: 85}% (🟢 مستقر) | الحرارة = ${String.format(java.util.Locale.US, "%.1f", telemetry?.temperatureC ?: currentTempC)}°C • الرطوبة = ${telemetry?.humidityPct ?: 58}%.
+                    🤖 تقرير الفحص الذكي لروبوت العنبر (${barnLabelAr}العمر $flockAgeDays يوم • $liveBirds طائر):
+                    • قراءات الحساسات الحية: الأمونيا NH3 = ${telemetry?.ammoniaNh3Ppm ?: 12} ppm (🟢 آمن < 20 ppm) | ثاني أكسيد الكربون CO2 = ${telemetry?.co2Ppm ?: 1800} ppm (🟢 جيد) | ضغط الغاز = ${telemetry?.gasPressurePct ?: 85}% (🟢 مستقر) | الحرارة = ${if (telemetry != null && telemetry.isRobotConnected) "${String.format(java.util.Locale.US, "%.1f", telemetry.temperatureC)}°C" else tempDisplayAr} • الرطوبة = ${telemetry?.humidityPct ?: 58}%.
                     • التقييم البيطري والإنتاجي:
                       1. جودة الهواء ممتازة ونسبة الأكسجين مثالية لتحويل العلف (FCR) في عمر $flockAgeDays يوم.
                       2. حافظ على التهوية التبادلية الهادئة وتأكد من ثبات حرارة العنبر حول ${if (flockAgeDays >= 28) "20.5°C - 21.5°C" else "24.0°C - 26.0°C"}.
                       3. استمر في مراقبة استهلاك الماء اليومي (نسبة الماء للعلف ~1.8 : 1)؛ القطيع جاهز لتحقيق أوزان قياسية بإذن الله.
                 """.trimIndent()
                 isRespiratory -> """
-                    🩺 التشخيص البيطري المبدئي (عمر $flockAgeDays يوم):
+                    🩺 التشخيص البيطري المبدئي (${barnLabelAr}عمر $flockAgeDays يوم • $liveBirds طائر):
                     • اشتباه عدوى تنفسية (CRD / مايكوبلازما) أو رد فعل ما بعد التحصين، خاصة إذا ترافقت الأعراض مع رطوبة الفرشة أو غاز الأمونيا.
                     • الإجراء الفوري في العنبر:
-                      1. تحسين التهوية السقفية تدريجياً لطرد الأمونيا دون تعريض الطيور لتيار هواء بارد مباشر (حرارة العنبر الحالية: ${String.format(java.util.Locale.US, "%.1f", currentTempC)}°C).
+                      1. تحسين التهوية السقفية تدريجياً لطرد الأمونيا دون تعريض الطيور لتيار هواء بارد مباشر (حرارة العنبر المسجلة: $tempDisplayAr).
                       2. تقديم موسع شعب ومقشع طبيعي (المنتول + الأوكاليبتوس) في ماء الشرب لمدة 3 أيام.
                     • العلاج الدوائي المقترح (تحت إشراف طبيب المزرعة):
                       - التيلوزين (Tylosin) أو دوكسيسيكلين لمدة 4 أيام متتالية مع رافع مناعة وفيتامين AD3E.
                     • ⏳ تنبيه فترة السحب: يمنع بيع الطيور للاستهلاك قبل انقضاء 5 إلى 7 أيام من آخر جرعة مضاد حيوي.
                 """.trimIndent()
                 isCoccidiosis -> """
-                    🩺 التشخيص البيطري المبدئي (عمر $flockAgeDays يوم):
+                    🩺 التشخيص البيطري المبدئي (${barnLabelAr}عمر $flockAgeDays يوم • $liveBirds طائر):
                     • اشتباه كوكسيديا معوية أو أعوريه (Eimeria) ناتجة عن زيادة رطوبة الفرشة حول خطوط الحلمات.
                     • الإجراء الفوري في العنبر:
                       1. تقليب الفرشة الرطبة فوراً وإضافة طبقة نشارة جافة مع الجير المطفي تحت خطوط الماء.
@@ -272,15 +302,15 @@ object AiVetGeminiService {
                       3. دعم الأمعاء بالأحماض العضوية والـ Probiotics بعد انتهاء العلاج.
                 """.trimIndent()
                 isHeatStress -> """
-                    🩺 تنبيه إجهاد حراري (حرارة العنبر ${String.format(java.util.Locale.US, "%.1f", currentTempC)}°C - عمر $flockAgeDays يوم):
+                    🩺 تنبيه إجهاد حراري (${barnLabelAr}حرارة العنبر $tempDisplayAr - عمر $flockAgeDays يوم):
                     • الإجراء الفوري:
                       1. رفع العلف خلال ساعات الذروة الحارة (من 11 صباحاً حتى 4 عصراً) لتقليل الحرارة الاستقلابية.
                       2. إضافة فيتامين C + إلكتروليت (بيكربونات الصوديوم) في ماء الشرب البارد لتعويض التوازن الشاردي.
                       3. تشغيل خلايا التبريد والمراوح تدريجياً مع مراقبة الرطوبة النسبية.
                 """.trimIndent()
                 else -> """
-                    🩺 التوصية البيطرية الذكية للقطيع (العمر: $flockAgeDays يوم • العدد الحي: $liveBirds طائر):
-                    • تقييم المؤشرات الحيوية: نسبة النفوق التراكمية (${String.format(java.util.Locale.US, "%.2f", mortalityPct)}%) وحرارة العنبر (${String.format(java.util.Locale.US, "%.1f", currentTempC)}°C).
+                    🩺 التوصية البيطرية الذكية للقطيع (${barnLabelAr}العمر: $flockAgeDays يوم • العدد الحي: $liveBirds طائر):
+                    • تقييم المؤشرات الحيوية: نسبة النفوق التراكمية (${String.format(java.util.Locale.US, "%.2f", mortalityPct)}%) وحرارة العنبر ($tempDisplayAr).
                     • خطة العمل الموصى بها:
                       1. الفرشة والتهوية: حافظ على جفاف الفرشة وتأكد من عدم وجود رائحة أمونيا في مستوى رأس الطائر.
                       2. برنامج المياه: افحص نظافة خطوط الشرب (النيبل) وقدم جرعة فيتامين AD3E + أملاح معدنية لدعم النمو والتحويل الغذائي (FCR).
@@ -290,15 +320,15 @@ object AiVetGeminiService {
             AppLanguage.FR -> when {
                 isAmmoniaHigh -> """
                     🚨 Alerte Robot IoT : Ammoniac élevé (NH3 = ${telemetry?.ammoniaNh3Ppm ?: 26} ppm 🔴 Risque respiratoire)
-                    • Diagnostic (Âge $flockAgeDays j • $liveBirds sujets) : Un taux de NH3 > 20 ppm irrite la trachée et favorise les infections CRD.
+                    • Diagnostic (${barnLabelFr}Âge $flockAgeDays j • $liveBirds sujets) : Un taux de NH3 > 20 ppm irrite la trachée et favorise les infections CRD.
                     • Actions immédiates :
                       1. Augmenter l'extraction d'air de +25% pendant 30 minutes sans courant d'air froid.
                       2. Assécher les zones humides sous les pipettes avec du copeau sec.
                       3. Administrer un complexe huiles essentielles (Menthol/Eucalyptus) + Vitamine C pendant 3 jours.
                 """.trimIndent()
                 else -> """
-                    🩺 Analyse Vétérinaire & Robot IoT (Âge : $flockAgeDays j • Effectif vif : $liveBirds sujets) :
-                    • Indicateurs : Mortalité cumulée (${String.format(java.util.Locale.US, "%.2f", mortalityPct)}%), Température (${String.format(java.util.Locale.US, "%.1f", currentTempC)}°C), NH3 (${telemetry?.ammoniaNh3Ppm ?: 12} ppm).
+                    🩺 Analyse Vétérinaire & Robot IoT (${barnLabelFr}Âge : $flockAgeDays j • Effectif vif : $liveBirds sujets) :
+                    • Indicateurs : Mortalité cumulée (${String.format(java.util.Locale.US, "%.2f", mortalityPct)}%), Température ($tempDisplayFr), NH3 (${if (hasConnectedTelemetry) "${telemetry?.ammoniaNh3Ppm} ppm" else "Non enregistré"}).
                     • Actions immédiates recommandées :
                       1. Ventilation & Litière : Maintenez une litière sèche et contrôlez le taux d'ammoniac (NH3 < 20 ppm).
                       2. Eau de boisson : Administrez un complexe Vitamines AD3E + Électrolytes ou Hépato-protecteur selon l'état clinique.
@@ -308,15 +338,15 @@ object AiVetGeminiService {
             else -> when {
                 isAmmoniaHigh -> """
                     🚨 Smart Barn Robot Alert: High Ammonia Detected (NH3 = ${telemetry?.ammoniaNh3Ppm ?: 26} ppm 🔴 Respiratory Risk)
-                    • Clinical Impact (Day $flockAgeDays • $liveBirds birds): NH3 above 20 ppm damages tracheal cilia and triggers secondary CRD / E. coli.
+                    • Clinical Impact (${barnLabelEn}Day $flockAgeDays • $liveBirds birds): NH3 above 20 ppm damages tracheal cilia and triggers secondary CRD / E. coli.
                     • Immediate Action Plan:
                       1. Increase minimum ventilation exhaust fans by +25% for 30 minutes to purge heavy gases.
                       2. Inspect drinker nipples for leaks and top-dress wet litter spots with dry shavings.
                       3. Add Menthol/Eucalyptus respiratory tonic + Vitamin C in drinking water for 3 days.
                 """.trimIndent()
                 else -> """
-                    🩺 AI Vet & Smart Robot Assessment (Flock Age: $flockAgeDays days • Live Birds: $liveBirds):
-                    • Vital Signs: Cumulative mortality (${String.format(java.util.Locale.US, "%.2f", mortalityPct)}%), Barn Temp (${String.format(java.util.Locale.US, "%.1f", currentTempC)}°C), NH3 (${telemetry?.ammoniaNh3Ppm ?: 12} ppm).
+                    🩺 AI Vet & Smart Robot Assessment (${barnLabelEn}Flock Age: $flockAgeDays days • Live Birds: $liveBirds):
+                    • Vital Signs: Cumulative mortality (${String.format(java.util.Locale.US, "%.2f", mortalityPct)}%), Barn Temp ($tempDisplayEn), NH3 (${if (hasConnectedTelemetry) "${telemetry?.ammoniaNh3Ppm} ppm" else "Not recorded"}).
                     • Recommended Action Plan:
                       1. Litter & Air Quality: Keep litter friable and dry under drinker lines; ensure ammonia stays below 20 ppm.
                       2. Water Supplementation: Provide AD3E vitamins + electrolytes or organic acids to optimize gut health and FCR.
