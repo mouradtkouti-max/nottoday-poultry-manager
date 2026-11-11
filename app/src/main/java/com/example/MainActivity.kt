@@ -967,15 +967,7 @@ object AgritechMockDb {
         }
         val finalReport = if (existingIdx >= 0) {
             val old = dailyReports[existingIdx]
-            val hasActualValueChange =
-                kotlin.math.abs(report.feedIntakeKg - old.feedIntakeKg) > 0.001 ||
-                kotlin.math.abs(report.waterIntakeLiters - old.waterIntakeLiters) > 0.001 ||
-                report.mortalityCount != old.mortalityCount ||
-                kotlin.math.abs(report.temperature - old.temperature) > 0.01 ||
-                kotlin.math.abs(report.gasUnits - old.gasUnits) > 0.01 ||
-                kotlin.math.abs(report.actualAvgWeightKg - old.actualAvgWeightKg) > 0.001 ||
-                report.medicineGiven != old.medicineGiven ||
-                report.medicineSummary.trim() != old.medicineSummary.trim()
+            val hasActualValueChange = report.hasActualValueChangesFrom(old)
 
             if (!hasActualValueChange) {
                 val unchanged = report.copy(
@@ -2955,7 +2947,7 @@ fun AgritechOwnerDashboard(
         floatingActionButton = {
             when (selectedGlobalTab) {
                 GlobalDashboardTab.BARNS -> {
-                    if (activeRole.isOwnerRole) {
+                    if (activeRole.isOwnerRole && farms.isNotEmpty()) {
                         FloatingActionButton(
                             onClick = onTapNewBarnOrCycle,
                             containerColor = primaryButtonAccent,
@@ -3464,6 +3456,8 @@ fun ManagementHubScreen(
     onIssueVetInvoiceForFarm: (FarmModel) -> Unit,
     onOpenImporterChat: (String, String) -> Unit
 ) {
+    val context = LocalContext.current
+    val sessionState = LocalAgritechAppState.current
     val appearance = LocalAppAppearanceState.current
     val isDark = currentTheme.isDark
     val primaryTextColor = if (isDark) Color(0xFFFFFFFF) else currentTheme.headingColor
@@ -3479,6 +3473,62 @@ fun ManagementHubScreen(
     var selectedVetHubTab by rememberSaveable { mutableStateOf(0) }
     var selectedWorkerHubTab by rememberSaveable { mutableStateOf(0) }
     var showPartnerFinancialReqDialog by remember { mutableStateOf(false) }
+    var showMyManagementsDialog by remember { mutableStateOf(false) }
+    var showAddManagementDialog by remember { mutableStateOf(false) }
+
+    val enabledRolesForUser = remember(
+        sessionState.currentUserUid,
+        sessionState.enabledRolesForUser,
+        sessionState.currentRole,
+        sessionState.hasSelectedInitialProfession
+    ) {
+        val persisted = SaasPreferencesManager.getEnabledRolesForUser(context, sessionState.currentUserUid)
+        when {
+            persisted.isNotEmpty() -> persisted
+            sessionState.enabledRolesForUser.isNotEmpty() -> sessionState.enabledRolesForUser
+            sessionState.hasSelectedInitialProfession && activeRole.isCurrentlyAvailable -> setOf(normalizedRole)
+            else -> emptySet()
+        }
+    }
+
+    if (showMyManagementsDialog) {
+        MyManagementsDialog(
+            enabledRoles = enabledRolesForUser,
+            activeRole = activeRole,
+            lang = lang,
+            currentTheme = currentTheme,
+            onSelectEnabledRole = { chosenRole ->
+                if (sessionState.trySwitchOrAddManagement(context, chosenRole)) {
+                    onSelectRole(chosenRole)
+                }
+            },
+            onOpenAddManagement = {
+                showMyManagementsDialog = false
+                showAddManagementDialog = true
+            },
+            onDismiss = { showMyManagementsDialog = false }
+        )
+    }
+
+    if (showAddManagementDialog) {
+        val hasAdditionalEntitlement = SaasPreferencesManager.hasAdditionalRoleEntitlement(
+            context,
+            sessionState.currentUserUid
+        )
+        AddManagementDialog(
+            enabledRoles = enabledRolesForUser,
+            activeRole = activeRole,
+            hasAdditionalRoleEntitlement = hasAdditionalEntitlement,
+            lang = lang,
+            currentTheme = currentTheme,
+            onEnableAndSwitchRole = { chosenRole ->
+                if (sessionState.trySwitchOrAddManagement(context, chosenRole)) {
+                    onSelectRole(chosenRole)
+                }
+            },
+            onDismiss = { showAddManagementDialog = false }
+        )
+    }
 
     val roleItems = listOf(
         AppRole.OWNER_BARN to Translations.tr("role_badge_owner_barn", lang),
@@ -3540,7 +3590,75 @@ fun ManagementHubScreen(
             .fillMaxSize()
             .testTag("management_hub_screen")
     ) {
-        // Dynamic Profession Content Area (Profession Switcher moved cleanly into Settings ⚙️)
+        // Top Management Action Bar: Strict separation between «إداراتي» and «+ إضافة إدارة»
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Surface(
+                shape = pillShape,
+                color = accentBadgeBg,
+                border = BorderStroke(1.dp, activeAccent.copy(alpha = 0.45f)),
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(pillShape)
+                    .clickable { showMyManagementsDialog = true }
+                    .testTag("btn_my_managements")
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Default.BusinessCenter,
+                        contentDescription = null,
+                        tint = activeAccent,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = Translations.tr("btn_my_managements", lang),
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 12.5.sp,
+                        color = activeAccent,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+
+            Surface(
+                shape = pillShape,
+                color = currentTheme.cardColor,
+                border = BorderStroke(1.2.dp, activeAccent.copy(alpha = 0.55f)),
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(pillShape)
+                    .clickable { showAddManagementDialog = true }
+                    .testTag("btn_add_management")
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = Translations.tr("btn_add_management", lang),
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 12.5.sp,
+                        color = primaryTextColor,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+        }
+
+        // Dynamic Profession Content Area
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -4225,6 +4343,46 @@ fun ManagementHubScreen(
                                             fontSize = 14.sp,
                                             color = Color.White
                                         )
+                                    }
+                                    Spacer(modifier = Modifier.height(10.dp))
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        OutlinedButton(
+                                            onClick = { showMyManagementsDialog = true },
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .height(44.dp)
+                                                .testTag("btn_zero_state_my_managements"),
+                                            shape = pillShape,
+                                            border = BorderStroke(1.2.dp, activeAccent)
+                                        ) {
+                                            Text(
+                                                Translations.tr("btn_my_managements", lang),
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 12.sp,
+                                                color = activeAccent,
+                                                maxLines = 1
+                                            )
+                                        }
+                                        OutlinedButton(
+                                            onClick = { showAddManagementDialog = true },
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .height(44.dp)
+                                                .testTag("btn_zero_state_add_management"),
+                                            shape = pillShape,
+                                            border = BorderStroke(1.2.dp, activeAccent.copy(alpha = 0.65f))
+                                        ) {
+                                            Text(
+                                                Translations.tr("btn_add_management", lang),
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 12.sp,
+                                                color = primaryTextColor,
+                                                maxLines = 1
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -10653,12 +10811,13 @@ fun AgritechFarmNotebookScreen(
             val typedIndoorReading = remember(farm.id, latestReportForHeader) {
                 IndoorReadingState.fromManualReport(farm.id, latestReportForHeader)
             }
-            val liveTempC = typedIndoorReading.temperatureC ?: (latestReportForHeader?.temperature ?: 0.0)
-            val hasRecordedTemperature = liveTempC > 0.0
+            val latestTempC: Double? = typedIndoorReading.temperatureC
+            val hasRecordedTemperature = latestTempC != null
+            val liveTempC = latestTempC ?: 0.0
             val liveAmmoniaPpm = typedIndoorReading.ammoniaPpm ?: 0.0
-            val liveVentStatus = typedIndoorReading.ventilationStatus ?: (latestReportForHeader?.ventilationStatus ?: "جيدة")
-            val isClimateAlert = (hasRecordedTemperature && (liveTempC > 33.5 || liveTempC < 19.0)) || liveAmmoniaPpm > 18.0
-            val isClimateWarning = !isClimateAlert && ((hasRecordedTemperature && liveTempC > 31.5) || liveAmmoniaPpm > 12.0)
+            val liveVentStatus = typedIndoorReading.ventilationStatus ?: Translations.tr("indoor_reading_no_data_short", lang)
+            val isClimateAlert = (latestTempC != null && (latestTempC > 33.5 || latestTempC < 19.0)) || liveAmmoniaPpm > 18.0
+            val isClimateWarning = !isClimateAlert && ((latestTempC != null && latestTempC > 31.5) || liveAmmoniaPpm > 12.0)
 
             if (showBarnClimateAndStatsDialog) {
                 BarnClimateAndStatsDialog(
@@ -11276,11 +11435,13 @@ fun AgritechFarmNotebookScreen(
                     val climatePillColor = when {
                         isClimateAlert -> if (currentTheme.isDark) Color(0xFFFCA5A5) else Color(0xFFDC2626)
                         isClimateWarning -> if (currentTheme.isDark) Color(0xFFFBBF24) else Color(0xFFD97706)
+                        !hasRecordedTemperature -> if (currentTheme.isDark) Color(0xFFCBD5E1) else Color(0xFF475569)
                         else -> appearance.accentColor
                     }
                     val climatePillBg = when {
                         isClimateAlert -> if (currentTheme.isDark) Color(0xFF450A0A) else Color(0xFFFEF2F2)
                         isClimateWarning -> if (currentTheme.isDark) Color(0xFF451A03) else Color(0xFFFFFBEB)
+                        !hasRecordedTemperature -> if (currentTheme.isDark) Color(0xFF1E293B) else Color(0xFFF1F5F9)
                         else -> appearance.accentContainerColor
                     }
                     val headerPillShape = RoundedCornerShape((appearance.cornerRadiusDp - 6).coerceAtLeast(6).dp)
@@ -11434,10 +11595,10 @@ fun AgritechFarmNotebookScreen(
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.Center
                                     ) {
-                                        val climateHeaderBtnText = if (hasRecordedTemperature) {
-                                            "🌡️ ${String.format(java.util.Locale.US, "%.1f°C", liveTempC)} • ${Translations.tr("climate_header_btn_label", lang)}"
+                                        val climateHeaderBtnText = if (latestTempC != null) {
+                                            "🌡️ ${String.format(java.util.Locale.US, "%.1f°C", latestTempC)} • ${Translations.tr("climate_header_btn_label", lang)}"
                                         } else {
-                                            "🌡️ ${Translations.tr("climate_header_btn_label", lang)} • —"
+                                            "🌡️ ${Translations.tr("climate_header_btn_label", lang)} • ${Translations.tr("indoor_reading_no_data_short", lang)}"
                                         }
                                         Text(
                                             climateHeaderBtnText,
@@ -13189,10 +13350,8 @@ fun OwnerDailyReportDialog(
                     supportingText = {
                         Text(
                             Translations.tr("field_day_number_mid_cycle_hint", lang),
-                            fontSize = 10.5.sp,
-                            color = secondaryText.copy(alpha = 0.85f),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                            fontSize = 11.sp,
+                            color = secondaryText.copy(alpha = 0.85f)
                         )
                     },
                     singleLine = true,
@@ -13435,15 +13594,29 @@ fun OwnerDailyReportDialog(
                         ""
                     }
 
+                    val newVentilation = initialReport?.ventilationStatus ?: "جيدة"
+                    val newLitter = initialReport?.litterCondition ?: ""
+                    val oldWeight = initialReport?.actualAvgWeightKg?.takeIf { it > 0.0 }
+                    val newWeight = resolvedActualWeightKg.takeIf { it > 0.0 }
+                    val weightChanged = if (oldWeight == null && newWeight == null) {
+                        false
+                    } else if (oldWeight == null || newWeight == null) {
+                        true
+                    } else {
+                        kotlin.math.abs(newWeight - oldWeight) > 0.0001
+                    }
+
                     val hasActualValueChange = initialReport != null && (
                         kotlin.math.abs(parsedFeedKg - initialReport.feedIntakeKg) > 0.001 ||
                             kotlin.math.abs(parsedWater - initialReport.waterIntakeLiters) > 0.001 ||
                             parsedMortality != initialReport.mortalityCount ||
                             kotlin.math.abs(parsedTemp - initialReport.temperature) > 0.01 ||
                             kotlin.math.abs(parsedGas - initialReport.gasUnits) > 0.01 ||
-                            kotlin.math.abs(resolvedActualWeightKg - initialReport.actualAvgWeightKg) > 0.001 ||
+                            newVentilation.trim() != initialReport.ventilationStatus.trim() ||
+                            newLitter.trim() != initialReport.litterCondition.trim() ||
                             medicineGivenToggle != initialReport.medicineGiven ||
-                            resolvedMedName.trim() != initialReport.medicineSummary.trim()
+                            resolvedMedName.trim() != initialReport.medicineSummary.trim() ||
+                            weightChanged
                     )
 
                     val reportId = initialReport?.id ?: "rep_${farm.id}_${cycle.id}_d$parsedDay"
@@ -13457,10 +13630,11 @@ fun OwnerDailyReportDialog(
                         mortalityCount = parsedMortality,
                         temperature = parsedTemp,
                         gasUnits = parsedGas,
-                        ventilationStatus = initialReport?.ventilationStatus ?: "جيدة",
+                        ventilationStatus = newVentilation,
+                        litterCondition = newLitter,
                         actualAvgWeightKg = resolvedActualWeightKg,
                         isEdited = if (initialReport != null) {
-                            initialReport.isEdited || hasActualValueChange
+                            if (hasActualValueChange) true else initialReport.isEdited
                         } else {
                             false
                         },

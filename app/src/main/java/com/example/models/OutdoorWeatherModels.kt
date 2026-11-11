@@ -48,7 +48,7 @@ data class IndoorReadingState(
             report: DailyReportModel?
         ): IndoorReadingState {
             if (report == null) return noReading(barnId)
-            val temp = if (report.temperature > 0.0) report.temperature else null
+            val temp: Double? = report.temperature
             // Note: report.gasUnits represents recorded heating gas / heater bottles or burner usage,
             // NOT sensor-measured ammonia NH3 ppm. We do not fabricate NH3 from gas usage.
             return IndoorReadingState(

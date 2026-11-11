@@ -747,7 +747,7 @@ class ExampleUnitTest {
 
         // 2. Surgery 2 & 3: Verify concise day label, hint, and indoor_reading_no_data keys
         assertEquals("📅 رقم اليوم في الدورة", Translations.tr("field_day_number_mid_cycle", AppLanguage.AR))
-        assertEquals("يُكتشف تلقائياً أو أدخل رقم يوم سابق لتعديله", Translations.tr("field_day_number_mid_cycle_hint", AppLanguage.AR))
+        assertEquals("يُكتشف تلقائياً، أو اكتب رقم يوم سابق مثل 20 أو 30 لتعديله", Translations.tr("field_day_number_mid_cycle_hint", AppLanguage.AR))
         assertEquals("لا توجد قراءة مسجلة بعد — أدخل التقرير اليومي", Translations.tr("indoor_reading_no_data", AppLanguage.AR))
 
         // 3. Surgery 4: Weather coordinate key formatting
@@ -770,6 +770,107 @@ class ExampleUnitTest {
         assertTrue(aiAdviceNoTemp.contains("غير مسجلة"))
         assertFalse(aiAdviceNoTemp.contains("21.3"))
         assertFalse(aiAdviceNoTemp.contains("7880"))
+    }
+
+    @Test
+    fun package1Of3_myManagementsSeparation_fullFieldDailyReportAudit_and_nullVsZeroTemperature_workCorrectly() {
+        // 1. Verify full-field daily report audit comparison (actualAvgWeightKg, ventilationStatus, litterCondition, feedIntakeKg, etc.)
+        val testFarmId = "farm_pkg1_audit"
+        val testCycleId = "cycle_pkg1_audit"
+        AgritechMockDb.dailyReports.removeAll { it.farmId == testFarmId }
+
+        val baseReport = DailyReportModel(
+            id = "rep_pkg1_d10",
+            farmId = testFarmId,
+            cycleId = testCycleId,
+            dayNumber = 10,
+            feedIntakeKg = 350.0,
+            waterIntakeLiters = 700.0,
+            mortalityCount = 2,
+            temperature = 28.5,
+            gasUnits = 2.0,
+            ventilationStatus = "جيدة",
+            litterCondition = "جافة",
+            actualAvgWeightKg = 0.285,
+            medicineGiven = true,
+            medicineSummary = "فيتامين AD3E",
+            isEdited = false,
+            previousSummary = ""
+        )
+        val savedInitial = AgritechMockDb.upsertDailyReportWithAudit(baseReport)
+        assertFalse("Initial save must not mark report as edited", savedInitial.isEdited)
+
+        // Saving identical values (including actualAvgWeightKg, ventilationStatus, and litterCondition) must NOT set isEdited = true
+        val savedIdentical = AgritechMockDb.upsertDailyReportWithAudit(savedInitial.copy())
+        assertFalse("Identical report save must not mark isEdited = true", savedIdentical.isEdited)
+        assertEquals("", savedIdentical.previousSummary)
+
+        // Changing actualAvgWeightKg alone must set isEdited = true
+        val changedWeight = AgritechMockDb.upsertDailyReportWithAudit(
+            savedIdentical.copy(actualAvgWeightKg = 0.310)
+        )
+        assertTrue("Changing actualAvgWeightKg must set isEdited = true", changedWeight.isEdited)
+        assertTrue(changedWeight.previousSummary.isNotBlank())
+
+        // Reset and test changing ventilationStatus or litterCondition alone
+        val baseReportDay11 = baseReport.copy(id = "rep_pkg1_d11", dayNumber = 11, isEdited = false, previousSummary = "")
+        val savedDay11 = AgritechMockDb.upsertDailyReportWithAudit(baseReportDay11)
+        assertFalse(savedDay11.isEdited)
+        val changedVentilation = AgritechMockDb.upsertDailyReportWithAudit(
+            savedDay11.copy(ventilationStatus = "متوسطة")
+        )
+        assertTrue("Changing ventilationStatus must set isEdited = true", changedVentilation.isEdited)
+
+        val baseReportDay12 = baseReport.copy(id = "rep_pkg1_d12", dayNumber = 12, isEdited = false, previousSummary = "")
+        val savedDay12 = AgritechMockDb.upsertDailyReportWithAudit(baseReportDay12)
+        assertFalse(savedDay12.isEdited)
+        val changedLitter = AgritechMockDb.upsertDailyReportWithAudit(
+            savedDay12.copy(litterCondition = "رطبة")
+        )
+        assertTrue("Changing litterCondition must set isEdited = true", changedLitter.isEdited)
+
+        // 2. Verify the 4 unavailable roles and 3 available managements
+        val unavailableRoles = listOf(
+            AppRole.FEED_SUPPLIER,
+            AppRole.CHICK_HATCHERY,
+            AppRole.WHOLESALE_TRADER,
+            AppRole.VET_IMPORTER
+        )
+        for (role in unavailableRoles) {
+            assertFalse("Role $role must be marked unavailable", role.isCurrentlyAvailable)
+        }
+        assertEquals(unavailableRoles.toSet(), AppRole.unavailableManagementRoles.toSet())
+
+        val availableRoles = listOf(
+            AppRole.OWNER,
+            AppRole.OWNER_BARN,
+            AppRole.VETERINARIAN,
+            AppRole.VET_CLINIC,
+            AppRole.WORKER
+        )
+        for (role in availableRoles) {
+            assertTrue("Role $role must be marked available", role.isCurrentlyAvailable)
+        }
+        assertEquals(
+            setOf(AppRole.OWNER_BARN, AppRole.VET_CLINIC, AppRole.WORKER),
+            AppRole.availableManagementRoles.toSet()
+        )
+        assertEquals("إداراتي", Translations.tr("btn_my_managements", AppLanguage.AR))
+        assertEquals("+ إضافة إدارة", Translations.tr("btn_add_management", AppLanguage.AR))
+        assertEquals("متاحة", Translations.tr("prof_status_available", AppLanguage.AR))
+        assertEquals("غير متوفرة حالياً", Translations.tr("prof_status_unavailable", AppLanguage.AR))
+
+        // 3. Verify missing report -> null temperature vs report with 0.0°C -> actual 0.0°C reading
+        val stateWhenNoReports = IndoorReadingState.fromManualReport("farm_pkg1", null)
+        assertNull("No reports in cycle must produce null temperatureC", stateWhenNoReports.temperatureC)
+        assertNull("No reports in cycle must produce null ventilationStatus", stateWhenNoReports.ventilationStatus)
+        assertFalse(stateWhenNoReports.hasAnyReading)
+
+        val reportAtZeroCelsius = baseReport.copy(id = "rep_zero_c", dayNumber = 13, temperature = 0.0)
+        val stateAtZeroCelsius = IndoorReadingState.fromManualReport("farm_pkg1", reportAtZeroCelsius)
+        assertNotNull("Report with temperature = 0.0 must NOT be treated as null", stateAtZeroCelsius.temperatureC)
+        assertEquals(0.0, stateAtZeroCelsius.temperatureC!!, 0.0001)
+        assertTrue(stateAtZeroCelsius.hasAnyReading)
     }
 }
 

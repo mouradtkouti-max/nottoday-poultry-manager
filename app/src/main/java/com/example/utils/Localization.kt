@@ -2033,12 +2033,12 @@ object Translations {
             "hi" to "📅 चक्र दिन संख्या"
         ),
         "field_day_number_mid_cycle_hint" to mapOf(
-            "ar" to "يُكتشف تلقائياً أو أدخل رقم يوم سابق لتعديله",
-            "fr" to "Détecté auto ou entrez un jour précédent à modifier",
-            "en" to "Auto-detected or enter a previous day to edit",
-            "es" to "Auto-detectado o ingrese un día anterior para editar",
-            "pt" to "Detectado auto ou digite um dia anterior para editar",
-            "hi" to "स्वतः पता लगाया गया या संपादित करने के लिए पिछला दिन दर्ज करें"
+            "ar" to "يُكتشف تلقائياً، أو اكتب رقم يوم سابق مثل 20 أو 30 لتعديله",
+            "fr" to "Détecté auto, ou entrez un jour précédent (ex: 20 ou 30) à modifier",
+            "en" to "Auto-detected, or type a previous day (e.g., 20 or 30) to edit",
+            "es" to "Auto-detectado, o escriba un día anterior (ej: 20 o 30) para editar",
+            "pt" to "Detectado auto, ou digite um dia anterior (ex: 20 ou 30) para editar",
+            "hi" to "स्वतः पता लगाया गया, या संपादित करने के लिए पिछला दिन (जैसे 20 या 30) लिखें"
         ),
         "indoor_reading_no_data" to mapOf(
             "ar" to "لا توجد قراءة مسجلة بعد — أدخل التقرير اليومي",
@@ -2047,6 +2047,126 @@ object Translations {
             "es" to "Sin lectura registrada — ingrese el reporte diario",
             "pt" to "Nenhuma leitura registrada — insira o relatório diário",
             "hi" to "अभी तक कोई रीडिंग दर्ज नहीं — दैनिक रिपोर्ट दर्ज करें"
+        ),
+        "indoor_reading_no_data_short" to mapOf(
+            "ar" to "لا توجد قراءة",
+            "fr" to "Aucune lecture",
+            "en" to "No reading",
+            "es" to "Sin lectura",
+            "pt" to "Sem leitura",
+            "hi" to "कोई रीडिंग नहीं"
+        ),
+        "btn_my_managements" to mapOf(
+            "ar" to "إداراتي",
+            "fr" to "Mes Gestions",
+            "en" to "My Managements",
+            "es" to "Mis Gestiones",
+            "pt" to "Minhas Gestões",
+            "hi" to "मेरे प्रबंधन"
+        ),
+        "btn_add_management" to mapOf(
+            "ar" to "+ إضافة إدارة",
+            "fr" to "+ Ajouter une gestion",
+            "en" to "+ Add Management",
+            "es" to "+ Añadir gestión",
+            "pt" to "+ Adicionar gestão",
+            "hi" to "+ प्रबंधन जोड़ें"
+        ),
+        "prof_status_available" to mapOf(
+            "ar" to "متاحة",
+            "fr" to "Disponible",
+            "en" to "Available",
+            "es" to "Disponible",
+            "pt" to "Disponível",
+            "hi" to "उपलब्ध"
+        ),
+        "prof_status_unavailable" to mapOf(
+            "ar" to "غير متوفرة حالياً",
+            "fr" to "Indisponible actuellement",
+            "en" to "Currently Unavailable",
+            "es" to "No disponible actualmente",
+            "pt" to "Indisponível no momento",
+            "hi" to "वर्तमान में अनुपलब्ध"
+        ),
+        "mgmt_option_owner_title" to mapOf(
+            "ar" to "🏠 إدارة العنبر والمزرعة",
+            "fr" to "🏠 Gestion du Poulailler et de la Ferme",
+            "en" to "🏠 Barn & Farm Management",
+            "es" to "🏠 Gestión de Galpón y Granja",
+            "pt" to "🏠 Gestão do Galpão e Granja",
+            "hi" to "🏠 शेड और फार्म प्रबंधन"
+        ),
+        "mgmt_option_vet_title" to mapOf(
+            "ar" to "🩺 إدارة العيادة والمتابعة البيطرية",
+            "fr" to "🩺 Gestion Clinique et Suivi Vétérinaire",
+            "en" to "🩺 Vet Clinic & Follow-up Management",
+            "es" to "🩺 Gestión de Clínica y Seguimiento Veterinario",
+            "pt" to "🩺 Gestão de Clínica e Acompanhamento Veterinário",
+            "hi" to "🩺 पशु चिकित्सालय और अनुवर्ती प्रबंधन"
+        ),
+        "mgmt_option_worker_title" to mapOf(
+            "ar" to "👷‍♂️🏠 إدارة المشرف والمنزل والحساب الشخصي",
+            "fr" to "👷‍♂️🏠 Gestion Superviseur, Foyer et Compte Personnel",
+            "en" to "👷‍♂️🏠 Supervisor, Home & Personal Ledger Management",
+            "es" to "👷‍♂️🏠 Gestión de Supervisor, Hogar y Cuenta Personal",
+            "pt" to "👷‍♂️🏠 Gestão de Supervisor, Casa e Conta Pessoal",
+            "hi" to "👷‍♂️🏠 पर्यवेक्षक, घर और व्यक्तिगत खाता प्रबंधन"
+        ),
+        "my_managements_dialog_title" to mapOf(
+            "ar" to "إداراتي المفعّلة",
+            "fr" to "Mes Gestions Activées",
+            "en" to "My Enabled Managements",
+            "es" to "Mis Gestiones Activadas",
+            "pt" to "Minhas Gestões Ativadas",
+            "hi" to "मेरे सक्रिय प्रबंधन"
+        ),
+        "my_managements_dialog_subtitle" to mapOf(
+            "ar" to "اختر إحدى إداراتك المفعّلة لفتحها مباشرة",
+            "fr" to "Choisissez l'une de vos gestions activées pour l'ouvrir directement",
+            "en" to "Select one of your enabled managements to open it directly",
+            "es" to "Seleccione una de sus gestiones activadas para abrirla directamente",
+            "pt" to "Selecione uma das suas gestões ativadas para abri-la diretamente",
+            "hi" to "सीधे खोलने के लिए अपने सक्रिय प्रबंधनों में से एक चुनें"
+        ),
+        "my_managements_empty_hint" to mapOf(
+            "ar" to "لم تقم بتفعيل أي إدارة بعد. اضغط «+ إضافة إدارة» لاختيار إدارتك الأولى مجاناً.",
+            "fr" to "Aucune gestion activée. Appuyez sur « + Ajouter une gestion » pour activer votre première gestion gratuitement.",
+            "en" to "No management enabled yet. Tap '+ Add Management' to activate your first management for free.",
+            "es" to "Aún no ha activado ninguna gestión. Toque '+ Añadir gestión' para elegir su primera gestión gratis.",
+            "pt" to "Nenhuma gestão ativada ainda. Toque em '+ Adicionar gestão' para ativar sua primeira gestão gratuitamente.",
+            "hi" to "अभी तक कोई प्रबंधन सक्रिय नहीं है। अपना पहला प्रबंधन निःशुल्क चुनने के लिए '+ प्रबंधन जोड़ें' दबाएं।"
+        ),
+        "add_management_dialog_title" to mapOf(
+            "ar" to "+ إضافة إدارة",
+            "fr" to "+ Ajouter une gestion",
+            "en" to "+ Add Management",
+            "es" to "+ Añadir gestión",
+            "pt" to "+ Adicionar gestão",
+            "hi" to "+ प्रबंधन जोड़ें"
+        ),
+        "add_management_dialog_subtitle" to mapOf(
+            "ar" to "الإدارة الأولى مجانية وتُحفظ في «إداراتي». إضافة إدارة ثانية تتطلب اشتراكاً مدفوعاً موثقاً.",
+            "fr" to "La 1ère gestion est gratuite. L'ajout d'une 2ème gestion nécessite un abonnement payant vérifié.",
+            "en" to "Your 1st management is free and saved in 'My Managements'. Adding a 2nd management requires a verified paid subscription.",
+            "es" to "La 1.ª gestión es gratuita. Añadir una 2.ª gestión requiere una suscripción de pago verificada.",
+            "pt" to "A 1ª gestão é gratuita. Adicionar uma 2ª gestão requer uma assinatura paga verificada.",
+            "hi" to "पहला प्रबंधन निःशुल्क है। दूसरा प्रबंधन जोड़ने के लिए सत्यापित सशुल्क सदस्यता आवश्यक है।"
+        ),
+        "additional_mgmt_subscription_required_title" to mapOf(
+            "ar" to "🔒 إضافة إدارة ثانية تتطلب اشتراكاً مدفوعاً",
+            "fr" to "🔒 Abonnement requis pour une 2ème gestion",
+            "en" to "🔒 Paid Subscription Required for 2nd Management",
+            "es" to "🔒 Suscripción requerida para 2.ª gestión",
+            "pt" to "🔒 Assinatura necessária para 2ª gestão",
+            "hi" to "🔒 दूसरे प्रबंधन के लिए सशुल्क सदस्यता आवश्यक"
+        ),
+        "additional_mgmt_subscription_required_msg" to mapOf(
+            "ar" to "لقد قمت بتفعيل إدارتك المجانية الأولى بالفعل داخل «إداراتي». لتفعيل إدارة إضافية ثانية على نفس الحساب، يلزم اشتراك مدفوع موثق (الدفع غير مفعّل في الوضع الحالي).",
+            "fr" to "Vous avez déjà activé votre première gestion gratuite dans « Mes Gestions ». Pour ajouter une gestion supplémentaire, un abonnement payant vérifié est requis.",
+            "en" to "You have already activated your first free management in 'My Managements'. Enabling an additional management on the same account requires a verified paid subscription.",
+            "es" to "Ya ha activado su primera gestión gratuita en 'Mis Gestiones'. Para activar una gestión adicional se requiere una suscripción de pago verificada.",
+            "pt" to "Você já ativou sua primeira gestão gratuita em 'Minhas Gestões'. Para ativar uma gestão adicional, é necessária uma assinatura paga verificada.",
+            "hi" to "आप पहले ही 'मेरे प्रबंधन' में अपना पहला निःशुल्क प्रबंधन सक्रिय कर चुके हैं। अतिरिक्त प्रबंधन सक्रिय करने के लिए सत्यापित सशुल्क सदस्यता आवश्यक है।"
         ),
         "smart_barn_enable_sim_btn" to mapOf(
             "ar" to "🧪 تشغيل محاكاة الحساسات التجريبية",

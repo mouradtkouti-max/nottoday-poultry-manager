@@ -91,11 +91,38 @@ enum class AppRole {
             else -> this
         }
 
+    val isCurrentlyAvailable: Boolean
+        get() = when (this) {
+            OWNER,
+            OWNER_BARN,
+            VETERINARIAN,
+            VET_CLINIC,
+            WORKER,
+            HOME_PERSONAL -> true
+            FEED_SUPPLIER,
+            CHICK_HATCHERY,
+            WHOLESALE_TRADER,
+            VET_IMPORTER -> false
+        }
+
     companion object {
         val professionalHubRoles: List<AppRole> = listOf(
             OWNER_BARN,
             VET_CLINIC,
             WORKER,
+            FEED_SUPPLIER,
+            CHICK_HATCHERY,
+            WHOLESALE_TRADER,
+            VET_IMPORTER
+        )
+
+        val availableManagementRoles: List<AppRole> = listOf(
+            OWNER_BARN,
+            VET_CLINIC,
+            WORKER
+        )
+
+        val unavailableManagementRoles: List<AppRole> = listOf(
             FEED_SUPPLIER,
             CHICK_HATCHERY,
             WHOLESALE_TRADER,
@@ -192,8 +219,31 @@ data class DailyReportModel(
     val medicineGiven: Boolean = false,
     val medicineSummary: String = "",
     val withdrawalDays: Int = 0,
-    val updatedAtMillis: Long = System.currentTimeMillis()
-)
+    val updatedAtMillis: Long = System.currentTimeMillis(),
+    val litterCondition: String = ""
+) {
+    fun hasActualValueChangesFrom(existingReport: DailyReportModel): Boolean {
+        val oldWeight = existingReport.actualAvgWeightKg.takeIf { it > 0.0 }
+        val newWeight = this.actualAvgWeightKg.takeIf { it > 0.0 }
+        val weightChanged = if (oldWeight == null && newWeight == null) {
+            false
+        } else if (oldWeight == null || newWeight == null) {
+            true
+        } else {
+            kotlin.math.abs(newWeight - oldWeight) > 0.0001
+        }
+        return kotlin.math.abs(this.feedIntakeKg - existingReport.feedIntakeKg) > 0.001 ||
+            kotlin.math.abs(this.waterIntakeLiters - existingReport.waterIntakeLiters) > 0.001 ||
+            this.mortalityCount != existingReport.mortalityCount ||
+            kotlin.math.abs(this.temperature - existingReport.temperature) > 0.01 ||
+            kotlin.math.abs(this.gasUnits - existingReport.gasUnits) > 0.01 ||
+            this.ventilationStatus.trim() != existingReport.ventilationStatus.trim() ||
+            this.litterCondition.trim() != existingReport.litterCondition.trim() ||
+            this.medicineGiven != existingReport.medicineGiven ||
+            this.medicineSummary.trim() != existingReport.medicineSummary.trim() ||
+            weightChanged
+    }
+}
 
 data class VetNoteModel(
     val id: String,

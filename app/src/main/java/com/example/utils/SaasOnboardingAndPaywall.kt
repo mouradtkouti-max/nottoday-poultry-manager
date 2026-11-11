@@ -29,6 +29,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.Canvas
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.scale
@@ -261,6 +262,87 @@ object SaasPreferencesManager {
     private const val KEY_ACTIVE_FARM_ID = "session_active_farm_id"
     private const val KEY_CURRENT_USER_UID = "session_current_user_uid"
     private const val KEY_PROFESSION_ONBOARDING_DONE = "profession_onboarding_completed"
+    private const val KEY_ENABLED_ROLES_PREFIX = "enabled_roles_for_uid_"
+    private const val KEY_ADDITIONAL_ROLE_ENTITLEMENT_PREFIX = "has_additional_role_entitlement_uid_"
+
+    private fun resolveUidKey(context: Context, userUid: String? = null): String {
+        val rawUid = userUid ?: getSavedUserUid(context)
+        return com.example.AgritechAuthHelper.resolveActiveStorageIdentityKey(rawUid)
+    }
+
+    fun getEnabledRolesForUser(context: Context, userUid: String? = null): Set<AppRole> {
+        return try {
+            val key = KEY_ENABLED_ROLES_PREFIX + resolveUidKey(context, userUid)
+            val csv = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .getString(key, "")
+                .orEmpty()
+            if (csv.isBlank()) return emptySet()
+            csv.split(',')
+                .mapNotNull { token ->
+                    val trimmed = token.trim()
+                    AppRole.values().firstOrNull { it.name == trimmed }?.normalizedHubRole
+                }
+                .filter { it.isCurrentlyAvailable }
+                .toSet()
+        } catch (_: Exception) {
+            emptySet()
+        }
+    }
+
+    fun saveEnabledRolesForUser(
+        context: Context,
+        roles: Set<AppRole>,
+        userUid: String? = null
+    ) {
+        try {
+            val key = KEY_ENABLED_ROLES_PREFIX + resolveUidKey(context, userUid)
+            val csv = roles
+                .map { it.normalizedHubRole }
+                .filter { it.isCurrentlyAvailable }
+                .distinct()
+                .joinToString(",") { it.name }
+            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .edit()
+                .putString(key, csv)
+                .apply()
+        } catch (_: Exception) {}
+    }
+
+    fun hasAdditionalRoleEntitlement(context: Context, userUid: String? = null): Boolean {
+        return try {
+            val key = KEY_ADDITIONAL_ROLE_ENTITLEMENT_PREFIX + resolveUidKey(context, userUid)
+            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .getBoolean(key, false)
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    /**
+     * Enables or switches to [chosenRole] if and only if:
+     * 1. [chosenRole] is currently available (`isCurrentlyAvailable == true`).
+     * 2. Either [chosenRole] is already in `enabledRolesForUser`, OR `enabledRolesForUser` is empty (1st management is 100% free),
+     *    OR the account holds a verified paid entitlement (`hasAdditionalRoleEntitlement == true`).
+     */
+    fun tryEnableOrSwitchManagementRole(
+        context: Context,
+        chosenRole: AppRole,
+        userUid: String? = null
+    ): Boolean {
+        if (!chosenRole.isCurrentlyAvailable) return false
+        val normalized = chosenRole.normalizedHubRole
+        val existing = getEnabledRolesForUser(context, userUid)
+        if (normalized in existing) return true
+        if (existing.isEmpty()) {
+            saveEnabledRolesForUser(context, setOf(normalized), userUid)
+            return true
+        }
+        if (hasAdditionalRoleEntitlement(context, userUid)) {
+            saveEnabledRolesForUser(context, existing + normalized, userUid)
+            return true
+        }
+        return false
+    }
 
     fun hasCompletedOnboarding(context: Context): Boolean {
         return try {
@@ -281,7 +363,9 @@ object SaasPreferencesManager {
     }
 
     fun saveInitialProfessionSelected(context: Context, role: AppRole) {
+        if (!role.isCurrentlyAvailable) return
         try {
+            tryEnableOrSwitchManagementRole(context, role)
             context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                 .edit()
                 .putBoolean(KEY_PROFESSION_ONBOARDING_DONE, true)
@@ -568,7 +652,40 @@ class AgritechAppSessionState(
     var selectedFarmForVet by mutableStateOf<FarmModel?>(null)
     var selectedFarmForWorker by mutableStateOf<FarmModel?>(null)
 
+    // Per-account enabled management roles (1st management is free; 2nd+ requires verified subscription)
+    var enabledRolesForUser by mutableStateOf<Set<AppRole>>(
+        if (initialProfessionSelected && initialRole != null && initialRole.isCurrentlyAvailable) {
+            setOf(initialRole.normalizedHubRole)
+        } else {
+            emptySet()
+        }
+    )
+
+    fun syncEnabledRolesFromPrefs(context: Context) {
+        val persisted = SaasPreferencesManager.getEnabledRolesForUser(context, currentUserUid)
+        if (persisted.isNotEmpty()) {
+            enabledRolesForUser = persisted
+        } else if (hasSelectedInitialProfession && currentRole != null && currentRole!!.isCurrentlyAvailable) {
+            val seed = setOf(currentRole!!.normalizedHubRole)
+            SaasPreferencesManager.saveEnabledRolesForUser(context, seed, currentUserUid)
+            enabledRolesForUser = seed
+        } else {
+            enabledRolesForUser = emptySet()
+        }
+    }
+
     fun completeInitialProfessionSelection(context: Context, chosenRole: AppRole) {
+        if (!chosenRole.isCurrentlyAvailable) return
+        val persisted = SaasPreferencesManager.getEnabledRolesForUser(context, currentUserUid)
+        val normalized = chosenRole.normalizedHubRole
+        if (persisted.isNotEmpty() && normalized !in persisted &&
+            !SaasPreferencesManager.hasAdditionalRoleEntitlement(context, currentUserUid)
+        ) {
+            return
+        }
+        SaasPreferencesManager.tryEnableOrSwitchManagementRole(context, chosenRole, currentUserUid)
+        enabledRolesForUser = SaasPreferencesManager.getEnabledRolesForUser(context, currentUserUid)
+            .ifEmpty { setOf(normalized) }
         hasSelectedInitialProfession = true
         currentRole = chosenRole
         selectedFarmForOwner = null
@@ -587,6 +704,14 @@ class AgritechAppSessionState(
         }
     }
 
+    fun trySwitchOrAddManagement(context: Context, chosenRole: AppRole): Boolean {
+        if (!chosenRole.isCurrentlyAvailable) return false
+        val allowed = SaasPreferencesManager.tryEnableOrSwitchManagementRole(context, chosenRole, currentUserUid)
+        if (!allowed) return false
+        completeInitialProfessionSelection(context, chosenRole)
+        return true
+    }
+
     fun markAuthenticated(
         context: Context,
         role: AppRole,
@@ -594,6 +719,7 @@ class AgritechAppSessionState(
         farmId: String = activeFarmId,
         uid: String? = currentUserUid
     ) {
+        val safeRole = if (role.isCurrentlyAvailable) role else AppRole.OWNER_BARN
         val previousUid = currentUserUid
         val effectiveUid = uid ?: previousUid
         val newIdentityKey = com.example.AgritechAuthHelper.resolveActiveStorageIdentityKey(effectiveUid)
@@ -608,15 +734,28 @@ class AgritechAppSessionState(
         val resolvedLinkedBarns = linkedBarns || validFarms.isNotEmpty()
         val candidateFarmId = if (farmId in AgritechMockDb.deletedFarmIds || validFarms.none { it.id == farmId }) "" else farmId
         val resolvedFarmId = candidateFarmId.ifBlank { validFarms.firstOrNull()?.id.orEmpty() }
+        val persistedRoles = SaasPreferencesManager.getEnabledRolesForUser(context, effectiveUid)
+        val resolvedRole = if (persistedRoles.isNotEmpty() && safeRole.normalizedHubRole !in persistedRoles &&
+            !SaasPreferencesManager.hasAdditionalRoleEntitlement(context, effectiveUid)
+        ) {
+            persistedRoles.first()
+        } else {
+            if (persistedRoles.isEmpty() && hasSelectedInitialProfession) {
+                SaasPreferencesManager.saveEnabledRolesForUser(context, setOf(safeRole.normalizedHubRole), effectiveUid)
+            }
+            safeRole
+        }
+        enabledRolesForUser = SaasPreferencesManager.getEnabledRolesForUser(context, effectiveUid)
+            .ifEmpty { if (hasSelectedInitialProfession) setOf(resolvedRole.normalizedHubRole) else emptySet() }
         isLoggedIn = true
-        currentRole = role
+        currentRole = resolvedRole
         hasLinkedBarns = resolvedLinkedBarns
         activeFarmId = resolvedFarmId
         currentUserUid = effectiveUid
         SaasPreferencesManager.saveAuthSession(
             context = context,
             isLoggedIn = true,
-            role = role,
+            role = resolvedRole,
             hasLinkedBarns = resolvedLinkedBarns,
             activeFarmId = resolvedFarmId,
             userUid = currentUserUid
@@ -633,6 +772,7 @@ class AgritechAppSessionState(
         hasLinkedBarns = false
         activeFarmId = ""
         currentUserUid = null
+        enabledRolesForUser = emptySet()
         selectedFarmForOwner = null
         selectedFarmForVet = null
         selectedFarmForWorker = null
@@ -1580,16 +1720,17 @@ fun PremiumSettingsModal(
                         .fillMaxSize()
                         .padding(innerPadding),
                     onSelectProfession = { chosenRole ->
-                        sessionState.selectedFarmForOwner = null
-                        sessionState.selectedFarmForVet = null
-                        sessionState.selectedFarmForWorker = null
-                        sessionState.completeInitialProfessionSelection(context, chosenRole)
-                        sessionState.markAuthenticated(
-                            context = context,
-                            role = chosenRole,
-                            linkedBarns = true
-                        )
-                        showProfessionSelectorSubScreen = false
+                        if (sessionState.trySwitchOrAddManagement(context, chosenRole)) {
+                            sessionState.selectedFarmForOwner = null
+                            sessionState.selectedFarmForVet = null
+                            sessionState.selectedFarmForWorker = null
+                            sessionState.markAuthenticated(
+                                context = context,
+                                role = chosenRole,
+                                linkedBarns = true
+                            )
+                            showProfessionSelectorSubScreen = false
+                        }
                     }
                 )
             } else {
@@ -3452,12 +3593,17 @@ fun LiveBarnClimateBanner(
     val cornerShape = RoundedCornerShape(appearance.cornerRadiusDp.dp)
 
     // Ideal Ross 308 temperature band shifts by cycle age; evaluate micro-climate status:
-    // Optimal (Emerald), Warning (Amber), Alert (Red) — guard against unrecorded 0.0°C before first report
-    val hasTempReading = (indoorReading?.temperatureC ?: temperatureC) > 0.0
+    // Optimal (Emerald), Warning (Amber), Alert (Red) — distinguish missing report (null) from an actual 0.0°C reading
+    val resolvedTempC: Double? = if (indoorReading != null) {
+        indoorReading.temperatureC
+    } else {
+        temperatureC.takeIf { it > 0.0 }
+    }
+    val hasTempReading = resolvedTempC != null
     val hasAnyIndoorReading = indoorReading?.hasAnyReading ?: (hasTempReading || ammoniaPpm > 0.0)
-    val isAlert = (hasTempReading && (temperatureC > 34.5 || temperatureC < 17.0)) || ammoniaPpm >= 25.0
+    val isAlert = (resolvedTempC != null && (resolvedTempC > 34.5 || resolvedTempC < 17.0)) || ammoniaPpm >= 25.0
     val isWarning = !isAlert && (
-        (hasTempReading && (temperatureC > 32.5 || temperatureC < 19.5)) || ammoniaPpm >= 16.0
+        (resolvedTempC != null && (resolvedTempC > 32.5 || resolvedTempC < 19.5)) || ammoniaPpm >= 16.0
     )
 
     val statusColor = when {
@@ -3627,12 +3773,10 @@ fun LiveBarnClimateBanner(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    val displayTemp = if (indoorReading != null && !indoorReading.hasAnyReading && temperatureC <= 0.0) {
-                        "-- °C"
-                    } else if (temperatureC <= 0.0) {
-                        "-- °C"
+                    val displayTemp = if (resolvedTempC != null) {
+                        String.format(Locale.US, "%.1f °C", resolvedTempC)
                     } else {
-                        String.format(Locale.US, "%.1f °C", temperatureC)
+                        "-- °C"
                     }
                     val displayNh3 = if (indoorReading != null && indoorReading.ammoniaPpm == null && ammoniaPpm <= 0.0) {
                         "-- ppm"
@@ -3640,6 +3784,13 @@ fun LiveBarnClimateBanner(
                         "-- ppm"
                     } else {
                         String.format(Locale.US, "%.1f ppm", ammoniaPpm)
+                    }
+                    val displayVentilation = if (indoorReading != null && indoorReading.ventilationStatus == null) {
+                        Translations.tr("indoor_reading_no_data_short", lang)
+                    } else if (!hasAnyIndoorReading) {
+                        Translations.tr("indoor_reading_no_data_short", lang)
+                    } else {
+                        Translations.getLocalizedVentilation(ventilationStatus, lang)
                     }
 
                     ClimateMetricPill(
@@ -3665,7 +3816,7 @@ fun LiveBarnClimateBanner(
                     ClimateMetricPill(
                         emoji = "🌀",
                         label = Translations.tr("climate_vent_label", lang),
-                        value = Translations.getLocalizedVentilation(ventilationStatus, lang),
+                        value = displayVentilation,
                         accentColor = appearance.accentColor,
                         isDark = isDark,
                         modifier = Modifier
@@ -3676,10 +3827,14 @@ fun LiveBarnClimateBanner(
 
                 // Indoor Reading Source Pill
                 val sourceLabel = when (indoorReading?.source) {
-                    IndoorReadingSource.MANUAL_REPORT -> Translations.tr("indoor_reading_source_manual", lang)
+                    IndoorReadingSource.MANUAL_REPORT -> if (hasAnyIndoorReading) {
+                        Translations.tr("indoor_reading_source_manual", lang)
+                    } else {
+                        Translations.tr("indoor_reading_no_data", lang)
+                    }
                     IndoorReadingSource.SIMULATION -> Translations.tr("indoor_reading_source_sim", lang)
                     IndoorReadingSource.CONNECTED_SENSOR -> "حساس حظيرة متصل 🟢"
-                    else -> if (temperatureC > 0.0) Translations.tr("indoor_reading_source_manual", lang) else Translations.tr("indoor_reading_no_data", lang)
+                    else -> if (hasTempReading) Translations.tr("indoor_reading_source_manual", lang) else Translations.tr("indoor_reading_no_data", lang)
                 }
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -5050,7 +5205,23 @@ fun ProfessionSelectorSubScreen(
     modifier: Modifier = Modifier,
     onSelectProfession: (AppRole) -> Unit
 ) {
+    val context = LocalContext.current
+    val sessionState = LocalAgritechAppState.current
     val normalizedActive = activeRole.normalizedHubRole
+    var showAdditionalSubscriptionNotice by remember { mutableStateOf(false) }
+
+    if (showAdditionalSubscriptionNotice) {
+        AdditionalManagementSubscriptionNoticeDialog(
+            lang = lang,
+            isDark = isDark,
+            cardBg = cardBg,
+            textPrimary = textPrimary,
+            textSecondary = textSecondary,
+            activeAccent = activeAccent,
+            onDismiss = { showAdditionalSubscriptionNotice = false }
+        )
+    }
+
     Column(
         modifier = modifier
             .verticalScroll(rememberScrollState())
@@ -5059,12 +5230,44 @@ fun ProfessionSelectorSubScreen(
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         sevenProfessionCatalog.forEach { item ->
-            val isSelected = normalizedActive == item.role
+            val isAvailable = item.role.isCurrentlyAvailable
+            val isSelected = normalizedActive == item.role && isAvailable
             val cardScale by animateFloatAsState(
                 targetValue = if (isSelected) 1.02f else 1.0f,
                 animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
                 label = "profession_card_scale"
             )
+            val statusBadgeText = if (isAvailable) {
+                Translations.tr("prof_status_available", lang)
+            } else {
+                Translations.tr("prof_status_unavailable", lang)
+            }
+            val statusBadgeBg = if (isAvailable) {
+                activeAccentContainer
+            } else {
+                if (isDark) Color(0xFF334155) else Color(0xFFE2E8F0)
+            }
+            val statusBadgeColor = if (isAvailable) {
+                activeAccent
+            } else {
+                textSecondary
+            }
+
+            val onTapRole: () -> Unit = {
+                if (isAvailable) {
+                    val enabledRoles = SaasPreferencesManager.getEnabledRolesForUser(context, sessionState.currentUserUid)
+                        .ifEmpty { sessionState.enabledRolesForUser }
+                    val canSwitchOrEnable = enabledRoles.isEmpty() ||
+                        item.role.normalizedHubRole in enabledRoles ||
+                        SaasPreferencesManager.hasAdditionalRoleEntitlement(context, sessionState.currentUserUid)
+                    if (canSwitchOrEnable) {
+                        onSelectProfession(item.role)
+                    } else {
+                        showAdditionalSubscriptionNotice = true
+                    }
+                }
+            }
+
             Surface(
                 shape = previewShape,
                 color = if (isSelected) activeAccentContainer else cardBg,
@@ -5076,8 +5279,9 @@ fun ProfessionSelectorSubScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .scale(cardScale)
+                    .alpha(if (isAvailable) 1.0f else 0.55f)
                     .clip(previewShape)
-                    .clickable { onSelectProfession(item.role) }
+                    .clickable(enabled = isAvailable) { onTapRole() }
                     .testTag("role_chip_${item.role.name.lowercase()}")
             ) {
                 Row(
@@ -5101,13 +5305,31 @@ fun ProfessionSelectorSubScreen(
                                 Text(item.emoji, fontSize = 22.sp)
                             }
                         }
-                        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                            Text(
-                                text = Translations.tr(item.titleKey, lang),
-                                fontWeight = FontWeight.ExtraBold,
-                                fontSize = 14.sp,
-                                color = if (isSelected) activeAccent else textPrimary
-                            )
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text(
+                                    text = Translations.tr(item.titleKey, lang),
+                                    fontWeight = FontWeight.ExtraBold,
+                                    fontSize = 14.sp,
+                                    color = if (isSelected) activeAccent else textPrimary,
+                                    modifier = Modifier.weight(1f, fill = false)
+                                )
+                                Surface(
+                                    shape = RoundedCornerShape(50),
+                                    color = statusBadgeBg
+                                ) {
+                                    Text(
+                                        text = statusBadgeText,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = statusBadgeColor,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
                             Text(
                                 text = Translations.tr(item.descKey, lang),
                                 fontSize = 11.5.sp,
@@ -5117,7 +5339,8 @@ fun ProfessionSelectorSubScreen(
                     }
                     RadioButton(
                         selected = isSelected,
-                        onClick = { onSelectProfession(item.role) },
+                        enabled = isAvailable,
+                        onClick = if (isAvailable) { { onTapRole() } } else null,
                         colors = RadioButtonDefaults.colors(
                             selectedColor = activeAccent,
                             unselectedColor = textSecondary
@@ -5149,7 +5372,8 @@ fun ProfessionOnboardingDialog(
     val activeAccentContainer = appearance.accentContainerColor
     val cardShape = RoundedCornerShape(appearance.cornerRadiusDp.dp)
 
-    var selectedRole by remember(initialRole) { mutableStateOf(initialRole.normalizedHubRole) }
+    val safeInitial = if (initialRole.isCurrentlyAvailable) initialRole.normalizedHubRole else AppRole.OWNER_BARN
+    var selectedRole by remember(safeInitial) { mutableStateOf(safeInitial) }
 
     Dialog(
         onDismissRequest = { onConfirmProfession(selectedRole) },
@@ -5175,7 +5399,8 @@ fun ProfessionOnboardingDialog(
                             .padding(horizontal = 20.dp, vertical = 14.dp)
                     ) {
                         Button(
-                            onClick = { onConfirmProfession(selectedRole) },
+                            onClick = { if (selectedRole.isCurrentlyAvailable) onConfirmProfession(selectedRole) },
+                            enabled = selectedRole.isCurrentlyAvailable,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(50.dp)
@@ -5228,7 +5453,24 @@ fun ProfessionOnboardingDialog(
                 }
 
                 sevenProfessionCatalog.forEach { item ->
-                    val isSelected = selectedRole == item.role
+                    val isAvailable = item.role.isCurrentlyAvailable
+                    val isSelected = selectedRole == item.role && isAvailable
+                    val statusBadgeText = if (isAvailable) {
+                        Translations.tr("prof_status_available", lang)
+                    } else {
+                        Translations.tr("prof_status_unavailable", lang)
+                    }
+                    val statusBadgeBg = if (isAvailable) {
+                        activeAccentContainer
+                    } else {
+                        if (isDark) Color(0xFF334155) else Color(0xFFE2E8F0)
+                    }
+                    val statusBadgeColor = if (isAvailable) {
+                        activeAccent
+                    } else {
+                        textSecondary
+                    }
+
                     Surface(
                         shape = cardShape,
                         color = if (isSelected) activeAccentContainer else cardBg,
@@ -5239,8 +5481,11 @@ fun ProfessionOnboardingDialog(
                         shadowElevation = if (isSelected) 2.dp else 0.dp,
                         modifier = Modifier
                             .fillMaxWidth()
+                            .alpha(if (isAvailable) 1.0f else 0.55f)
                             .clip(cardShape)
-                            .clickable { selectedRole = item.role }
+                            .clickable(enabled = isAvailable) {
+                                if (isAvailable) selectedRole = item.role
+                            }
                             .testTag("onboarding_profession_card_${item.role.name.lowercase()}")
                     ) {
                         Row(
@@ -5264,13 +5509,31 @@ fun ProfessionOnboardingDialog(
                                         Text(item.emoji, fontSize = 22.sp)
                                     }
                                 }
-                                Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                                    Text(
-                                        text = Translations.tr(item.titleKey, lang),
-                                        fontWeight = FontWeight.ExtraBold,
-                                        fontSize = 14.5.sp,
-                                        color = if (isSelected) activeAccent else textPrimary
-                                    )
+                                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Text(
+                                            text = Translations.tr(item.titleKey, lang),
+                                            fontWeight = FontWeight.ExtraBold,
+                                            fontSize = 14.5.sp,
+                                            color = if (isSelected) activeAccent else textPrimary,
+                                            modifier = Modifier.weight(1f, fill = false)
+                                        )
+                                        Surface(
+                                            shape = RoundedCornerShape(50),
+                                            color = statusBadgeBg
+                                        ) {
+                                            Text(
+                                                text = statusBadgeText,
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = statusBadgeColor,
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                    }
                                     Text(
                                         text = Translations.tr(item.descKey, lang),
                                         fontSize = 11.5.sp,
@@ -5278,9 +5541,10 @@ fun ProfessionOnboardingDialog(
                                     )
                                 }
                             }
-                                RadioButton(
+                            RadioButton(
                                 selected = isSelected,
-                                onClick = { selectedRole = item.role },
+                                enabled = isAvailable,
+                                onClick = if (isAvailable) { { selectedRole = item.role } } else null,
                                 colors = RadioButtonDefaults.colors(
                                     selectedColor = activeAccent,
                                     unselectedColor = textSecondary
@@ -5292,6 +5556,423 @@ fun ProfessionOnboardingDialog(
             }
         }
     }
+}
+
+@Composable
+fun AdditionalManagementSubscriptionNoticeDialog(
+    lang: AppLanguage,
+    isDark: Boolean,
+    cardBg: Color,
+    textPrimary: Color,
+    textSecondary: Color,
+    activeAccent: Color,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = cardBg,
+        shape = RoundedCornerShape(20.dp),
+        modifier = Modifier.testTag("additional_mgmt_subscription_notice_dialog"),
+        title = {
+            Text(
+                text = Translations.tr("additional_mgmt_subscription_required_title", lang),
+                fontWeight = FontWeight.ExtraBold,
+                fontSize = 16.sp,
+                color = textPrimary
+            )
+        },
+        text = {
+            Text(
+                text = Translations.tr("additional_mgmt_subscription_required_msg", lang),
+                fontSize = 13.sp,
+                color = textSecondary,
+                lineHeight = 19.sp
+            )
+        },
+        confirmButton = {
+            Button(
+                onClick = onDismiss,
+                colors = ButtonDefaults.buttonColors(containerColor = activeAccent),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.testTag("btn_dismiss_additional_mgmt_notice")
+            ) {
+                Text(
+                    text = Translations.tr("btn_close_check", lang),
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+            }
+        }
+    )
+}
+
+@Composable
+fun MyManagementsDialog(
+    enabledRoles: Set<AppRole>,
+    activeRole: AppRole,
+    lang: AppLanguage,
+    currentTheme: AppThemeOption,
+    onSelectEnabledRole: (AppRole) -> Unit,
+    onOpenAddManagement: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val appearance = LocalAppAppearanceState.current
+    val isDark = currentTheme.isDark
+    val cardBg = if (isDark) Color(0xFF1E293B) else Color.White
+    val subtleSurfaceBg = if (isDark) Color(0xFF0F172A) else Color(0xFFF8FAFC)
+    val borderCol = if (isDark) Color(0xFF334155) else Color(0xFFE2E8F0)
+    val textPrimary = if (isDark) Color(0xFFFFFFFF) else Color(0xFF0F172A)
+    val textSecondary = if (isDark) Color(0xFFCBD5E1) else Color(0xFF475569)
+    val activeAccent = appearance.accentColor
+    val activeAccentContainer = appearance.accentContainerColor
+    val cardShape = RoundedCornerShape(appearance.cornerRadiusDp.dp)
+    val normalizedActive = activeRole.normalizedHubRole
+
+    val normalizedEnabledList = remember(enabledRoles) {
+        AppRole.availableManagementRoles.filter { role ->
+            enabledRoles.any { it.normalizedHubRole == role }
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = cardBg,
+        shape = RoundedCornerShape(22.dp),
+        modifier = Modifier.testTag("my_managements_dialog"),
+        title = {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    text = Translations.tr("my_managements_dialog_title", lang),
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 16.5.sp,
+                    color = textPrimary
+                )
+                Text(
+                    text = Translations.tr("my_managements_dialog_subtitle", lang),
+                    fontSize = 12.sp,
+                    color = textSecondary
+                )
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                if (normalizedEnabledList.isEmpty()) {
+                    Surface(
+                        shape = cardShape,
+                        color = subtleSurfaceBg,
+                        border = BorderStroke(1.dp, borderCol),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = Translations.tr("my_managements_empty_hint", lang),
+                            fontSize = 12.5.sp,
+                            color = textSecondary,
+                            modifier = Modifier.padding(14.dp),
+                            lineHeight = 18.sp
+                        )
+                    }
+                } else {
+                    normalizedEnabledList.forEach { role ->
+                        val isSelected = normalizedActive == role
+                        val titleText = when (role) {
+                            AppRole.OWNER_BARN -> Translations.tr("mgmt_option_owner_title", lang)
+                            AppRole.VET_CLINIC -> Translations.tr("mgmt_option_vet_title", lang)
+                            else -> Translations.tr("mgmt_option_worker_title", lang)
+                        }
+                        Surface(
+                            shape = cardShape,
+                            color = if (isSelected) activeAccentContainer else subtleSurfaceBg,
+                            border = BorderStroke(
+                                width = if (isSelected) 2.dp else 1.dp,
+                                color = if (isSelected) activeAccent else borderCol
+                            ),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(cardShape)
+                                .clickable {
+                                    onSelectEnabledRole(role)
+                                    onDismiss()
+                                }
+                                .testTag("my_mgmt_item_${role.name.lowercase()}")
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = titleText,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    fontSize = 13.5.sp,
+                                    color = if (isSelected) activeAccent else textPrimary,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Surface(
+                                    shape = RoundedCornerShape(50),
+                                    color = activeAccentContainer
+                                ) {
+                                    Text(
+                                        text = Translations.tr("prof_status_available", lang),
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = activeAccent,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                OutlinedButton(
+                    onClick = {
+                        onDismiss()
+                        onOpenAddManagement()
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(44.dp)
+                        .testTag("btn_open_add_management_from_my_managements"),
+                    shape = cardShape,
+                    border = BorderStroke(1.5.dp, activeAccent),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = activeAccent)
+                ) {
+                    Text(
+                        text = Translations.tr("btn_add_management", lang),
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 13.sp,
+                        color = activeAccent
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = onDismiss,
+                modifier = Modifier.testTag("btn_close_my_managements")
+            ) {
+                Text(
+                    text = Translations.tr("btn_cancel", lang),
+                    color = textSecondary,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+        }
+    )
+}
+
+@Composable
+fun AddManagementDialog(
+    enabledRoles: Set<AppRole>,
+    activeRole: AppRole,
+    hasAdditionalRoleEntitlement: Boolean,
+    lang: AppLanguage,
+    currentTheme: AppThemeOption,
+    onEnableAndSwitchRole: (AppRole) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val appearance = LocalAppAppearanceState.current
+    val isDark = currentTheme.isDark
+    val cardBg = if (isDark) Color(0xFF1E293B) else Color.White
+    val subtleSurfaceBg = if (isDark) Color(0xFF0F172A) else Color(0xFFF8FAFC)
+    val borderCol = if (isDark) Color(0xFF334155) else Color(0xFFE2E8F0)
+    val textPrimary = if (isDark) Color(0xFFFFFFFF) else Color(0xFF0F172A)
+    val textSecondary = if (isDark) Color(0xFFCBD5E1) else Color(0xFF475569)
+    val activeAccent = appearance.accentColor
+    val activeAccentContainer = appearance.accentContainerColor
+    val cardShape = RoundedCornerShape(appearance.cornerRadiusDp.dp)
+
+    var showSubscriptionRequiredNotice by remember { mutableStateOf(false) }
+
+    if (showSubscriptionRequiredNotice) {
+        AdditionalManagementSubscriptionNoticeDialog(
+            lang = lang,
+            isDark = isDark,
+            cardBg = cardBg,
+            textPrimary = textPrimary,
+            textSecondary = textSecondary,
+            activeAccent = activeAccent,
+            onDismiss = { showSubscriptionRequiredNotice = false }
+        )
+    }
+
+    val availableManagementItems = listOf(
+        Triple(AppRole.OWNER_BARN, Translations.tr("mgmt_option_owner_title", lang), "profession_card_owner_desc"),
+        Triple(AppRole.VET_CLINIC, Translations.tr("mgmt_option_vet_title", lang), "profession_card_vet_desc"),
+        Triple(AppRole.WORKER, Translations.tr("mgmt_option_worker_title", lang), "profession_card_worker_desc")
+    )
+
+    val unavailableManagementItems = sevenProfessionCatalog.filter { !it.role.isCurrentlyAvailable }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = cardBg,
+        shape = RoundedCornerShape(22.dp),
+        modifier = Modifier.testTag("add_management_dialog"),
+        title = {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    text = Translations.tr("add_management_dialog_title", lang),
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 16.5.sp,
+                    color = textPrimary
+                )
+                Text(
+                    text = Translations.tr("add_management_dialog_subtitle", lang),
+                    fontSize = 11.5.sp,
+                    color = textSecondary,
+                    lineHeight = 16.sp
+                )
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                availableManagementItems.forEach { (role, customTitle, descKey) ->
+                    val isAlreadyEnabled = enabledRoles.any { it.normalizedHubRole == role }
+                    val isActive = activeRole.normalizedHubRole == role && isAlreadyEnabled
+                    Surface(
+                        shape = cardShape,
+                        color = if (isActive) activeAccentContainer else subtleSurfaceBg,
+                        border = BorderStroke(
+                            width = if (isActive) 2.dp else 1.dp,
+                            color = if (isActive) activeAccent else borderCol
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(cardShape)
+                            .clickable {
+                                val canEnable = enabledRoles.isEmpty() || isAlreadyEnabled || hasAdditionalRoleEntitlement
+                                if (canEnable) {
+                                    onEnableAndSwitchRole(role)
+                                    onDismiss()
+                                } else {
+                                    showSubscriptionRequiredNotice = true
+                                }
+                            }
+                            .testTag("add_mgmt_option_${role.name.lowercase()}")
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp, vertical = 12.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = customTitle,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    fontSize = 13.5.sp,
+                                    color = if (isActive) activeAccent else textPrimary,
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .padding(end = 8.dp)
+                                )
+                                Surface(
+                                    shape = RoundedCornerShape(50),
+                                    color = activeAccentContainer
+                                ) {
+                                    Text(
+                                        text = Translations.tr("prof_status_available", lang),
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = activeAccent,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+                            Text(
+                                text = Translations.tr(descKey, lang),
+                                fontSize = 11.sp,
+                                color = textSecondary
+                            )
+                        }
+                    }
+                }
+
+                unavailableManagementItems.forEach { item ->
+                    Surface(
+                        shape = cardShape,
+                        color = subtleSurfaceBg,
+                        border = BorderStroke(1.dp, borderCol),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .alpha(0.55f)
+                            .clip(cardShape)
+                            .clickable(enabled = false) {}
+                            .testTag("add_mgmt_option_${item.role.name.lowercase()}")
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp, vertical = 12.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "${item.emoji} ${Translations.tr(item.titleKey, lang)}",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp,
+                                    color = textPrimary,
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .padding(end = 8.dp)
+                                )
+                                Surface(
+                                    shape = RoundedCornerShape(50),
+                                    color = if (isDark) Color(0xFF334155) else Color(0xFFE2E8F0)
+                                ) {
+                                    Text(
+                                        text = Translations.tr("prof_status_unavailable", lang),
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = textSecondary,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+                            Text(
+                                text = Translations.tr(item.descKey, lang),
+                                fontSize = 11.sp,
+                                color = textSecondary
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = onDismiss,
+                modifier = Modifier.testTag("btn_close_add_management")
+            ) {
+                Text(
+                    text = Translations.tr("btn_cancel", lang),
+                    color = textSecondary,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+        }
+    )
 }
 
 /**
@@ -5574,6 +6255,7 @@ object LocalFarmPersistence {
                 obj.put("medicineSummary", r.medicineSummary)
                 obj.put("withdrawalDays", r.withdrawalDays)
                 obj.put("updatedAtMillis", r.updatedAtMillis)
+                obj.put("litterCondition", r.litterCondition)
                 reportsArr.put(obj)
             }
 
@@ -5789,7 +6471,8 @@ object LocalFarmPersistence {
                                 medicineGiven = obj.optBoolean("medicineGiven", false),
                                 medicineSummary = obj.optString("medicineSummary", ""),
                                 withdrawalDays = obj.optInt("withdrawalDays", 0),
-                                updatedAtMillis = obj.optLong("updatedAtMillis", 0L)
+                                updatedAtMillis = obj.optLong("updatedAtMillis", 0L),
+                                litterCondition = obj.optString("litterCondition", "")
                             )
                             if (rep.id.isNotBlank()) {
                                 loadedReports.add(rep)
