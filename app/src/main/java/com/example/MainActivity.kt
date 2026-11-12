@@ -591,17 +591,79 @@ object AgritechMockDb {
         )
     )
 
+    val blockedUserIds = mutableStateListOf<String>()
+    val reportedUgcItemIds = mutableStateListOf<String>()
+    var accountDeletionConfirmationMessage by mutableStateOf<String?>(null)
+
     fun addMarketPost(post: MarketPostModel) {
         marketPosts.add(0, post)
     }
 
+    fun blockUser(
+        targetUid: String,
+        context: android.content.Context? = boundAppContext,
+        firestoreRepo: AgritechFirestoreRepository? = null
+    ) {
+        val cleanUid = targetUid.trim()
+        if (cleanUid.isBlank()) return
+        if (cleanUid !in blockedUserIds) {
+            blockedUserIds.add(cleanUid)
+        }
+        chatMessages.removeAll { it.senderId == cleanUid || it.cycleId == cleanUid }
+        chatConversations.removeAll { it.id == cleanUid || it.userName == cleanUid }
+        marketPosts.removeAll { it.chatChannelId == cleanUid || it.publisherName == cleanUid || it.id == cleanUid }
+        context?.let { LocalFarmPersistence.saveAll(it) }
+    }
+
+    fun reportUgcContent(
+        itemId: String,
+        targetUid: String = "",
+        reason: String = "محتوى مخالف",
+        context: android.content.Context? = boundAppContext,
+        firestoreRepo: AgritechFirestoreRepository? = null
+    ) {
+        val cleanId = itemId.trim()
+        if (cleanId.isBlank()) return
+        if (cleanId !in reportedUgcItemIds) {
+            reportedUgcItemIds.add(cleanId)
+        }
+        marketPosts.removeAll { it.id == cleanId }
+        chatMessages.removeAll { it.id == cleanId }
+        context?.let { LocalFarmPersistence.saveAll(it) }
+    }
+
+    fun visibleMarketPosts(): List<MarketPostModel> {
+        return marketPosts.filterNot { post ->
+            post.id in reportedUgcItemIds ||
+                post.publisherId in blockedUserIds ||
+                post.chatChannelId in blockedUserIds ||
+                post.publisherName in blockedUserIds
+        }
+    }
+
+    fun visibleChatConversations(): List<ChatConversationModel> {
+        return chatConversations.filterNot { conv ->
+            conv.id in reportedUgcItemIds ||
+                conv.id in blockedUserIds ||
+                conv.userName in blockedUserIds ||
+                (conv.phoneNumber.isNotBlank() && conv.phoneNumber in blockedUserIds)
+        }
+    }
+
     fun streamChatMessages(cycleId: String): List<ChatMessageModel> {
-        val exactMatches = chatMessages.filter { it.cycleId == cycleId }
+        if (cycleId in blockedUserIds || cycleId in reportedUgcItemIds) return emptyList()
+        val allowed = chatMessages.filter {
+            it.id !in reportedUgcItemIds &&
+                it.senderId !in blockedUserIds &&
+                it.senderName !in blockedUserIds &&
+                it.cycleId !in blockedUserIds
+        }
+        val exactMatches = allowed.filter { it.cycleId == cycleId }
         if (exactMatches.isNotEmpty()) return exactMatches
         return when {
-            cycleId.endsWith("_worker") -> chatMessages.filter { it.cycleId == "cycle_2026_01_worker" }
-            cycleId.endsWith("_vet") -> chatMessages.filter { it.cycleId == "cycle_2026_01_vet" }
-            else -> chatMessages.filter { it.cycleId == cycleId || it.cycleId == "general_admin" }
+            cycleId.endsWith("_worker") -> allowed.filter { it.cycleId == "cycle_2026_01_worker" }
+            cycleId.endsWith("_vet") -> allowed.filter { it.cycleId == "cycle_2026_01_vet" }
+            else -> allowed.filter { it.cycleId == cycleId || it.cycleId == "general_admin" }
         }
     }
 
@@ -1004,6 +1066,8 @@ object AgritechMockDb {
         workerPersonalEntries.addAll(initialWorkerPersonalEntriesSeed)
         barnInventoryCounters.clear()
         barnInventoryCounters.putAll(initialBarnInventorySeed)
+        blockedUserIds.clear()
+        reportedUgcItemIds.clear()
     }
 
     /**
@@ -1011,6 +1075,33 @@ object AgritechMockDb {
      */
     fun clearOnExplicitLogout() {
         resetForAccountSwitch()
+    }
+
+    /**
+     * Completely wipes all user data from memory and SharedPreferences when the user deletes their account permanently.
+     */
+    fun clearAllDataForDeletedAccount(
+        uid: String? = null,
+        context: android.content.Context? = boundAppContext
+    ) {
+        farms.clear()
+        cycles.clear()
+        deletedFarmIds.clear()
+        countedFeedTxIds.clear()
+        chatMessages.clear()
+        chatConversations.clear()
+        dailyReports.clear()
+        vetNotes.clear()
+        transactions.clear()
+        workerPersonalEntries.clear()
+        barnInventoryCounters.clear()
+        blockedUserIds.clear()
+        reportedUgcItemIds.clear()
+        accountDeletionConfirmationMessage = "تم حذف حسابك وجميع بياناتك نهائياً بنجاح"
+        val targetCtx: android.content.Context? = context
+        if (targetCtx != null) {
+            LocalFarmPersistence.clearAllForDeletedIdentity(targetCtx, uid)
+        }
     }
 
     /**
@@ -1607,9 +1698,10 @@ fun AgritechMainApp(
             AgritechLoginScreen(
                 currentTheme = currentTheme,
                 lang = currentLanguage,
-                authErrorMessage = authErrorBanner,
+                authErrorMessage = authErrorBanner ?: AgritechMockDb.accountDeletionConfirmationMessage,
                 onLogin = { role, linkedBarns ->
                     authErrorBanner = null
+                    AgritechMockDb.accountDeletionConfirmationMessage = null
                     val cm = credentialManager
                     val isAlreadySignedIn = AgritechAuthHelper.isSignedIn()
                     if (isAlreadySignedIn) {
@@ -2501,9 +2593,18 @@ fun AgritechLoginScreen(
     val squircleShape = RoundedCornerShape(24.dp)
 
     var showQrScannerSheet by remember { mutableStateOf(false) }
+    var showPrivacyPolicyModal by remember { mutableStateOf(false) }
     var isLoginMorphing by remember { mutableStateOf(false) }
     var cardEntered by remember { mutableStateOf(false) }
     val loginScope = rememberCoroutineScope()
+
+    if (showPrivacyPolicyModal) {
+        PrivacyPolicyAndTermsModal(
+            lang = lang,
+            currentTheme = currentTheme,
+            onDismiss = { showPrivacyPolicyModal = false }
+        )
+    }
 
     LaunchedEffect(Unit) {
         cardEntered = true
@@ -2785,6 +2886,23 @@ fun AgritechLoginScreen(
                                 overflow = TextOverflow.Ellipsis
                             )
                         }
+                    }
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    TextButton(
+                        onClick = { showPrivacyPolicyModal = true },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("btn_login_privacy_policy")
+                    ) {
+                        Text(
+                            "🔒 سياسة الخصوصية وشروط الاستخدام",
+                            fontSize = 12.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = activeAccent,
+                            textAlign = TextAlign.Center
+                        )
                     }
                 }
             }
@@ -3247,9 +3365,10 @@ fun AgritechOwnerDashboard(
                 GlobalDashboardTab.CHAT -> {
                     // 💬 الدردشة (WhatsApp-Style ChatListScreen -> ChatDetailScreen)
                     val activeConv = selectedChatConversation
-                    if (activeConv == null) {
+                    val visibleConversations = AgritechMockDb.visibleChatConversations()
+                    if (activeConv == null || activeConv.id in AgritechMockDb.blockedUserIds || activeConv.id in AgritechMockDb.reportedUgcItemIds) {
                         ChatListScreen(
-                            conversations = AgritechMockDb.chatConversations,
+                            conversations = visibleConversations,
                             currentTheme = currentTheme,
                             lang = lang,
                             onSelectConversation = { conv ->
@@ -3270,9 +3389,9 @@ fun AgritechOwnerDashboard(
                     }
                 }
                 GlobalDashboardTab.MARKET -> {
-                    // 🛒 السوق (Interactive User-Driven MarketFeedScreen)
+                    // 🛒 السوق (Interactive User-Driven MarketFeedScreen with Google Play UGC Reporting & Blocking)
                     MarketFeedScreen(
-                        posts = AgritechMockDb.marketPosts,
+                        posts = AgritechMockDb.visibleMarketPosts(),
                         currentTheme = currentTheme,
                         lang = lang,
                         onContactPublisher = { post ->
@@ -5679,7 +5798,12 @@ fun ChatListScreen(
             }
         }
 
-        items(conversations, key = { it.id }) { conv ->
+        val visibleConversations = conversations.filter {
+            it.id !in AgritechMockDb.blockedUserIds &&
+                it.userName !in AgritechMockDb.blockedUserIds &&
+                it.id !in AgritechMockDb.reportedUgcItemIds
+        }
+        items(visibleConversations, key = { it.id }) { conv ->
             val channelMsgs = AgritechMockDb.streamChatMessages(conv.id)
             val lastMessageText = channelMsgs.lastOrNull()?.text ?: conv.defaultSnippet
             val lastMessageTime = channelMsgs.lastOrNull()?.timestamp ?: conv.defaultTimestamp
@@ -5830,6 +5954,10 @@ fun ChatDetailScreen(
         conversation.roleLabel.contains("بيطري")
     var showVetInvoiceDialog by remember { mutableStateOf(false) }
     var showUniversalFinancialDialog by remember { mutableStateOf(false) }
+    var showUgcReportDialog by remember { mutableStateOf(false) }
+    var ugcReportConfirmationBanner by remember { mutableStateOf<String?>(null) }
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
 
     val activeFarm = AgritechMockDb.farms.firstOrNull() ?: FarmModel(id = "farm_1", name = "عنبر البركة 1 - المدية", location = "المدية", capacity = 8000, assignedWorkerId = "worker_1")
     val activeCycle = AgritechMockDb.cycles.firstOrNull { it.farmId == activeFarm.id } ?: CycleModel(id = "cycle_2025_1", farmId = activeFarm.id, totalBirdsPlaced = 8000, targetWeight = 2.3, status = "active")
@@ -5881,6 +6009,32 @@ fun ChatDetailScreen(
             currentTheme = currentTheme,
             firestoreRepo = firestoreRepo,
             onDismiss = { showUniversalFinancialDialog = false }
+        )
+    }
+
+    if (showUgcReportDialog) {
+        UgcReportReasonDialog(
+            currentTheme = currentTheme,
+            onDismiss = { showUgcReportDialog = false },
+            onConfirmReport = { reason ->
+                showUgcReportDialog = false
+                AgritechMockDb.reportUgcContent(
+                    itemId = conversation.id,
+                    targetUid = conversation.id,
+                    reason = reason,
+                    context = context,
+                    firestoreRepo = firestoreRepo
+                )
+                ugcReportConfirmationBanner = "تم استلام بلاغك وإخفاء المحتوى، ستتم مراجعته خلال 24 ساعة"
+                scope.launch {
+                    firestoreRepo?.submitUgcReportToCloud(
+                        itemId = conversation.id,
+                        targetUid = conversation.id,
+                        reason = reason,
+                        contentType = "CHAT"
+                    )
+                }
+            }
         )
     }
 
@@ -5995,7 +6149,74 @@ fun ChatDetailScreen(
                             }
                         }
                     }
+
+                    // Google Play UGC Policy: Report & Block User actions inside Chat
+                    Surface(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .testTag("btn_report_ugc_content")
+                            .clickable { showUgcReportDialog = true },
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color(0xFFFFFBEB),
+                        border = BorderStroke(1.dp, Color(0xFFF59E0B).copy(alpha = 0.45f))
+                    ) {
+                        Text(
+                            "🚩 إبلاغ",
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = Color(0xFFB45309)
+                        )
+                    }
+
+                    Surface(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .testTag("btn_block_ugc_user")
+                            .clickable {
+                                AgritechMockDb.blockUser(
+                                    targetUid = conversation.id,
+                                    context = context,
+                                    firestoreRepo = firestoreRepo
+                                )
+                                scope.launch {
+                                    firestoreRepo?.saveBlockedUserToCloud(AgritechMockDb.blockedUserIds.toSet())
+                                }
+                                onBack()
+                            },
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color(0xFFFEF2F2),
+                        border = BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha = 0.45f))
+                    ) {
+                        Text(
+                            "🚫 حظر",
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = Color(0xFFDC2626)
+                        )
+                    }
                 }
+            }
+        }
+
+        ugcReportConfirmationBanner?.let { bannerMsg ->
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 6.dp)
+                    .testTag("ugc_report_confirmation_banner"),
+                shape = RoundedCornerShape(10.dp),
+                color = Color(0xFFECFDF5),
+                border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.45f))
+            ) {
+                Text(
+                    bannerMsg,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    fontSize = 11.5.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF065F46)
+                )
             }
         }
 
@@ -6420,8 +6641,16 @@ fun MarketFeedScreen(
     posts: List<MarketPostModel>,
     currentTheme: AppThemeOption,
     lang: AppLanguage,
+    firestoreRepo: AgritechFirestoreRepository? = null,
     onContactPublisher: (MarketPostModel) -> Unit
 ) {
+    var ugcFeedbackBanner by remember { mutableStateOf<String?>(null) }
+    val visiblePosts = posts.filter { post ->
+        post.id !in AgritechMockDb.reportedUgcItemIds &&
+            post.chatChannelId !in AgritechMockDb.blockedUserIds &&
+            post.publisherName !in AgritechMockDb.blockedUserIds
+    }
+
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -6429,12 +6658,36 @@ fun MarketFeedScreen(
             .testTag("global_market_screen"),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        items(posts, key = { it.id }) { post ->
+        ugcFeedbackBanner?.let { msg ->
+            item(key = "ugc_market_feedback_banner") {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("ugc_report_confirmation_banner"),
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color(0xFFECFDF5),
+                    border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.45f))
+                ) {
+                    Text(
+                        msg,
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF065F46)
+                    )
+                }
+            }
+        }
+
+        items(visiblePosts, key = { it.id }) { post ->
             MarketPostCard(
                 post = post,
                 currentTheme = currentTheme,
                 lang = lang,
-                onContact = { onContactPublisher(post) }
+                onContact = { onContactPublisher(post) },
+                onReportedNotice = { notice ->
+                    ugcFeedbackBanner = notice
+                }
             )
         }
 
@@ -6449,9 +6702,19 @@ fun MarketPostCard(
     post: MarketPostModel,
     currentTheme: AppThemeOption,
     lang: AppLanguage,
-    onContact: () -> Unit
+    onContact: () -> Unit,
+    onReportedNotice: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val firestoreRepo = remember {
+        try {
+            AgritechFirestoreRepository(context)
+        } catch (_: Exception) {
+            null
+        }
+    }
+    var showReportDialog by remember { mutableStateOf(false) }
     val appearance = LocalAppAppearanceState.current
     val isDark = currentTheme.isDark
     val primaryText = if (isDark) Color(0xFFFFFFFF) else Color(0xDD000000)
@@ -6463,6 +6726,32 @@ fun MarketPostCard(
     val imageContainerBorder = if (isDark) Color(0xFF334155) else Color(0xFFE2E8F0)
     val cardShape = RoundedCornerShape(appearance.cornerRadiusDp.dp)
     val btnShape = RoundedCornerShape((appearance.cornerRadiusDp - 6).coerceAtLeast(4).dp)
+
+    if (showReportDialog) {
+        UgcReportReasonDialog(
+            currentTheme = currentTheme,
+            onDismiss = { showReportDialog = false },
+            onConfirmReport = { reason ->
+                showReportDialog = false
+                AgritechMockDb.reportUgcContent(
+                    itemId = post.id,
+                    targetUid = post.chatChannelId,
+                    reason = reason,
+                    context = context,
+                    firestoreRepo = firestoreRepo
+                )
+                onReportedNotice("تم استلام بلاغك وإخفاء المحتوى، ستتم مراجعته خلال 24 ساعة")
+                scope.launch {
+                    firestoreRepo?.submitUgcReportToCloud(
+                        itemId = post.id,
+                        targetUid = post.chatChannelId,
+                        reason = reason,
+                        contentType = "MARKET_POST"
+                    )
+                }
+            }
+        )
+    }
 
     val localizedPost = remember(post, lang, Translations.globalCurrencyCode) {
         GlobalLanguageDictionaries.localizeMarketPost(post, lang)
@@ -6622,6 +6911,60 @@ fun MarketPostCard(
                         fontWeight = FontWeight.Bold,
                         fontSize = 12.5.sp,
                         color = Color.White
+                    )
+                }
+            }
+
+            // e) Google Play UGC Moderation Row: Report Content & Block User
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedButton(
+                    onClick = { showReportDialog = true },
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("btn_report_ugc_content"),
+                    shape = btnShape,
+                    border = BorderStroke(1.dp, Color(0xFFF59E0B).copy(alpha = 0.5f)),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                ) {
+                    Text(
+                        "🚩 إبلاغ عن محتوى مخالف",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isDark) Color(0xFFFBBF24) else Color(0xFFB45309),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                OutlinedButton(
+                    onClick = {
+                        AgritechMockDb.blockUser(
+                            targetUid = post.chatChannelId.ifBlank { post.publisherName },
+                            context = context,
+                            firestoreRepo = firestoreRepo
+                        )
+                        scope.launch {
+                            firestoreRepo?.saveBlockedUserToCloud(AgritechMockDb.blockedUserIds.toSet())
+                        }
+                    },
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("btn_block_ugc_user"),
+                    shape = btnShape,
+                    border = BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha = 0.5f)),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                ) {
+                    Text(
+                        "🚫 حظر هذا المستخدم",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isDark) Color(0xFFF87171) else Color(0xFFDC2626),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }

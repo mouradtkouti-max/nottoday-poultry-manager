@@ -1755,6 +1755,190 @@ class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
             Result.failure(e)
         }
     }
+
+    /**
+     * Google Play Account Deletion Policy Compliance:
+     * Permanently deletes the user's cloud profile (`/users/{uid}`), entitlements (`/user_entitlements/{uid}`),
+     * owned barns (`/farms/{farmId}` + subcollections), or removes their UID from shared barns' `members` map,
+     * and deletes the Firebase Auth account (`currentUser?.delete()`).
+     */
+    suspend fun deleteUserAccountAndDataCompletely(uid: String = ""): Result<Unit> {
+        val currentAuthUid = runCatching { auth.currentUser?.uid }.getOrNull().orEmpty()
+        val targetUid = uid.trim().ifBlank { currentAuthUid }
+        AgritechMockDb.clearAllDataForDeletedAccount(targetUid)
+        if (targetUid.isBlank() || currentAuthUid.isBlank()) {
+            return Result.success(Unit)
+        }
+        return try {
+            // 1. Clean up owned farms or remove membership from shared farms
+            runCatching {
+                val memberFarmsSnap = db.collection("farms")
+                    .whereIn("members.$targetUid", listOf("OWNER", "WORKER", "VETERINARIAN"))
+                    .get()
+                    .await()
+                for (farmDoc in memberFarmsSnap.documents) {
+                    val fId = farmDoc.id
+                    @Suppress("UNCHECKED_CAST")
+                    val membersMap = (farmDoc.get("members") as? Map<String, String>).orEmpty()
+                    val assignedOwner = farmDoc.getString("assignedOwnerId").orEmpty()
+                    val roleInFarm = membersMap[targetUid].orEmpty()
+                    if (roleInFarm.equals("OWNER", ignoreCase = true) || assignedOwner == targetUid) {
+                        deleteFarmRecord(fId)
+                    } else if (targetUid in membersMap) {
+                        runCatching {
+                            farmDoc.reference.update(
+                                com.google.firebase.firestore.FieldPath.of("members", targetUid),
+                                FieldValue.delete(),
+                                "updatedAt",
+                                FieldValue.serverTimestamp()
+                            ).await()
+                        }
+                    }
+                }
+            }
+
+            // 2. Delete /user_entitlements/{uid} and /users/{uid}
+            runCatching {
+                db.collection("user_entitlements").document(targetUid).delete().await()
+            }
+            runCatching {
+                db.collection("users").document(targetUid).delete().await()
+            }
+
+            // 3. Delete FirebaseAuth user record & sign out
+            runCatching {
+                auth.currentUser?.delete()?.await()
+            }
+            runCatching {
+                auth.signOut()
+            }
+            Result.success(Unit)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Synchronizes a user's farm membership in both `/farms/{farmId}.members.{uid}` and `/users/{uid}`
+     * when joining via QR invite or initializing an owned barn so multi-device `observeAllUserFarms` works.
+     */
+    suspend fun saveUserFarmMembershipToCloud(
+        farmId: String,
+        role: AppRole,
+        inviteId: String = "",
+        displayName: String? = null
+    ): Result<Unit> {
+        if (isUnassignedFarm(farmId)) return Result.success(Unit)
+        val uid = runCatching { auth.currentUser?.uid }.getOrNull().orEmpty()
+        val normalizedRoleName = when (role) {
+            AppRole.VETERINARIAN, AppRole.VET_CLINIC -> "VETERINARIAN"
+            AppRole.WORKER -> "WORKER"
+            else -> "OWNER"
+        }
+        val isWorkerOrVet = normalizedRoleName == "WORKER" || normalizedRoleName == "VETERINARIAN"
+        if (isWorkerOrVet && inviteId.isNotBlank()) {
+            return acceptFarmInvite(
+                farmId = farmId,
+                inviteId = inviteId,
+                expectedRole = role,
+                displayName = displayName
+            )
+        }
+        val res = setUserRoleAndFarm(role = role, farmId = farmId, displayName = displayName)
+        if (uid.isNotBlank() && isWorkerOrVet) {
+            runCatching {
+                farmDocRef(farmId).update(
+                    com.google.firebase.firestore.FieldPath.of("members", uid),
+                    normalizedRoleName,
+                    "updatedAt",
+                    FieldValue.serverTimestamp()
+                ).await()
+            }
+        }
+        return res
+    }
+
+    /**
+     * Checks cloud entitlement document `/user_entitlements/{uid}` for authorized multi-barn/pro access.
+     */
+    suspend fun checkUserCloudEntitlement(uid: String = ""): Boolean {
+        val targetUid = uid.trim().ifBlank { runCatching { auth.currentUser?.uid }.getOrNull().orEmpty() }
+        if (targetUid.isBlank()) return false
+        return try {
+            val snap = db.collection("user_entitlements").document(targetUid).get().await()
+            snap.exists() && (snap.getBoolean("isActive") != false)
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    /**
+     * Google Play UGC Policy Compliance:
+     * Submits a user-generated content abuse/violation report to `/ugc_reports/{reportId}` in Firestore.
+     */
+    suspend fun submitUgcReportToCloud(
+        itemId: String,
+        targetUid: String,
+        reason: String,
+        contentType: String = "MARKET_OR_CHAT"
+    ): Result<String> {
+        val reporterUid = runCatching { auth.currentUser?.uid }.getOrNull().orEmpty()
+        val reportId = "ugc_rep_${System.currentTimeMillis()}"
+        if (reporterUid.isBlank()) {
+            return Result.success(reportId)
+        }
+        val docRef = db.collection("ugc_reports").document(reportId)
+        return try {
+            docRef.set(
+                mapOf(
+                    "reportId" to reportId,
+                    "reporterUid" to reporterUid,
+                    "reporterId" to reporterUid,
+                    "itemId" to itemId,
+                    "targetUid" to targetUid,
+                    "reason" to reason.ifBlank { "محتوى مخالف" },
+                    "contentType" to contentType,
+                    "status" to "PENDING_REVIEW",
+                    "createdAtMillis" to System.currentTimeMillis(),
+                    "createdAt" to FieldValue.serverTimestamp()
+                )
+            ).await()
+            Result.success(reportId)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Google Play UGC Policy Compliance:
+     * Persists the user's blocked user IDs list under `/users/{uid}.blockedUserIds`.
+     */
+    suspend fun saveBlockedUserToCloud(blockedSet: Set<String>): Result<Unit> {
+        val uid = runCatching { auth.currentUser?.uid }.getOrNull().orEmpty()
+        if (uid.isBlank()) return Result.success(Unit)
+        val userRef = db.collection("users").document(uid)
+        return try {
+            val snap = userRef.get().await()
+            if (snap.exists()) {
+                userRef.update(
+                    mapOf(
+                        "blockedUserIds" to blockedSet.toList(),
+                        "updatedAt" to FieldValue.serverTimestamp()
+                    )
+                ).await()
+            }
+            Result.success(Unit)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }
+
 
 

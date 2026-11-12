@@ -309,7 +309,8 @@ data class MarketPostModel(
     val chatChannelId: String = "conv_feed_trader",
     val imageUri: String? = null,
     val publisherPhone: String = "",
-    val isPhoneContact: Boolean = true
+    val isPhoneContact: Boolean = true,
+    val publisherId: String = chatChannelId
 )
 
 typealias MarketPostItem = MarketPostModel

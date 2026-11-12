@@ -75,7 +75,7 @@ abstract class FirestoreEmulatorTestBase {
     private fun isEmulatorPortOpen(host: String, port: Int): Boolean {
         return try {
             java.net.Socket().use { socket ->
-                socket.connect(java.net.InetSocketAddress(host, port), 150)
+                socket.connect(java.net.InetSocketAddress(host, port), 2000)
                 true
             }
         } catch (_: Throwable) {

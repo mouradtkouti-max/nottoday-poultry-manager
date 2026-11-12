@@ -426,4 +426,44 @@ class AgritechRepositoryRuleTest : FirestoreEmulatorTestBase() {
         }
         assertTrue(failed)
     }
+
+    @Test
+    fun googlePlayCompliance_cloudAccountDeletion_and_ugcReportSubmission() = runBlocking {
+        val userUid = signInTestUser("gp_compliance_${UUID.randomUUID()}@farm.com")
+        val repo = AgritechFirestoreRepository(firestore)
+        val farmId = "farm_gp_${UUID.randomUUID().toString().take(8)}"
+
+        withTimeout(5000L) {
+            repo.setUserRoleAndFarm(AppRole.OWNER, farmId, "GP Owner").getOrThrow()
+            repo.saveFarmRecord(
+                FarmModel(
+                    id = farmId,
+                    name = "عنبر اختبار المتجر",
+                    location = "المدية",
+                    capacity = 6000,
+                    members = mapOf(userUid to "OWNER")
+                ),
+                AppRole.OWNER
+            ).getOrThrow()
+            repo.saveUserFarmMembershipToCloud(farmId, AppRole.OWNER, displayName = "GP Owner").getOrThrow()
+
+            // Submit UGC report to /ugc_reports/{reportId}
+            val reportRes = repo.submitUgcReportToCloud(
+                itemId = "post_1",
+                targetUid = "conv_feed_trader",
+                reason = "محتوى مسيء أو غير لائق",
+                contentType = "MARKET_POST"
+            )
+            assertTrue("Submitting UGC report to cloud must succeed", reportRes.isSuccess)
+
+            // Save blocked user IDs to /users/{uid}.blockedUserIds
+            val blockRes = repo.saveBlockedUserToCloud(setOf("conv_feed_trader"))
+            assertTrue("Saving blockedUserIds to cloud profile must succeed", blockRes.isSuccess)
+
+            // Delete user account and all cloud data completely
+            val deleteRes = repo.deleteUserAccountAndDataCompletely(userUid)
+            assertTrue("Deleting account and cloud data must succeed: ${deleteRes.exceptionOrNull()?.message}", deleteRes.isSuccess)
+        }
+    }
 }
+

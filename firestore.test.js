@@ -939,3 +939,90 @@ test("IQ Audit S01, S02, S03, S04, C01: Stranger farm read blocked, Worker chann
     })
   );
 });
+
+test("Google Play Compliance: Account Deletion self-leave, user_entitlements delete-only, and ugc_reports creation", async () => {
+  await seedSharedFarmWithMembers(FARM_ID, {
+    [OWNER_UID]: "OWNER",
+    [WORKER_UID]: "WORKER",
+    [VET_UID]: "VETERINARIAN",
+  });
+  const now = new Date();
+  const workerDb = testEnv.authenticatedContext(WORKER_UID).firestore();
+  const ownerDb = testEnv.authenticatedContext(OWNER_UID).firestore();
+
+  // 1. UGC report creation by authenticated user succeeds with valid schema
+  await assertSucceeds(
+    workerDb.collection("ugc_reports").doc("rep_ugc_1").set({
+      reportId: "rep_ugc_1",
+      reporterId: WORKER_UID,
+      itemId: "post_1",
+      targetUid: "conv_feed_trader",
+      reason: "احتيال أو أسعار وهمية",
+      contentType: "MARKET_POST",
+      status: "PENDING_REVIEW",
+      createdAtMillis: Date.now(),
+      createdAt: now,
+    })
+  );
+
+  // Forged reporterId fails
+  await assertFails(
+    workerDb.collection("ugc_reports").doc("rep_ugc_forged").set({
+      reportId: "rep_ugc_forged",
+      reporterId: OWNER_UID,
+      itemId: "post_1",
+      reason: "محتوى مخالف",
+      status: "PENDING_REVIEW",
+      createdAt: now,
+    })
+  );
+
+  // 2. Worker can remove ONLY their own UID from shared farm's members when deleting their account
+  await assertSucceeds(
+    workerDb.collection("farms").doc(FARM_ID).update({
+      members: {
+        [OWNER_UID]: "OWNER",
+        [VET_UID]: "VETERINARIAN",
+      },
+      updatedAt: now,
+    })
+  );
+
+  // 3. User can delete their own /users/{uid} and /user_entitlements/{uid} documents
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    const adminDb = context.firestore();
+    await adminDb.collection("users").doc(WORKER_UID).set({
+      userId: WORKER_UID,
+      role: "WORKER",
+      farmId: FARM_ID,
+      createdAt: now,
+      updatedAt: now,
+    });
+    await adminDb.collection("user_entitlements").doc(WORKER_UID).set({
+      userId: WORKER_UID,
+      tier: "EARLY_ACCESS",
+    });
+  });
+
+  // User CANNOT self-grant entitlement via client write
+  await assertFails(
+    workerDb.collection("user_entitlements").doc(WORKER_UID).set({
+      userId: WORKER_UID,
+      tier: "LIFETIME_PRO",
+    })
+  );
+
+  // User CAN delete their own entitlement and user profile on account deletion
+  await assertSucceeds(
+    workerDb.collection("user_entitlements").doc(WORKER_UID).delete()
+  );
+  await assertSucceeds(
+    workerDb.collection("users").doc(WORKER_UID).delete()
+  );
+
+  // Owner can delete their owned farm on account deletion
+  await assertSucceeds(
+    ownerDb.collection("farms").doc(FARM_ID).delete()
+  );
+});
+

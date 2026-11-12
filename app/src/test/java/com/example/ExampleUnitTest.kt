@@ -1433,8 +1433,86 @@ class ExampleUnitTest {
         assertEquals("feed_4", Ross308BroilerHandbook.getPreviousSubCardId(branches, "feed_1"))
         assertEquals("feed_3", Ross308BroilerHandbook.findSubCard(branches, "feed_3")?.second?.id)
     }
+
+    @Test
+    fun googlePlayCompliance_accountDeletion_ugcModeration_and_noExternalPayment_workCorrectly() {
+        // 1. Reset state and populate sample farms, market posts, and chat messages
+        AgritechMockDb.resetForAccountSwitch()
+        AgritechMockDb.farms.add(
+            FarmModel(
+                id = "farm_gp_1",
+                name = "عنبر الامتثال 1",
+                location = "البليدة",
+                capacity = 5000
+            )
+        )
+        AgritechMockDb.marketPosts.add(
+            0,
+            MarketPostModel(
+                id = "post_ugc_bad_1",
+                title = "عرض مشبوه في السوق",
+                description = "تفاصيل عرض",
+                priceDzd = 100.0,
+                priceUnit = "دج / كغ",
+                publisherName = "مستخدم مخالف",
+                publisherLocation = "الجزائر",
+                imageCaption = "صورة",
+                chatChannelId = "bad_user_channel_1"
+            )
+        )
+        AgritechMockDb.sendChatMessage(
+            ChatMessageModel(
+                id = "msg_ugc_bad_1",
+                cycleId = "bad_user_channel_1",
+                senderId = "bad_user_uid_99",
+                senderName = "مستخدم مخالف",
+                senderRole = "تاجر",
+                text = "رسالة مخالفة",
+                timestamp = "11:00 ص"
+            )
+        )
+
+        // 2. Verify reporting a UGC item immediately hides it from marketPosts and streamChatMessages
+        assertTrue(AgritechMockDb.marketPosts.any { it.id == "post_ugc_bad_1" })
+        AgritechMockDb.reportUgcContent(
+            itemId = "post_ugc_bad_1",
+            targetUid = "bad_user_channel_1",
+            reason = "احتيال أو أسعار وهمية"
+        )
+        assertTrue("post_ugc_bad_1" in AgritechMockDb.reportedUgcItemIds)
+        assertFalse(
+            "Reported market post must be removed immediately from local feed",
+            AgritechMockDb.marketPosts.any { it.id == "post_ugc_bad_1" }
+        )
+
+        // 3. Verify blocking a user adds targetUid to blockedUserIds and immediately filters out their messages and conversations
+        AgritechMockDb.blockUser(targetUid = "bad_user_uid_99")
+        assertTrue("bad_user_uid_99" in AgritechMockDb.blockedUserIds)
+        assertTrue(
+            "Messages from blocked senderId must be removed and excluded from streamChatMessages",
+            AgritechMockDb.streamChatMessages("bad_user_channel_1").none { it.senderId == "bad_user_uid_99" }
+        )
+
+        AgritechMockDb.blockUser(targetUid = "bad_user_channel_1")
+        assertTrue(
+            "Blocked channel must return empty messages list",
+            AgritechMockDb.streamChatMessages("bad_user_channel_1").isEmpty()
+        )
+
+        // 4. Verify permanent account deletion clears all local farms, cycles, reports, transactions, chat messages, and sets confirmation message
+        AgritechMockDb.clearAllDataForDeletedAccount(uid = "deleted_uid_test")
+        assertTrue("Farms must be cleared after account deletion", AgritechMockDb.farms.isEmpty())
+        assertTrue("Cycles must be cleared after account deletion", AgritechMockDb.cycles.isEmpty())
+        assertTrue("DailyReports must be cleared after account deletion", AgritechMockDb.dailyReports.isEmpty())
+        assertTrue("Transactions must be cleared after account deletion", AgritechMockDb.transactions.isEmpty())
+        assertTrue("ChatMessages must be cleared after account deletion", AgritechMockDb.chatMessages.isEmpty())
+        assertEquals(
+            "تم حذف حسابك وجميع بياناتك نهائياً بنجاح",
+            AgritechMockDb.accountDeletionConfirmationMessage
+        )
+
+        // Restore default seed for subsequent tests
+        AgritechMockDb.accountDeletionConfirmationMessage = null
+        AgritechMockDb.resetForAccountSwitch()
+    }
 }
-
-
-
-

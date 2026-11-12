@@ -1386,6 +1386,9 @@ fun PremiumSettingsModal(
     var showCurrencyBottomSheet by remember { mutableStateOf(false) }
     var showPaywallFromSettings by remember { mutableStateOf(false) }
     var showQrPreviewBanner by remember { mutableStateOf(false) }
+    var showPrivacyPolicyModal by remember { mutableStateOf(false) }
+    var showDeleteAccountConfirmDialog by remember { mutableStateOf(false) }
+    val deleteAccountScope = rememberCoroutineScope()
 
     // Count pending appearance changes
     val pendingChangesCount = remember(
@@ -2243,7 +2246,45 @@ fun PremiumSettingsModal(
                                             secondaryTestTag = "btn_settings_reset_active_cycle",
                                             onClick = { showResetActiveCycleConfirm = true }
                                         )
+
+                                        HorizontalDivider(color = borderCol, thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp))
+
+                                        // Row 6: 🔒 سياسة الخصوصية وشروط الاستخدام وإخلاء المسؤولية (Google Play Compliance)
+                                        WhatsAppSettingsHubRow(
+                                            iconEmoji = "🔒",
+                                            iconBg = activeAccentContainer,
+                                            title = "🔒 سياسة الخصوصية وشروط الاستخدام",
+                                            subtitle = "بيانات الحساب، إذن الكاميرا (QR)، وإخلاء المسؤولية البيطرية",
+                                            textPrimary = textPrimary,
+                                            textSecondary = textSecondary,
+                                            accentColor = activeAccent,
+                                            testTag = "btn_settings_privacy_policy",
+                                            secondaryTestTag = "settings_nav_privacy_policy",
+                                            onClick = { showPrivacyPolicyModal = true }
+                                        )
                                     }
+                                }
+
+                                // 4) Google Play Account Deletion Policy: Prominent Red Warning Button under Account section
+                                OutlinedButton(
+                                    onClick = { showDeleteAccountConfirmDialog = true },
+                                    shape = previewShape,
+                                    border = BorderStroke(1.5.dp, Color(0xFFE11D48)),
+                                    colors = ButtonDefaults.outlinedButtonColors(
+                                        containerColor = if (isDark) Color(0xFF450A0A).copy(alpha = 0.45f) else Color(0xFFFFF1F2),
+                                        contentColor = Color(0xFFE11D48)
+                                    ),
+                                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .testTag("btn_delete_account_permanently")
+                                ) {
+                                    Text(
+                                        text = "🗑️ حذف الحساب وجميع بياناتي نهائياً (Delete Account & Data)",
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontSize = 13.sp,
+                                        color = if (isDark) Color(0xFFFDA4AF) else Color(0xFFE11D48)
+                                    )
                                 }
                             }
                         }
@@ -2665,9 +2706,86 @@ fun PremiumSettingsModal(
             existingBarnsCount = AgritechMockDb.farms.size.coerceAtLeast(1),
             onDismiss = { showPaywallFromSettings = false },
             onSubscriptionSuccess = { _ ->
-                val currentUnlocked = SaasPreferencesManager.getUnlockedAdditionalBarns(context)
-                SaasPreferencesManager.saveUnlockedAdditionalBarns(context, currentUnlocked + 1)
                 showPaywallFromSettings = false
+            }
+        )
+    }
+
+    if (showPrivacyPolicyModal) {
+        PrivacyPolicyAndTermsModal(
+            lang = selectedLang,
+            currentTheme = draftTheme,
+            onDismiss = { showPrivacyPolicyModal = false }
+        )
+    }
+
+    if (showDeleteAccountConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteAccountConfirmDialog = false },
+            shape = previewShape,
+            containerColor = cardBg,
+            modifier = Modifier.testTag("dialog_confirm_delete_account"),
+            title = {
+                Text(
+                    text = "⚠️ تأكيد حذف الحساب وجميع البيانات نهائياً",
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 15.5.sp,
+                    color = Color(0xFFE11D48)
+                )
+            },
+            text = {
+                Text(
+                    text = "هل أنت متأكد من رغبتك في حذف حسابك نهائياً؟ سيتم مسح وثيقة حسابك وجميع عنابرك وتقاريرك اليومية وفواتيرك السحابية والمحلية نهائياً ولا يمكن التراجع عن هذا الإجراء.",
+                    fontSize = 13.sp,
+                    color = textPrimary,
+                    lineHeight = 19.sp
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val uidToDelete = sessionState.currentUserUid
+                            ?: runCatching { com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid }.getOrNull()
+                            ?: ""
+                        showDeleteAccountConfirmDialog = false
+                        deleteAccountScope.launch {
+                            runCatching {
+                                com.example.AgritechFirestoreRepository(context)
+                                    .deleteUserAccountAndDataCompletely(uidToDelete)
+                            }
+                            com.example.AgritechMockDb.clearAllDataForDeletedAccount(uidToDelete, context)
+                            sessionState.performExplicitLogout(context)
+                            android.widget.Toast.makeText(
+                                context,
+                                "تم حذف حسابك وجميع بياناتك نهائياً بنجاح",
+                                android.widget.Toast.LENGTH_LONG
+                            ).show()
+                            onDismiss()
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE11D48)),
+                    shape = previewShape,
+                    modifier = Modifier.testTag("btn_confirm_delete_account_permanently")
+                ) {
+                    Text(
+                        text = "🗑️ نعم، احذف حسابي وبياناتي نهائياً",
+                        color = Color.White,
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 12.sp
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showDeleteAccountConfirmDialog = false },
+                    modifier = Modifier.testTag("btn_cancel_delete_account")
+                ) {
+                    Text(
+                        text = Translations.tr("btn_cancel", selectedLang),
+                        color = textSecondary,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
             }
         )
     }
@@ -3471,102 +3589,49 @@ fun SubscriptionPaywallBottomSheet(
 
             HorizontalDivider(color = if (isDark) Color(0xFF334155) else Color(0xFFE2E8F0))
 
+            // Official Early Access Release Banner (Google Play Payments Policy Compliance — No Stripe or Fake Sandbox)
             Surface(
-                shape = RoundedCornerShape(12.dp),
-                color = if (isDark) Color(0xFF1E293B) else Color(0xFFFFFBEB),
-                border = BorderStroke(1.dp, Color(0xFFF59E0B).copy(alpha = 0.55f)),
+                shape = RoundedCornerShape(16.dp),
+                color = if (isDark) Color(0xFF064E3B).copy(alpha = 0.55f) else Color(0xFFECFDF5),
+                border = BorderStroke(1.5.dp, Color(0xFF10B981)),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .testTag("paywall_sandbox_banner")
+                    .testTag("card_early_access_billing_notice")
             ) {
-                Text(
-                    text = Translations.tr("paywall_sandbox_notice", lang),
-                    fontSize = 11.5.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = if (isDark) Color(0xFFFDE68A) else Color(0xFF92400E),
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
-                )
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = "🎁 نسخة الإطلاق الرسمي المبكر: العنبر الأول والإدارة الأولى مجانية بالكامل. الباقات الإضافية للمنشآت المتعددة ستتوفر قريباً عبر نظام فوترة Google Play الرسمي.",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = if (isDark) Color(0xFFA7F3D0) else Color(0xFF065F46),
+                        lineHeight = 20.sp
+                    )
+                    Text(
+                        text = "✓ يتم التحقق تلقائياً من الاستحقاق السحابي المعتمد (user_entitlements) للحسابات المصرح لها.",
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = secondaryText
+                    )
+                }
             }
 
-            // Payment Buttons: Google Play & Stripe ($4.99 / 2 Months)
             Button(
-                onClick = {
-                    if (!isProcessingPayment) {
-                        isProcessingPayment = true
-                        activePaymentProvider = "Google Play"
-                        scope.launch {
-                            delay(250)
-                            isProcessingPayment = false
-                            onSubscriptionSuccess("Google Play")
-                        }
-                    }
-                },
-                enabled = !isProcessingPayment,
+                onClick = { onDismiss() },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(min = 64.dp)
-                    .testTag("btn_subscribe_google_play"),
-                contentPadding = PaddingValues(vertical = 12.dp, horizontal = 16.dp),
+                    .heightIn(min = 52.dp)
+                    .testTag("btn_close_early_access_paywall"),
                 shape = RoundedCornerShape(14.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = TextForestGreen)
             ) {
-                if (isProcessingPayment && activePaymentProvider == "Google Play") {
-                    CircularProgressIndicator(
-                        color = Color.White,
-                        strokeWidth = 2.dp,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                } else {
-                    Icon(Icons.Default.Shop, contentDescription = null, tint = Color.White)
-                    Spacer(modifier = Modifier.width(8.dp))
-                }
                 Text(
-                    text = Translations.tr("paywall_btn_google_play", lang),
-                    fontWeight = FontWeight.Bold,
+                    text = "حسناً، فهمت",
+                    fontWeight = FontWeight.ExtraBold,
                     fontSize = 14.sp,
                     color = Color.White
-                )
-            }
-
-            OutlinedButton(
-                onClick = {
-                    if (!isProcessingPayment) {
-                        isProcessingPayment = true
-                        activePaymentProvider = "Stripe"
-                        scope.launch {
-                            delay(250)
-                            isProcessingPayment = false
-                            onSubscriptionSuccess("Stripe")
-                        }
-                    }
-                },
-                enabled = !isProcessingPayment,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 64.dp)
-                    .testTag("btn_subscribe_stripe"),
-                contentPadding = PaddingValues(vertical = 12.dp, horizontal = 16.dp),
-                shape = RoundedCornerShape(14.dp),
-                border = BorderStroke(1.5.dp, Color(0xFF635BFF)),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF635BFF))
-            ) {
-                if (isProcessingPayment && activePaymentProvider == "Stripe") {
-                    CircularProgressIndicator(
-                        color = Color(0xFF635BFF),
-                        strokeWidth = 2.dp,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                } else {
-                    Icon(Icons.Default.CreditCard, contentDescription = null, tint = Color(0xFF635BFF))
-                    Spacer(modifier = Modifier.width(8.dp))
-                }
-                Text(
-                    text = Translations.tr("paywall_btn_stripe", lang),
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp,
-                    color = if (isDark) Color(0xFFA5B4FC) else Color(0xFF635BFF)
                 )
             }
         }
@@ -6068,6 +6133,8 @@ object LocalFarmPersistence {
     private const val KEY_CHAT_MESSAGES = "chat_messages_json"
     private const val KEY_CHAT_CONVERSATIONS = "chat_conversations_json"
     private const val KEY_CHAT_INITIALIZED = "chat_state_initialized"
+    private const val KEY_BLOCKED_USER_IDS = "blocked_user_ids_json"
+    private const val KEY_REPORTED_UGC_IDS = "reported_ugc_ids_json"
     private const val KEY_LEGACY_BACKED_UP = "legacy_v1_backed_up"
     private const val KEY_LEGACY_CLAIMED_BY = "legacy_v1_claimed_by"
 
@@ -6075,6 +6142,15 @@ object LocalFarmPersistence {
     private var activeIdentityKey: String = "local_guest_default"
 
     fun resolveActiveStorageIdentityKey(explicitUid: String? = null): String {
+        val cleanedExplicit = explicitUid?.trim().orEmpty()
+        if (cleanedExplicit.isNotBlank() && cleanedExplicit != "local_guest_default") {
+            val sanitized = cleanedExplicit.replace(Regex("[^a-zA-Z0-9_-]"), "_")
+            return if (sanitized.startsWith("auth_uid_") || sanitized.startsWith("local_")) {
+                sanitized
+            } else {
+                "local_user_$sanitized"
+            }
+        }
         return com.example.AgritechAuthHelper.resolveActiveStorageIdentityKey(explicitUid)
     }
 
@@ -6264,6 +6340,18 @@ object LocalFarmPersistence {
 
     fun clearAllOnExplicitLogout(context: Context, explicitIdentityKey: String? = null) {
         clear(context, explicitIdentityKey)
+    }
+
+    fun clearAllForDeletedIdentity(context: Context, uid: String?) {
+        val identityKey = resolveActiveStorageIdentityKey(uid)
+        clear(context, identityKey)
+        if (!uid.isNullOrBlank()) {
+            val sanitizedUid = uid.trim().replace(Regex("[^a-zA-Z0-9_-]"), "_")
+            clear(context, "auth_uid_$sanitizedUid")
+            clear(context, "local_user_$sanitizedUid")
+        }
+        clear(context, "local_guest_default")
+        SaasPreferencesManager.clearAuthSession(context)
     }
 
     fun saveAll(context: Context, explicitIdentityKey: String? = null) {
@@ -6457,6 +6545,8 @@ object LocalFarmPersistence {
 
             val inventoryJsonStr = intMapToJson(AgritechMockDb.barnInventoryCounters.toMap()).toString()
             val deletedFarmIdsJsonStr = stringSetToJson(AgritechMockDb.deletedFarmIds.toSet()).toString()
+            val blockedUsersJsonStr = stringSetToJson(AgritechMockDb.blockedUserIds.toSet()).toString()
+            val reportedUgcJsonStr = stringSetToJson(AgritechMockDb.reportedUgcItemIds.toSet()).toString()
 
             prefs.edit()
                 .putBoolean(KEY_SAVED, true)
@@ -6467,6 +6557,8 @@ object LocalFarmPersistence {
                 .putString(KEY_VET_NOTES, notesArr.toString())
                 .putString(KEY_INVENTORY_COUNTERS, inventoryJsonStr)
                 .putString(KEY_DELETED_FARM_IDS, deletedFarmIdsJsonStr)
+                .putString(KEY_BLOCKED_USER_IDS, blockedUsersJsonStr)
+                .putString(KEY_REPORTED_UGC_IDS, reportedUgcJsonStr)
                 .putString(KEY_WORKER_PERSONAL_ENTRIES, workerEntriesArr.toString())
                 .putBoolean(KEY_WORKER_ENTRIES_INITIALIZED, true)
                 .putString(KEY_CHAT_MESSAGES, chatMsgsArr.toString())
@@ -6496,6 +6588,14 @@ object LocalFarmPersistence {
             AgritechMockDb.deletedFarmIds.clear()
             if (prefs.contains(KEY_DELETED_FARM_IDS)) {
                 AgritechMockDb.deletedFarmIds.addAll(jsonToStringSet(prefs.getString(KEY_DELETED_FARM_IDS, null)))
+            }
+            AgritechMockDb.blockedUserIds.clear()
+            if (prefs.contains(KEY_BLOCKED_USER_IDS)) {
+                AgritechMockDb.blockedUserIds.addAll(jsonToStringSet(prefs.getString(KEY_BLOCKED_USER_IDS, null)))
+            }
+            AgritechMockDb.reportedUgcItemIds.clear()
+            if (prefs.contains(KEY_REPORTED_UGC_IDS)) {
+                AgritechMockDb.reportedUgcItemIds.addAll(jsonToStringSet(prefs.getString(KEY_REPORTED_UGC_IDS, null)))
             }
 
             if (!prefs.getBoolean(KEY_SAVED, false)) return
@@ -6823,6 +6923,207 @@ object LocalFarmPersistence {
         }
     }
 }
+
+/**
+ * Surgery 4: Interactive Privacy Policy, Terms of Use, Camera (QR) Disclosure & Veterinary Disclaimer Modal
+ * (`modal_privacy_policy_terms`) compliant with Google Play Data Safety & Medical/Camera policies.
+ */
+@Composable
+fun PrivacyPolicyAndTermsModal(
+    lang: AppLanguage = AppLanguage.AR,
+    currentTheme: AppThemeOption = AppThemeOption.ICE_BLUE,
+    isDark: Boolean = currentTheme.isDark,
+    accentColor: Color = LocalAppAppearanceState.current.accentColor,
+    onDismiss: () -> Unit
+) {
+    val cardBg = if (isDark) Color(0xFF1E293B) else Color.White
+    val sectionBg = if (isDark) Color(0xFF0F172A) else Color(0xFFF8FAFC)
+    val borderCol = if (isDark) Color(0xFF334155) else Color(0xFFE2E8F0)
+    val textPrimary = if (isDark) Color(0xFFFFFFFF) else Color(0xFF0F172A)
+    val textSecondary = if (isDark) Color(0xFFCBD5E1) else Color(0xFF475569)
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = cardBg,
+        shape = RoundedCornerShape(22.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("modal_privacy_policy_terms"),
+        title = {
+            Text(
+                text = "🔒 سياسة الخصوصية وشروط الاستخدام وإخلاء المسؤولية",
+                fontWeight = FontWeight.ExtraBold,
+                fontSize = 16.sp,
+                color = textPrimary
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                val sections = listOf(
+                    "1. طبيعة التطبيق 📋" to "دفتر رقمي ذكي لتوثيق وحساب مصاريف وأوزان وأرباح دورة الدواجن فقط.",
+                    "2. البيانات التي يعالجها التطبيق 🔐" to "البريد الإلكتروني ومعرّف الحساب (عبر Google Sign-In) للمزامنة السحابية بين أجهزة المالك والعمال، مع إمكانية حذف الحساب والبيانات في أي وقت من الإعدادات.",
+                    "3. استخدام الكاميرا (CAMERA) 📷" to "يستخدم التطبيق الكاميرا حصرياً لمسح رمز الاستجابة السريعة (QR Code) عند ربط جهاز العامل أو الطبيب بالعنبر، ولا يقوم بالتقاط أو تخزين أو رفع أي صور أو مقاطع فيديو شخصية.",
+                    "4. إخلاء المسؤولية البيطرية والعلمية 🩺" to "المعلومات الواردة في تبويب \"📖 الكتاب\" مستندة إلى المراجع القياسية الإرشادية لسلالة التسمين (Ross 308 Broiler Management Handbook) وهي لأغراض التوعية والإرشاد المزرعي فقط ولا تغني عن الفحص الميداني أو الوصفة الطبية من طبيب بيطري مرخص."
+                )
+
+                sections.forEach { (heading, body) ->
+                    Surface(
+                        shape = RoundedCornerShape(14.dp),
+                        color = sectionBg,
+                        border = BorderStroke(1.dp, borderCol),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(
+                                text = heading,
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 13.sp,
+                                color = accentColor
+                            )
+                            Text(
+                                text = body,
+                                fontSize = 12.sp,
+                                color = textSecondary,
+                                lineHeight = 18.sp
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onDismiss,
+                colors = ButtonDefaults.buttonColors(containerColor = accentColor),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.testTag("btn_close_privacy_policy_modal")
+            ) {
+                Text(
+                    text = "موافق وإغلاق",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp
+                )
+            }
+        }
+    )
+}
+
+/**
+ * Surgery 3: Google Play UGC Policy Report Reason Dialog (`dialog_ugc_report_reason`).
+ */
+@Composable
+fun UgcReportReasonDialog(
+    targetTitle: String = "",
+    currentTheme: AppThemeOption = AppThemeOption.ICE_BLUE,
+    isDark: Boolean = currentTheme.isDark,
+    accentColor: Color = LocalAppAppearanceState.current.accentColor,
+    onConfirmReport: (reason: String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val cardBg = if (isDark) Color(0xFF1E293B) else Color.White
+    val textPrimary = if (isDark) Color(0xFFFFFFFF) else Color(0xFF0F172A)
+    val textSecondary = if (isDark) Color(0xFFCBD5E1) else Color(0xFF475569)
+    val borderCol = if (isDark) Color(0xFF334155) else Color(0xFFE2E8F0)
+    val reasons = listOf(
+        "محتوى مضلل / احتيال",
+        "إساءة أو محتوى غير لائق",
+        "إعلان مخالف"
+    )
+    var selectedReason by remember { mutableStateOf(reasons.first()) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = cardBg,
+        shape = RoundedCornerShape(20.dp),
+        modifier = Modifier.testTag("dialog_ugc_report_reason"),
+        title = {
+            Text(
+                text = "🚩 إبلاغ عن محتوى مخالف",
+                fontWeight = FontWeight.ExtraBold,
+                fontSize = 15.5.sp,
+                color = Color(0xFFE11D48)
+            )
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = "اختر سبب الإبلاغ ليتم إخفاء المحتوى فوراً ومراجعته:",
+                    fontSize = 12.5.sp,
+                    color = textSecondary
+                )
+                reasons.forEachIndexed { idx, reasonText ->
+                    val isSelected = selectedReason == reasonText
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = if (isSelected) Color(0xFFE11D48).copy(alpha = 0.14f) else Color.Transparent,
+                        border = BorderStroke(
+                            width = if (isSelected) 1.5.dp else 1.dp,
+                            color = if (isSelected) Color(0xFFE11D48) else borderCol
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable { selectedReason = reasonText }
+                            .testTag("ugc_reason_option_$idx")
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = reasonText,
+                                fontSize = 13.sp,
+                                fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium,
+                                color = if (isSelected) Color(0xFFE11D48) else textPrimary
+                            )
+                            if (isSelected) {
+                                Text("✓", fontWeight = FontWeight.ExtraBold, color = Color(0xFFE11D48))
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onConfirmReport(selectedReason) },
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE11D48)),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.testTag("btn_confirm_ugc_report")
+            ) {
+                Text(
+                    text = "إرسال البلاغ وإخفاء المحتوى",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 12.5.sp
+                )
+            }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = onDismiss,
+                modifier = Modifier.testTag("btn_cancel_ugc_report")
+            ) {
+                Text(
+                    text = "إلغاء",
+                    color = textSecondary,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+        }
+    )
+}
+
 
 
 
