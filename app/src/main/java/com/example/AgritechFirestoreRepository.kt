@@ -12,6 +12,7 @@ import com.google.firebase.firestore.snapshots
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.tasks.await
 import org.json.JSONArray
@@ -405,17 +406,51 @@ class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
     }
 
     /**
+     * Discovers and streams all farms in `/farms` where the authenticated user (`uid`) is a registered member,
+     * strictly excluding any unassigned farm or any farm present in `AgritechMockDb.deletedFarmIds`.
+     * Enables a new device with empty SharedPreferences to recover all cloud barns owned by or shared with this UID.
+     */
+    fun observeAllUserFarms(uid: String, primaryFarmId: String = ""): Flow<List<FarmModel>> {
+        val cleanUid = uid.trim()
+        if (cleanUid.isEmpty()) {
+            return if (!isUnassignedFarm(primaryFarmId)) observeFarms(primaryFarmId) else kotlinx.coroutines.flow.flowOf(emptyList())
+        }
+        val query = db.collection("farms")
+            .whereIn("members.$cleanUid", listOf("OWNER", "WORKER", "VETERINARIAN"))
+        return query.snapshots()
+            .map { querySnap ->
+                querySnap.documents
+                    .mapNotNull { doc -> if (doc.exists()) docToFarm(doc) else null }
+                    .filterNot { isUnassignedFarm(it.id) || it.id in AgritechMockDb.deletedFarmIds }
+            }
+            .catch { e ->
+                if (!isUnassignedFarm(primaryFarmId)) {
+                    emitAll(observeFarms(primaryFarmId))
+                } else {
+                    if (e is Exception) handleFirestoreError(e, OperationType.LIST, "farms")
+                    emit(emptyList())
+                }
+            }
+    }
+
+    /**
      * Streams the shared farm as a list for dashboard binding, excluding any unassigned or deleted farm.
+     * If `farmId` is unassigned on a fresh device, falls back to `observeAllUserFarms` for the signed-in UID.
      */
     fun observeFarms(farmId: String = "farm_1"): Flow<List<FarmModel>> {
         if (isUnassignedFarm(farmId)) {
-            return kotlinx.coroutines.flow.flowOf(emptyList())
+            val uid = auth.currentUser?.uid.orEmpty()
+            return if (uid.isNotBlank()) {
+                observeAllUserFarms(uid, "")
+            } else {
+                kotlinx.coroutines.flow.flowOf(emptyList())
+            }
         }
         val docRef = farmDocRef(farmId)
         return docRef.snapshots()
             .map { snapshot ->
                 listOfNotNull(if (snapshot.exists()) docToFarm(snapshot) else null)
-                    .filterNot { isUnassignedFarm(it.id) }
+                    .filterNot { isUnassignedFarm(it.id) || it.id in AgritechMockDb.deletedFarmIds }
             }
             .catch { e ->
                 if (e is Exception) handleFirestoreError(e, OperationType.GET, docRef.path)
@@ -1173,9 +1208,9 @@ class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
 
         return try {
             val created = db.runTransaction { transaction ->
-                // 1. Read Phase: Verify idempotency
-                val existingTx = transaction.get(txRef)
-                if (existingTx.exists()) {
+                // 1. Read Phase: Verify idempotency first — if already recorded, return false immediately without re-deducting birds
+                val existingTxSnap = transaction.get(txRef)
+                if (existingTxSnap.exists() || existingTxSnap.getString("idempotencyKey") == idempotencyKey) {
                     return@runTransaction false
                 }
 
@@ -1190,7 +1225,7 @@ class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
                 val currentSoldWeightKg = cycleSnap.getDouble("cumulativeSoldWeightKg") ?: 0.0
 
                 val availableBirds = (totalBirdsPlaced - currentMortality - currentSold).coerceAtLeast(0)
-                if (invoice.totalBirdsSold <= 0 || invoice.totalBirdsSold > availableBirds) {
+                if (!(invoice.totalBirdsSold > 0 && invoice.totalBirdsSold <= availableBirds)) {
                     throw IllegalStateException(
                         "Sold birds (${invoice.totalBirdsSold}) exceed available live birds ($availableBirds) in cycle $cycleId"
                     )

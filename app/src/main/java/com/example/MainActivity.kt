@@ -878,6 +878,61 @@ object AgritechMockDb {
     }
 
     /**
+     * Atomically and idempotently records a sales invoice in local state (`transactions` + `cycles`).
+     * 1. First checks if a transaction with `idempotencyKey` is already recorded; if so, returns `false`
+     *    immediately without adding the invoice a second time and without deducting `cumulativeBirdsSold` again.
+     * 2. Verifies `invoice.totalBirdsSold > 0 && invoice.totalBirdsSold <= availableBirds` before recording.
+     */
+    fun recordSalesInvoiceIdempotent(
+        farmId: String,
+        cycleId: String,
+        idempotencyKey: String,
+        dateText: String,
+        invoice: SalesInvoiceModel
+    ): Boolean {
+        val cleanKey = idempotencyKey.trim()
+        if (cleanKey.isEmpty()) return false
+        if (transactions.any { it.id == cleanKey }) {
+            return false
+        }
+        val cycleIdx = cycles.indexOfFirst { it.id == cycleId && it.farmId == farmId }
+            .takeIf { it >= 0 }
+            ?: cycles.indexOfFirst { it.id == cycleId }
+        if (cycleIdx < 0) return false
+
+        val c = cycles[cycleIdx]
+        val reportsMortality = resolveReportsForFarmAndCycle(c.farmId, c.id).sumOf { it.mortalityCount }
+        val effectiveMortality = maxOf(c.cumulativeMortality, reportsMortality)
+        val availableBirds = (c.totalBirdsPlaced - effectiveMortality - c.cumulativeBirdsSold).coerceAtLeast(0)
+        if (!(invoice.totalBirdsSold > 0 && invoice.totalBirdsSold <= availableBirds) ||
+            invoice.totalAmount <= 0.0 ||
+            invoice.totalNetKg <= 0.0
+        ) {
+            return false
+        }
+
+        cycles[cycleIdx] = c.copy(
+            cumulativeBirdsSold = c.cumulativeBirdsSold + invoice.totalBirdsSold,
+            cumulativeSoldWeightKg = c.cumulativeSoldWeightKg + invoice.totalNetKg
+        )
+        transactions.add(
+            TransactionModel(
+                id = cleanKey,
+                farmId = farmId,
+                cycleId = cycleId,
+                type = TransactionType.INCOME,
+                category = "tx_chicken_sale",
+                amount = invoice.totalAmount,
+                currency = invoice.currency,
+                date = dateText,
+                invoiceData = invoice
+            )
+        )
+        persistLocalState()
+        return true
+    }
+
+    /**
      * Resolves the active or latest cycle for a specific `farm`, NEVER falling back to another farm's cycle.
      */
     fun resolveCycleForFarm(farm: FarmModel): CycleModel {
@@ -1372,6 +1427,31 @@ fun AgritechMainApp(
                         }
                     } catch (_: Exception) {}
                 }
+                launch {
+                    try {
+                        firestoreRepo.observeAllUserFarms(uid, activeFarmId).collectLatest { cloudFarms ->
+                            val validCloudFarms = cloudFarms.filterNot {
+                                it.id in AgritechMockDb.deletedFarmIds || AgritechFirestoreRepository.isUnassignedFarm(it.id)
+                            }
+                            if (validCloudFarms.isNotEmpty()) {
+                                validCloudFarms.forEach { farm ->
+                                    val idx = AgritechMockDb.farms.indexOfFirst { it.id == farm.id }
+                                    if (idx >= 0) {
+                                        AgritechMockDb.farms[idx] = farm
+                                    } else {
+                                        AgritechMockDb.farms.add(farm)
+                                    }
+                                }
+                                if (sessionState.activeFarmId.isBlank() ||
+                                    AgritechFirestoreRepository.isUnassignedFarm(sessionState.activeFarmId)
+                                ) {
+                                    sessionState.activeFarmId = validCloudFarms.first().id
+                                }
+                                AgritechMockDb.persistLocalState()
+                            }
+                        }
+                    } catch (_: Exception) {}
+                }
                 if (activeFarmId.isNotBlank()) {
                     launch {
                         try {
@@ -1631,29 +1711,35 @@ fun AgritechMainApp(
                 vetNotes = AgritechMockDb.vetNotes.filter { it.farmId == farm.id },
                 transactions = AgritechMockDb.transactions.filter { it.farmId == farm.id && it.farmId != "personal_worker_ledger" },
                 onAddTransaction = { tx, addedFeedKg ->
-                    if (AgritechMockDb.transactions.none { it.id == tx.id }) {
-                        val normalizedTx = if (addedFeedKg > 0.0 && tx.quantityQuintals <= 0.0) {
-                            tx.copy(quantityQuintals = addedFeedKg / 100.0)
-                        } else {
-                            tx
+                    val normalizedTx = if (addedFeedKg > 0.0 && tx.quantityQuintals <= 0.0) {
+                        tx.copy(quantityQuintals = addedFeedKg / 100.0)
+                    } else {
+                        tx
+                    }
+                    val invoice = normalizedTx.invoiceData
+                    if (invoice != null && normalizedTx.type == TransactionType.INCOME) {
+                        val recordedLocally = AgritechMockDb.recordSalesInvoiceIdempotent(
+                            farmId = normalizedTx.farmId,
+                            cycleId = normalizedTx.cycleId,
+                            idempotencyKey = normalizedTx.id,
+                            dateText = normalizedTx.date,
+                            invoice = invoice
+                        )
+                        if (!recordedLocally && AgritechMockDb.transactions.none { it.id == normalizedTx.id }) {
+                            return@AgritechFarmNotebookScreen
                         }
-                        val invoice = normalizedTx.invoiceData
-                        if (invoice != null && normalizedTx.type == TransactionType.INCOME) {
-                            val cycleIdx = AgritechMockDb.cycles.indexOfFirst { it.id == normalizedTx.cycleId }
-                            if (cycleIdx >= 0) {
-                                val c = AgritechMockDb.cycles[cycleIdx]
-                                val reportsMortality = AgritechMockDb.resolveReportsForFarmAndCycle(c.farmId, c.id).sumOf { it.mortalityCount }
-                                val effectiveMortality = maxOf(c.cumulativeMortality, reportsMortality)
-                                val availableBirds = (c.totalBirdsPlaced - effectiveMortality - c.cumulativeBirdsSold).coerceAtLeast(0)
-                                if (invoice.totalBirdsSold <= 0 || invoice.totalBirdsSold > availableBirds) {
-                                    return@AgritechFarmNotebookScreen
-                                }
-                                AgritechMockDb.cycles[cycleIdx] = c.copy(
-                                    cumulativeBirdsSold = c.cumulativeBirdsSold + invoice.totalBirdsSold,
-                                    cumulativeSoldWeightKg = c.cumulativeSoldWeightKg + invoice.totalNetKg
-                                )
-                            }
-                        } else if (addedFeedKg > 0.0) {
+                        LocalFarmPersistence.saveAll(context)
+                        scope.launch {
+                            firestoreRepo?.saveSalesInvoiceAndMigrateIdempotent(
+                                farmId = normalizedTx.farmId,
+                                cycleId = normalizedTx.cycleId,
+                                idempotencyKey = normalizedTx.id,
+                                dateText = normalizedTx.date,
+                                invoice = invoice
+                            )
+                        }
+                    } else if (AgritechMockDb.transactions.none { it.id == normalizedTx.id }) {
+                        if (addedFeedKg > 0.0) {
                             AgritechMockDb.countedFeedTxIds.add(normalizedTx.id)
                             val cycleIdx = AgritechMockDb.cycles.indexOfFirst { it.id == normalizedTx.cycleId }
                             if (cycleIdx >= 0) {
@@ -1664,15 +1750,7 @@ fun AgritechMainApp(
                         AgritechMockDb.transactions.add(normalizedTx)
                         LocalFarmPersistence.saveAll(context)
                         scope.launch {
-                            if (invoice != null && normalizedTx.type == TransactionType.INCOME) {
-                                firestoreRepo?.saveSalesInvoiceAndMigrateIdempotent(
-                                    farmId = normalizedTx.farmId,
-                                    cycleId = normalizedTx.cycleId,
-                                    idempotencyKey = normalizedTx.id,
-                                    dateText = normalizedTx.date,
-                                    invoice = invoice
-                                )
-                            } else if (addedFeedKg > 0.0 && normalizedTx.type == TransactionType.EXPENSE) {
+                            if (addedFeedKg > 0.0 && normalizedTx.type == TransactionType.EXPENSE) {
                                 firestoreRepo?.recordFeedPurchaseAndExpenseIdempotent(
                                     idempotencyKey = normalizedTx.id,
                                     tx = normalizedTx,
@@ -10444,6 +10522,9 @@ fun AgritechFarmNotebookScreen(
     var selectedTransactionForReceipt by remember { mutableStateOf<TransactionModel?>(null) }
 
     // Weighing & Sales Flow State (ميزان وبيع الدفعة المستقل)
+    var currentDraftSaleOperationId by rememberSaveable(farm.id, activeCycle.id) {
+        mutableStateOf(java.util.UUID.randomUUID().toString())
+    }
     var salesFlowStep by remember { mutableStateOf(SalesFlowStep.NONE) }
     var buyerNameInput by remember { mutableStateOf("") }
     var truckPlateInput by remember { mutableStateOf("") }
@@ -10732,6 +10813,9 @@ fun AgritechFarmNotebookScreen(
                 onDeleteTareWeight = { idx ->
                     if (idx in tareWeightsList.indices) {
                         tareWeightsList = tareWeightsList.filterIndexed { i, _ -> i != idx }
+                        if (tareWeightsList.isEmpty() && grossWeightsList.isEmpty()) {
+                            currentDraftSaleOperationId = java.util.UUID.randomUUID().toString()
+                        }
                     }
                 },
                 onAddGrossWeight = { crates, kg ->
@@ -10740,18 +10824,23 @@ fun AgritechFarmNotebookScreen(
                 onDeleteGrossWeight = { idx ->
                     if (idx in grossWeightsList.indices) {
                         grossWeightsList = grossWeightsList.filterIndexed { i, _ -> i != idx }
+                        if (tareWeightsList.isEmpty() && grossWeightsList.isEmpty()) {
+                            currentDraftSaleOperationId = java.util.UUID.randomUUID().toString()
+                        }
                     }
                 },
                 onFinalizeAndMigrate = {
                     if (totalSalesValue > 0.0 && totalNetKg > 0.0 && totalBirdsSold in 1..liveBirds) {
-                        val invoiceNumber = "INV-${farm.id.takeLast(1).uppercase()}-${String.format(java.util.Locale.US, "%04d", transactions.count { it.type == TransactionType.INCOME } + 1)}"
-                        val invoiceIdempKey = "sale_${farm.id}_${cycle.id}_${System.currentTimeMillis()}"
-                        if (invoiceIdempKey != lastSubmittedIdempotencyKey) {
-                            lastSubmittedIdempotencyKey = invoiceIdempKey
+                        val deterministicIdempotencyKey = "sale_${farm.id}_${activeCycle.id}_$currentDraftSaleOperationId"
+                        val invoiceNumber = "INV-${farm.id.takeLast(1).uppercase()}-${String.format(java.util.Locale.US, "%04d", transactions.count { it.type == TransactionType.INCOME } + 1)}-${currentDraftSaleOperationId.take(4).uppercase()}"
+                        if (deterministicIdempotencyKey != lastSubmittedIdempotencyKey &&
+                            AgritechMockDb.transactions.none { it.id == deterministicIdempotencyKey }
+                        ) {
+                            lastSubmittedIdempotencyKey = deterministicIdempotencyKey
                             val completedInvoice = SalesInvoiceModel(
                                 invoiceNumber = invoiceNumber,
                                 farmName = Translations.getLocalizedFarmName(farm.id, lang),
-                                cycleId = cycle.id,
+                                cycleId = activeCycle.id,
                                 dateText = "${Translations.tr("day_prefix", lang)} $ageInDays",
                                 birdAgeDays = ageInDays,
                                 buyerName = buyerNameInput.ifEmpty { "تاجر جملة معتمد" },
@@ -10772,9 +10861,9 @@ fun AgritechFarmNotebookScreen(
 
                             onAddTransaction(
                                 TransactionModel(
-                                    id = invoiceIdempKey,
+                                    id = deterministicIdempotencyKey,
                                     farmId = farm.id,
-                                    cycleId = cycle.id,
+                                    cycleId = activeCycle.id,
                                     type = TransactionType.INCOME,
                                     category = "tx_chicken_sale",
                                     amount = totalSalesValue,
@@ -10789,7 +10878,7 @@ fun AgritechFarmNotebookScreen(
                             lastSavedInvoice = completedInvoice
                             selectedInvoiceForView = completedInvoice
 
-                            // 3. تُصفّر حقول الميزان بحيث عند الضغط على زر [البيع 🍗] مرة أخرى تفتح فاتورة شحنة جديدة وفارغة تماماً
+                            // 3. تُصفّر حقول الميزان ويُولّد معرّف عملية جديد فقط بعد اكتمال حفظ الفاتورة وتفريغ أوزان المسودة بنجاح
                             buyerNameInput = ""
                             truckPlateInput = ""
                             pricePerKgInput = ""
@@ -10799,6 +10888,7 @@ fun AgritechFarmNotebookScreen(
                             directTareTotalInput = ""
                             tareWeightsList = emptyList()
                             grossWeightsList = emptyList()
+                            currentDraftSaleOperationId = java.util.UUID.randomUUID().toString()
                             salesFlowStep = SalesFlowStep.NONE
                             salesMigratedMsg = "تم حفظ الفاتورة ($invoiceNumber) وترحيل ${String.format(java.util.Locale.US, "%,.0f", totalSalesValue)} $curr للخزنة وحسم $totalBirdsSold طائر من العنبر بنجاح ✓"
                         }

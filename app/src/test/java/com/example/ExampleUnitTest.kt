@@ -1010,9 +1010,204 @@ class ExampleUnitTest {
         assertFalse("Must not fabricate 7880 birds", fallbackResponse.contains("7880"))
         assertFalse("Must not fabricate 21.3°C", fallbackResponse.contains("21.3"))
     }
+
+    @Test
+    fun package3Of3_idempotentDraftSaleRetry_concurrentSalesInvariant_and_simulatorIsolation_workCorrectly() {
+        // 1. Idempotent Retry for the same draft sale operation:
+        // Submitting the same sale twice with the same draftSaleOperationId records the invoice only once
+        // and deducts cumulativeBirdsSold only once.
+        val testFarmId = "farm_pkg3_sales"
+        val testCycleId = "cycle_pkg3_sales"
+        AgritechMockDb.transactions.removeAll { it.farmId == testFarmId }
+        AgritechMockDb.dailyReports.removeAll { it.farmId == testFarmId }
+        AgritechMockDb.cycles.removeAll { it.id == testCycleId }
+
+        AgritechMockDb.cycles.add(
+            CycleModel(
+                id = testCycleId,
+                farmId = testFarmId,
+                totalBirdsPlaced = 5000,
+                status = "active",
+                cumulativeBirdsSold = 0,
+                cumulativeSoldWeightKg = 0.0
+            )
+        )
+
+        val retryOpId = "op_retry_1"
+        val retryKey = "sale_${testFarmId}_${testCycleId}_$retryOpId"
+        val retryInvoice = SalesInvoiceModel(
+            invoiceNumber = "INV-RETRY-1",
+            farmName = "عنبر اختبار المبيعات",
+            cycleId = testCycleId,
+            dateText = "اليوم 30",
+            birdAgeDays = 30,
+            buyerName = "تاجر الجملة",
+            truckPlate = "12345-116-16",
+            totalCrates = 80,
+            birdsPerCrate = 10,
+            totalBirdsSold = 800,
+            totalGrossKg = 2160.0,
+            totalTareKg = 160.0,
+            totalNetKg = 2000.0,
+            avgBirdWeightKg = 2.5,
+            pricePerKg = 250.0,
+            totalAmount = 500000.0,
+            currency = "دج",
+            tareWeightsCount = 8,
+            grossWeightsCount = 16
+        )
+
+        val firstAttempt = AgritechMockDb.recordSalesInvoiceIdempotent(
+            farmId = testFarmId,
+            cycleId = testCycleId,
+            idempotencyKey = retryKey,
+            dateText = "اليوم 30",
+            invoice = retryInvoice
+        )
+        val secondAttempt = AgritechMockDb.recordSalesInvoiceIdempotent(
+            farmId = testFarmId,
+            cycleId = testCycleId,
+            idempotencyKey = retryKey,
+            dateText = "اليوم 30",
+            invoice = retryInvoice
+        )
+        assertTrue("First submission of draft sale must succeed", firstAttempt)
+        assertFalse("Duplicate retry with same draftSaleOperationId must be rejected idempotently", secondAttempt)
+        assertEquals(
+            "Invoice must be recorded exactly once",
+            1,
+            AgritechMockDb.transactions.count { it.id == retryKey }
+        )
+        val cycleAfterRetry = AgritechMockDb.cycles.first { it.id == testCycleId }
+        assertEquals("cumulativeBirdsSold must be deducted once (800), never doubled", 800, cycleAfterRetry.cumulativeBirdsSold)
+        assertEquals(2000.0, cycleAfterRetry.cumulativeSoldWeightKg, 0.001)
+
+        // 2. Concurrent Sales Invariant:
+        // Reset cycle to 5000 available birds, 0 sold.
+        val concurrentFarmId = "farm_pkg3_concurrent"
+        val concurrentCycleId = "cycle_pkg3_concurrent"
+        AgritechMockDb.transactions.removeAll { it.farmId == concurrentFarmId }
+        AgritechMockDb.dailyReports.removeAll { it.farmId == concurrentFarmId }
+        AgritechMockDb.cycles.removeAll { it.id == concurrentCycleId }
+        AgritechMockDb.cycles.add(
+            CycleModel(
+                id = concurrentCycleId,
+                farmId = concurrentFarmId,
+                totalBirdsPlaced = 5000,
+                status = "active",
+                cumulativeBirdsSold = 0,
+                cumulativeSoldWeightKg = 0.0
+            )
+        )
+
+        val op1Key = "sale_${concurrentFarmId}_${concurrentCycleId}_op_1"
+        val op2Key = "sale_${concurrentFarmId}_${concurrentCycleId}_op_2"
+        val op3Key = "sale_${concurrentFarmId}_${concurrentCycleId}_op_3"
+
+        val saleOp1 = SalesInvoiceModel(
+            invoiceNumber = "INV-OP-1",
+            farmName = "عنبر المبيعات المتزامنة",
+            cycleId = concurrentCycleId,
+            dateText = "اليوم 35",
+            birdAgeDays = 35,
+            buyerName = "تاجر 1",
+            truckPlate = "111-16",
+            totalCrates = 100,
+            birdsPerCrate = 10,
+            totalBirdsSold = 1000,
+            totalGrossKg = 2700.0,
+            totalTareKg = 200.0,
+            totalNetKg = 2500.0,
+            avgBirdWeightKg = 2.5,
+            pricePerKg = 250.0,
+            totalAmount = 625000.0,
+            currency = "دج",
+            tareWeightsCount = 10,
+            grossWeightsCount = 20
+        )
+        val saleOp2 = saleOp1.copy(
+            invoiceNumber = "INV-OP-2",
+            buyerName = "تاجر 2",
+            totalBirdsSold = 1000,
+            totalNetKg = 2500.0,
+            totalAmount = 625000.0
+        )
+        val saleOp3Oversell = saleOp1.copy(
+            invoiceNumber = "INV-OP-3",
+            buyerName = "تاجر 3",
+            totalBirdsSold = 3500,
+            totalNetKg = 8750.0,
+            totalAmount = 2187500.0
+        )
+
+        assertTrue(
+            "Sale op_1 (1000 of 5000) must succeed",
+            AgritechMockDb.recordSalesInvoiceIdempotent(
+                farmId = concurrentFarmId,
+                cycleId = concurrentCycleId,
+                idempotencyKey = op1Key,
+                dateText = "اليوم 35",
+                invoice = saleOp1
+            )
+        )
+        assertTrue(
+            "Sale op_2 (1000 of remaining 4000) must succeed without key collision",
+            AgritechMockDb.recordSalesInvoiceIdempotent(
+                farmId = concurrentFarmId,
+                cycleId = concurrentCycleId,
+                idempotencyKey = op2Key,
+                dateText = "اليوم 35",
+                invoice = saleOp2
+            )
+        )
+
+        val cycleAfterTwoSales = AgritechMockDb.cycles.first { it.id == concurrentCycleId }
+        assertEquals(2000, cycleAfterTwoSales.cumulativeBirdsSold)
+        val remainingLiveAfterTwoSales = PoultryCalculators.calculateLiveBirds(
+            totalBirdsPlaced = cycleAfterTwoSales.totalBirdsPlaced,
+            totalMortality = 0,
+            cumulativeBirdsSold = cycleAfterTwoSales.cumulativeBirdsSold
+        )
+        assertEquals(3000, remainingLiveAfterTwoSales)
+
+        // Third sale attempting to sell 3500 when only 3000 are available must be rejected
+        assertFalse(
+            "Sale op_3 (3500 birds when only 3000 remain) must be rejected",
+            AgritechMockDb.recordSalesInvoiceIdempotent(
+                farmId = concurrentFarmId,
+                cycleId = concurrentCycleId,
+                idempotencyKey = op3Key,
+                dateText = "اليوم 35",
+                invoice = saleOp3Oversell
+            )
+        )
+        val cycleAfterRejectedThirdSale = AgritechMockDb.cycles.first { it.id == concurrentCycleId }
+        assertEquals("cumulativeBirdsSold must remain 2000 after rejected oversell", 2000, cycleAfterRejectedThirdSale.cumulativeBirdsSold)
+        assertTrue("Rejected op_3 transaction must not be recorded", AgritechMockDb.transactions.none { it.id == op3Key })
+
+        // 3. Simulator Isolation: Deleting "farm_1" prevents PersonaSimulatorEngine from resurrecting "farm_1" in AgritechMockDb.farms
+        val hadFarm1Initially = AgritechMockDb.farms.any { it.id == "farm_1" }
+        AgritechMockDb.deleteFarmCompletely("farm_1")
+        assertTrue("farm_1 must be in deletedFarmIds", "farm_1" in AgritechMockDb.deletedFarmIds)
+        assertTrue("farm_1 must be removed from AgritechMockDb.farms", AgritechMockDb.farms.none { it.id == "farm_1" })
+
+        PersonaSimulatorEngine.ensureInitialized()
+        assertTrue("ensureInitialized() must NOT resurrect deleted farm_1", AgritechMockDb.farms.none { it.id == "farm_1" })
+
+        PersonaSimulatorEngine.resetSimulationToDay7()
+        assertTrue("resetSimulationToDay7() must NOT resurrect deleted farm_1", AgritechMockDb.farms.none { it.id == "farm_1" })
+
+        PersonaSimulatorEngine.stepSimulationOneDay()
+        assertTrue("stepSimulationOneDay() must NOT resurrect deleted farm_1", AgritechMockDb.farms.none { it.id == "farm_1" })
+
+        PersonaSimulatorEngine.restoreUserState()
+        assertTrue("restoreUserState() must NOT resurrect deleted farm_1", AgritechMockDb.farms.none { it.id == "farm_1" })
+
+        // Clean up test artifacts
+        AgritechMockDb.deletedFarmIds.remove("farm_1")
+        if (hadFarm1Initially && AgritechMockDb.farms.none { it.id == "farm_1" }) {
+            AgritechMockDb.farms.add(0, FarmModel("farm_1", "عنبر الخيرات والبركة 1", "البليدة - بوفاريك", 8000, "worker_1"))
+        }
+    }
 }
-
-
-
-
 

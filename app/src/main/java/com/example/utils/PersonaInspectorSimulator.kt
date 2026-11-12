@@ -219,16 +219,96 @@ object PersonaSimulatorEngine {
         )
     )
 
-    private fun seedCalibratedBaselineDays1To7ForFarm(farmId: String, cycleId: String) {
-        // Remove any previous baseline/simulated reports, vet notes, and transactions for this farm
-        val removeFarmIds = if (farmId != "farm_1" && AgritechMockDb.farms.none { it.id == "farm_1" }) {
-            setOf(farmId, "farm_1")
-        } else {
-            setOf(farmId)
+    const val SIM_ISOLATED_FARM_ID = "sim_test_farm_1"
+    const val SIM_ISOLATED_CYCLE_ID = "sim_test_cycle_1"
+
+    private var backedUpFarms: List<FarmModel>? = null
+    private var backedUpCycles: List<CycleModel>? = null
+    private var backedUpReports: List<DailyReportModel>? = null
+    private var backedUpVetNotes: List<VetNoteModel>? = null
+    private var backedUpTransactions: List<TransactionModel>? = null
+
+    fun backupUserStateIfNeeded() {
+        if (backedUpFarms == null) {
+            backedUpFarms = AgritechMockDb.farms.filter { it.id !in AgritechMockDb.deletedFarmIds && !it.id.startsWith("sim_test_") }.map { it.copy() }
+            backedUpCycles = AgritechMockDb.cycles.filter { it.farmId !in AgritechMockDb.deletedFarmIds && !it.farmId.startsWith("sim_test_") }.map { it.copy() }
+            backedUpReports = AgritechMockDb.dailyReports.filter { it.farmId !in AgritechMockDb.deletedFarmIds && !it.farmId.startsWith("sim_test_") }.map { it.copy() }
+            backedUpVetNotes = AgritechMockDb.vetNotes.filter { it.farmId !in AgritechMockDb.deletedFarmIds && !it.farmId.startsWith("sim_test_") }.map { it.copy() }
+            backedUpTransactions = AgritechMockDb.transactions.filter { it.farmId !in AgritechMockDb.deletedFarmIds && !it.farmId.startsWith("sim_test_") }.map { it.copy() }
         }
-        AgritechMockDb.dailyReports.removeAll { it.farmId in removeFarmIds }
-        AgritechMockDb.vetNotes.removeAll { it.farmId in removeFarmIds }
-        AgritechMockDb.transactions.removeAll { it.farmId in removeFarmIds }
+    }
+
+    fun restoreUserState() {
+        isSimulationRunning = false
+        AgritechMockDb.dailyReports.removeAll { it.farmId.startsWith("sim_test_") || it.id.startsWith("rep_sim_") }
+        AgritechMockDb.vetNotes.removeAll { it.farmId.startsWith("sim_test_") || it.id.startsWith("vn_sim_") }
+        AgritechMockDb.transactions.removeAll { it.farmId.startsWith("sim_test_") || it.id.startsWith("tx_sim_") || it.id.startsWith("tx_vet_sim_") }
+        AgritechMockDb.cycles.removeAll { it.farmId.startsWith("sim_test_") }
+        AgritechMockDb.farms.removeAll { it.id.startsWith("sim_test_") || it.id in AgritechMockDb.deletedFarmIds }
+
+        backedUpFarms?.let { farmsSnapshot ->
+            AgritechMockDb.farms.clear()
+            AgritechMockDb.farms.addAll(farmsSnapshot.filter { it.id !in AgritechMockDb.deletedFarmIds })
+        }
+        backedUpCycles?.let { cyclesSnapshot ->
+            AgritechMockDb.cycles.clear()
+            AgritechMockDb.cycles.addAll(cyclesSnapshot.filter { it.farmId !in AgritechMockDb.deletedFarmIds })
+        }
+        backedUpReports?.let { reportsSnapshot ->
+            AgritechMockDb.dailyReports.clear()
+            AgritechMockDb.dailyReports.addAll(reportsSnapshot.filter { it.farmId !in AgritechMockDb.deletedFarmIds })
+        }
+        backedUpVetNotes?.let { notesSnapshot ->
+            AgritechMockDb.vetNotes.clear()
+            AgritechMockDb.vetNotes.addAll(notesSnapshot.filter { it.farmId !in AgritechMockDb.deletedFarmIds })
+        }
+        backedUpTransactions?.let { txSnapshot ->
+            AgritechMockDb.transactions.clear()
+            AgritechMockDb.transactions.addAll(txSnapshot.filter { it.farmId !in AgritechMockDb.deletedFarmIds })
+        }
+
+        backedUpFarms = null
+        backedUpCycles = null
+        backedUpReports = null
+        backedUpVetNotes = null
+        backedUpTransactions = null
+    }
+
+    private fun resolveSimulationTargetFarms(): List<FarmModel> {
+        AgritechMockDb.farms.removeAll { it.id in AgritechMockDb.deletedFarmIds }
+        val activeNonDeleted = AgritechMockDb.farms.filter { it.id !in AgritechMockDb.deletedFarmIds }
+        if (activeNonDeleted.isNotEmpty()) {
+            return activeNonDeleted
+        }
+        return listOf(
+            FarmModel(SIM_ISOLATED_FARM_ID, "عنبر المحاكاة المعزول", "البليدة - بوفاريك", 8000, "worker_1")
+        )
+    }
+
+    private fun seedCalibratedBaselineDays1To7ForFarm(farmId: String, cycleId: String) {
+        if (farmId in AgritechMockDb.deletedFarmIds) return
+
+        // Only remove previous baseline/simulated reports, vet notes, and transactions for this target farm
+        // without wiping unrelated user farms or resurrecting deleted farms
+        AgritechMockDb.dailyReports.removeAll {
+            it.farmId == farmId && (it.id.startsWith("rep_${farmId}_d") || it.id.startsWith("rep_sim_") || farmId.startsWith("sim_test_"))
+        }
+        AgritechMockDb.vetNotes.removeAll {
+            it.farmId == farmId && (it.id.startsWith("vet_1_") || it.id.startsWith("vet_2_") || it.id.startsWith("vn_sim_") || farmId.startsWith("sim_test_"))
+        }
+        AgritechMockDb.transactions.removeAll {
+            it.farmId == farmId && (
+                it.id.startsWith("tx_1_") ||
+                    it.id.startsWith("tx_2_") ||
+                    it.id.startsWith("tx_3_") ||
+                    it.id.startsWith("tx_4_") ||
+                    it.id.startsWith("tx_litter_1_") ||
+                    it.id.startsWith("tx_water_w1_") ||
+                    it.id.startsWith("tx_sim_") ||
+                    it.id.startsWith("tx_vet_sim_") ||
+                    farmId.startsWith("sim_test_")
+                )
+        }
 
         // Seed Days 1..7 calibrated daily reports (Sum feed = 21.6 Q = 2,160 kg; Sum water = 12,600 L; Sum mortality = 67)
         for (d in 1..7) {
@@ -238,131 +318,140 @@ object PersonaSimulatorEngine {
             val weightKg = PoultryCalculators.getCalibratedBroilerWeightKg(d)
             val temp = kotlin.math.round((33.2 - (d - 1) * 0.4) * 10.0) / 10.0
             val gas = kotlin.math.round((12.0 - (d - 1) * 0.7) * 10.0) / 10.0
-            AgritechMockDb.dailyReports.add(
-                DailyReportModel(
-                    id = "rep_${farmId}_d$d",
-                    farmId = farmId,
-                    cycleId = cycleId,
-                    dayNumber = d,
-                    feedIntakeKg = feedKg,
-                    waterIntakeLiters = waterL,
-                    mortalityCount = mort,
-                    temperature = temp,
-                    gasUnits = gas,
-                    ventilationStatus = "جيدة",
-                    generalStatus = "طبيعية",
-                    actualAvgWeightKg = weightKg
+            val repId = "rep_${farmId}_d$d"
+            if (AgritechMockDb.dailyReports.none { it.id == repId || (it.farmId == farmId && it.dayNumber == d) }) {
+                AgritechMockDb.dailyReports.add(
+                    DailyReportModel(
+                        id = repId,
+                        farmId = farmId,
+                        cycleId = cycleId,
+                        dayNumber = d,
+                        feedIntakeKg = feedKg,
+                        waterIntakeLiters = waterL,
+                        mortalityCount = mort,
+                        temperature = temp,
+                        gasUnits = gas,
+                        ventilationStatus = "جيدة",
+                        generalStatus = "طبيعية",
+                        actualAvgWeightKg = weightKg
+                    )
                 )
-            )
+            }
         }
 
         // Seed baseline vet notes (Days 2 & 5)
-        AgritechMockDb.vetNotes.addAll(
-            listOf(
-                VetNoteModel(
-                    id = "vet_1_$farmId",
-                    farmId = farmId,
-                    cycleId = cycleId,
-                    dayNumber = 2,
-                    medicineName = "فيتامين AD3E + إلكتروليت",
-                    dosage = "1 مل لكل لتر ماء لمدة 3 أيام",
-                    note = "لدعم المناعة وتقليل إجهاد النقل والاستقبال",
-                    isUrgent = false,
-                    status = "APPROVED"
-                ),
-                VetNoteModel(
-                    id = "vet_2_$farmId",
-                    farmId = farmId,
-                    cycleId = cycleId,
-                    dayNumber = 4,
-                    medicineName = "برنامج تحصين الاستقبال (هتشنر B1) + مضاد تنفسي وقائي",
-                    dosage = "تقطير عيني / مياه شرب",
-                    note = "تحصين أولي ووقاية تنفسية",
-                    isUrgent = true,
-                    status = "APPROVED",
-                    linkedTransactionId = "tx_4_$farmId",
-                    invoiceAmount = 49000.0
-                )
+        val baselineVetNotes = listOf(
+            VetNoteModel(
+                id = "vet_1_$farmId",
+                farmId = farmId,
+                cycleId = cycleId,
+                dayNumber = 2,
+                medicineName = "فيتامين AD3E + إلكتروليت",
+                dosage = "1 مل لكل لتر ماء لمدة 3 أيام",
+                note = "لدعم المناعة وتقليل إجهاد النقل والاستقبال",
+                isUrgent = false,
+                status = "APPROVED"
+            ),
+            VetNoteModel(
+                id = "vet_2_$farmId",
+                farmId = farmId,
+                cycleId = cycleId,
+                dayNumber = 4,
+                medicineName = "برنامج تحصين الاستقبال (هتشنر B1) + مضاد تنفسي وقائي",
+                dosage = "تقطير عيني / مياه شرب",
+                note = "تحصين أولي ووقاية تنفسية",
+                isUrgent = true,
+                status = "APPROVED",
+                linkedTransactionId = "tx_4_$farmId",
+                invoiceAmount = 49000.0
             )
         )
+        baselineVetNotes.forEach { note ->
+            if (AgritechMockDb.vetNotes.none { it.id == note.id }) {
+                AgritechMockDb.vetNotes.add(note)
+            }
+        }
 
         // Seed calibrated Days 1..7 baseline expenses (Sum = 1,427,000 DZD)
-        AgritechMockDb.transactions.addAll(
-            listOf(
-                TransactionModel(
-                    id = "tx_1_$farmId",
-                    farmId = farmId,
-                    cycleId = cycleId,
-                    type = TransactionType.EXPENSE,
-                    category = "🐥 شراء الكتاكيت (8,000 صوص × 80 دج)",
-                    amount = 640000.0,
-                    currency = "دج",
-                    date = "اليوم 1",
-                    status = "APPROVED",
-                    notes = "8,000 صوص تسمين Ross 308 بسعر 80 دج + 160 صوص بونص 2%"
-                ),
-                TransactionModel(
-                    id = "tx_2_$farmId",
-                    farmId = farmId,
-                    cycleId = cycleId,
-                    type = TransactionType.EXPENSE,
-                    category = "🌾 شراء الأعلاف (دفعة التأسيس 80 ق)",
-                    amount = 640000.0,
-                    currency = "دج",
-                    date = "اليوم 1",
-                    status = "APPROVED",
-                    notes = "80 قنطار علف بادئ متكامل بسعر 8,000 دج للقنطار"
-                ),
-                TransactionModel(
-                    id = "tx_litter_1_$farmId",
-                    farmId = farmId,
-                    cycleId = cycleId,
-                    type = TransactionType.EXPENSE,
-                    category = "🧹 فرشة نشارة وتعقيم وتجهيز العنبر",
-                    amount = 47000.0,
-                    currency = "دج",
-                    date = "اليوم 1",
-                    status = "APPROVED",
-                    notes = "فرشة نشارة خشب جافة ومطهرات رباعية الأمونيوم"
-                ),
-                TransactionModel(
-                    id = "tx_3_$farmId",
-                    farmId = farmId,
-                    cycleId = cycleId,
-                    type = TransactionType.EXPENSE,
-                    category = "🔥 غاز وتدفئة التحضين",
-                    amount = 45000.0,
-                    currency = "دج",
-                    date = "اليوم 2",
-                    status = "APPROVED",
-                    notes = "قارورات غاز البروبان لدفايات التحضين الأسبوع الأول والثاني"
-                ),
-                TransactionModel(
-                    id = "tx_4_$farmId",
-                    farmId = farmId,
-                    cycleId = cycleId,
-                    type = TransactionType.EXPENSE,
-                    category = "💊 أدوية وتحصين وفيتامينات الاستقبال",
-                    amount = 49000.0,
-                    currency = "دج",
-                    date = "اليوم 4",
-                    status = "APPROVED",
-                    notes = "لقاح هتشنر B1 + فيتامينات AD3E وأملاح معدنية"
-                ),
-                TransactionModel(
-                    id = "tx_water_w1_$farmId",
-                    farmId = farmId,
-                    cycleId = cycleId,
-                    type = TransactionType.EXPENSE,
-                    category = "💧 صهاريج مياه الشرب (6 صهاريج × 1,000 دج)",
-                    amount = 6000.0,
-                    currency = "دج",
-                    date = "اليوم 5",
-                    status = "APPROVED",
-                    notes = "6 صهاريج ماء سعة 3,000 لتر بسعر 1,000 دج للصهريج"
-                )
+        val baselineExpenses = listOf(
+            TransactionModel(
+                id = "tx_1_$farmId",
+                farmId = farmId,
+                cycleId = cycleId,
+                type = TransactionType.EXPENSE,
+                category = "🐥 شراء الكتاكيت (8,000 صوص × 80 دج)",
+                amount = 640000.0,
+                currency = "دج",
+                date = "اليوم 1",
+                status = "APPROVED",
+                notes = "8,000 صوص تسمين Ross 308 بسعر 80 دج + 160 صوص بونص 2%"
+            ),
+            TransactionModel(
+                id = "tx_2_$farmId",
+                farmId = farmId,
+                cycleId = cycleId,
+                type = TransactionType.EXPENSE,
+                category = "🌾 شراء الأعلاف (دفعة التأسيس 80 ق)",
+                amount = 640000.0,
+                currency = "دج",
+                date = "اليوم 1",
+                status = "APPROVED",
+                notes = "80 قنطار علف بادئ متكامل بسعر 8,000 دج للقنطار"
+            ),
+            TransactionModel(
+                id = "tx_litter_1_$farmId",
+                farmId = farmId,
+                cycleId = cycleId,
+                type = TransactionType.EXPENSE,
+                category = "🧹 فرشة نشارة وتعقيم وتجهيز العنبر",
+                amount = 47000.0,
+                currency = "دج",
+                date = "اليوم 1",
+                status = "APPROVED",
+                notes = "فرشة نشارة خشب جافة ومطهرات رباعية الأمونيوم"
+            ),
+            TransactionModel(
+                id = "tx_3_$farmId",
+                farmId = farmId,
+                cycleId = cycleId,
+                type = TransactionType.EXPENSE,
+                category = "🔥 غاز وتدفئة التحضين",
+                amount = 45000.0,
+                currency = "دج",
+                date = "اليوم 2",
+                status = "APPROVED",
+                notes = "قارورات غاز البروبان لدفايات التحضين الأسبوع الأول والثاني"
+            ),
+            TransactionModel(
+                id = "tx_4_$farmId",
+                farmId = farmId,
+                cycleId = cycleId,
+                type = TransactionType.EXPENSE,
+                category = "💊 أدوية وتحصين وفيتامينات الاستقبال",
+                amount = 49000.0,
+                currency = "دج",
+                date = "اليوم 4",
+                status = "APPROVED",
+                notes = "لقاح هتشنر B1 + فيتامينات AD3E وأملاح معدنية"
+            ),
+            TransactionModel(
+                id = "tx_water_w1_$farmId",
+                farmId = farmId,
+                cycleId = cycleId,
+                type = TransactionType.EXPENSE,
+                category = "💧 صهاريج مياه الشرب (6 صهاريج × 1,000 دج)",
+                amount = 6000.0,
+                currency = "دج",
+                date = "اليوم 5",
+                status = "APPROVED",
+                notes = "6 صهاريج ماء سعة 3,000 لتر بسعر 1,000 دج للصهريج"
             )
         )
+        baselineExpenses.forEach { tx ->
+            if (AgritechMockDb.transactions.none { it.id == tx.id }) {
+                AgritechMockDb.transactions.add(tx)
+            }
+        }
 
         // Update cycle to 8,000 birds, 0 sold, and 58.4 Q (5,840 kg) remaining feed after Week 1 (80.0 - 21.6 = 58.4 Q)
         val cIdx = AgritechMockDb.cycles.indexOfFirst { it.farmId == farmId }
@@ -391,22 +480,31 @@ object PersonaSimulatorEngine {
      * 4,190,000 DZD total expenses = ~550 DZD/bird).
      */
     fun stepSimulationOneDay(): Int {
-        if (AgritechMockDb.farms.isEmpty()) {
-            AgritechMockDb.farms.add(
-                FarmModel("farm_1", "عنبر الخيرات والبركة 1", "البليدة - بوفاريك", 8000, "worker_1")
-            )
-        }
+        backupUserStateIfNeeded()
+        AgritechMockDb.farms.removeAll { it.id in AgritechMockDb.deletedFarmIds }
 
-        // Target all active farms (including farm_1 and any custom barn like عنبر البركة 7327)
-        val targetFarms = AgritechMockDb.farms.toList()
+        val targetFarms = resolveSimulationTargetFarms()
         val primaryFarm = targetFarms.first()
         val primaryCycle = AgritechMockDb.cycles.firstOrNull { it.farmId == primaryFarm.id }
-            ?: CycleModel("cycle_2026_01", primaryFarm.id, 8000, 2.9, "active", startDate = "2026-03-01", chickPrice = 80.0, feedInventoryKg = 5840.0)
+            ?: CycleModel(
+                if (primaryFarm.id == SIM_ISOLATED_FARM_ID) SIM_ISOLATED_CYCLE_ID else "cycle_2026_01",
+                primaryFarm.id,
+                8000,
+                2.9,
+                "active",
+                startDate = "2026-03-01",
+                chickPrice = 80.0,
+                feedInventoryKg = 5840.0
+            )
 
-        // Ensure baseline Days 1..7 are calibrated for every farm if not yet calibrated
+        // Ensure baseline Days 1..7 are calibrated for every target farm if not yet calibrated
         for (f in targetFarms) {
             val fCycle = AgritechMockDb.cycles.firstOrNull { it.farmId == f.id }
-            val fCycleId = fCycle?.id ?: if (f.id == "farm_1") "cycle_2026_01" else "cycle_${f.id}"
+            val fCycleId = fCycle?.id ?: when (f.id) {
+                "farm_1" -> "cycle_2026_01"
+                SIM_ISOLATED_FARM_ID -> SIM_ISOLATED_CYCLE_ID
+                else -> "cycle_${f.id}"
+            }
             val fDay1Report = AgritechMockDb.dailyReports.firstOrNull { it.farmId == f.id && it.dayNumber == 1 }
             val hasUncalibratedInitialTx = AgritechMockDb.transactions.any {
                 it.farmId == f.id && (it.id.startsWith("tx_chicks_") || it.id == "tx_1")
@@ -701,17 +799,19 @@ object PersonaSimulatorEngine {
     }
 
     fun resetSimulationToDay7() {
+        backupUserStateIfNeeded()
         isSimulationRunning = false
         elapsedTicksInDay = 0
         currentSimulatedDay = 7
-        if (AgritechMockDb.farms.isEmpty()) {
-            AgritechMockDb.farms.add(
-                FarmModel("farm_1", "عنبر الخيرات والبركة 1", "البليدة - بوفاريك", 8000, "worker_1")
-            )
-        }
-        for (farm in AgritechMockDb.farms.toList()) {
+        AgritechMockDb.farms.removeAll { it.id in AgritechMockDb.deletedFarmIds }
+        val targetFarms = resolveSimulationTargetFarms()
+        for (farm in targetFarms) {
             val existingCycle = AgritechMockDb.cycles.firstOrNull { it.farmId == farm.id }
-            val cycleId = existingCycle?.id ?: if (farm.id == "farm_1") "cycle_2026_01" else "cycle_${farm.id}"
+            val cycleId = existingCycle?.id ?: when (farm.id) {
+                "farm_1" -> "cycle_2026_01"
+                SIM_ISOLATED_FARM_ID -> SIM_ISOLATED_CYCLE_ID
+                else -> "cycle_${farm.id}"
+            }
             seedCalibratedBaselineDays1To7ForFarm(farm.id, cycleId)
         }
     }
@@ -723,7 +823,8 @@ object PersonaSimulatorEngine {
         get() = getHumanPersonaCritiques()
 
     fun ensureInitialized() {
-        if (AgritechMockDb.farms.isEmpty()) {
+        AgritechMockDb.farms.removeAll { it.id in AgritechMockDb.deletedFarmIds }
+        if (AgritechMockDb.farms.isEmpty() && "farm_1" !in AgritechMockDb.deletedFarmIds) {
             AgritechMockDb.farms.add(
                 FarmModel("farm_1", "عنبر الخيرات والبركة 1", "البليدة - بوفاريك", 8000, "worker_1")
             )
@@ -742,10 +843,11 @@ object PersonaSimulatorEngine {
     )
 
     fun evaluateMathReconciliation(): MathReconciliationResult {
-        val primaryFarm = AgritechMockDb.farms.firstOrNull()
-        val primaryCycle = AgritechMockDb.cycles.firstOrNull { it.farmId == (primaryFarm?.id ?: "farm_1") }
-            ?: AgritechMockDb.cycles.firstOrNull()
-        val farmReports = AgritechMockDb.dailyReports.filter { it.farmId == (primaryFarm?.id ?: "farm_1") }
+        val primaryFarm = AgritechMockDb.farms.firstOrNull { it.id !in AgritechMockDb.deletedFarmIds }
+        val fallbackFarmId = primaryFarm?.id ?: SIM_ISOLATED_FARM_ID
+        val primaryCycle = AgritechMockDb.cycles.firstOrNull { it.farmId == fallbackFarmId }
+            ?: AgritechMockDb.cycles.firstOrNull { it.farmId !in AgritechMockDb.deletedFarmIds }
+        val farmReports = AgritechMockDb.dailyReports.filter { it.farmId == fallbackFarmId }
         val totalTableFeedQuintals = farmReports.sumOf { it.feedIntakeKg } / 100.0
         val remainingStockQuintals = (primaryCycle?.feedInventoryKg ?: 2000.0) / 100.0
         val initialBirds = primaryCycle?.totalBirdsPlaced ?: 8000
@@ -789,6 +891,13 @@ fun RealHumanPersonaInspectorDialog(
     var selectedMode by remember { mutableStateOf(0) }
     var selectedRoleFilter by remember { mutableStateOf<AppRole?>(null) }
 
+    DisposableEffect(Unit) {
+        PersonaSimulatorEngine.backupUserStateIfNeeded()
+        onDispose {
+            PersonaSimulatorEngine.restoreUserState()
+        }
+    }
+
     // Live timer for Mode A: 1 minute = 1 day (60 ticks of 1s), or 10x speed (1 tick = 0.1s -> 6s per day)
     LaunchedEffect(PersonaSimulatorEngine.isSimulationRunning, PersonaSimulatorEngine.isSpeed10x) {
         while (PersonaSimulatorEngine.isSimulationRunning) {
@@ -807,10 +916,10 @@ fun RealHumanPersonaInspectorDialog(
     }
 
     // Live Mathematical Reconciliation Calculations from AgritechMockDb
-    val primaryFarm = AgritechMockDb.farms.firstOrNull()
-        ?: FarmModel("farm_1", "عنبر الخيرات والبركة 1", "البليدة", 8000, "worker_1")
+    val primaryFarm = AgritechMockDb.farms.firstOrNull { it.id !in AgritechMockDb.deletedFarmIds }
+        ?: FarmModel(PersonaSimulatorEngine.SIM_ISOLATED_FARM_ID, "عنبر المحاكاة المعزول", "البليدة", 8000, "worker_1")
     val primaryCycle = AgritechMockDb.cycles.firstOrNull { it.farmId == primaryFarm.id }
-        ?: CycleModel("cycle_2026_01", primaryFarm.id, 8000, 2.9, "active", feedInventoryKg = 5840.0, cumulativeBirdsSold = 0, cumulativeSoldWeightKg = 0.0)
+        ?: CycleModel(PersonaSimulatorEngine.SIM_ISOLATED_CYCLE_ID, primaryFarm.id, 8000, 2.9, "active", feedInventoryKg = 5840.0, cumulativeBirdsSold = 0, cumulativeSoldWeightKg = 0.0)
     val farmReports = AgritechMockDb.dailyReports.filter { it.farmId == primaryFarm.id }
     val farmTxs = AgritechMockDb.transactions.filter { it.farmId == primaryFarm.id }
 
