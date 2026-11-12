@@ -227,9 +227,11 @@ object PersonaSimulatorEngine {
     private var backedUpReports: List<DailyReportModel>? = null
     private var backedUpVetNotes: List<VetNoteModel>? = null
     private var backedUpTransactions: List<TransactionModel>? = null
+    private var backedUpDeletedFarmIds: Set<String>? = null
 
     fun backupUserStateIfNeeded() {
         if (backedUpFarms == null) {
+            backedUpDeletedFarmIds = AgritechMockDb.deletedFarmIds.toSet()
             backedUpFarms = AgritechMockDb.farms.filter { it.id !in AgritechMockDb.deletedFarmIds && !it.id.startsWith("sim_test_") }.map { it.copy() }
             backedUpCycles = AgritechMockDb.cycles.filter { it.farmId !in AgritechMockDb.deletedFarmIds && !it.farmId.startsWith("sim_test_") }.map { it.copy() }
             backedUpReports = AgritechMockDb.dailyReports.filter { it.farmId !in AgritechMockDb.deletedFarmIds && !it.farmId.startsWith("sim_test_") }.map { it.copy() }
@@ -240,6 +242,10 @@ object PersonaSimulatorEngine {
 
     fun restoreUserState() {
         isSimulationRunning = false
+        backedUpDeletedFarmIds?.let { deletedSnapshot ->
+            AgritechMockDb.deletedFarmIds.clear()
+            AgritechMockDb.deletedFarmIds.addAll(deletedSnapshot)
+        }
         AgritechMockDb.dailyReports.removeAll { it.farmId.startsWith("sim_test_") || it.id.startsWith("rep_sim_") }
         AgritechMockDb.vetNotes.removeAll { it.farmId.startsWith("sim_test_") || it.id.startsWith("vn_sim_") }
         AgritechMockDb.transactions.removeAll { it.farmId.startsWith("sim_test_") || it.id.startsWith("tx_sim_") || it.id.startsWith("tx_vet_sim_") }
@@ -272,14 +278,13 @@ object PersonaSimulatorEngine {
         backedUpReports = null
         backedUpVetNotes = null
         backedUpTransactions = null
+        backedUpDeletedFarmIds = null
     }
 
-    private fun resolveSimulationTargetFarms(): List<FarmModel> {
+    internal fun resolveSimulationTargetFarms(): List<FarmModel> {
         AgritechMockDb.farms.removeAll { it.id in AgritechMockDb.deletedFarmIds }
-        val activeNonDeleted = AgritechMockDb.farms.filter { it.id !in AgritechMockDb.deletedFarmIds }
-        if (activeNonDeleted.isNotEmpty()) {
-            return activeNonDeleted
-        }
+        // Strict Simulation Isolation (X01): Always and exclusively return the isolated simulation farm
+        // so simulation ticks never overwrite or inject fake data into real user farms.
         return listOf(
             FarmModel(SIM_ISOLATED_FARM_ID, "عنبر المحاكاة المعزول", "البليدة - بوفاريك", 8000, "worker_1")
         )

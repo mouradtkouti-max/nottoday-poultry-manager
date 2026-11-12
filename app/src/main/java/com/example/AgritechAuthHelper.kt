@@ -71,11 +71,6 @@ object AgritechAuthHelper {
      * never share or leak local state.
      */
     fun resolveActiveStorageIdentityKey(explicitSessionUid: String? = null): String {
-        val firebaseUid = currentUserUid()
-        if (!firebaseUid.isNullOrBlank()) {
-            val sanitized = firebaseUid.replace(Regex("[^a-zA-Z0-9_-]"), "_")
-            return "auth_uid_$sanitized"
-        }
         val cleanedExplicit = explicitSessionUid?.trim().orEmpty()
         if (cleanedExplicit.isNotBlank() && cleanedExplicit != "local_guest_default") {
             val sanitized = cleanedExplicit.replace(Regex("[^a-zA-Z0-9_-]"), "_")
@@ -84,6 +79,11 @@ object AgritechAuthHelper {
             } else {
                 "local_user_$sanitized"
             }
+        }
+        val firebaseUid = currentUserUid()
+        if (!firebaseUid.isNullOrBlank()) {
+            val sanitized = firebaseUid.replace(Regex("[^a-zA-Z0-9_-]"), "_")
+            return "auth_uid_$sanitized"
         }
         return "local_guest_default"
     }

@@ -809,5 +809,133 @@ test("Schema v2 & Audit Fields: farms, cycles, dailyReports, vetNotes, transacti
   );
 });
 
+test("IQ Audit S01, S02, S03, S04, C01: Stranger farm read blocked, Worker channel ownerId/participants tampering blocked, Worker cycle inflation blocked, and new channel C01 succeeds", async () => {
+  await seedSharedFarmWithMembers(FARM_ID, {
+    [OWNER_UID]: "OWNER",
+    [VET_UID]: "VETERINARIAN",
+    [WORKER_UID]: "WORKER",
+  });
+  const now = new Date();
+  const ownerDb = testEnv.authenticatedContext(OWNER_UID).firestore();
+  const workerDb = testEnv.authenticatedContext(WORKER_UID).firestore();
+  const strangerDb = testEnv.authenticatedContext(STRANGER_UID).firestore();
 
+  // S01: Stranger (non-member) CANNOT get or list /farms/{farmId}
+  await assertFails(strangerDb.collection("farms").doc(FARM_ID).get());
+  await assertFails(strangerDb.collection("farms").get());
 
+  // Member CAN get /farms/{farmId} and query their own farms via members.<uid>
+  await assertSucceeds(ownerDb.collection("farms").doc(FARM_ID).get());
+  await assertSucceeds(workerDb.collection("farms").doc(FARM_ID).get());
+  await assertSucceeds(
+    ownerDb.collection("farms").where(`members.${OWNER_UID}`, "in", ["OWNER", "WORKER", "VETERINARIAN"]).get()
+  );
+
+  // C01: Checking non-existent channel (get when resource == null) and creating channel + first message succeeds
+  const newChannelId = "cycle_2026_01_worker";
+  const nonExistentSnap = await assertSucceeds(
+    workerDb.collection("chatChannels").doc(newChannelId).get()
+  );
+  if (!nonExistentSnap.exists) {
+    await assertSucceeds(
+      workerDb.collection("chatChannels").doc(newChannelId).set({
+        channelId: newChannelId,
+        farmId: FARM_ID,
+        ownerId: OWNER_UID,
+        participants: [WORKER_UID, OWNER_UID],
+        createdBy: WORKER_UID,
+        createdAt: now,
+        updatedAt: now,
+      })
+    );
+  }
+  await assertSucceeds(
+    workerDb.collection("chatChannels").doc(newChannelId).collection("messages").doc("msg_c01_first").set({
+      id: "msg_c01_first",
+      userId: WORKER_UID,
+      senderId: WORKER_UID,
+      senderName: "أحمد",
+      senderRole: "WORKER",
+      cycleId: newChannelId,
+      farmId: FARM_ID,
+      text: "طلب مصروف غاز طارئ",
+      timestamp: "10:00 ص",
+      timestampText: "10:00 ص",
+      linkedTransactionId: "tx_w_c01",
+      isFinancialRequest: true,
+      requestCategory: "GAS",
+      requestAmount: 9000.0,
+      requestCurrency: "DZD",
+      status: "PENDING",
+      requestStatus: "PENDING",
+      deliveryState: "SYNCED",
+      createdAtMillis: Date.now(),
+      createdAt: now,
+      updatedAt: now,
+    })
+  );
+
+  // S02: Worker CANNOT mutate ownerId on chatChannels to their own UID and CANNOT approve financial message
+  await assertFails(
+    workerDb.collection("chatChannels").doc(newChannelId).update({
+      ownerId: WORKER_UID,
+      updatedAt: now,
+    })
+  );
+  await assertFails(
+    workerDb.collection("chatChannels").doc(newChannelId).collection("messages").doc("msg_c01_first").update({
+      status: "APPROVED",
+      requestStatus: "APPROVED",
+      updatedAt: now,
+    })
+  );
+
+  // S03: Worker CANNOT modify participants array to inject STRANGER_UID into the channel
+  await assertFails(
+    workerDb.collection("chatChannels").doc(newChannelId).update({
+      participants: [WORKER_UID, OWNER_UID, STRANGER_UID],
+      updatedAt: now,
+    })
+  );
+
+  // S04: Worker CANNOT inflate feedInventoryKg to 99999 or reset cumulativeMortality to 0 on /cycles/{cycleId}
+  await assertSucceeds(
+    ownerDb.collection("farms").doc(FARM_ID).collection("cycles").doc("cycle_s04").set({
+      userId: OWNER_UID,
+      farmId: FARM_ID,
+      status: "active",
+      totalBirdsPlaced: 10000,
+      targetWeightKg: 2.5,
+      feedInventoryKg: 2000.0,
+      cumulativeMortality: 50,
+      cumulativeBirdsSold: 0,
+      createdAt: now,
+      updatedAt: now,
+    })
+  );
+
+  // Worker inflating feedInventoryKg (99999 > 2000) -> MUST FAIL
+  await assertFails(
+    workerDb.collection("farms").doc(FARM_ID).collection("cycles").doc("cycle_s04").update({
+      feedInventoryKg: 99999.0,
+      updatedAt: now,
+    })
+  );
+
+  // Worker decreasing cumulativeMortality (0 < 50) -> MUST FAIL
+  await assertFails(
+    workerDb.collection("farms").doc(FARM_ID).collection("cycles").doc("cycle_s04").update({
+      cumulativeMortality: 0,
+      updatedAt: now,
+    })
+  );
+
+  // Legitimate Worker deduction of feedInventoryKg (1800 <= 2000) and mortality increase (55 >= 50) -> SUCCEEDS
+  await assertSucceeds(
+    workerDb.collection("farms").doc(FARM_ID).collection("cycles").doc("cycle_s04").update({
+      feedInventoryKg: 1800.0,
+      cumulativeMortality: 55,
+      updatedAt: now,
+    })
+  );
+});

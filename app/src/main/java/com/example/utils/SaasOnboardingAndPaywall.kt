@@ -6065,11 +6065,18 @@ object LocalFarmPersistence {
     private const val KEY_DELETED_FARM_IDS = "deleted_farm_ids_json"
     private const val KEY_WORKER_PERSONAL_ENTRIES = "worker_personal_entries_json"
     private const val KEY_WORKER_ENTRIES_INITIALIZED = "worker_entries_initialized"
+    private const val KEY_CHAT_MESSAGES = "chat_messages_json"
+    private const val KEY_CHAT_CONVERSATIONS = "chat_conversations_json"
+    private const val KEY_CHAT_INITIALIZED = "chat_state_initialized"
     private const val KEY_LEGACY_BACKED_UP = "legacy_v1_backed_up"
     private const val KEY_LEGACY_CLAIMED_BY = "legacy_v1_claimed_by"
 
     @Volatile
     private var activeIdentityKey: String = "local_guest_default"
+
+    fun resolveActiveStorageIdentityKey(explicitUid: String? = null): String {
+        return com.example.AgritechAuthHelper.resolveActiveStorageIdentityKey(explicitUid)
+    }
 
     fun setActiveIdentity(identityKey: String?) {
         val cleaned = identityKey?.trim().orEmpty()
@@ -6407,6 +6414,47 @@ object LocalFarmPersistence {
                 workerEntriesArr.put(obj)
             }
 
+            val chatMsgsArr = org.json.JSONArray()
+            for (cm in AgritechMockDb.chatMessages) {
+                val obj = org.json.JSONObject()
+                obj.put("id", cm.id)
+                obj.put("cycleId", cm.cycleId)
+                obj.put("senderId", cm.senderId)
+                obj.put("senderName", cm.senderName)
+                obj.put("senderRole", cm.senderRole)
+                obj.put("text", cm.text)
+                obj.put("timestamp", cm.timestamp)
+                obj.put("linkedTransactionId", cm.linkedTransactionId)
+                obj.put("linkedVetNoteId", cm.linkedVetNoteId)
+                obj.put("isFinancialRequest", cm.isFinancialRequest)
+                obj.put("requestCategory", cm.requestCategory)
+                obj.put("requestAmount", cm.requestAmount)
+                obj.put("requestCurrency", cm.requestCurrency)
+                obj.put("status", cm.status)
+                obj.put("requestStatus", cm.requestStatus)
+                obj.put("userId", cm.userId)
+                obj.put("timestampText", cm.timestampText)
+                obj.put("createdAtMillis", cm.createdAtMillis)
+                obj.put("deliveryState", cm.deliveryState)
+                chatMsgsArr.put(obj)
+            }
+
+            val chatConvsArr = org.json.JSONArray()
+            for (cc in AgritechMockDb.chatConversations) {
+                val obj = org.json.JSONObject()
+                obj.put("id", cc.id)
+                obj.put("userName", cc.userName)
+                obj.put("roleLabel", cc.roleLabel)
+                obj.put("avatarEmoji", cc.avatarEmoji)
+                obj.put("avatarBgHex", cc.avatarBgHex)
+                obj.put("defaultSnippet", cc.defaultSnippet)
+                obj.put("defaultTimestamp", cc.defaultTimestamp)
+                obj.put("unreadCount", cc.unreadCount)
+                obj.put("phoneNumber", cc.phoneNumber)
+                obj.put("isPhoneContact", cc.isPhoneContact)
+                chatConvsArr.put(obj)
+            }
+
             val inventoryJsonStr = intMapToJson(AgritechMockDb.barnInventoryCounters.toMap()).toString()
             val deletedFarmIdsJsonStr = stringSetToJson(AgritechMockDb.deletedFarmIds.toSet()).toString()
 
@@ -6421,6 +6469,9 @@ object LocalFarmPersistence {
                 .putString(KEY_DELETED_FARM_IDS, deletedFarmIdsJsonStr)
                 .putString(KEY_WORKER_PERSONAL_ENTRIES, workerEntriesArr.toString())
                 .putBoolean(KEY_WORKER_ENTRIES_INITIALIZED, true)
+                .putString(KEY_CHAT_MESSAGES, chatMsgsArr.toString())
+                .putString(KEY_CHAT_CONVERSATIONS, chatConvsArr.toString())
+                .putBoolean(KEY_CHAT_INITIALIZED, true)
                 .apply()
         } catch (_: Exception) {
         }
@@ -6697,6 +6748,76 @@ object LocalFarmPersistence {
                 }
                 AgritechMockDb.workerPersonalEntries.clear()
                 AgritechMockDb.workerPersonalEntries.addAll(loadedWorkerEntries)
+            }
+
+            // Restore Chat Messages and Conversations per UID (D01)
+            val chatInitialized = prefs.getBoolean(KEY_CHAT_INITIALIZED, false)
+            if (chatInitialized || prefs.contains(KEY_CHAT_MESSAGES)) {
+                val chatMsgsStr = prefs.getString(KEY_CHAT_MESSAGES, "[]") ?: "[]"
+                val loadedChatMsgs = mutableListOf<ChatMessageModel>()
+                runCatching {
+                    val arr = org.json.JSONArray(chatMsgsStr)
+                    for (i in 0 until arr.length()) {
+                        val obj = arr.getJSONObject(i)
+                        val status = obj.optString("status", "PENDING")
+                        val senderId = obj.optString("senderId")
+                        val timestamp = obj.optString("timestamp")
+                        val msg = ChatMessageModel(
+                            id = obj.optString("id"),
+                            cycleId = obj.optString("cycleId"),
+                            senderId = senderId,
+                            senderName = obj.optString("senderName"),
+                            senderRole = obj.optString("senderRole"),
+                            text = obj.optString("text"),
+                            timestamp = timestamp,
+                            linkedTransactionId = obj.optString("linkedTransactionId", ""),
+                            linkedVetNoteId = obj.optString("linkedVetNoteId", ""),
+                            isFinancialRequest = obj.optBoolean("isFinancialRequest", false),
+                            requestCategory = obj.optString("requestCategory", ""),
+                            requestAmount = obj.optDouble("requestAmount", 0.0),
+                            requestCurrency = obj.optString("requestCurrency", "دج"),
+                            status = status,
+                            requestStatus = obj.optString("requestStatus", status),
+                            userId = obj.optString("userId", senderId),
+                            timestampText = obj.optString("timestampText", timestamp),
+                            createdAtMillis = obj.optLong("createdAtMillis", 0L),
+                            deliveryState = obj.optString("deliveryState", "LOCAL_ONLY")
+                        )
+                        if (msg.id.isNotBlank()) {
+                            loadedChatMsgs.add(msg)
+                        }
+                    }
+                }
+                AgritechMockDb.chatMessages.clear()
+                AgritechMockDb.chatMessages.addAll(loadedChatMsgs)
+            }
+
+            if (chatInitialized || prefs.contains(KEY_CHAT_CONVERSATIONS)) {
+                val chatConvsStr = prefs.getString(KEY_CHAT_CONVERSATIONS, "[]") ?: "[]"
+                val loadedChatConvs = mutableListOf<ChatConversationModel>()
+                runCatching {
+                    val arr = org.json.JSONArray(chatConvsStr)
+                    for (i in 0 until arr.length()) {
+                        val obj = arr.getJSONObject(i)
+                        val conv = ChatConversationModel(
+                            id = obj.optString("id"),
+                            userName = obj.optString("userName"),
+                            roleLabel = obj.optString("roleLabel"),
+                            avatarEmoji = obj.optString("avatarEmoji", "👤"),
+                            avatarBgHex = obj.optLong("avatarBgHex", 0xFFF1F5F9),
+                            defaultSnippet = obj.optString("defaultSnippet", ""),
+                            defaultTimestamp = obj.optString("defaultTimestamp", ""),
+                            unreadCount = obj.optInt("unreadCount", 0),
+                            phoneNumber = obj.optString("phoneNumber", ""),
+                            isPhoneContact = obj.optBoolean("isPhoneContact", true)
+                        )
+                        if (conv.id.isNotBlank()) {
+                            loadedChatConvs.add(conv)
+                        }
+                    }
+                }
+                AgritechMockDb.chatConversations.clear()
+                AgritechMockDb.chatConversations.addAll(loadedChatConvs)
             }
         } catch (_: Exception) {
         }

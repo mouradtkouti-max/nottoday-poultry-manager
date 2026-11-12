@@ -992,6 +992,8 @@ object AgritechMockDb {
         cycles.clear()
         deletedFarmIds.clear()
         countedFeedTxIds.clear()
+        chatMessages.clear()
+        chatConversations.clear()
         dailyReports.clear()
         dailyReports.addAll(initialDailyReportsSeed)
         vetNotes.clear()
@@ -1700,6 +1702,11 @@ fun AgritechMainApp(
         sessionState.selectedFarmForOwner != null -> {
             BackHandler { sessionState.selectedFarmForOwner = null }
             val farm = sessionState.selectedFarmForOwner!!
+            LaunchedEffect(farm.id) {
+                if (farm.id.isNotBlank() && sessionState.activeFarmId != farm.id) {
+                    sessionState.activeFarmId = farm.id
+                }
+            }
             val cycle = AgritechMockDb.resolveCycleForFarm(farm)
             AgritechFarmNotebookScreen(
                 farm = farm,
@@ -1718,6 +1725,8 @@ fun AgritechMainApp(
                     }
                     val invoice = normalizedTx.invoiceData
                     if (invoice != null && normalizedTx.type == TransactionType.INCOME) {
+                        val preSaleCycleSnapshot = AgritechMockDb.cycles.firstOrNull { it.id == normalizedTx.cycleId }?.copy()
+                        val hadTxBefore = AgritechMockDb.transactions.any { it.id == normalizedTx.id }
                         val recordedLocally = AgritechMockDb.recordSalesInvoiceIdempotent(
                             farmId = normalizedTx.farmId,
                             cycleId = normalizedTx.cycleId,
@@ -1730,15 +1739,34 @@ fun AgritechMainApp(
                         }
                         LocalFarmPersistence.saveAll(context)
                         scope.launch {
-                            firestoreRepo?.saveSalesInvoiceAndMigrateIdempotent(
+                            val cloudRes = firestoreRepo?.saveSalesInvoiceAndMigrateIdempotent(
                                 farmId = normalizedTx.farmId,
                                 cycleId = normalizedTx.cycleId,
                                 idempotencyKey = normalizedTx.id,
                                 dateText = normalizedTx.date,
                                 invoice = invoice
                             )
+                            if (cloudRes != null && cloudRes.isFailure) {
+                                if (!hadTxBefore) {
+                                    AgritechMockDb.transactions.removeAll { it.id == normalizedTx.id }
+                                    if (preSaleCycleSnapshot != null) {
+                                        val cIdx = AgritechMockDb.cycles.indexOfFirst { it.id == preSaleCycleSnapshot.id }
+                                        if (cIdx >= 0) {
+                                            AgritechMockDb.cycles[cIdx] = preSaleCycleSnapshot
+                                        }
+                                    }
+                                    LocalFarmPersistence.saveAll(context)
+                                }
+                                val errDetail = cloudRes.exceptionOrNull()?.localizedMessage ?: "تعذر حفظ فاتورة البيع سحابياً"
+                                android.widget.Toast.makeText(
+                                    context,
+                                    "⚠️ تعذر اعتماد عملية البيع سحابياً ($errDetail). تم التراجع لحماية تطابق الرصيد.",
+                                    android.widget.Toast.LENGTH_LONG
+                                ).show()
+                            }
                         }
                     } else if (AgritechMockDb.transactions.none { it.id == normalizedTx.id }) {
+                        val preFeedCycleSnapshot = AgritechMockDb.cycles.firstOrNull { it.id == normalizedTx.cycleId }?.copy()
                         if (addedFeedKg > 0.0) {
                             AgritechMockDb.countedFeedTxIds.add(normalizedTx.id)
                             val cycleIdx = AgritechMockDb.cycles.indexOfFirst { it.id == normalizedTx.cycleId }
@@ -1750,7 +1778,7 @@ fun AgritechMainApp(
                         AgritechMockDb.transactions.add(normalizedTx)
                         LocalFarmPersistence.saveAll(context)
                         scope.launch {
-                            if (addedFeedKg > 0.0 && normalizedTx.type == TransactionType.EXPENSE) {
+                            val cloudRes = if (addedFeedKg > 0.0 && normalizedTx.type == TransactionType.EXPENSE) {
                                 firestoreRepo?.recordFeedPurchaseAndExpenseIdempotent(
                                     idempotencyKey = normalizedTx.id,
                                     tx = normalizedTx,
@@ -1761,6 +1789,23 @@ fun AgritechMainApp(
                                     idempotencyKey = normalizedTx.id,
                                     tx = normalizedTx
                                 )
+                            }
+                            if (cloudRes != null && cloudRes.isFailure) {
+                                AgritechMockDb.transactions.removeAll { it.id == normalizedTx.id }
+                                AgritechMockDb.countedFeedTxIds.remove(normalizedTx.id)
+                                if (preFeedCycleSnapshot != null) {
+                                    val cIdx = AgritechMockDb.cycles.indexOfFirst { it.id == preFeedCycleSnapshot.id }
+                                    if (cIdx >= 0) {
+                                        AgritechMockDb.cycles[cIdx] = preFeedCycleSnapshot
+                                    }
+                                }
+                                LocalFarmPersistence.saveAll(context)
+                                val errDetail = cloudRes.exceptionOrNull()?.localizedMessage ?: "خطأ في الاتصال"
+                                android.widget.Toast.makeText(
+                                    context,
+                                    "⚠️ تعذر حفظ المعاملة سحابياً ($errDetail). تم التراجع لحماية تطابق الخزنة.",
+                                    android.widget.Toast.LENGTH_LONG
+                                ).show()
                             }
                         }
                     }
@@ -1792,6 +1837,11 @@ fun AgritechMainApp(
         sessionState.selectedFarmForVet != null -> {
             BackHandler { sessionState.selectedFarmForVet = null }
             val farm = sessionState.selectedFarmForVet!!
+            LaunchedEffect(farm.id) {
+                if (farm.id.isNotBlank() && sessionState.activeFarmId != farm.id) {
+                    sessionState.activeFarmId = farm.id
+                }
+            }
             val cycle = AgritechMockDb.resolveCycleForFarm(farm)
             val allSupervisedFarms = (AgritechMockDb.farms + AgritechMockDb.supervisedVetFarms).distinctBy { it.id }
             val farmReports = AgritechMockDb.resolveReportsForFarmAndCycle(farm.id, cycle.id)
@@ -1804,7 +1854,10 @@ fun AgritechMainApp(
                 reports = farmReports,
                 vetNotes = AgritechMockDb.vetNotes.filter { it.farmId == farm.id },
                 farms = allSupervisedFarms,
-                onSwitchFarm = { sessionState.selectedFarmForVet = it },
+                onSwitchFarm = {
+                    sessionState.activeFarmId = it.id
+                    sessionState.selectedFarmForVet = it
+                },
                 onAddNote = { note ->
                     if (AgritechMockDb.vetNotes.none { it.id == note.id }) {
                         AgritechMockDb.vetNotes.add(note)
@@ -1821,6 +1874,11 @@ fun AgritechMainApp(
         sessionState.selectedFarmForWorker != null -> {
             BackHandler { sessionState.selectedFarmForWorker = null }
             val farm = sessionState.selectedFarmForWorker!!
+            LaunchedEffect(farm.id) {
+                if (farm.id.isNotBlank() && sessionState.activeFarmId != farm.id) {
+                    sessionState.activeFarmId = farm.id
+                }
+            }
             val cycle = AgritechMockDb.resolveCycleForFarm(farm)
             AgritechWorkerDashboard(
                 farm = farm,
@@ -1830,7 +1888,10 @@ fun AgritechMainApp(
                 reports = AgritechMockDb.resolveReportsForFarmAndCycle(farm.id, cycle.id),
                 urgentNotes = AgritechMockDb.vetNotes.filter { it.farmId == farm.id && it.isUrgent },
                 farms = AgritechMockDb.farms,
-                onSwitchFarm = { sessionState.selectedFarmForWorker = it },
+                onSwitchFarm = {
+                    sessionState.activeFarmId = it.id
+                    sessionState.selectedFarmForWorker = it
+                },
                 onSubmitReport = { report ->
                     val savedReport = AgritechMockDb.upsertDailyReportWithAudit(report)
                     LocalFarmPersistence.saveAll(context)
@@ -1865,6 +1926,7 @@ fun AgritechMainApp(
                     }
                 },
                 onOpenNotebook = { farm ->
+                    sessionState.activeFarmId = farm.id
                     val currentRole = sessionState.currentRole ?: AppRole.OWNER
                     when {
                         currentRole.isVetRole -> sessionState.selectedFarmForVet = farm
@@ -4608,13 +4670,31 @@ fun WorkerSmartNotebookScreen(
     val totalExpenses = personalEntries.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
     val netBalance = totalIncome - totalExpenses
 
-    val homeSummary = remember(totalIncome, totalExpenses) {
+    val homeSummary = remember(personalEntries, totalIncome, totalExpenses) {
+        val expenseItems = personalEntries.filter { it.type == TransactionType.EXPENSE }
+        var elecGasSum = 0.0
+        var internetSum = 0.0
+        var carSum = 0.0
+        var groceriesSum = 0.0
+        for (item in expenseItems) {
+            val t = item.title.lowercase()
+            when {
+                t.contains("كهرباء") || t.contains("غاز") || t.contains("ماء") || t.contains("سونلغاز") || t.contains("electricity") || t.contains("gas") ->
+                    elecGasSum += item.amount
+                t.contains("إنترنت") || t.contains("انترنت") || t.contains("هاتف") || t.contains("اتصالات") || t.contains("internet") || t.contains("phone") ->
+                    internetSum += item.amount
+                t.contains("سيارة") || t.contains("وقود") || t.contains("نقل") || t.contains("تأمين") || t.contains("صيانة") || t.contains("car") || t.contains("fuel") ->
+                    carSum += item.amount
+                else ->
+                    groceriesSum += item.amount
+            }
+        }
         PersonalAndHouseholdEngine.evaluateMonthlyHouseholdBudget(
             monthlySalaryAndIncome = totalIncome,
-            electricityAndGasExpense = totalExpenses * 0.15,
-            internetAndPhoneExpense = totalExpenses * 0.10,
-            carInsuranceAndMaintenanceExpense = totalExpenses * 0.20,
-            groceriesAndHomeExpense = totalExpenses * 0.55,
+            electricityAndGasExpense = elecGasSum,
+            internetAndPhoneExpense = internetSum,
+            carInsuranceAndMaintenanceExpense = carSum,
+            groceriesAndHomeExpense = groceriesSum,
             previousMonthTotalExpense = 36000.0
         )
     }

@@ -280,7 +280,7 @@ class AgritechRepositoryRuleTest : FirestoreEmulatorTestBase() {
         assertTrue(vetInvRes.getOrThrow())
 
         // Vet sends a unified financial request chat message and observes it back with full fields
-        val channelId = "cycle_2026_01_vet"
+        val channelId = "${farmId}_cycle_2026_01_vet"
         val sentChatMsg = ChatMessageModel(
             id = "msg_vet_${UUID.randomUUID()}",
             cycleId = channelId,

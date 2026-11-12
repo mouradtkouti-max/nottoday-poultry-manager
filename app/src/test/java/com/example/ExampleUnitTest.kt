@@ -1209,5 +1209,92 @@ class ExampleUnitTest {
             AgritechMockDb.farms.add(0, FarmModel("farm_1", "عنبر الخيرات والبركة 1", "البليدة - بوفاريك", 8000, "worker_1"))
         }
     }
+
+    @Test
+    fun securityAndConsistencyBatch_D01_D02_F02_F03_X01_invariantsHold() {
+        // 1. D02: Explicit UID takes strict priority in resolveActiveStorageIdentityKey
+        val resolvedIdentityA = AgritechAuthHelper.resolveActiveStorageIdentityKey("uid_account_alpha")
+        val resolvedIdentityB = LocalFarmPersistence.resolveActiveStorageIdentityKey("uid_account_beta")
+        assertEquals("local_user_uid_account_alpha", resolvedIdentityA)
+        assertEquals("local_user_uid_account_beta", resolvedIdentityB)
+        assertNotEquals(resolvedIdentityA, resolvedIdentityB)
+
+        // 2. D01: resetForAccountSwitch clears chatMessages and chatConversations so messages never leak across accounts
+        AgritechMockDb.chatMessages.add(
+            com.example.models.ChatMessageModel(
+                id = "msg_test_leak_check",
+                cycleId = "general_admin",
+                senderId = "uid_account_alpha",
+                senderName = "حساب أ",
+                senderRole = "مالك",
+                text = "رسالة خاصة بالحساب الأول",
+                timestamp = "12:00"
+            )
+        )
+        AgritechMockDb.chatConversations.add(
+            com.example.models.ChatConversationModel(
+                id = "conv_test_leak_check",
+                userName = "مراسل خاص",
+                roleLabel = "تاجر",
+                avatarEmoji = "🌾",
+                avatarBgHex = 0xFFE8F5E9,
+                defaultSnippet = "رسالة خاصة",
+                defaultTimestamp = "12:00"
+            )
+        )
+        assertTrue(AgritechMockDb.chatMessages.isNotEmpty())
+        assertTrue(AgritechMockDb.chatConversations.isNotEmpty())
+
+        AgritechMockDb.resetForAccountSwitch()
+        assertTrue("resetForAccountSwitch() must clear chatMessages (D01)", AgritechMockDb.chatMessages.isEmpty())
+        assertTrue("resetForAccountSwitch() must clear chatConversations (D01)", AgritechMockDb.chatConversations.isEmpty())
+
+        // 3. F03: DailyReportModel preserves litterCondition independently from generalStatus
+        val reportDay9 = DailyReportModel(
+            id = "rep_f03_test",
+            farmId = "farm_f03",
+            cycleId = "cycle_f03",
+            dayNumber = 9,
+            feedIntakeKg = 350.0,
+            waterIntakeLiters = 700.0,
+            mortalityCount = 2,
+            temperature = 29.5,
+            ventilationStatus = "جيدة",
+            generalStatus = "طبيعية",
+            litterCondition = "رطبة قليلاً"
+        )
+        val savedReport = AgritechMockDb.upsertDailyReportWithAudit(reportDay9)
+        assertEquals("طبيعية", savedReport.generalStatus)
+        assertEquals("رطبة قليلاً", savedReport.litterCondition)
+        assertFalse("Modifying only litterCondition must be detected as a real value change", savedReport.hasActualValueChangesFrom(savedReport.copy()))
+        assertTrue(
+            "Changing litterCondition from 'رطبة قليلاً' to 'جافة ممتازة' must be detected by hasActualValueChangesFrom",
+            savedReport.copy(litterCondition = "جافة ممتازة").hasActualValueChangesFrom(savedReport)
+        )
+
+        // 4. F02: PersonalAndHouseholdEngine.evaluateMonthlyHouseholdBudget exposes savingsRatePct in customKpis
+        val budgetSummary = PersonalAndHouseholdEngine.evaluateMonthlyHouseholdBudget(
+            monthlySalaryAndIncome = 100000.0,
+            electricityAndGasExpense = 5000.0,
+            internetAndPhoneExpense = 3000.0,
+            carInsuranceAndMaintenanceExpense = 7000.0,
+            groceriesAndHomeExpense = 25000.0,
+            previousMonthTotalExpense = 40000.0
+        )
+        assertEquals(40000.0, budgetSummary.totalExpenses, 0.001)
+        assertEquals(60000.0, budgetSummary.netProfit, 0.001)
+        assertTrue("customKpis must contain savingsRatePct (F02)", budgetSummary.customKpis.containsKey("savingsRatePct"))
+        assertEquals(60.0, budgetSummary.customKpis["savingsRatePct"] ?: 0.0, 0.001)
+
+        // 5. X01: PersonaSimulatorEngine.resolveSimulationTargetFarms() always returns isolated sim_test_ farm even when real farms exist
+        AgritechMockDb.farms.add(FarmModel("real_user_farm_99", "مزرعة المستخدم الحقيقية", "سطيف", 10000, "worker_1"))
+        val simTargets = PersonaSimulatorEngine.resolveSimulationTargetFarms()
+        assertEquals(1, simTargets.size)
+        assertEquals(PersonaSimulatorEngine.SIM_ISOLATED_FARM_ID, simTargets.first().id)
+        assertTrue(simTargets.all { it.id.startsWith("sim_test_") })
+        AgritechMockDb.farms.removeAll { it.id == "real_user_farm_99" || it.id == "farm_f03" }
+        AgritechMockDb.dailyReports.removeAll { it.id == "rep_f03_test" }
+    }
 }
+
 

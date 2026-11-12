@@ -350,6 +350,7 @@ object PersonalAndHouseholdEngine {
             isProfitable = netSavings >= 0.0,
             unitCost = totalExpenses / 30.0,
             customKpis = mapOf(
+                "savingsRatePct" to savingsRatePct,
                 "electricityAndGasExpense" to safeElecGas,
                 "internetAndPhoneExpense" to safeInternet,
                 "carInsuranceAndMaintenanceExpense" to safeCar,
