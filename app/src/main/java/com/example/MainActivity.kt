@@ -3156,7 +3156,7 @@ fun AgritechOwnerDashboard(
                     }
                     add(Triple(GlobalDashboardTab.CHAT, Translations.tr("global_tab_chat", lang), Icons.Default.ChatBubbleOutline))
                     add(Triple(GlobalDashboardTab.MARKET, Translations.tr("global_tab_market", lang), Icons.Default.ShoppingCart))
-                    add(Triple(GlobalDashboardTab.AI_VET, Translations.tr("global_tab_ai_vet", lang), Icons.Default.Psychology))
+                    add(Triple(GlobalDashboardTab.AI_VET, Translations.tr("global_tab_ai_vet", lang), Icons.Default.MenuBook))
                 }
 
                 dynamicGlobalTabs.forEachIndexed { idx, (tabEnum, label, icon) ->
@@ -3171,7 +3171,7 @@ fun AgritechOwnerDashboard(
                         icon = {
                             if (tabEnum == GlobalDashboardTab.AI_VET) {
                                 Text(
-                                    "🧠",
+                                    "📖",
                                     fontSize = 18.sp
                                 )
                             } else {
@@ -6889,6 +6889,716 @@ fun AddMarketPostDialog(
     )
 }
 
+data class Ross308BookChapter(
+    val chapterNumber: Int,
+    val tag: String,
+    val title: String,
+    val ageRangeLabel: String,
+    val summaryPoints: List<String>,
+    val fullScientificReference: String,
+    val liveBarnComparison: String
+)
+
+data class BookSubCardModel(
+    val id: String,
+    val branchIndex: Int,
+    val cardNumberInBranch: Int,
+    val totalCardsInBranch: Int = 4,
+    val iconEmoji: String,
+    val title: String,
+    val badge1: String,
+    val badge2: String,
+    val scientificRulePoints: List<String>,
+    val practicalStepsWithCheck: List<String>,
+    val liveBarnComparisonText: String
+)
+
+data class BookBranchModel(
+    val branchIndex: Int,
+    val tag: String,
+    val title: String,
+    val shortName: String,
+    val subtitle: String,
+    val iconEmoji: String,
+    val subCards: List<BookSubCardModel>
+)
+
+object Ross308BroilerHandbook {
+
+    fun getStandardTempForDay(ageDays: Int): Double {
+        return when {
+            ageDays <= 2 -> 30.0
+            ageDays <= 5 -> 28.0
+            ageDays <= 8 -> 27.0
+            ageDays <= 11 -> 26.0
+            ageDays <= 14 -> 25.0
+            ageDays <= 17 -> 24.0
+            ageDays <= 20 -> 23.0
+            ageDays <= 23 -> 22.0
+            ageDays <= 26 -> 21.0
+            else -> 20.0
+        }
+    }
+
+    fun getStandardMinVentM3PerHourPerBird(ageDays: Int): Double {
+        return when {
+            ageDays <= 7 -> 0.10
+            ageDays <= 14 -> 0.25
+            ageDays <= 21 -> 0.55
+            ageDays <= 28 -> 0.95
+            ageDays <= 34 -> 1.25
+            else -> 1.50
+        }
+    }
+
+    fun getStandardFcrForDay(ageDays: Int): Double {
+        return when {
+            ageDays <= 7 -> 0.85
+            ageDays <= 14 -> 1.08
+            ageDays <= 21 -> 1.25
+            ageDays <= 28 -> 1.38
+            ageDays <= 35 -> 1.50
+            else -> 1.65
+        }
+    }
+
+    fun getStandardFeedPhaseForDay(ageDays: Int): String {
+        return when {
+            ageDays <= 10 -> "بادئ (Starter — الأيام 1–10: بروتين 23% • طاقة 3000 kcal/kg • محبب ناعم Crumble)"
+            ageDays <= 21 -> "نامي (Grower — الأيام 11–21: بروتين 22% • طاقة 3100 kcal/kg)"
+            else -> "ناهي (Finisher — من اليوم 22 حتى التسويق: بروتين 20.5% • طاقة 3200 kcal/kg • Pellets)"
+        }
+    }
+
+    fun buildChaptersForBarn(
+        barnName: String,
+        ageDays: Int,
+        placedBirds: Int,
+        liveBirds: Int,
+        recordedTempC: Double?,
+        totalFeedQuintals: Double,
+        remainingFeedQuintals: Double,
+        latestDailyFeedKg: Double,
+        latestDailyWaterLiters: Double,
+        currentWeightKg: Double,
+        actualFcr: Double,
+        qUnit: String = "ق",
+        kgUnit: String = "كغ"
+    ): List<Ross308BookChapter> {
+        val safeAge = ageDays.coerceAtLeast(1)
+        val targetTempC = getStandardTempForDay(safeAge)
+        val minVentPerBird = getStandardMinVentM3PerHourPerBird(safeAge)
+        val totalMinVentM3h = liveBirds * minVentPerBird
+        val targetWeightKg = PoultryCalculators.getRoss308StandardWeightKg(safeAge)
+        val targetFcr = getStandardFcrForDay(safeAge)
+        val currentFeedPhase = getStandardFeedPhaseForDay(safeAge)
+        val waterToFeedRatio = if (latestDailyFeedKg > 0.0 && latestDailyWaterLiters > 0.0) {
+            latestDailyWaterLiters / latestDailyFeedKg
+        } else 0.0
+
+        val ch1 = Ross308BookChapter(
+            chapterNumber = 1,
+            tag = "ross308_chapter_1",
+            title = "الفصل الأول: استقبال الكتاكيت والتحضين الحرج (الأيام 1–7) 🐣",
+            ageRangeLabel = "الأيام 1–7",
+            summaryPoints = listOf(
+                "التدفئة المسبقة (Pre-heating) قبل 24 ساعة: حرارة الفرشة 28°C – 30°C (بعمق 2–4 سم) وحرارة الهواء 30°C – 32°C ورطوبة نسبية 60% – 70%.",
+                "حرارة المجمع (Vent/Cloacal Temp): المعيار الذهبي لراحة الكتكوت 39.4°C – 40.5°C.",
+                "فحص امتلاء الحوصلة (Crop Fill): بعد ساعتين 75% • بعد 8 ساعات 85% • بعد 24 ساعة > 95% (مع إضاءة 30–40 Lux).",
+                "هدف وزن اليوم السابع: 4.6 – 4.8 أضعاف وزن الفقس (190 – 200 غرام كحد أدنى)."
+            ),
+            fullScientificReference = "مرجع Aviagen Ross 308 (الفصل 1 — التحضين الحرج):\n" +
+                "1) التجهيز الحراري: لا تعتمد على حرارة الهواء وحدها؛ افحص حرارة الفرشة (28°C – 30°C) لأن أقدام الكتكوت تفقد الحرارة بسرعة إذا كانت الأرضية باردة.\n" +
+                "2) بروتوكول الحوصلة (Crop Fill): افحص 30–40 كتكوتاً عشوائياً؛ الحوصلة السليمة تكون لينة وممتلئة بمزيج الماء والعلف (> 95% عند 24 ساعة).\n" +
+                "3) كل 10 غرامات إضافية فوق وزن 190 غ في اليوم 7 تترجم إلى +50 إلى +70 غراماً إضافية عند عمر التسويق (اليوم 35–42).",
+            liveBarnComparison = "🏠 تطبيق الفصل على [$barnName]: العمر الحالي اليوم $safeAge • الكتاكيت المسكنة: ${String.format(java.util.Locale.US, "%,d", placedBirds)} • " +
+                if (safeAge <= 7) {
+                    "أنت الآن في مرحلة التحضين الحرج! راقب امتلاء الحوصلة (> 95%) واستهدف وزن 190–200 غ في اليوم 7."
+                } else {
+                    "تجاوز القطيع مرحلة التحضين (اليوم $safeAge) بحيوية ${String.format(java.util.Locale.US, "%,d", liveBirds)} طائر حي."
+                }
+        )
+
+        val tempComparisonText = if (recordedTempC != null) {
+            val diff = recordedTempC - targetTempC
+            val statusNote = when {
+                diff > 2.0 -> "⚠️ أعلى من معيار Ross 308 بـ ${String.format(java.util.Locale.US, "+%.1f°C", diff)} — ارفع التهوية لتجنب الإجهاد الحراري."
+                diff < -2.0 -> "⚠️ أقل من معيار Ross 308 بـ ${String.format(java.util.Locale.US, "%.1f°C", diff)} — اضبط التدفئة مع الحفاظ على التهوية الدنيا."
+                else -> "✓ مطابقة تماماً لمعيار Ross 308 لعمر اليوم $safeAge."
+            }
+            "حرارة عنبرك المسجلة: ${String.format(java.util.Locale.US, "%.1f°C", recordedTempC)} مقابل الهدف القياسي لليوم $safeAge (${String.format(java.util.Locale.US, "%.0f°C", targetTempC)}) — $statusNote"
+        } else {
+            "حرارة عنبرك غير مسجلة بعد في السجل اليومي — الهدف القياسي لليوم $safeAge هو ${String.format(java.util.Locale.US, "%.0f°C", targetTempC)}."
+        }
+
+        val ch2 = Ross308BookChapter(
+            chapterNumber = 2,
+            tag = "ross308_chapter_2",
+            title = "الفصل الثاني: جدول الحرارة والرطوبة والتهوية القياسي (الأيام 1–42) 🌡️💨",
+            ageRangeLabel = "الأيام 1–42",
+            summaryPoints = listOf(
+                "منحنى الحرارة القياسي (رطوبة 60–70%): اليوم 1: 30°C ⬅️ اليوم 7: 28°C ⬅️ اليوم 14: 26°C ⬅️ اليوم 21: 24°C ⬅️ اليوم 27+: 20°C – 21°C.",
+                "الحد الأدنى للتهوية (Minimum Ventilation): يبدأ من 0.10 m³/ساعة/طائر في اليوم 1 ويصل إلى 1.50 m³/ساعة/طائر في اليوم 35.",
+                "معايير جودة هواء العنبر: الأمونيا NH3 < 10 ppm • ثاني أكسيد الكربون CO2 < 2500 ppm • لا تكتم العنبر أبداً لتوفير الغاز!"
+            ),
+            fullScientificReference = "مرجع Aviagen Ross 308 (الفصل 2 — المناخ والتهوية):\n" +
+                "• جدول التدرج الحراري الكامل: اليوم 1 (30°C) | اليوم 3 (28°C) | اليوم 6 (27°C) | اليوم 9 (26°C) | اليوم 12 (25°C) | اليوم 15 (24°C) | اليوم 18 (23°C) | اليوم 21 (22°C) | اليوم 24 (21°C) | اليوم 27 حتى البيع (20°C).\n" +
+                "• التهوية الدنيا ضرورية لطرد الرطوبة والغازات السامة ومنع تبلل الفرشة والتهاب وسادة القدم (Footpad Dermatitis).",
+            liveBarnComparison = "🏠 مقارنة مناخ [$barnName] (اليوم $safeAge):\n" +
+                "• $tempComparisonText\n" +
+                "• التهوية الدنيا المطلوبة حالياً لـ ${String.format(java.util.Locale.US, "%,d", liveBirds)} طائر: ${String.format(java.util.Locale.US, "%,.0f", totalMinVentM3h)} m³/ساعة (${String.format(java.util.Locale.US, "%.2f", minVentPerBird)} m³/ساعة/طائر)."
+        )
+
+        val waterRatioComparison = if (waterToFeedRatio > 0.0) {
+            "نسبة الماء/العلف المسجلة: ${String.format(java.util.Locale.US, "%.2f", waterToFeedRatio)} لتر/كغ (المعيار الذهبي: 1.6 – 1.8 لتر/كغ عند 21°C)."
+        } else {
+            "القاعدة الذهبية: 1.6 – 1.8 لتر ماء لكل 1 كغ علف (وترتفع إلى 2.5 – 3.0 أضعاف فوق 30°C)."
+        }
+
+        val ch3 = Ross308BookChapter(
+            chapterNumber = 3,
+            tag = "ross308_chapter_3",
+            title = "الفصل الثالث: برنامج التغذية المرحلي وميزان الماء والعلف 🌾💧",
+            ageRangeLabel = "3 مراحل تغذية",
+            summaryPoints = listOf(
+                "بادئ (Starter الأيام 1–10): بروتين 23% وطاقة 3000 kcal/kg (محبب ناعم Crumble — ~250 غ/طائر).",
+                "نامي (Grower الأيام 11–21): بروتين 22% وطاقة 3100 kcal/kg (~1.00 كغ/طائر).",
+                "ناهي (Finisher من اليوم 22 حتى التسويق): بروتين 20.5% وطاقة 3200 kcal/kg (محبب Pellets 3.5 ملم).",
+                "قاعدة الماء الذهبية: 1.6 إلى 1.8 لتر ماء لكل 1 كغ علف في الحرارة المعتدلة (21°C)؛ أي هبوط مفاجئ في شرب الماء هو أول إنذار مبكر للمرض قبل ظهور النافق بـ 24 ساعة."
+            ),
+            fullScientificReference = "مرجع Aviagen Ross 308 (الفصل 3 — التغذية والماء):\n" +
+                "• الانتقال التدريجي بين العلف البادئ والنامي والناهي يمنع صدمة الجهاز الهضمي ورفض العلف.\n" +
+                "• اضبط ارتفاع المعالف والمساقي يومياً بحيث تكون حافة المعلف بمستوى ظهر الطائر لتقليل هدر العلف بنسبة تتجاوز 3%.",
+            liveBarnComparison = "🏠 برنامج تغذية [$barnName] (اليوم $safeAge):\n" +
+                "• المرحلة الموصى بها اليوم: $currentFeedPhase\n" +
+                "• العلف المستهلك: ${Translations.formatQuintalNumber(totalFeedQuintals)} $qUnit | المخزون المتبقي: ${Translations.formatQuintalNumber(remainingFeedQuintals)} $qUnit\n" +
+                "• $waterRatioComparison"
+        )
+
+        val weightDiffGrams = ((currentWeightKg - targetWeightKg) * 1000.0).toInt()
+        val fcrComparisonNote = if (actualFcr > 0.0) {
+            "معامل التحويل الفعلي: ${String.format(java.util.Locale.US, "%.2f", actualFcr)} مقابل معيار Ross 308 (${String.format(java.util.Locale.US, "%.2f", targetFcr)})"
+        } else {
+            "معامل التحويل القياسي المستهدف لليوم $safeAge: FCR ~${String.format(java.util.Locale.US, "%.2f", targetFcr)}"
+        }
+
+        val ch4 = Ross308BookChapter(
+            chapterNumber = 4,
+            tag = "ross308_chapter_4",
+            title = "الفصل الرابع: منحنى الوزن القياسي ومعامل التحويل الغذائي (FCR) ⚖️📈",
+            ageRangeLabel = "جدول الأوزان",
+            summaryPoints = listOf(
+                "اليوم 7: ~190 غ (FCR ~0.85) • اليوم 14: ~520 غ (FCR ~1.08) • اليوم 21: ~1.00 كغ (FCR ~1.25).",
+                "اليوم 28: ~1.58 كغ (FCR ~1.38) • اليوم 35: ~2.25 كغ (FCR ~1.48–1.52) • اليوم 42: ~2.95 كغ (FCR ~1.63–1.68).",
+                "معامل التحويل الغذائي (FCR) = إجمالي العلف المستهلك (كغ) ÷ إجمالي الوزن الحي المنتج شاملاً المبيعات الجزئية (كغ)."
+            ),
+            fullScientificReference = "مرجع Aviagen Ross 308 (الفصل 4 — أهداف الأداء القياسية As-Hatched):\n" +
+                "• قم بوزن عينة لا تقل عن 1% من القطيع (أو 100 طائر كحد أدنى) أسبوعياً من 3 نقاط مختلفة داخل العنبر لحساب معامل التجانس (CV% المستهدف < 10%).",
+            liveBarnComparison = "🏠 مقارنة أداء [$barnName] (اليوم $safeAge):\n" +
+                "• الوزن الحالي: ${String.format(java.util.Locale.US, "%.2f", currentWeightKg)} $kgUnit مقابل معيار Ross 308 (${String.format(java.util.Locale.US, "%.2f", targetWeightKg)} $kgUnit | الفارق: ${String.format(java.util.Locale.US, "%+d", weightDiffGrams)} غ)\n" +
+                "• $fcrComparisonNote"
+        )
+
+        val lightingRecommendationNow = if (safeAge <= 7) {
+            "اليوم $safeAge (أسبوع التحضين): إضاءة 23 ساعة + 1 ساعة ظلام بشدة 30–40 Lux لتحفيز استهلاك العلف والماء."
+        } else {
+            "اليوم $safeAge (بعد اليوم 7): طبّق 4 إلى 6 ساعات إظلام يومياً بانتظام لمنع الاستسقاء (Ascites) والموت المفاجئ (Flip-over)."
+        }
+
+        val ch5 = Ross308BookChapter(
+            chapterNumber = 5,
+            tag = "ross308_chapter_5",
+            title = "الفصل الخامس: برنامج الإضاءة والأمن الحيوي والوقاية من الاستسقاء 🛡️💡",
+            ageRangeLabel = "وقاية وإضاءة",
+            summaryPoints = listOf(
+                "بعد اليوم 7: يُمنع ترك الإضاءة 24 ساعة متواصلة؛ طبّق 4–6 ساعات ظلام يومياً لتقليل الاستسقاء (Ascites) والموت المفاجئ (Flip-over) وتحسين FCR.",
+                "الدليل الوقائي: الأسبوع 1 نيوكاسل (Hitchner B1 / Clone 30) + التهاب الشعب المعدي (IB).",
+                "الأسبوع 2 (اليوم 12–14): تحصين الجمبورو (IBD) • الأسبوع 3 (اليوم 18–21): تنشيطية نيوكاسل (LaSota / Clone 30) مع فيتامينات AD3E وإلكتروليتات."
+            ),
+            fullScientificReference = "مرجع Aviagen Ross 308 (الفصل 5 — الإضاءة والأمن الحيوي):\n" +
+                "• ساعات الظلام (4–6 ساعات) ضرورية لإفراز هرمون الميلاتونين، تقوية عظام الأرجل، وتخفيف العبء القلبي الرئوي لمنع الاستسقاء.\n" +
+                "• قبل أي تحصين في مياه الشرب: ارفع الكلور والمطهرات قبل 48 ساعة، وأضف حليباً خالي الدسم (2 غ/لتر) لحماية اللقاح الحي.",
+            liveBarnComparison = "🏠 بروتوكول [$barnName] (اليوم $safeAge):\n" +
+                "• الإضاءة: $lightingRecommendationNow\n" +
+                "• التحصين القادم/الحالي: ${
+                    when {
+                        safeAge <= 7 -> "الأسبوع 1: تحصين نيوكاسل (B1/Clone 30) + IB."
+                        safeAge <= 14 -> "الأسبوع 2 (اليوم 12–14): تحصين الجمبورو (IBD) في مياه الشرب."
+                        safeAge <= 21 -> "الأسبوع 3 (اليوم 18–21): جرعة تنشيطية نيوكاسل (LaSota/Clone 30) + AD3E."
+                        else -> "مرحلة التسمين النهائية: دعم فيتامينات AD3E وأملاح معدنية ومراقبة جودة الفرشة والتهوية."
+                    }
+                }"
+        )
+
+        return listOf(ch1, ch2, ch3, ch4, ch5)
+    }
+
+    fun buildFourBranchesForBarn(
+        barnName: String,
+        ageDays: Int,
+        placedBirds: Int,
+        liveBirds: Int,
+        recordedTempC: Double?,
+        totalFeedQuintals: Double,
+        remainingFeedQuintals: Double,
+        latestDailyFeedKg: Double,
+        latestDailyWaterLiters: Double,
+        currentWeightKg: Double,
+        actualFcr: Double,
+        qUnit: String = "ق",
+        kgUnit: String = "كغ"
+    ): List<BookBranchModel> {
+        val safeAge = ageDays.coerceAtLeast(1)
+        val targetTempC = getStandardTempForDay(safeAge)
+        val minVentPerBird = getStandardMinVentM3PerHourPerBird(safeAge)
+        val totalMinVentM3h = liveBirds * minVentPerBird
+        val targetWeightKg = PoultryCalculators.getRoss308StandardWeightKg(safeAge)
+        val targetFcr = getStandardFcrForDay(safeAge)
+        val waterToFeedRatio = if (latestDailyFeedKg > 0.0 && latestDailyWaterLiters > 0.0) {
+            latestDailyWaterLiters / latestDailyFeedKg
+        } else 0.0
+        val tempNowStr = if (recordedTempC != null) {
+            String.format(java.util.Locale.US, "%.1f°C", recordedTempC)
+        } else {
+            "غير مسجلة بعد"
+        }
+
+        // الفرع 1: 1. برنامج الرعاية 🐣
+        val branch0Cards = listOf(
+            BookSubCardModel(
+                id = "care_1",
+                branchIndex = 0,
+                cardNumberInBranch = 1,
+                iconEmoji = "🐣",
+                title = "الأسبوع الأول (اليوم 1 - 7): التحضين واستقبال الكتكوت",
+                badge1 = "🌡️ 33°C -> 30°C",
+                badge2 = "💧 فحص الحوصلة 95%",
+                scientificRulePoints = listOf(
+                    "تدفئة العنبر المسبقة قبل 24 ساعة حتى تستقر حرارة الفرشة عند 28°C–30°C وحرارة الهواء 33°C -> 30°C ورطوبة 60%–70%.",
+                    "المعيار الذهبي لراحة الكتكوت: حرارة المجمع (Vent Temp) بين 39.4°C و40.5°C.",
+                    "فحص الحوصلة بعد 24 ساعة يجب أن يتجاوز 95% (لينة وممتلئة بالماء والعلف) للوصول لوزن 190–200 غ في اليوم 7."
+                ),
+                practicalStepsWithCheck = listOf(
+                    "✓ افرد ورق التحضين وأطباق العلف تحت خطوط المساقي مع شدة إضاءة 30–40 Lux.",
+                    "✓ افحص 30–40 كتكوتاً عشوائياً بعد 8 ساعات و24 ساعة للتأكد من امتلاء الحوصلة.",
+                    "✓ شغّل التهوية الدنيا (0.10 m³/ساعة/طائر) لتجديد الأكسجين دون تيارات باردة."
+                ),
+                liveBarnComparisonText = "🏠 عنبرك الحالي [$barnName] (اليوم $safeAge • الكتاكيت المسكنة: ${String.format(java.util.Locale.US, "%,d", placedBirds)}): " +
+                    "حرارة العنبر المسجلة: $tempNowStr (الهدف الحالي لليوم $safeAge: ${String.format(java.util.Locale.US, "%.0f°C", targetTempC)})."
+            ),
+            BookSubCardModel(
+                id = "care_2",
+                branchIndex = 0,
+                cardNumberInBranch = 2,
+                iconEmoji = "🪵",
+                title = "الأسبوع الثاني والثالث (اليوم 8 - 21): بناء الهيكل والريش",
+                badge1 = "🌡️ 29°C -> 27°C",
+                badge2 = "🪵 سمك النشارة 5 سم",
+                scientificRulePoints = listOf(
+                    "تخفيض الحرارة تدريجياً بمعدل 0.5°C يومياً من 29°C في اليوم 8 إلى 27°C–24°C في اليوم 21.",
+                    "الحفاظ على سمك فرشة نشارة الخشب (5 سم) جافة وهشة لمنع التهاب وسادة القدم (Footpad Dermatitis).",
+                    "توسيع مساحة التحضين تدريجياً وتطبيق 4–6 ساعات إظلام يومياً بعد اليوم 7 لتقوية الهيكل العظمي."
+                ),
+                practicalStepsWithCheck = listOf(
+                    "✓ ارفع مستوى المعالف والمساقي بحيث تكون حافتها بمستوى ظهر الطائر.",
+                    "✓ قلّب الفرشة حول المساقي يومياً وأضف نشارة خشب جافة بسمك 5 سم.",
+                    "✓ طبّق برنامج الإظلام المنتظم (4–6 ساعات) للوقاية من الاستسقاء والموت المفاجئ."
+                ),
+                liveBarnComparisonText = "🏠 عنبرك الحالي [$barnName] (اليوم $safeAge • الطيور الحية: ${String.format(java.util.Locale.US, "%,d", liveBirds)}): " +
+                    "الوزن الحالي ${String.format(java.util.Locale.US, "%.2f", currentWeightKg)} $kgUnit مقابل معيار Ross 308 (${String.format(java.util.Locale.US, "%.2f", targetWeightKg)} $kgUnit)."
+            ),
+            BookSubCardModel(
+                id = "care_3",
+                branchIndex = 0,
+                cardNumberInBranch = 3,
+                iconEmoji = "💨",
+                title = "الأسبوع الرابع والخامس (اليوم 22 - 35): التسمين والتهوية",
+                badge1 = "🌡️ 26°C -> 25°C",
+                badge2 = "💨 أمونيا <10ppm",
+                scientificRulePoints = listOf(
+                    "ضبط حرارة العنبر في مدى الراحة الحرارية (26°C -> 25°C ثم 21°C–22°C) مع زيادة سحب الهواء.",
+                    "الحد الأقصى المسموح للأمونيا NH3 أقل من 10 ppm وثاني أكسيد الكربون CO2 أقل من 2500 ppm.",
+                    "التهوية الدنيا ترتفع تدريجياً إلى 0.95 – 1.50 m³/ساعة/طائر لطرد الحرارة الكامنة والرطوبة."
+                ),
+                practicalStepsWithCheck = listOf(
+                    "✓ شغّل الشفاطات التبادلية لضمان سرعة هواء متجانسة على مستوى الطيور.",
+                    "✓ افحص رائحة الأمونيا على مستوى الطائر؛ إذا ظهرت أي رائحة ارفع التهوية فوراً.",
+                    "✓ راقب تجانس الأوزان الأسبوعي (CV% < 10%) واستهلاك الماء اليومي."
+                ),
+                liveBarnComparisonText = "🏠 عنبرك الحالي [$barnName] (اليوم $safeAge): " +
+                    "التهوية الدنيا المطلوبة لـ ${String.format(java.util.Locale.US, "%,d", liveBirds)} طائر هي ${String.format(java.util.Locale.US, "%,.0f", totalMinVentM3h)} m³/ساعة • الحرارة المسجلة: $tempNowStr."
+            ),
+            BookSubCardModel(
+                id = "care_4",
+                branchIndex = 0,
+                cardNumberInBranch = 4,
+                iconEmoji = "💡",
+                title = "الأسبوع السادس (اليوم 36 - 45): التشطيب وما قبل التسويق",
+                badge1 = "🌡️ 25°C",
+                badge2 = "💡 إظلام 4-6 ساعات",
+                scientificRulePoints = listOf(
+                    "الحفاظ على حرارة عنبر معتدلة (20°C – 25°C كحد أقصى) لأن الأوزان الثقيلة شديدة الحساسية للاحتباس الحراري.",
+                    "استمرار برنامج الإظلام (4–6 ساعات) مع تقليله قبل البيع بـ 48 ساعة لتفادي تزاحم الصيد.",
+                    "تصويم العلف لمدة 8–10 ساعات قبل التحميل مع استمرار الماء حتى ساعة الصيد لتفريغ الأمعاء دون جفاف."
+                ),
+                practicalStepsWithCheck = listOf(
+                    "✓ التزم بفترة السحب الدوائي (Withdrawal Period) لأي علاج قبل التسويق.",
+                    "✓ ارفع خطوط المعالف قبل التحميل لتجنب الكدمات والكسور أثناء الإمساك بالطيور.",
+                    "✓ جهّز سجل الميزان السريع والأقفاص النظيفة والمطهرة قبل دخول شاحنة التاجر."
+                ),
+                liveBarnComparisonText = "🏠 عنبرك الحالي [$barnName] (اليوم $safeAge): " +
+                    "متوسط الوزن الحالي ${String.format(java.util.Locale.US, "%.2f", currentWeightKg)} $kgUnit • إجمالي الكتلة الحية التقديرية: ${String.format(java.util.Locale.US, "%,.0f", liveBirds * currentWeightKg)} $kgUnit."
+            )
+        )
+
+        // الفرع 2: 2. برنامج التحصينات 💉
+        val branch1Cards = listOf(
+            BookSubCardModel(
+                id = "vax_1",
+                branchIndex = 1,
+                cardNumberInBranch = 1,
+                iconEmoji = "💧",
+                title = "استقبال الكتاكيت (اليوم 1 - 3): محلول الجفاف وفيتامين AD3E",
+                badge1 = "💧 في ماء الشرب",
+                badge2 = "⚡ تنشيط المناعة",
+                scientificRulePoints = listOf(
+                    "تعويض السوائل والأملاح المفقودة أثناء النقل عبر محلول الجفاف (Electrolytes) في الساعات الـ 6 الأولى.",
+                    "تقديم فيتامينات AD3E + فيتامين C بجرعة قياسية لدعم الأغشية المخاطية وامتصاص كيس المح.",
+                    "حرارة ماء الشرب المثالية للكتاكيت في الأيام الثلاثة الأولى: 18°C – 21°C."
+                ),
+                practicalStepsWithCheck = listOf(
+                    "✓ اغسل خطوط المساقي قبل وصول الكتاكيت وتأكد من تدفق الحلمات بسهولة.",
+                    "✓ قدّم محلول الجفاف والفيتامينات في ماء فاتر نظيف خالٍ من الرواسب.",
+                    "✓ تجنب المضادات الحيوية العشوائية في اليوم الأول دون تشخيص بيطري."
+                ),
+                liveBarnComparisonText = "🏠 عنبرك الحالي [$barnName] (اليوم $safeAge • الكتاكيت المسكنة: ${String.format(java.util.Locale.US, "%,d", placedBirds)}): " +
+                    if (safeAge <= 3) "أنت الآن في نافذة الاستقبال (اليوم $safeAge) — قدّم محلول الجفاف وAD3E." else "تم اجتياز مرحلة استقبال الأيام 1–3."
+            ),
+            BookSubCardModel(
+                id = "vax_2",
+                branchIndex = 1,
+                cardNumberInBranch = 2,
+                iconEmoji = "👁️",
+                title = "التحصين الأول (اليوم 6 - 7): نيوكاسل Hitchner B1 + التهاب الشعب IB",
+                badge1 = "👁️ تقطير / رش",
+                badge2 = "🛡️ وقاية تنفسية",
+                scientificRulePoints = listOf(
+                    "بناء المناعة الموضعية الأولى في الجهاز التنفسي العلوي ضد النيوكاسل (Hitchner B1 / Clone 30) والتهاب الشعب (IB).",
+                    "التقطير العيني أو الرش الخشن (قطرات 100–150 ميكرون) يضمن تغطية مناعية تفوق 95% من القطيع.",
+                    "يُمنع تحصين أي قطيع يعاني من إجهاد حراري أو ضعف عام قبل استقرار حالته."
+                ),
+                practicalStepsWithCheck = listOf(
+                    "✓ أوقف الشفاطات وخفّض الإضاءة أثناء الرش ولمدة 20 دقيقة بعده لضمان استنشاق اللقاح.",
+                    "✓ استخدم ماءً مقطراً بارداً لإذابة اللقاح واحفظ الأمبولات في ثلج حتى لحظة الاستخدام.",
+                    "✓ ادعم القطيع بفيتامين AD3E + C لمدة 24 ساعة بعد التحصين لتخفيف رد الفعل التنفسي."
+                ),
+                liveBarnComparisonText = "🏠 عنبرك الحالي [$barnName] (اليوم $safeAge): " +
+                    when {
+                        safeAge < 6 -> "موعد التحصين الأول بعد ${6 - safeAge} أيام (اليوم 6–7)."
+                        safeAge in 6..7 -> "⚠️ اليوم ($safeAge) هو الموعد القياسي لتحصين النيوكاسل B1 + IB!"
+                        else -> "تم تجاوز موعد التحصين الأول (اليوم 6–7)."
+                    }
+            ),
+            BookSubCardModel(
+                id = "vax_3",
+                branchIndex = 1,
+                cardNumberInBranch = 3,
+                iconEmoji = "🛡️",
+                title = "تحصين الجمبورو (اليوم 12 - 14): لقاح IBD + رافع مناعة",
+                badge1 = "💧 ماء خالٍ من الكلور",
+                badge2 = "⏳ تعطيش ساعة",
+                scientificRulePoints = listOf(
+                    "تحصين الجمبورو (IBD Intermediate) يحمي غدة فابريشيوس والجهاز المناعي في الفترة الحرجة (اليوم 12–14).",
+                    "الكلور والمطهرات تقتل اللقاح الحي فوراً؛ يجب إيقافها قبل 48 ساعة من التحصين.",
+                    "كمية ماء التحصين تُحسب ليتم شربها بالكامل خلال 1.5 إلى ساعتين كحد أقصى."
+                ),
+                practicalStepsWithCheck = listOf(
+                    "✓ عطّش الطيور لمدة 60 دقيقة فقط قبل التحصين (أقل في الأجواء الحارة).",
+                    "✓ أضف حليباً خالي الدسم (2 غ/لتر) أو مثبت لقاح في الماء قبل فتح الأمبولات تحت سطح الماء.",
+                    "✓ امشِ بهدوء داخل العنبر لتحريك الطيور نحو المساقي لضمان شرب 100% من القطيع."
+                ),
+                liveBarnComparisonText = "🏠 عنبرك الحالي [$barnName] (اليوم $safeAge): " +
+                    when {
+                        safeAge < 12 -> "موعد تحصين الجمبورو بعد ${12 - safeAge} يوم (اليوم 12–14)."
+                        safeAge in 12..14 -> "⚠️ اليوم ($safeAge) هو الموعد القياسي لتحصين الجمبورو (IBD)!"
+                        else -> "تم تجاوز نافذة تحصين الجمبورو (اليوم 12–14)."
+                    }
+            ),
+            BookSubCardModel(
+                id = "vax_4",
+                branchIndex = 1,
+                cardNumberInBranch = 4,
+                iconEmoji = "🧪",
+                title = "الجرعة المعززة (اليوم 18 - 20): نيوكاسل LaSota / Clone 30 + مضاد سموم",
+                badge1 = "💧 شرب صباحي",
+                badge2 = "🧪 غسيل كلوي وكبدي",
+                scientificRulePoints = listOf(
+                    "الجرعة التنشيطية للنيوكاسل (LaSota أو Clone 30) في اليوم 18–20 ترفع المناعة لحماية القطيع حتى البيع.",
+                    "مع زيادة استهلاك العلف النامي والناهي، يحتاج الكبد والكلى إلى مضاد سموم فطرية وغسيل كلوي.",
+                    "يُجرى التحصين في الصباح الباكر حصراً لتفادي حرارة الظهيرة وإجهاد الطيور."
+                ),
+                practicalStepsWithCheck = listOf(
+                    "✓ قدّم اللقاح في الصباح الباكر في ماء خالٍ من الكلور مع مثبت اللقاح.",
+                    "✓ استخدم موسع شعب ومنشط مناعة بعد التحصين بـ 48 ساعة إذا ظهرت عطسة لقاح خفيفة.",
+                    "✓ طبّق برنامج مضاد سموم وغسيل كلوي وكبدي لمدة 3 أيام متتالية بعد عمر 20 يوماً."
+                ),
+                liveBarnComparisonText = "🏠 عنبرك الحالي [$barnName] (اليوم $safeAge): " +
+                    when {
+                        safeAge < 18 -> "موعد الجرعة المعززة للنيوكاسل بعد ${18 - safeAge} يوم (اليوم 18–20)."
+                        safeAge in 18..20 -> "⚠️ اليوم ($safeAge) هو الموعد القياسي للجرعة المعززة (LaSota / Clone 30)!"
+                        else -> "مرحلة ما بعد التحصينات (اليوم $safeAge): ركّز على مضاد السموم والغسيل الكلوي والفيتامينات."
+                    }
+            )
+        )
+
+        // الفرع 3: 3. الأمراض والوقاية 🩺
+        val branch2Cards = listOf(
+            BookSubCardModel(
+                id = "dis_1",
+                branchIndex = 2,
+                cardNumberInBranch = 1,
+                iconEmoji = "🫁",
+                title = "الميكوبلازما والأمراض التنفسية (CRD)",
+                badge1 = "🚨 عطاس وشخير ليلي",
+                badge2 = "💨 اضبط التهوية فوراً",
+                scientificRulePoints = listOf(
+                    "الأعراض المميزة: عطاس، حشرجة وشخير ليلي، إفرازات أنفية، وتورم الجيوب الأنفية مع انخفاض سحب العلف.",
+                    "السبب الرئيسي لانتشار CRD هو ارتفاع غاز الأمونيا (> 10 ppm) أو التذبذب الحراري الحاد بين الليل والنهار.",
+                    "العلاج الدوائي لا ينجح أبداً بدون إصلاح التهوية وتجفيف الفرشة أولاً."
+                ),
+                practicalStepsWithCheck = listOf(
+                    "✓ ارفع معدل التهوية الدنيا فوراً لطرد الأمونيا والغبار دون إسقاط تيار بارد مباشر.",
+                    "✓ أضف موسعات شعب وزيوت عطرية (منثول / أوكالبتوس) في ماء الشرب لتهدئة الجهاز التنفسي.",
+                    "✓ استشر الطبيب البيطري لاختيار المضاد النوعي مع الالتزام الصارم بفترة السحب."
+                ),
+                liveBarnComparisonText = "🏠 فحص عنبرك [$barnName] (اليوم $safeAge): " +
+                    "الحرارة المسجلة: $tempNowStr • التهوية الدنيا المطلوبة: ${String.format(java.util.Locale.US, "%,.0f", totalMinVentM3h)} m³/ساعة لمنع تراكم الأمونيا."
+            ),
+            BookSubCardModel(
+                id = "dis_2",
+                branchIndex = 2,
+                cardNumberInBranch = 2,
+                iconEmoji = "🦠",
+                title = "الكوكسيديا والكلوستريديا المعوية",
+                badge1 = "🚨 إسهال مدمم أو رغوي",
+                badge2 = "🪵 جفف رطوبة الفرشة",
+                scientificRulePoints = listOf(
+                    "الأعراض: زرق مدمم أو بني داكن أو رغوي برتقالي، خمول وانتفاش الريش، وتدهور سريع في معامل التحويل (FCR).",
+                    "طفيلي الكوكسيديا يتحوصل ويتكاثر في الفرشة الرطبة الدافئة (رطوبة > 30%) خاصة تحت خطوط المساقي.",
+                    "الإصابة بالكوكسيديا تدمّر جدار الأمعاء وتمهّد لنمو بكتيريا الكلوستريديا (التهاب الأمعاء النخري)."
+                ),
+                practicalStepsWithCheck = listOf(
+                    "✓ أصلح أي تسريب في حلمات المساقي فوراً وأزل البقع الرطبة واستبدلها بنشارة جافة.",
+                    "✓ قدّم مضاد الكوكسيديا الموصوف مع فيتامين K3 وA لوقف النزيف المعوي وتجديد بطانة الأمعاء.",
+                    "✓ ادعم الأمعاء بالبروبيوتيك والأحماض العضوية بعد انتهاء العلاج لمنع عودة الكلوستريديا."
+                ),
+                liveBarnComparisonText = "🏠 فحص عنبرك [$barnName] (اليوم $safeAge): " +
+                    "معامل التحويل الحالي ${if (actualFcr > 0.0) String.format(java.util.Locale.US, "%.2f", actualFcr) else "قيد الحساب"} (معيار Ross 308: ${String.format(java.util.Locale.US, "%.2f", targetFcr)}) — أي ارتفاع مفاجئ في FCR يستوجب فحص الأمعاء والفرشة."
+            ),
+            BookSubCardModel(
+                id = "dis_3",
+                branchIndex = 2,
+                cardNumberInBranch = 3,
+                iconEmoji = "🌡️",
+                title = "الإجهاد الحراري والاحتباس الحراري",
+                badge1 = "🚨 نهجان وفرد الأجنحة",
+                badge2 = "❄️ فيتامين C ومياه باردة",
+                scientificRulePoints = listOf(
+                    "الأعراض: نهجان سريع (Panting)، فرد الأجنحة بعيداً عن الجسم، تجمّع حول المساقي، وارتفاع مفاجئ في النفوق بالأوزان الكبيرة.",
+                    "عندما تتجاوز الحرارة 30°C مع رطوبة عالية، يفقد الطائر قدرته على التبريد التبخيري ويرتفع استهلاك الماء 2.5–3 أضعاف.",
+                    "هضم العلف خلال ساعات الذروة الحارة يولّد حرارة أيضية خطيرة داخل جسم الطائر."
+                ),
+                practicalStepsWithCheck = listOf(
+                    "✓ ارفع العلف خلال ساعات الذروة الحارة (11 صباحاً – 4 عصراً) وقدّمه في ساعات الليل والصباح الباكر.",
+                    "✓ ضاعف عدد مرات غسيل خطوط الماء لتوفير مياه باردة وأضف فيتامين C وإلكتروليت وبيكربونات.",
+                    "✓ شغّل خلايا التبريد وكامل الشفاطات لرفع سرعة الهواء (2.0 – 2.5 م/ثانية) فوق الطيور."
+                ),
+                liveBarnComparisonText = "🏠 فحص عنبرك [$barnName] (اليوم $safeAge): " +
+                    "حرارة العنبر المسجلة: $tempNowStr مقابل الهدف القياسي (${String.format(java.util.Locale.US, "%.0f°C", targetTempC)})."
+            ),
+            BookSubCardModel(
+                id = "dis_4",
+                branchIndex = 2,
+                cardNumberInBranch = 4,
+                iconEmoji = "🧼",
+                title = "قواعد الأمن الحيوي والتطهير بين الدورات",
+                badge1 = "🧼 غسيل وتطهير شامل",
+                badge2 = "🚫 منع دخول الغرباء",
+                scientificRulePoints = listOf(
+                    "الأمن الحيوي (Biosecurity) هو خط الدفاع الأول الذي يمنع 80% من الأمراض الفيروسية والبكتيرية دون تكلفة علاجية.",
+                    "فترة الراحة الصحية بين الدورتين يجب ألا تقل عن 14 يوماً بعد إزالة السبلة والغسيل والتطهير الكامل.",
+                    "تطهير خطوط وخزانات المياه بالأحماض والبيروكسيد يزيل طبقة البيوفيلم (Biofilm) الحاملة للبكتيريا."
+                ),
+                practicalStepsWithCheck = listOf(
+                    "✓ امنع دخول الوسطاء والتجار والزوار إلى داخل العنبر ووفّر حوض تطهير أحذية وملابس خاصة.",
+                    "✓ طبّق قاعدة (الكل داخل – الكل خارج All-In All-Out) ولا تخلط أعماراً مختلفة في نفس المزرعة.",
+                    "✓ كافح القوارض والطيور البرية والحشرات بين الدورات وأغلق فتحات التهوية بشبك حماية."
+                ),
+                liveBarnComparisonText = "🏠 حالة الأمن الحيوي في [$barnName]: الطيور الحية حالياً ${String.format(java.util.Locale.US, "%,d", liveBirds)} من أصل ${String.format(java.util.Locale.US, "%,d", placedBirds)}."
+            )
+        )
+
+        // الفرع 4: 4. برنامج العلف والأوزان 🌾
+        val branch3Cards = listOf(
+            BookSubCardModel(
+                id = "feed_1",
+                branchIndex = 3,
+                cardNumberInBranch = 1,
+                iconEmoji = "🌾",
+                title = "المرحلة الأولى (اليوم 1 - 10): العلف البادئ Starter",
+                badge1 = "🌾 بروتين 23%",
+                badge2 = "⚡ طاقة 3000 kcal",
+                scientificRulePoints = listOf(
+                    "مواصفات العلف البادئ (Starter Days 1–10): بروتين خام 23% • طاقة ممثلة 3000 kcal/kg • قوام محبب ناعم (Crumble).",
+                    "الاستهلاك التراكمي المستهدف في الأيام الـ 10 الأولى: ~250 إلى 290 غرام علف لكل كتكوت.",
+                    "هدف الوزن في نهاية المرحلة (اليوم 10): ~300 إلى 320 غرام بمعامل تحويل FCR ~0.92."
+                ),
+                practicalStepsWithCheck = listOf(
+                    "✓ وزّع العلف البادئ بكميات قليلة ومتكررة (4–5 مرات يومياً) للحفاظ على طزاجته ورائحته الشهية.",
+                    "✓ انخل الناعم المتراكم في أطباق التحضين يومياً وتأكد من خلو العلف من التكتل والرطوبة.",
+                    "✓ ابدأ خلط 25% علف نامي مع 75% بادئ في اليوم 9–10 للانتقال التدريجي السلس."
+                ),
+                liveBarnComparisonText = "🏠 تغذية [$barnName] (اليوم $safeAge): " +
+                    "العلف المستهلك: ${Translations.formatQuintalNumber(totalFeedQuintals)} $qUnit • المخزون المتبقي: ${Translations.formatQuintalNumber(remainingFeedQuintals)} $qUnit."
+            ),
+            BookSubCardModel(
+                id = "feed_2",
+                branchIndex = 3,
+                cardNumberInBranch = 2,
+                iconEmoji = "🌿",
+                title = "المرحلة الثانية (اليوم 11 - 21): العلف النامي Grower",
+                badge1 = "🌾 بروتين 22%",
+                badge2 = "⚡ طاقة 3100 kcal",
+                scientificRulePoints = listOf(
+                    "مواصفات العلف النامي (Grower Days 11–21): بروتين خام 21.5%–22% • طاقة ممثلة 3100 kcal/kg.",
+                    "الاستهلاك التراكمي المستهدف خلال مرحلة النامي: ~1.00 كغ علف لكل طائر.",
+                    "هدف الوزن في اليوم 14: 520 غ (FCR 1.08) • وفي اليوم 21: 1,000 غ / 1.0 كغ (FCR 1.25)."
+                ),
+                practicalStepsWithCheck = listOf(
+                    "✓ انتقل تدريجياً من المحبب الناعم (Crumble) إلى الكبسولات الصغيرة (Mini-pellets 2–2.5 ملم).",
+                    "✓ اضبط فتحة انسياب العلف في المعالف الأوتوماتيكية بحيث يغطي ثلث قاع الطبق فقط لمنع الهدر.",
+                    "✓ اوزن عينة عشوائية (100 طائر) في اليوم 14 واليوم 21 لمطابقة منحنى Ross 308."
+                ),
+                liveBarnComparisonText = "🏠 تغذية [$barnName] (اليوم $safeAge): " +
+                    "الوزن الحالي ${String.format(java.util.Locale.US, "%.2f", currentWeightKg)} $kgUnit مقابل معيار Ross 308 (${String.format(java.util.Locale.US, "%.2f", targetWeightKg)} $kgUnit)."
+            ),
+            BookSubCardModel(
+                id = "feed_3",
+                branchIndex = 3,
+                cardNumberInBranch = 3,
+                iconEmoji = "🌽",
+                title = "المرحلة الثالثة (اليوم 22 - 45): العلف الناهي Finisher",
+                badge1 = "🌾 بروتين 20.5%",
+                badge2 = "⚡ طاقة 3200 kcal",
+                scientificRulePoints = listOf(
+                    "مواصفات العلف الناهي (Finisher Day 22–45): بروتين خام 19.5%–20.5% • طاقة ممثلة 3200 kcal/kg • كبسولات Pellets 3.5 ملم.",
+                    "تمثل هذه المرحلة أكثر من 65% من إجمالي استهلاك العلف المالي للدورة؛ لذا فإن خفض الهدر يضاعف صافي الربح.",
+                    "أهداف الأوزان: اليوم 28 (1.58 كغ | FCR 1.38) • اليوم 35 (2.25 كغ | FCR 1.50) • اليوم 42 (2.95 كغ | FCR 1.65)."
+                ),
+                practicalStepsWithCheck = listOf(
+                    "✓ تأكد من متانة حبة العلف (Pellets) وعدم تفتتها إلى بودرة لأن الطائر الكبير يرفض العلف الناعم.",
+                    "✓ راقب المخزون المتبقي في العنبر بالقنطار (ق) يومياً لتأمين طلبيات العلف قبل نفادها بـ 3 أيام.",
+                    "✓ استخدم حاسبة المبيعات والفرز لتحديد نقطة البيع المثلى قبل تراجع كفاءة التحويل بعد اليوم 42."
+                ),
+                liveBarnComparisonText = "🏠 تغذية [$barnName] (اليوم $safeAge): " +
+                    "معامل التحويل الحالي ${if (actualFcr > 0.0) String.format(java.util.Locale.US, "%.2f", actualFcr) else "قيد الحساب"} (الهدف: ${String.format(java.util.Locale.US, "%.2f", targetFcr)}) • المخزون المتبقي: ${Translations.formatQuintalNumber(remainingFeedQuintals)} $qUnit."
+            ),
+            BookSubCardModel(
+                id = "feed_4",
+                branchIndex = 3,
+                cardNumberInBranch = 4,
+                iconEmoji = "⚖️",
+                title = "جدول الأوزان واستهلاك العلف وميزان الماء (1 إلى 45 يوم)",
+                badge1 = "⚖️ حتى 2800 غ",
+                badge2 = "💧 الماء 1.7x العلف",
+                scientificRulePoints = listOf(
+                    "المرجع القياسي للأوزان: يوم 7 (190 غ) • يوم 14 (520 غ) • يوم 21 (1000 غ) • يوم 28 (1580 غ) • يوم 35 (2250 غ) • يوم 42–45 (2800–2950 غ).",
+                    "قاعدة ميزان الماء والعلف: يستهلك الطائر 1.6 إلى 1.8 لتر ماء لكل 1 كغ علف (بمتوسط 1.7x في حرارة 21°C).",
+                    "أي انخفاض مفاجئ في استهلاك الماء اليومي عن 1.6x هو أول إنذار مبكر للمرض قبل ظهور النفوق بـ 24 ساعة."
+                ),
+                practicalStepsWithCheck = listOf(
+                    "✓ سجّل استهلاك العلف بالقنطار (1 قنطار = 100 كغ) واستهلاك الماء باللتر يومياً في السجل اليومي.",
+                    "✓ قارن وزن قطيعك الفعلي من جدول الميزان السريع مع الوزن القياسي لليوم المقابل.",
+                    "✓ افحص عداد المياه وفلاتر الخطوط كل صباح للتأكد من عدم انسداد الحلمات."
+                ),
+                liveBarnComparisonText = "🏠 ميزان الماء والعلف في [$barnName] (اليوم $safeAge): " +
+                    if (waterToFeedRatio > 0.0) {
+                        "نسبة الماء/العلف المسجلة: ${String.format(java.util.Locale.US, "%.2f", waterToFeedRatio)} لتر/كغ (المعيار القياسي: 1.6 – 1.8 لتر/كغ)."
+                    } else {
+                        "الوزن الحالي ${String.format(java.util.Locale.US, "%.2f", currentWeightKg)} $kgUnit • المعيار القياسي للماء 1.7 لتر لكل 1 كغ علف."
+                    }
+            )
+        )
+
+        return listOf(
+            BookBranchModel(
+                branchIndex = 0,
+                tag = "book_branch_0",
+                title = "1. برنامج الرعاية 🐣",
+                shortName = "برنامج الرعاية",
+                subtitle = "(الحرارة، التهوية، ومراحل النمو)",
+                iconEmoji = "🐣",
+                subCards = branch0Cards
+            ),
+            BookBranchModel(
+                branchIndex = 1,
+                tag = "book_branch_1",
+                title = "2. برنامج التحصينات 💉",
+                shortName = "برنامج التحصينات",
+                subtitle = "(جدول اللقاحات والفيتامينات)",
+                iconEmoji = "💉",
+                subCards = branch1Cards
+            ),
+            BookBranchModel(
+                branchIndex = 2,
+                tag = "book_branch_2",
+                title = "3. الأمراض والوقاية 🩺",
+                shortName = "الأمراض والوقاية",
+                subtitle = "(الأعراض والأمن الحيوي)",
+                iconEmoji = "🩺",
+                subCards = branch2Cards
+            ),
+            BookBranchModel(
+                branchIndex = 3,
+                tag = "book_branch_3",
+                title = "4. برنامج العلف والأوزان 🌾",
+                shortName = "برنامج العلف والأوزان",
+                subtitle = "(مراحل التغذية والتحويل)",
+                iconEmoji = "🌾",
+                subCards = branch3Cards
+            )
+        )
+    }
+
+    fun findSubCard(
+        branches: List<BookBranchModel>,
+        subCardId: String?
+    ): Pair<BookBranchModel, BookSubCardModel>? {
+        if (subCardId.isNullOrBlank()) return null
+        for (branch in branches) {
+            val found = branch.subCards.firstOrNull { it.id == subCardId }
+            if (found != null) return branch to found
+        }
+        return null
+    }
+
+    fun getNextSubCardId(branches: List<BookBranchModel>, currentSubCardId: String): String {
+        val pair = findSubCard(branches, currentSubCardId) ?: return currentSubCardId
+        val cards = pair.first.subCards
+        val idx = cards.indexOfFirst { it.id == currentSubCardId }
+        if (idx < 0 || cards.isEmpty()) return currentSubCardId
+        return cards[(idx + 1) % cards.size].id
+    }
+
+    fun getPreviousSubCardId(branches: List<BookBranchModel>, currentSubCardId: String): String {
+        val pair = findSubCard(branches, currentSubCardId) ?: return currentSubCardId
+        val cards = pair.first.subCards
+        val idx = cards.indexOfFirst { it.id == currentSubCardId }
+        if (idx < 0 || cards.isEmpty()) return currentSubCardId
+        return cards[(idx - 1 + cards.size) % cards.size].id
+    }
+}
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun OwnerGlobalAiVetPlaceholderScreen(
@@ -7251,8 +7961,8 @@ fun OwnerGlobalAiVetPlaceholderScreen(
                 .padding(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            // Top Glassmorphic AI Agent Employee Persona Header Card + 3-Sub-Tab Segmented Control
-            // When in Tab 2 (💬 المحادثة), collapse the top persona & mode switcher so 75%+ of screen height is dedicated to chat & reports
+            // الجراحة 1: شريط علوي موحد ونظيف في جميع الأقسام الثلاثة داخل شاشة 📖 الكتاب:
+            // شريحة اختيار العنبر (🏠 العنبر: [اسم العنبر النشط]) + شريط التبويبات الثلاثة (📊 التحليلات | 💡 نصائح | 💬 المحادثة)
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -7267,146 +7977,70 @@ fun OwnerGlobalAiVetPlaceholderScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(if (selectedAiSubTab == 2) 8.dp else 12.dp),
+                        .padding(10.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    if (selectedAiSubTab != 2) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
+                    // شريحة اختيار العنبر النشط: 🏠 العنبر: [اسم العنبر النشط]
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState())
+                            .testTag("ai_vet_selected_barn_bar"),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            text = if (lang == AppLanguage.AR) "🏠 العنبر:" else "🏠 Barn:",
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = secondaryText
+                        )
+                        if (availableAiBarns.isEmpty()) {
                             Surface(
-                                modifier = Modifier.size(40.dp),
-                                shape = CircleShape,
-                                color = aiAccentContainer,
-                                border = BorderStroke(1.2.dp, aiAccent.copy(alpha = 0.5f))
+                                shape = pillShape,
+                                color = Color.Transparent,
+                                border = BorderStroke(1.dp, glassBorderColor)
                             ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Text("🧠", fontSize = 19.sp)
-                                }
-                            }
-                            Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = Translations.tr("ai_agent_persona_title", lang),
-                                    fontWeight = FontWeight.ExtraBold,
-                                    fontSize = 13.sp,
-                                    color = primaryText,
-                                    lineHeight = 17.sp,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                Text(
-                                    text = Translations.tr("ai_agent_persona_subtitle", lang),
+                                    text = if (lang == AppLanguage.AR) "لا يوجد عنبر نشط" else Translations.tr("no_active_cycle", lang),
                                     fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
                                     color = secondaryText,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                                 )
                             }
-                        }
-
-                        // Mode Switcher Pill: Farm AI Employee vs Home & Personal AI Employee
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            listOf(
-                                false to Translations.tr("ai_agent_mode_farm", lang),
-                                true to Translations.tr("ai_agent_mode_home", lang)
-                            ).forEach { (homeMode, modeLabel) ->
-                                val isSelectedMode = isHomePersonalAgentMode == homeMode
+                        } else {
+                            availableAiBarns.forEach { barnItem ->
+                                val isSelectedBarn = selectedAiFarm?.id == barnItem.id
+                                val localizedBarnTitle = Translations.getLocalizedFarmName(barnItem.id, lang, barnItem.name)
                                 Surface(
                                     modifier = Modifier
-                                        .weight(1f)
                                         .clip(pillShape)
-                                        .clickable { isHomePersonalAgentMode = homeMode }
-                                        .testTag(if (homeMode) "ai_agent_mode_home_btn" else "ai_agent_mode_farm_btn"),
+                                        .clickable {
+                                            selectedAiBarnId = barnItem.id
+                                            sessionState.activeFarmId = barnItem.id
+                                        }
+                                        .testTag("ai_vet_select_barn_${barnItem.id}"),
                                     shape = pillShape,
-                                    color = if (isSelectedMode) aiAccentContainer else Color.Transparent,
+                                    color = if (isSelectedBarn) aiAccentContainer else Color.Transparent,
                                     border = BorderStroke(
-                                        width = if (isSelectedMode) 1.5.dp else 1.dp,
-                                        color = if (isSelectedMode) aiAccent else glassBorderColor
+                                        width = if (isSelectedBarn) 1.5.dp else 1.dp,
+                                        color = if (isSelectedBarn) aiAccent else glassBorderColor
                                     )
                                 ) {
                                     Text(
-                                        text = modeLabel,
+                                        text = localizedBarnTitle,
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.ExtraBold,
-                                        color = if (isSelectedMode) aiAccent else secondaryText,
-                                        textAlign = TextAlign.Center,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    // Active Barn Context Selector Bar for AI Analysis
-                    if (!isHomePersonalAgentMode) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .horizontalScroll(rememberScrollState())
-                                .testTag("ai_vet_selected_barn_bar"),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Text(
-                                text = if (lang == AppLanguage.AR) "🏠 العنبر:" else "🏠 Barn:",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = secondaryText
-                            )
-                            if (availableAiBarns.isEmpty()) {
-                                Surface(
-                                    shape = pillShape,
-                                    color = Color.Transparent,
-                                    border = BorderStroke(1.dp, glassBorderColor)
-                                ) {
-                                    Text(
-                                        text = if (lang == AppLanguage.AR) "لا يوجد عنبر نشط" else Translations.tr("no_active_cycle", lang),
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = secondaryText,
+                                        color = if (isSelectedBarn) aiAccent else secondaryText,
                                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                                     )
                                 }
-                            } else {
-                                availableAiBarns.forEach { barnItem ->
-                                    val isSelectedBarn = selectedAiFarm?.id == barnItem.id
-                                    val localizedBarnTitle = Translations.getLocalizedFarmName(barnItem.id, lang, barnItem.name)
-                                    Surface(
-                                        modifier = Modifier
-                                            .clip(pillShape)
-                                            .clickable {
-                                                selectedAiBarnId = barnItem.id
-                                                sessionState.activeFarmId = barnItem.id
-                                            }
-                                            .testTag("ai_vet_select_barn_${barnItem.id}"),
-                                        shape = pillShape,
-                                        color = if (isSelectedBarn) aiAccentContainer else Color.Transparent,
-                                        border = BorderStroke(
-                                            width = if (isSelectedBarn) 1.5.dp else 1.dp,
-                                            color = if (isSelectedBarn) aiAccent else glassBorderColor
-                                        )
-                                    ) {
-                                        Text(
-                                            text = localizedBarnTitle,
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.ExtraBold,
-                                            color = if (isSelectedBarn) aiAccent else secondaryText,
-                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                                        )
-                                    }
-                                }
                             }
                         }
                     }
 
-                    // شريط أقسام ثلاثي رشيق في سطر واحد بدون اقتطاع:
-                    // 0: ⚡ القرارات | 1: 🔍 الفحوصات | 2: 💬 المحادثة
+                    // شريط التبويبات الثلاثة ثلاثي الأبعاد: 📊 التحليلات | 💡 نصائح | 💬 المحادثة
                     NeumorphicRecessedDisplay(
                         isDark = isDark,
                         contentPadding = PaddingValues(4.dp)
@@ -7447,10 +8081,103 @@ fun OwnerGlobalAiVetPlaceholderScreen(
                 }
             }
 
-            // محتوى القسم النشط (غير مزدحم ومفصول بدقة)
+            // حساب المؤشرات الحية للعنبر النشط لعرضها في (📊 التحليلات) و(💡 نصائح كتاب Ross 308)
+            val activeCycleForBook = selectedAiFarm?.let { AgritechMockDb.resolveCycleForFarm(it) }
+            val activeReportsForBook = if (selectedAiFarm != null) {
+                AgritechMockDb.resolveReportsForFarmAndCycle(selectedAiFarm.id, activeCycleForBook?.id)
+            } else emptyList()
+            val activeTxsForBook = if (selectedAiFarm != null) {
+                AgritechMockDb.transactions.filter {
+                    it.farmId == selectedAiFarm.id &&
+                        (activeCycleForBook == null || it.cycleId == activeCycleForBook.id) &&
+                        it.status.equals("APPROVED", ignoreCase = true) &&
+                        (it.currency.isBlank() ||
+                            it.currency.equals(selectedAiFarm.currencyCode, ignoreCase = true) ||
+                            it.currency == curr)
+                }
+            } else emptyList()
+
+            val bookBarnName = if (selectedAiFarm != null) {
+                Translations.getLocalizedFarmName(selectedAiFarm.id, lang, selectedAiFarm.name)
+            } else {
+                Translations.tr("no_active_cycle", lang)
+            }
+            val bookMaxReportDay = activeReportsForBook.maxOfOrNull { it.dayNumber } ?: 1
+            val bookAgeDays = if (activeCycleForBook != null) {
+                PoultryCalculators.calculateCycleDay(activeCycleForBook.startDate, bookMaxReportDay)
+            } else bookMaxReportDay
+            val bookTotalMortality = activeReportsForBook.sumOf { it.mortalityCount }
+            val bookPlacedBirds = activeCycleForBook?.totalBirdsPlaced ?: selectedAiFarm?.capacity ?: 0
+            val bookSoldBirds = activeCycleForBook?.cumulativeBirdsSold ?: 0
+            val bookLiveBirds = (bookPlacedBirds - bookTotalMortality - bookSoldBirds).coerceAtLeast(0)
+            val bookMortalityPct = if (bookPlacedBirds > 0) (bookTotalMortality.toDouble() / bookPlacedBirds) * 100.0 else 0.0
+            val bookLivabilityPct = (100.0 - bookMortalityPct).coerceIn(0.0, 100.0)
+            val bookTotalFeedKg = activeReportsForBook.sumOf { it.feedIntakeKg }
+            val bookTotalFeedQuintals = bookTotalFeedKg / 100.0
+            val bookRemainingFeedKg = activeCycleForBook?.feedInventoryKg ?: 0.0
+            val bookRemainingFeedQuintals = bookRemainingFeedKg / 100.0
+            val bookLatestReport = activeReportsForBook.maxByOrNull { it.dayNumber }
+            val bookLatestTempC: Double? = bookLatestReport?.temperature
+            val bookLatestFeedKg = bookLatestReport?.feedIntakeKg ?: 0.0
+            val bookLatestWaterL = bookLatestReport?.waterIntakeLiters ?: 0.0
+            val bookLatestWeightKg = activeReportsForBook.lastOrNull { it.actualAvgWeightKg > 0.0 }?.actualAvgWeightKg ?: 0.0
+            val bookTargetWeightKg = PoultryCalculators.getRoss308StandardWeightKg(bookAgeDays)
+            val bookCurrentWeightKg = if (bookLatestWeightKg > 0.0) bookLatestWeightKg else bookTargetWeightKg
+            val bookStandingBiomassKg = bookLiveBirds * bookCurrentWeightKg
+            val bookTotalProducedWeightKg = bookStandingBiomassKg + (activeCycleForBook?.cumulativeSoldWeightKg ?: 0.0)
+            val bookActualFcr = if (bookTotalProducedWeightKg > 0.0 && bookTotalFeedKg > 0.0) {
+                bookTotalFeedKg / bookTotalProducedWeightKg
+            } else 0.0
+            val bookTotalExpenses = activeTxsForBook.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
+            val bookTotalIncome = activeTxsForBook.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
+            val bookCostPerBird = if (bookLiveBirds > 0) bookTotalExpenses / bookLiveBirds else 0.0
+            val bookCostPerKg = if (bookStandingBiomassKg > 0.0) bookTotalExpenses / bookStandingBiomassKg else 0.0
+
+            // متغيرات حالة الفروع الأربعة والانتقال البطاقي المتدرج (4-Branch Drill-Down Card Architecture)
+            var selectedBookBranchIndex by rememberSaveable { mutableIntStateOf(0) }
+            var openedSubCardId by rememberSaveable { mutableStateOf<String?>(null) }
+
+            val bookBranches = remember(
+                bookBarnName,
+                bookAgeDays,
+                bookLiveBirds,
+                bookPlacedBirds,
+                bookLatestTempC,
+                bookTotalFeedQuintals,
+                bookRemainingFeedQuintals,
+                bookLatestFeedKg,
+                bookLatestWaterL,
+                bookCurrentWeightKg,
+                bookActualFcr,
+                lang
+            ) {
+                Ross308BroilerHandbook.buildFourBranchesForBarn(
+                    barnName = bookBarnName,
+                    ageDays = bookAgeDays,
+                    placedBirds = bookPlacedBirds,
+                    liveBirds = bookLiveBirds,
+                    recordedTempC = bookLatestTempC,
+                    totalFeedQuintals = bookTotalFeedQuintals,
+                    remainingFeedQuintals = bookRemainingFeedQuintals,
+                    latestDailyFeedKg = bookLatestFeedKg,
+                    latestDailyWaterLiters = bookLatestWaterL,
+                    currentWeightKg = bookCurrentWeightKg,
+                    actualFcr = bookActualFcr,
+                    qUnit = qUnit,
+                    kgUnit = kgUnit
+                )
+            }
+
+            if (selectedAiSubTab == 1 && openedSubCardId != null) {
+                BackHandler {
+                    openedSubCardId = null
+                }
+            }
+
+            // محتوى القسم النشط (📊 التحليلات | 💡 نصائح | 💬 المحادثة)
             when (selectedAiSubTab) {
                 0 -> {
-                    // القسم الأول: ⚡ القرارات (بطاقات الموظف الذكي الاستباقية فقط مع أزرار موافق ✓ / لا ✕)
+                    // القسم الأول: 📊 التحليلات (بطاقات التحليل الحية لعنبر المستخدم الفعلي فقط بدون بطاقات وهمية)
                     LazyColumn(
                         modifier = Modifier
                             .weight(1f)
@@ -7458,235 +8185,141 @@ fun OwnerGlobalAiVetPlaceholderScreen(
                             .testTag("ai_smart_decisions_list"),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        if (!card1Ignored) {
-                            item {
-                                Card(
+                        item {
+                            Text(
+                                text = Translations.tr("book_analytics_section_title", lang),
+                                fontSize = 12.5.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = aiAccent
+                            )
+                        }
+
+                        // 1. بطاقة تحليل المصاريف والتكلفة الفعلية
+                        item {
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .tactile3DStyle(
+                                        baseColor = aiAccent,
+                                        cornerRadius = appearance.cornerRadiusDp.dp,
+                                        elevation = 4.dp
+                                    )
+                                    .testTag("book_analytics_expenses_card"),
+                                shape = aiCardShape,
+                                colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
+                                border = BorderStroke(1.2.dp, glassBorderColor)
+                            ) {
+                                Column(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .testTag("ai_agent_proactive_card_1"),
-                                    shape = aiCardShape,
-                                    colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
-                                    border = BorderStroke(1.2.dp, glassBorderColor),
-                                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                                        .padding(14.dp),
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
-                                    Column(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(16.dp),
-                                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                                    ) {
-                                        Text(
-                                            text = if (isHomePersonalAgentMode) {
-                                                Translations.tr("home_ai_card1_title", lang)
-                                            } else {
-                                                Translations.tr("ai_agent_card1_title", lang)
-                                            },
-                                            fontWeight = FontWeight.ExtraBold,
-                                            fontSize = 14.sp,
-                                            color = aiAccent
-                                        )
-                                        Text(
-                                            text = if (isHomePersonalAgentMode) {
-                                                Translations.tr("home_ai_card1_body", lang)
-                                            } else {
-                                                Translations.tr("ai_agent_card1_body", lang)
-                                            },
-                                            fontSize = 12.5.sp,
-                                            color = primaryText,
-                                            lineHeight = 19.sp
-                                        )
-                                        if (card1Approved) {
-                                            Surface(
-                                                shape = pillShape,
-                                                color = aiAccentContainer,
-                                                border = BorderStroke(1.dp, aiAccent.copy(alpha = 0.55f)),
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .testTag("ai_agent_card1_approved_badge")
-                                            ) {
-                                                Text(
-                                                    text = if (isHomePersonalAgentMode) {
-                                                        Translations.tr("home_ai_card1_done", lang)
-                                                    } else {
-                                                        Translations.tr("ai_agent_card1_done", lang)
-                                                    },
-                                                    fontSize = 12.sp,
-                                                    fontWeight = FontWeight.ExtraBold,
-                                                    color = aiAccent,
-                                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)
-                                                )
-                                            }
-                                        } else {
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                            ) {
-                                                Button(
-                                                    onClick = {
-                                                        card1Approved = true
-                                                        if (isHomePersonalAgentMode) {
-                                                            AgritechMockDb.workerPersonalEntries.add(
-                                                                0,
-                                                                WorkerPersonalEntryModel(
-                                                                    id = "w_tx_ai_${System.currentTimeMillis()}",
-                                                                    farmId = "personal_worker_ledger",
-                                                                    title = Translations.tr("home_cat_electricity_gas", lang),
-                                                                    amount = 4500.0,
-                                                                    type = TransactionType.EXPENSE,
-                                                                    dateLabel = java.time.LocalDate.now().toString(),
-                                                                    isBillOrObligation = true
-                                                                )
-                                                            )
-                                                            AgritechMockDb.persistLocalState()
-                                                        }
-                                                    },
-                                                    shape = pillShape,
-                                                    colors = ButtonDefaults.buttonColors(containerColor = aiPrimaryBtn),
-                                                    modifier = Modifier
-                                                        .weight(1.3f)
-                                                        .height(44.dp)
-                                                        .testTag("btn_ai_agent_card1_approve")
-                                                ) {
-                                                    Text(
-                                                        text = if (isHomePersonalAgentMode) {
-                                                            Translations.tr("home_ai_card1_approve", lang)
-                                                        } else {
-                                                            Translations.tr("ai_agent_card1_approve", lang)
-                                                        },
-                                                        fontSize = 12.sp,
-                                                        fontWeight = FontWeight.Bold,
-                                                        color = Color.White,
-                                                        maxLines = 1
-                                                    )
-                                                }
-                                                OutlinedButton(
-                                                    onClick = { card1Ignored = true },
-                                                    shape = pillShape,
-                                                    border = BorderStroke(1.dp, secondaryText.copy(alpha = 0.4f)),
-                                                    modifier = Modifier
-                                                        .weight(0.75f)
-                                                        .height(44.dp)
-                                                        .testTag("btn_ai_agent_card1_ignore")
-                                                ) {
-                                                    Text(
-                                                        text = Translations.tr("ai_agent_card1_ignore", lang),
-                                                        fontSize = 12.sp,
-                                                        fontWeight = FontWeight.Bold,
-                                                        color = secondaryText,
-                                                        maxLines = 1
-                                                    )
-                                                }
-                                            }
-                                        }
-                                    }
+                                    Text(
+                                        text = "💰 تحليل المصاريف والتكلفة الفعلية — $bookBarnName",
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontSize = 13.5.sp,
+                                        color = aiAccent
+                                    )
+                                    Text(
+                                        text = "• إجمالي المصاريف المسجلة: ${String.format(java.util.Locale.US, "%,.0f", bookTotalExpenses)} $curr | المداخيل: ${String.format(java.util.Locale.US, "%,.0f", bookTotalIncome)} $curr\n" +
+                                            "• التكلفة الفعلية للطائر الحي: ${String.format(java.util.Locale.US, "%,.1f", bookCostPerBird)} $curr / طائر\n" +
+                                            "• تكلفة إنتاج 1 $kgUnit وزن حي: ${String.format(java.util.Locale.US, "%,.1f", bookCostPerKg)} $curr / $kgUnit",
+                                        fontSize = 12.sp,
+                                        color = primaryText,
+                                        lineHeight = 18.sp
+                                    )
                                 }
                             }
                         }
 
-                        if (!card2Ignored) {
-                            item {
-                                Card(
+                        // 2. بطاقة تحليل استهلاك العلف والمخزون المتبقي ومعامل التحويل
+                        item {
+                            val dailyFeedAvgQuintals = if (bookAgeDays > 0 && bookTotalFeedQuintals > 0.0) {
+                                bookTotalFeedQuintals / bookAgeDays.coerceAtLeast(1)
+                            } else 0.0
+                            val estDaysRemaining = if (dailyFeedAvgQuintals > 0.0) {
+                                (bookRemainingFeedQuintals / dailyFeedAvgQuintals).toInt()
+                            } else 0
+                            val targetFcrNow = Ross308BroilerHandbook.getStandardFcrForDay(bookAgeDays)
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .tactile3DStyle(
+                                        baseColor = aiAccent,
+                                        cornerRadius = appearance.cornerRadiusDp.dp,
+                                        elevation = 4.dp
+                                    )
+                                    .testTag("book_analytics_feed_card"),
+                                shape = aiCardShape,
+                                colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
+                                border = BorderStroke(1.2.dp, glassBorderColor)
+                            ) {
+                                Column(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .testTag("ai_agent_proactive_card_2"),
-                                    shape = aiCardShape,
-                                    colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
-                                    border = BorderStroke(1.2.dp, glassBorderColor),
-                                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                                        .padding(14.dp),
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
-                                    Column(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(16.dp),
-                                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                                    ) {
-                                        Text(
-                                            text = if (isHomePersonalAgentMode) {
-                                                Translations.tr("home_ai_card2_title", lang)
-                                            } else {
-                                                Translations.tr("ai_agent_card2_title", lang)
-                                            },
-                                            fontWeight = FontWeight.ExtraBold,
-                                            fontSize = 14.sp,
-                                            color = aiAccent
-                                        )
-                                        Text(
-                                            text = if (isHomePersonalAgentMode) {
-                                                Translations.tr("home_ai_card2_body", lang)
-                                            } else {
-                                                Translations.tr("ai_agent_card2_body", lang)
-                                            },
-                                            fontSize = 12.5.sp,
-                                            color = primaryText,
-                                            lineHeight = 19.sp
-                                        )
-                                        if (card2Approved) {
-                                            Surface(
-                                                shape = pillShape,
-                                                color = aiAccentContainer,
-                                                border = BorderStroke(1.dp, aiAccent.copy(alpha = 0.55f)),
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .testTag("ai_agent_card2_approved_badge")
-                                            ) {
-                                                Text(
-                                                    text = if (isHomePersonalAgentMode) {
-                                                        Translations.tr("home_ai_card2_done", lang)
-                                                    } else {
-                                                        Translations.tr("ai_agent_card2_done", lang)
-                                                    },
-                                                    fontSize = 12.sp,
-                                                    fontWeight = FontWeight.ExtraBold,
-                                                    color = aiAccent,
-                                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)
-                                                )
-                                            }
-                                        } else {
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                            ) {
-                                                Button(
-                                                    onClick = { card2Approved = true },
-                                                    shape = pillShape,
-                                                    colors = ButtonDefaults.buttonColors(containerColor = aiPrimaryBtn),
-                                                    modifier = Modifier
-                                                        .weight(1.3f)
-                                                        .height(44.dp)
-                                                        .testTag("btn_ai_agent_card2_approve")
-                                                ) {
-                                                    Text(
-                                                        text = if (isHomePersonalAgentMode) {
-                                                            Translations.tr("home_ai_card2_approve", lang)
-                                                        } else {
-                                                            Translations.tr("ai_agent_card2_approve", lang)
-                                                        },
-                                                        fontSize = 12.sp,
-                                                        fontWeight = FontWeight.Bold,
-                                                        color = Color.White,
-                                                        maxLines = 1
-                                                    )
-                                                }
-                                                OutlinedButton(
-                                                    onClick = { card2Ignored = true },
-                                                    shape = pillShape,
-                                                    border = BorderStroke(1.dp, secondaryText.copy(alpha = 0.4f)),
-                                                    modifier = Modifier
-                                                        .weight(0.75f)
-                                                        .height(44.dp)
-                                                        .testTag("btn_ai_agent_card2_ignore")
-                                                ) {
-                                                    Text(
-                                                        text = Translations.tr("ai_agent_card1_ignore", lang),
-                                                        fontSize = 12.sp,
-                                                        fontWeight = FontWeight.Bold,
-                                                        color = secondaryText,
-                                                        maxLines = 1
-                                                    )
-                                                }
-                                            }
-                                        }
-                                    }
+                                    Text(
+                                        text = "🌾 تحليل العلف والمخزون ومعامل التحويل (FCR)",
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontSize = 13.5.sp,
+                                        color = aiAccent
+                                    )
+                                    Text(
+                                        text = "• إجمالي العلف المستهلك: ${Translations.formatQuintalNumber(bookTotalFeedQuintals)} $qUnit | المخزون المتبقي: ${Translations.formatQuintalNumber(bookRemainingFeedQuintals)} $qUnit ${if (estDaysRemaining > 0) "(يكفي ~$estDaysRemaining يوم)" else ""}\n" +
+                                            "• متوسط الوزن الحالي: ${String.format(java.util.Locale.US, "%.2f", bookCurrentWeightKg)} $kgUnit (معيار Ross 308 لليوم $bookAgeDays: ${String.format(java.util.Locale.US, "%.2f", bookTargetWeightKg)} $kgUnit)\n" +
+                                            "• معامل التحويل الغذائي (FCR): ${if (bookActualFcr > 0.0) String.format(java.util.Locale.US, "%.2f", bookActualFcr) else "قيد الحساب"} (الهدف القياسي: ${String.format(java.util.Locale.US, "%.2f", targetFcrNow)})",
+                                        fontSize = 12.sp,
+                                        color = primaryText,
+                                        lineHeight = 18.sp
+                                    )
+                                }
+                            }
+                        }
+
+                        // 3. بطاقة تحليل الحيوية والنفوق والمناخ مقارنة بمعيار Ross 308
+                        item {
+                            val targetTempNow = Ross308BroilerHandbook.getStandardTempForDay(bookAgeDays)
+                            val tempDisplay = if (bookLatestTempC != null) {
+                                "${String.format(java.util.Locale.US, "%.1f°C", bookLatestTempC)} (الهدف: ${String.format(java.util.Locale.US, "%.0f°C", targetTempNow)})"
+                            } else {
+                                "غير مسجلة بعد (الهدف: ${String.format(java.util.Locale.US, "%.0f°C", targetTempNow)})"
+                            }
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .tactile3DStyle(
+                                        baseColor = aiAccent,
+                                        cornerRadius = appearance.cornerRadiusDp.dp,
+                                        elevation = 4.dp
+                                    )
+                                    .testTag("book_analytics_livability_card"),
+                                shape = aiCardShape,
+                                colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
+                                border = BorderStroke(1.2.dp, glassBorderColor)
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(14.dp),
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Text(
+                                        text = "🩺 مؤشر الحيوية والمناخ (معيار Ross 308)",
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontSize = 13.5.sp,
+                                        color = aiAccent
+                                    )
+                                    Text(
+                                        text = "• الطيور الحية: ${String.format(java.util.Locale.US, "%,d", bookLiveBirds)} من أصل ${String.format(java.util.Locale.US, "%,d", bookPlacedBirds)} (اليوم $bookAgeDays)\n" +
+                                            "• نسبة الحيوية: ${String.format(java.util.Locale.US, "%.1f%%", bookLivabilityPct)} | النفوق التراكمي: $bookTotalMortality (${String.format(java.util.Locale.US, "%.2f%%", bookMortalityPct)} — المعيار الآمن < 3.5%)\n" +
+                                            "• حرارة العنبر الحالية: $tempDisplay",
+                                        fontSize = 12.sp,
+                                        color = primaryText,
+                                        lineHeight = 18.sp
+                                    )
                                 }
                             }
                         }
@@ -7694,123 +8327,507 @@ fun OwnerGlobalAiVetPlaceholderScreen(
                 }
 
                 1 -> {
-                    // القسم الثاني: 🔍 الفحوصات (بطاقات فحص متخصصة مرتبطة ببيانات العنبر النشط الفعلية)
-                    val diagnosticCards = remember(isHomePersonalAgentMode, lang) {
-                        if (isHomePersonalAgentMode) {
-                            listOf(
-                                Triple(
-                                    "ai_agent_goal_bubble_3",
-                                    Translations.tr("ai_agent_bubble_bills", lang),
-                                    Translations.tr("ai_diag_section_subtitle_home", lang)
-                                ),
-                                Triple(
-                                    "ai_agent_goal_bubble_0",
-                                    Translations.tr("ai_agent_bubble_profit", lang),
-                                    Translations.tr("home_ledger_subtitle", lang)
-                                )
-                            )
-                        } else {
-                            listOf(
-                                Triple(
-                                    "ai_agent_goal_bubble_0",
-                                    Translations.tr("ai_agent_bubble_profit", lang),
-                                    Translations.tr("ai_diag_card_profit_desc", lang)
-                                ),
-                                Triple(
-                                    "ai_vet_quick_chip_2",
-                                    Translations.tr("ai_vet_chip_2", lang),
-                                    Translations.tr("ai_diag_card_fcr_desc", lang)
-                                ),
-                                Triple(
-                                    "ai_agent_goal_bubble_3",
-                                    Translations.tr("ai_agent_bubble_bills", lang),
-                                    Translations.tr("ai_diag_section_subtitle_home", lang)
-                                ),
-                                Triple(
-                                    "ai_vet_quick_chip_0",
-                                    Translations.tr("ai_vet_chip_0", lang),
-                                    Translations.tr("ai_diag_card_climate_desc", lang)
-                                ),
-                                Triple(
-                                    "ai_vet_quick_chip_1",
-                                    Translations.tr("ai_vet_chip_1", lang),
-                                    Translations.tr("ai_diag_card_vaccine_desc", lang)
-                                ),
-                                Triple(
-                                    "ai_vet_quick_chip_3",
-                                    Translations.tr("ai_vet_chip_3", lang),
-                                    Translations.tr("ai_diag_card_resp_desc", lang)
-                                )
-                            )
-                        }
-                    }
+                    // الجراحة 2 و3: نظام الفروع الأربعة والانتقال البطاقي المتدرج (4-Branch Drill-Down Card Architecture)
+                    val activeBranch = bookBranches.getOrElse(selectedBookBranchIndex.coerceIn(0, 3)) { bookBranches.first() }
+                    val openedDetailPair = Ross308BroilerHandbook.findSubCard(bookBranches, openedSubCardId)
 
                     LazyColumn(
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxWidth()
                             .testTag("ai_diagnostics_cards_list"),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        item {
-                            Text(
-                                text = if (isHomePersonalAgentMode) {
-                                    Translations.tr("ai_diag_section_subtitle_home", lang)
-                                } else {
-                                    Translations.tr("ai_diag_section_subtitle_farm", lang)
-                                },
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = secondaryText
-                            )
-                        }
+                        if (openedDetailPair == null) {
+                            // المستوى الأول: شبكة الفروع الأربعة الرئيسية (2×2 Grid بتصميم tactile3DStyle)
+                            item {
+                                Text(
+                                    text = "أقسام كتاب تربية دجاج التسمين — اختر الفرع",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = aiAccent,
+                                    modifier = Modifier.testTag("book_branches_grid_header")
+                                )
+                            }
 
-                        items(diagnosticCards.size) { cIdx ->
-                            val (cardTag, cardTitle, cardDesc) = diagnosticCards[cIdx]
-                            Card(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .testTag(cardTag),
-                                shape = aiCardShape,
-                                colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
-                                border = BorderStroke(1.1.dp, glassBorderColor),
-                                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                            ) {
+                            item {
                                 Column(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(14.dp),
-                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                        .testTag("book_branches_2x2_grid"),
+                                    verticalArrangement = Arrangement.spacedBy(10.dp)
                                 ) {
-                                    Text(
-                                        text = cardTitle,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        fontSize = 14.sp,
-                                        color = aiAccent
-                                    )
-                                    Text(
-                                        text = cardDesc,
-                                        fontSize = 12.sp,
-                                        color = primaryText,
-                                        lineHeight = 18.sp
-                                    )
+                                    listOf(
+                                        bookBranches.subList(0, 2),
+                                        bookBranches.subList(2, 4)
+                                    ).forEach { rowBranches ->
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                        ) {
+                                            rowBranches.forEach { branch ->
+                                                val isBranchSelected = selectedBookBranchIndex == branch.branchIndex
+                                                val glowBorderColor = if (isBranchSelected) aiAccent else glassBorderColor
+                                                Card(
+                                                    modifier = Modifier
+                                                        .weight(1f)
+                                                        .tactile3DStyle(
+                                                            baseColor = if (isBranchSelected) aiAccent else secondaryText,
+                                                            cornerRadius = appearance.cornerRadiusDp.dp,
+                                                            elevation = if (isBranchSelected) 6.dp else 3.dp
+                                                        )
+                                                        .clickable {
+                                                            selectedBookBranchIndex = branch.branchIndex
+                                                            openedSubCardId = null
+                                                        }
+                                                        .testTag(branch.tag),
+                                                    shape = aiCardShape,
+                                                    colors = CardDefaults.cardColors(
+                                                        containerColor = if (isBranchSelected) {
+                                                            aiAccentContainer.copy(alpha = if (isDark) 0.42f else 0.65f)
+                                                        } else {
+                                                            currentTheme.cardColor
+                                                        }
+                                                    ),
+                                                    border = BorderStroke(
+                                                        width = if (isBranchSelected) 2.dp else 1.1.dp,
+                                                        color = glowBorderColor
+                                                    )
+                                                ) {
+                                                    Column(
+                                                        modifier = Modifier
+                                                            .fillMaxWidth()
+                                                            .padding(12.dp),
+                                                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                                                    ) {
+                                                        Row(
+                                                            modifier = Modifier.fillMaxWidth(),
+                                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                                            verticalAlignment = Alignment.CenterVertically
+                                                        ) {
+                                                            Text(
+                                                                text = branch.iconEmoji,
+                                                                fontSize = 20.sp
+                                                            )
+                                                            if (isBranchSelected) {
+                                                                Surface(
+                                                                    shape = pillShape,
+                                                                    color = aiPrimaryBtn
+                                                                ) {
+                                                                    Text(
+                                                                        text = "✓ مختار",
+                                                                        fontSize = 10.sp,
+                                                                        fontWeight = FontWeight.ExtraBold,
+                                                                        color = Color.White,
+                                                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                                                    )
+                                                                }
+                                                            }
+                                                        }
+                                                        Text(
+                                                            text = branch.title,
+                                                            fontWeight = FontWeight.ExtraBold,
+                                                            fontSize = 12.5.sp,
+                                                            color = if (isBranchSelected) aiAccent else primaryText,
+                                                            lineHeight = 17.sp
+                                                        )
+                                                        Text(
+                                                            text = branch.subtitle,
+                                                            fontSize = 11.sp,
+                                                            fontWeight = FontWeight.Medium,
+                                                            color = secondaryText,
+                                                            lineHeight = 15.sp
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // المستوى الثاني: بطاقات الفرع المختار (تظهر تحت الشبكة مع زر [التفاصيل ⬅️] لكل بطاقة)
+                            item {
+                                Text(
+                                    text = "بطاقات فرع: ${activeBranch.title} — اضغط للانتقال للتفاصيل",
+                                    fontSize = 12.5.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = primaryText,
+                                    modifier = Modifier
+                                        .padding(top = 4.dp)
+                                        .testTag("book_selected_branch_subtitle")
+                                )
+                            }
+
+                            items(activeBranch.subCards.size) { cardIdx ->
+                                val subCard = activeBranch.subCards[cardIdx]
+                                Card(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .tactile3DStyle(
+                                            baseColor = aiAccent,
+                                            cornerRadius = appearance.cornerRadiusDp.dp,
+                                            elevation = 4.dp
+                                        )
+                                        .clickable { openedSubCardId = subCard.id }
+                                        .testTag("book_subcard_${subCard.id}"),
+                                    shape = aiCardShape,
+                                    colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
+                                    border = BorderStroke(1.2.dp, glassBorderColor)
+                                ) {
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(14.dp),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                        ) {
+                                            Surface(
+                                                modifier = Modifier.size(38.dp),
+                                                shape = CircleShape,
+                                                color = aiAccentContainer,
+                                                border = BorderStroke(1.dp, aiAccent.copy(alpha = 0.45f))
+                                            ) {
+                                                Box(contentAlignment = Alignment.Center) {
+                                                    Text(text = subCard.iconEmoji, fontSize = 18.sp)
+                                                }
+                                            }
+                                            Text(
+                                                text = subCard.title,
+                                                fontWeight = FontWeight.ExtraBold,
+                                                fontSize = 13.sp,
+                                                color = primaryText,
+                                                lineHeight = 18.sp,
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                        }
+
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Surface(
+                                                shape = pillShape,
+                                                color = aiAccentContainer.copy(alpha = if (isDark) 0.35f else 0.65f),
+                                                border = BorderStroke(0.8.dp, aiAccent.copy(alpha = 0.4f))
+                                            ) {
+                                                Text(
+                                                    text = subCard.badge1,
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = aiAccent,
+                                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                                )
+                                            }
+                                            Surface(
+                                                shape = pillShape,
+                                                color = if (isDark) Color(0xFF0F172A) else Color(0xFFF1F5F9),
+                                                border = BorderStroke(0.8.dp, glassBorderColor)
+                                            ) {
+                                                Text(
+                                                    text = subCard.badge2,
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = primaryText,
+                                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.weight(1f))
+                                            Surface(
+                                                modifier = Modifier
+                                                    .clip(pillShape)
+                                                    .clickable { openedSubCardId = subCard.id }
+                                                    .testTag("btn_open_book_subcard_${subCard.id}"),
+                                                shape = pillShape,
+                                                color = aiPrimaryBtn
+                                            ) {
+                                                Text(
+                                                    text = "التفاصيل ⬅️",
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.ExtraBold,
+                                                    color = Color.White,
+                                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        } else {
+                            // الجراحة 3: المستوى الثالث — فتح بطاقة النصيحة التفصيلية والتنقل بين بطاقات نفس المجال
+                            val (parentBranch, detailCard) = openedDetailPair
+
+                            item {
+                                // شريط علوي للعودة + رقم البطاقة في المجال
+                                Surface(
+                                    shape = aiCardShape,
+                                    color = currentTheme.cardColor,
+                                    border = BorderStroke(1.2.dp, glassBorderColor),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .tactile3DStyle(
+                                            baseColor = aiAccent,
+                                            cornerRadius = appearance.cornerRadiusDp.dp,
+                                            elevation = 3.dp
+                                        )
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(10.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Surface(
+                                            modifier = Modifier
+                                                .clip(pillShape)
+                                                .clickable { openedSubCardId = null }
+                                                .testTag("btn_back_to_branch_cards"),
+                                            shape = pillShape,
+                                            color = aiAccentContainer,
+                                            border = BorderStroke(1.dp, aiAccent.copy(alpha = 0.5f))
+                                        ) {
+                                            Text(
+                                                text = "🔙 العودة إلى قائمة بطاقات الفرع",
+                                                fontSize = 11.5.sp,
+                                                fontWeight = FontWeight.ExtraBold,
+                                                color = aiAccent,
+                                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                            )
+                                        }
+
+                                        Text(
+                                            text = "بطاقة ${detailCard.cardNumberInBranch} من ${detailCard.totalCardsInBranch} في ${parentBranch.shortName}",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = secondaryText,
+                                            modifier = Modifier.testTag("book_detail_card_counter")
+                                        )
+                                    }
+                                }
+                            }
+
+                            item {
+                                // البطاقة التفصيلية الكاملة مقسمة إلى 3 بلوكات بصرية ملونة
+                                Card(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .tactile3DStyle(
+                                            baseColor = aiAccent,
+                                            cornerRadius = appearance.cornerRadiusDp.dp,
+                                            elevation = 5.dp
+                                        )
+                                        .testTag("book_detail_view_${detailCard.id}"),
+                                    shape = aiCardShape,
+                                    colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
+                                    border = BorderStroke(1.5.dp, aiAccent.copy(alpha = 0.6f))
+                                ) {
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(16.dp),
+                                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                        ) {
+                                            Surface(
+                                                modifier = Modifier.size(42.dp),
+                                                shape = CircleShape,
+                                                color = aiAccentContainer,
+                                                border = BorderStroke(1.2.dp, aiAccent)
+                                            ) {
+                                                Box(contentAlignment = Alignment.Center) {
+                                                    Text(text = detailCard.iconEmoji, fontSize = 20.sp)
+                                                }
+                                            }
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    text = detailCard.title,
+                                                    fontWeight = FontWeight.ExtraBold,
+                                                    fontSize = 14.sp,
+                                                    color = aiAccent,
+                                                    lineHeight = 19.sp
+                                                )
+                                                Text(
+                                                    text = "${detailCard.badge1}  •  ${detailCard.badge2}",
+                                                    fontSize = 11.5.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = secondaryText
+                                                )
+                                            }
+                                        }
+
+                                        // بلوك 1: 📌 القاعدة العلمية الموثقة
+                                        Surface(
+                                            shape = RoundedCornerShape((appearance.cornerRadiusDp - 4).coerceAtLeast(6).dp),
+                                            color = aiAccentContainer.copy(alpha = if (isDark) 0.28f else 0.45f),
+                                            border = BorderStroke(1.dp, aiAccent.copy(alpha = 0.45f)),
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .testTag("book_detail_block_scientific")
+                                        ) {
+                                            Column(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(12.dp),
+                                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                                            ) {
+                                                Text(
+                                                    text = "📌 القاعدة العلمية الموثقة",
+                                                    fontWeight = FontWeight.ExtraBold,
+                                                    fontSize = 13.sp,
+                                                    color = aiAccent
+                                                )
+                                                detailCard.scientificRulePoints.forEach { point ->
+                                                    Text(
+                                                        text = "• $point",
+                                                        fontSize = 12.sp,
+                                                        color = primaryText,
+                                                        lineHeight = 18.sp
+                                                    )
+                                                }
+                                            }
+                                        }
+
+                                        // بلوك 2: 🛡️ خطوات التطبيق العملي في العنبر
+                                        Surface(
+                                            shape = RoundedCornerShape((appearance.cornerRadiusDp - 4).coerceAtLeast(6).dp),
+                                            color = if (isDark) Color(0xFF0F172A) else Color(0xFFF8FAFC),
+                                            border = BorderStroke(1.dp, glassBorderColor),
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .testTag("book_detail_block_practical")
+                                        ) {
+                                            Column(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(12.dp),
+                                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                                            ) {
+                                                Text(
+                                                    text = "🛡️ خطوات التطبيق العملي في العنبر",
+                                                    fontWeight = FontWeight.ExtraBold,
+                                                    fontSize = 13.sp,
+                                                    color = aiAccent
+                                                )
+                                                detailCard.practicalStepsWithCheck.forEach { step ->
+                                                    Text(
+                                                        text = step,
+                                                        fontSize = 12.sp,
+                                                        fontWeight = FontWeight.Medium,
+                                                        color = primaryText,
+                                                        lineHeight = 18.sp
+                                                    )
+                                                }
+                                            }
+                                        }
+
+                                        // بلوك 3: 🏠 مقارنة حية مع عنبرك الحالي
+                                        Surface(
+                                            shape = RoundedCornerShape((appearance.cornerRadiusDp - 4).coerceAtLeast(6).dp),
+                                            color = aiAccentContainer.copy(alpha = if (isDark) 0.22f else 0.35f),
+                                            border = BorderStroke(1.dp, aiAccent.copy(alpha = 0.5f)),
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .testTag("book_detail_block_live_comparison")
+                                        ) {
+                                            Column(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(12.dp),
+                                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                                            ) {
+                                                Text(
+                                                    text = "🏠 مقارنة حية مع عنبرك الحالي",
+                                                    fontWeight = FontWeight.ExtraBold,
+                                                    fontSize = 13.sp,
+                                                    color = aiAccent
+                                                )
+                                                Text(
+                                                    text = detailCard.liveBarnComparisonText,
+                                                    fontSize = 12.sp,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    color = primaryText,
+                                                    lineHeight = 18.sp
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            item {
+                                // شريط التنقل ثلاثي الأبعاد في أسفل البطاقة التفصيلية للانتقال بين بطاقات نفس المجال
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .testTag("book_detail_same_branch_nav_bar"),
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
                                     Button(
                                         onClick = {
-                                            triggerAiConsultation(cardTitle, switchToChat = true, diagnosticTag = cardTag)
+                                            openedSubCardId = Ross308BroilerHandbook.getPreviousSubCardId(
+                                                bookBranches,
+                                                detailCard.id
+                                            )
                                         },
-                                        enabled = !isAnalyzing,
+                                        shape = pillShape,
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = currentTheme.cardColor,
+                                            contentColor = primaryText
+                                        ),
+                                        border = BorderStroke(1.2.dp, aiAccent.copy(alpha = 0.55f)),
+                                        modifier = Modifier
+                                            .weight(0.9f)
+                                            .height(46.dp)
+                                            .tactile3DStyle(
+                                                baseColor = aiAccent,
+                                                cornerRadius = appearance.cornerRadiusDp.dp,
+                                                elevation = 4.dp
+                                            )
+                                            .testTag("btn_prev_subcard_same_branch")
+                                    ) {
+                                        Text(
+                                            text = "➡️ البطاقة السابقة",
+                                            fontSize = 11.5.sp,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = primaryText,
+                                            maxLines = 1
+                                        )
+                                    }
+
+                                    Button(
+                                        onClick = {
+                                            openedSubCardId = Ross308BroilerHandbook.getNextSubCardId(
+                                                bookBranches,
+                                                detailCard.id
+                                            )
+                                        },
                                         shape = pillShape,
                                         colors = ButtonDefaults.buttonColors(containerColor = aiPrimaryBtn),
                                         modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(42.dp)
-                                            .testTag("btn_run_$cardTag")
+                                            .weight(1.25f)
+                                            .height(46.dp)
+                                            .tactile3DStyle(
+                                                baseColor = aiAccent,
+                                                cornerRadius = appearance.cornerRadiusDp.dp,
+                                                elevation = 4.dp
+                                            )
+                                            .testTag("btn_next_subcard_same_branch")
                                     ) {
                                         Text(
-                                            text = Translations.tr("ai_diag_run_check_btn", lang),
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color.White
+                                            text = "البطاقة التالية في نفس المجال ⬅️",
+                                            fontSize = 11.5.sp,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = Color.White,
+                                            maxLines = 1
                                         )
                                     }
                                 }
@@ -7820,12 +8837,8 @@ fun OwnerGlobalAiVetPlaceholderScreen(
                 }
 
                 2 -> {
-                    // القسم الثالث: 💬 المحادثة (75%+ من ارتفاع الشاشة مخصص لقراءة التقارير والرسائل بدون بطاقة ترحيب ضخمة تحجب المحتوى)
-                    val visibleHistory = if (diagnosisHistory.size > 1) {
-                        diagnosisHistory.drop(1).reversed()
-                    } else {
-                        diagnosisHistory
-                    }
+                    // القسم الثالث: 💬 المحادثة (بطاقة الترحيب الموثقة لكتاب العنبر الذكي + سجل المحادثة والردود)
+                    val visibleHistory = diagnosisHistory.reversed()
                     LazyColumn(
                         modifier = Modifier
                             .weight(1f)

@@ -541,7 +541,10 @@ class ExampleUnitTest {
             "settings_row_reset_active_cycle_title"
         )
         for (lang in AppLanguage.values()) {
-            assertEquals("🧠 IA", Translations.tr("global_tab_ai_vet", lang))
+            assertTrue(
+                "global_tab_ai_vet in $lang should start with 📖",
+                Translations.tr("global_tab_ai_vet", lang).startsWith("📖")
+            )
             for (key in requiredKeys) {
                 val translated = Translations.tr(key, lang)
                 assertFalse("Key $key should not be blank in $lang", translated.isBlank())
@@ -596,9 +599,10 @@ class ExampleUnitTest {
         assertTrue(AgritechMockDb.barnInventoryCounters.keys.none { it.startsWith("farm_test_") })
         assertTrue(AgritechMockDb.deletedFarmIds.contains("farm_test"))
 
-        // Verify concise 1-line AI sub-tab labels in Arabic
-        assertEquals("⚡ القرارات", Translations.tr("ai_subtab_smart_decisions", AppLanguage.AR))
-        assertEquals("🔍 الفحوصات", Translations.tr("ai_subtab_diagnostics", AppLanguage.AR))
+        // Verify concise 1-line Book sub-tab labels in Arabic
+        assertEquals("📖 الكتاب", Translations.tr("global_tab_ai_vet", AppLanguage.AR))
+        assertEquals("📊 التحليلات", Translations.tr("ai_subtab_smart_decisions", AppLanguage.AR))
+        assertEquals("💡 نصائح", Translations.tr("ai_subtab_diagnostics", AppLanguage.AR))
         assertEquals("💬 المحادثة", Translations.tr("ai_subtab_live_chat", AppLanguage.AR))
 
         // Verify personal_worker_ledger is 100% protected from deleteFarmCompletely
@@ -1295,6 +1299,142 @@ class ExampleUnitTest {
         AgritechMockDb.farms.removeAll { it.id == "real_user_farm_99" || it.id == "farm_f03" }
         AgritechMockDb.dailyReports.removeAll { it.id == "rep_f03_test" }
     }
+
+    @Test
+    fun ross308BroilerHandbookChapters_andBookTabLabels_areCompleteAndAccurate() {
+        // 1. Verify 14-language Book tab and sub-tab labels
+        assertEquals("📖 الكتاب", Translations.tr("global_tab_ai_vet", AppLanguage.AR))
+        assertEquals("📖 Book", Translations.tr("global_tab_ai_vet", AppLanguage.EN))
+        assertEquals("📖 Livre", Translations.tr("global_tab_ai_vet", AppLanguage.FR))
+        assertEquals("📖 Libro", Translations.tr("global_tab_ai_vet", AppLanguage.ES))
+        assertEquals("📖 Livro", Translations.tr("global_tab_ai_vet", AppLanguage.PT))
+        assertEquals("📖 Kitap", Translations.tr("global_tab_ai_vet", AppLanguage.TR))
+        assertEquals("📖 Buch", Translations.tr("global_tab_ai_vet", AppLanguage.DE))
+        assertEquals("📖 Libro", Translations.tr("global_tab_ai_vet", AppLanguage.IT))
+        assertEquals("📖 Книга", Translations.tr("global_tab_ai_vet", AppLanguage.RU))
+        assertEquals("📖 手册", Translations.tr("global_tab_ai_vet", AppLanguage.ZH))
+        assertEquals("📖 पुस्तक", Translations.tr("global_tab_ai_vet", AppLanguage.HI))
+        assertEquals("📖 کتاب", Translations.tr("global_tab_ai_vet", AppLanguage.UR))
+        assertEquals("📖 Buku", Translations.tr("global_tab_ai_vet", AppLanguage.ID))
+        assertEquals("📖 Kitabu", Translations.tr("global_tab_ai_vet", AppLanguage.SW))
+
+        assertEquals("📊 التحليلات", Translations.tr("ai_subtab_smart_decisions", AppLanguage.AR))
+        assertEquals("📊 Analytics", Translations.tr("ai_subtab_smart_decisions", AppLanguage.EN))
+        assertEquals("📊 Analyses", Translations.tr("ai_subtab_smart_decisions", AppLanguage.FR))
+
+        assertEquals("💡 نصائح", Translations.tr("ai_subtab_diagnostics", AppLanguage.AR))
+        assertEquals("💡 Tips", Translations.tr("ai_subtab_diagnostics", AppLanguage.EN))
+        assertEquals("💡 Conseils", Translations.tr("ai_subtab_diagnostics", AppLanguage.FR))
+
+        assertEquals("💬 المحادثة", Translations.tr("ai_subtab_live_chat", AppLanguage.AR))
+        assertEquals("💬 Chat", Translations.tr("ai_subtab_live_chat", AppLanguage.EN))
+        assertEquals("💬 Discussion", Translations.tr("ai_subtab_live_chat", AppLanguage.FR))
+
+        assertEquals(
+            "📖 كتاب العنبر الذكي — مرجع دجاج اللحم (Ross 308 Book)",
+            Translations.tr("ai_vet_welcome_title", AppLanguage.AR)
+        )
+        assertEquals(
+            "اسأل كتاب العنبر الذكي عن الحرارة، العلف، الأوزان، أو الرعاية...",
+            Translations.tr("ai_vet_input_placeholder", AppLanguage.AR)
+        )
+        assertEquals(
+            "📖 قراءة الفصل وتطبيقه على عنبري",
+            Translations.tr("ross308_apply_chapter_btn", AppLanguage.AR)
+        )
+
+        // 2. Verify the 5 documented Aviagen Ross 308 Broiler Management Handbook chapters & live barn comparison
+        val chapters = Ross308BroilerHandbook.buildChaptersForBarn(
+            barnName = "عنبر السلام 1",
+            ageDays = 14,
+            placedBirds = 5000,
+            liveBirds = 4920,
+            recordedTempC = 25.5,
+            totalFeedQuintals = 26.0,
+            remainingFeedQuintals = 14.0,
+            latestDailyFeedKg = 310.0,
+            latestDailyWaterLiters = 540.0,
+            currentWeightKg = 0.53,
+            actualFcr = 1.06
+        )
+        assertEquals(5, chapters.size)
+        assertEquals("ross308_chapter_1", chapters[0].tag)
+        assertTrue(chapters[0].summaryPoints.any { it.contains("39.4°C – 40.5°C") })
+        assertTrue(chapters[0].summaryPoints.any { it.contains("95%") })
+        assertTrue(chapters[0].summaryPoints.any { it.contains("190 – 200") })
+
+        assertEquals("ross308_chapter_2", chapters[1].tag)
+        assertTrue(chapters[1].summaryPoints.any { it.contains("0.10 m³/ساعة/طائر") && it.contains("1.50 m³/ساعة/طائر") })
+        assertTrue(chapters[1].liveBarnComparison.contains("25.5°C"))
+
+        assertEquals("ross308_chapter_3", chapters[2].tag)
+        assertTrue(chapters[2].summaryPoints.any { it.contains("23%") && it.contains("3000 kcal/kg") })
+        assertTrue(chapters[2].summaryPoints.any { it.contains("1.6 إلى 1.8 لتر") })
+        assertTrue(chapters[2].liveBarnComparison.contains("نامي (Grower"))
+
+        assertEquals("ross308_chapter_4", chapters[3].tag)
+        assertTrue(chapters[3].summaryPoints.any { it.contains("FCR ~0.85") && it.contains("FCR ~1.25") })
+        assertTrue(chapters[3].liveBarnComparison.contains("1.06"))
+
+        assertEquals("ross308_chapter_5", chapters[4].tag)
+        assertTrue(chapters[4].summaryPoints.any { it.contains("Ascites") && it.contains("Flip-over") })
+        assertTrue(chapters[4].summaryPoints.any { it.contains("AD3E") })
+
+        // 3. Verify the 4-Branch Drill-Down Card Architecture (4 branches x 4 sub-cards = 16 cards)
+        val branches = Ross308BroilerHandbook.buildFourBranchesForBarn(
+            barnName = "عنبر السلام 1",
+            ageDays = 14,
+            placedBirds = 5000,
+            liveBirds = 4920,
+            recordedTempC = 25.5,
+            totalFeedQuintals = 26.0,
+            remainingFeedQuintals = 14.0,
+            latestDailyFeedKg = 310.0,
+            latestDailyWaterLiters = 540.0,
+            currentWeightKg = 0.53,
+            actualFcr = 1.06
+        )
+        assertEquals(4, branches.size)
+        assertEquals("برنامج الرعاية", branches[0].shortName)
+        assertEquals("برنامج التحصينات", branches[1].shortName)
+        assertEquals("الأمراض والوقاية", branches[2].shortName)
+        assertEquals("برنامج العلف والأوزان", branches[3].shortName)
+
+        // Each branch must contain exactly 4 sub-cards with 3 structured detail blocks
+        branches.forEach { branch ->
+            assertEquals(4, branch.subCards.size)
+            branch.subCards.forEach { subCard ->
+                assertEquals(branch.branchIndex, subCard.branchIndex)
+                assertTrue(subCard.badge1.isNotBlank())
+                assertTrue(subCard.badge2.isNotBlank())
+                assertTrue(subCard.scientificRulePoints.isNotEmpty())
+                assertTrue(subCard.practicalStepsWithCheck.isNotEmpty())
+                assertTrue(subCard.practicalStepsWithCheck.all { it.startsWith("✓") })
+                assertTrue(subCard.liveBarnComparisonText.isNotBlank())
+            }
+        }
+
+        // Verify sub-card IDs per branch
+        assertEquals(listOf("care_1", "care_2", "care_3", "care_4"), branches[0].subCards.map { it.id })
+        assertEquals(listOf("vax_1", "vax_2", "vax_3", "vax_4"), branches[1].subCards.map { it.id })
+        assertEquals(listOf("dis_1", "dis_2", "dis_3", "dis_4"), branches[2].subCards.map { it.id })
+        assertEquals(listOf("feed_1", "feed_2", "feed_3", "feed_4"), branches[3].subCards.map { it.id })
+
+        // Verify same-branch next/previous cyclic navigation
+        assertEquals("care_2", Ross308BroilerHandbook.getNextSubCardId(branches, "care_1"))
+        assertEquals("care_3", Ross308BroilerHandbook.getNextSubCardId(branches, "care_2"))
+        assertEquals("care_4", Ross308BroilerHandbook.getNextSubCardId(branches, "care_3"))
+        assertEquals("care_1", Ross308BroilerHandbook.getNextSubCardId(branches, "care_4"))
+
+        assertEquals("care_4", Ross308BroilerHandbook.getPreviousSubCardId(branches, "care_1"))
+        assertEquals("care_1", Ross308BroilerHandbook.getPreviousSubCardId(branches, "care_2"))
+
+        assertEquals("feed_2", Ross308BroilerHandbook.getNextSubCardId(branches, "feed_1"))
+        assertEquals("feed_4", Ross308BroilerHandbook.getPreviousSubCardId(branches, "feed_1"))
+        assertEquals("feed_3", Ross308BroilerHandbook.findSubCard(branches, "feed_3")?.second?.id)
+    }
 }
+
+
 
 
