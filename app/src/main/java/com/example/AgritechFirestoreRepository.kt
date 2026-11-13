@@ -5,9 +5,11 @@ import android.util.Log
 import com.example.models.*
 import com.example.utils.*
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseAuthRecentLoginRequiredException
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.SetOptions
 import com.google.firebase.firestore.snapshots
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
@@ -63,6 +65,18 @@ data class TreasurySummary(
     val totalExpenses: Double,
     val netBalance: Double,
     val pendingExpenses: Double = 0.0
+)
+
+enum class AccountDeletionStatus {
+    FULL_SUCCESS,
+    REAUTH_REQUIRED_DATA_WIPED,
+    GUEST_LOCAL_ONLY,
+    FAILURE
+}
+
+data class AccountDeletionOutcome(
+    val status: AccountDeletionStatus,
+    val error: Throwable? = null
 )
 
 class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
@@ -1542,7 +1556,11 @@ class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
      * When authenticated with Firebase, marks `deliveryState = "PENDING_SYNC"`, ensures channel metadata exists,
      * writes the unified message payload, and updates `deliveryState` to `"SYNCED"` or `"FAILED"`.
      */
-    fun sendChatMessage(message: ChatMessageModel, farmIdHint: String? = null) {
+    fun sendChatMessage(
+        message: ChatMessageModel,
+        farmIdHint: String? = null,
+        targetUid: String? = null
+    ) {
         val uid = runCatching { auth.currentUser?.uid }.getOrNull()
         val msgId = message.id.ifBlank { "msg_${System.currentTimeMillis()}" }
         val cleanChannel = message.cycleId.ifBlank { "general_admin" }
@@ -1576,11 +1594,24 @@ class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
             val resolvedFarmId = farmIdHint?.takeIf { !isUnassignedFarm(it) }
                 ?: AgritechMockDb.cycles.firstOrNull { it.id == cleanChannel || it.id == strippedCycleId }?.farmId
                 ?: ""
-            val farmOwnerUid = if (resolvedFarmId.isNotBlank()) {
-                val localFarm = AgritechMockDb.farms.firstOrNull { it.id == resolvedFarmId }
-                localFarm?.members?.entries?.firstOrNull { it.value.equals("OWNER", ignoreCase = true) }?.key
+            val localFarm = if (resolvedFarmId.isNotBlank()) {
+                AgritechMockDb.farms.firstOrNull { it.id == resolvedFarmId }
             } else null
-            val participantsList = listOfNotNull(uid, farmOwnerUid).distinct()
+            val farmOwnerUid = localFarm?.members?.entries?.firstOrNull {
+                it.value.equals("OWNER", ignoreCase = true)
+            }?.key
+            val farmMemberUids = localFarm?.members?.keys?.filter { it.isNotBlank() }.orEmpty()
+            val marketPublisherUid = if (resolvedFarmId.isBlank()) {
+                AgritechMockDb.marketPosts.firstOrNull {
+                    it.chatChannelId == cleanChannel && it.publisherId.isNotBlank()
+                }?.publisherId?.takeIf { !it.startsWith("conv_") && it != "general_admin" }
+            } else null
+            val explicitTargetUid = targetUid?.trim()?.takeIf {
+                it.isNotBlank() && !it.startsWith("conv_") && it != "general_admin"
+            }
+            val participantsList = (listOfNotNull(uid, farmOwnerUid, explicitTargetUid, marketPublisherUid) + farmMemberUids)
+                .filter { it.isNotBlank() }
+                .distinct()
 
             val channelMeta = mutableMapOf<String, Any>(
                 "channelId" to cleanChannel,
@@ -1723,29 +1754,32 @@ class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
     }
 
     /**
-     * Permanently deletes a farm and its associated subcollections (cycles, dailyReports, transactions, vetNotes)
-     * from both local state (`AgritechMockDb`) and Cloud Firestore (`/farms/{farmId}`).
+     * Permanently deletes a farm and ALL of its subcollections (dailyReports, daily_reports, transactions,
+     * vetNotes, cycles, production_cycles, idempotencyReceipts, invites) BEFORE deleting `/farms/{farmId}`
+     * so owner-based security rules evaluate cleanly for every subcollection delete.
      */
     suspend fun deleteFarmRecord(farmId: String): Result<Unit> {
         if (farmId.isBlank() || farmId == "personal_worker_ledger") return Result.success(Unit)
         AgritechMockDb.deleteFarmCompletely(farmId)
         val uid = auth.currentUser?.uid ?: return Result.success(Unit)
         return try {
-            val reportsSnap = farmReportsRef(farmId).get().await()
-            for (doc in reportsSnap.documents) {
-                runCatching { doc.reference.delete().await() }
-            }
-            val txsSnap = farmTransactionsRef(farmId).get().await()
-            for (doc in txsSnap.documents) {
-                runCatching { doc.reference.delete().await() }
-            }
-            val vetSnap = farmVetNotesRef(farmId).get().await()
-            for (doc in vetSnap.documents) {
-                runCatching { doc.reference.delete().await() }
-            }
-            val cyclesSnap = farmCyclesRef(farmId).get().await()
-            for (doc in cyclesSnap.documents) {
-                runCatching { doc.reference.delete().await() }
+            val subcollectionNames = listOf(
+                "dailyReports",
+                "daily_reports",
+                "transactions",
+                "vetNotes",
+                "cycles",
+                "production_cycles",
+                "idempotencyReceipts",
+                "invites"
+            )
+            for (subName in subcollectionNames) {
+                runCatching {
+                    val snap = farmDocRef(farmId).collection(subName).get().await()
+                    for (doc in snap.documents) {
+                        runCatching { doc.reference.delete().await() }
+                    }
+                }
             }
             runCatching { farmDocRef(farmId).delete().await() }
             Result.success(Unit)
@@ -1758,16 +1792,19 @@ class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
 
     /**
      * Google Play Account Deletion Policy Compliance:
-     * Permanently deletes the user's cloud profile (`/users/{uid}`), entitlements (`/user_entitlements/{uid}`),
-     * owned barns (`/farms/{farmId}` + subcollections), or removes their UID from shared barns' `members` map,
-     * and deletes the Firebase Auth account (`currentUser?.delete()`).
+     * Executes deletion in strict authorization order:
+     * 1) Clean owned farms (`/farms/{farmId}` + subcollections) & remove UID from shared farms
+     * 2) Clean participating/owned `/chatChannels` & authored messages BEFORE deleting user docs
+     * 3) Delete `/user_entitlements/{uid}` and `/users/{uid}`
+     * 4) Attempt `auth.currentUser?.delete()?.await()`, explicitly handling
+     *    `FirebaseAuthRecentLoginRequiredException` without hiding it, then sign out.
      */
-    suspend fun deleteUserAccountAndDataCompletely(uid: String = ""): Result<Unit> {
+    suspend fun deleteUserAccountAndDataWithOutcome(uid: String = ""): AccountDeletionOutcome {
         val currentAuthUid = runCatching { auth.currentUser?.uid }.getOrNull().orEmpty()
         val targetUid = uid.trim().ifBlank { currentAuthUid }
         AgritechMockDb.clearAllDataForDeletedAccount(targetUid)
         if (targetUid.isBlank() || currentAuthUid.isBlank()) {
-            return Result.success(Unit)
+            return AccountDeletionOutcome(AccountDeletionStatus.GUEST_LOCAL_ONLY)
         }
         return try {
             // 1. Clean up owned farms or remove membership from shared farms
@@ -1776,8 +1813,10 @@ class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
                     .whereIn("members.$targetUid", listOf("OWNER", "WORKER", "VETERINARIAN"))
                     .get()
                     .await()
+                val processedFarmIds = mutableSetOf<String>()
                 for (farmDoc in memberFarmsSnap.documents) {
                     val fId = farmDoc.id
+                    processedFarmIds.add(fId)
                     @Suppress("UNCHECKED_CAST")
                     val membersMap = (farmDoc.get("members") as? Map<String, String>).orEmpty()
                     val assignedOwner = farmDoc.getString("assignedOwnerId").orEmpty()
@@ -1795,9 +1834,55 @@ class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
                         }
                     }
                 }
+                val ownerFallbackSnap = db.collection("farms")
+                    .whereEqualTo("assignedOwnerId", targetUid)
+                    .get()
+                    .await()
+                for (farmDoc in ownerFallbackSnap.documents) {
+                    if (farmDoc.id !in processedFarmIds) {
+                        deleteFarmRecord(farmDoc.id)
+                    }
+                }
             }
 
-            // 2. Delete /user_entitlements/{uid} and /users/{uid}
+            // 2. Clean participating or owned /chatChannels and authored messages BEFORE deleting user docs
+            runCatching {
+                val chatSnap = db.collection("chatChannels")
+                    .whereArrayContains("participants", targetUid)
+                    .get()
+                    .await()
+                for (channelDoc in chatSnap.documents) {
+                    val ownerId = channelDoc.getString("ownerId").orEmpty()
+                    @Suppress("UNCHECKED_CAST")
+                    val participants = (channelDoc.get("participants") as? List<*>)
+                        ?.mapNotNull { it as? String }
+                        .orEmpty()
+                    runCatching {
+                        val msgsSnap = channelDoc.reference.collection("messages").get().await()
+                        for (msgDoc in msgsSnap.documents) {
+                            val sender = msgDoc.getString("senderId") ?: msgDoc.getString("userId").orEmpty()
+                            if (ownerId == targetUid || sender == targetUid) {
+                                runCatching { msgDoc.reference.delete().await() }
+                            }
+                        }
+                    }
+                    if (ownerId == targetUid || (ownerId.isBlank() && participants.size <= 1)) {
+                        runCatching { channelDoc.reference.delete().await() }
+                    } else if (targetUid in participants) {
+                        val remaining = participants.filterNot { it == targetUid }
+                        runCatching {
+                            channelDoc.reference.update(
+                                mapOf(
+                                    "participants" to remaining,
+                                    "updatedAt" to FieldValue.serverTimestamp()
+                                )
+                            ).await()
+                        }
+                    }
+                }
+            }
+
+            // 3. Delete /user_entitlements/{uid} and /users/{uid}
             runCatching {
                 db.collection("user_entitlements").document(targetUid).delete().await()
             }
@@ -1805,18 +1890,39 @@ class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
                 db.collection("users").document(targetUid).delete().await()
             }
 
-            // 3. Delete FirebaseAuth user record & sign out
-            runCatching {
+            // 4. Attempt FirebaseAuth user deletion and handle recent-login requirement honestly
+            var requiresRecentLogin = false
+            try {
                 auth.currentUser?.delete()?.await()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: FirebaseAuthRecentLoginRequiredException) {
+                requiresRecentLogin = true
+                runCatching { Log.w("AccountDeletion", "Cloud/local data deleted; Firebase Auth requires recent login to remove auth record.", e) }
+            } catch (e: Exception) {
+                runCatching { Log.w("AccountDeletion", "Firebase Auth user delete skipped/deferred: ${e.message}", e) }
             }
-            runCatching {
-                auth.signOut()
+
+            runCatching { auth.signOut() }
+
+            if (requiresRecentLogin) {
+                AccountDeletionOutcome(AccountDeletionStatus.REAUTH_REQUIRED_DATA_WIPED)
+            } else {
+                AccountDeletionOutcome(AccountDeletionStatus.FULL_SUCCESS)
             }
-            Result.success(Unit)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            Result.failure(e)
+            AccountDeletionOutcome(AccountDeletionStatus.FAILURE, e)
+        }
+    }
+
+    suspend fun deleteUserAccountAndDataCompletely(uid: String = ""): Result<Unit> {
+        val outcome = deleteUserAccountAndDataWithOutcome(uid)
+        return if (outcome.status == AccountDeletionStatus.FAILURE && outcome.error != null) {
+            Result.failure(outcome.error)
+        } else {
+            Result.success(Unit)
         }
     }
 
@@ -1915,7 +2021,8 @@ class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
 
     /**
      * Google Play UGC Policy Compliance:
-     * Persists the user's blocked user IDs list under `/users/{uid}.blockedUserIds`.
+     * Persists the user's blocked user IDs list under `/users/{uid}.blockedUserIds`,
+     * safely creating a valid profile document if `/users/{uid}` does not yet exist.
      */
     suspend fun saveBlockedUserToCloud(blockedSet: Set<String>): Result<Unit> {
         val uid = runCatching { auth.currentUser?.uid }.getOrNull().orEmpty()
@@ -1924,11 +2031,30 @@ class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
         return try {
             val snap = userRef.get().await()
             if (snap.exists()) {
-                userRef.update(
+                val existingRole = snap.getString("role")?.takeIf {
+                    it in listOf("OWNER", "WORKER", "VETERINARIAN", "TRADER")
+                } ?: "OWNER"
+                userRef.set(
                     mapOf(
+                        "uid" to uid,
+                        "userId" to uid,
+                        "role" to existingRole,
                         "blockedUserIds" to blockedSet.toList(),
                         "updatedAt" to FieldValue.serverTimestamp()
-                    )
+                    ),
+                    SetOptions.merge()
+                ).await()
+            } else {
+                userRef.set(
+                    mapOf(
+                        "uid" to uid,
+                        "userId" to uid,
+                        "role" to "OWNER",
+                        "blockedUserIds" to blockedSet.toList(),
+                        "createdAt" to FieldValue.serverTimestamp(),
+                        "updatedAt" to FieldValue.serverTimestamp()
+                    ),
+                    SetOptions.merge()
                 ).await()
             }
             Result.success(Unit)

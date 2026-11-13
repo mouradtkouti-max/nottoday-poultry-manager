@@ -217,10 +217,24 @@ fun RealQrCameraScannerView(
                     }.getOrNull()
                 }
                 var isScannerDisposed by remember { mutableStateOf(false) }
+                var cameraProviderFutureState by remember {
+                    mutableStateOf<com.google.common.util.concurrent.ListenableFuture<ProcessCameraProvider>?>(null)
+                }
 
                 DisposableEffect(Unit) {
                     onDispose {
                         isScannerDisposed = true
+                        cameraProviderFutureState?.let { future ->
+                            if (future.isDone) {
+                                runCatching { future.get().unbindAll() }
+                            } else {
+                                runCatching {
+                                    future.addListener({
+                                        runCatching { future.get().unbindAll() }
+                                    }, ContextCompat.getMainExecutor(context))
+                                }
+                            }
+                        }
                         try {
                             barcodeScanner?.close()
                             cameraExecutor.shutdown()
@@ -240,6 +254,7 @@ fun RealQrCameraScannerView(
                         }
                         try {
                             val cameraProviderFuture = ProcessCameraProvider.getInstance(ctx)
+                            cameraProviderFutureState = cameraProviderFuture
                             cameraProviderFuture.addListener({
                                 if (isScannerDisposed) return@addListener
                                 try {

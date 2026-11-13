@@ -333,6 +333,22 @@ service cloud.firestore {
       return isAuthorizedForChannelData(data) && validOwnerField;
     }
 
+    function isValidChatChannelSelfLeave() {
+      let data = request.resource.data;
+      let prev = resource.data;
+      return isSignedIn()
+        && isAuthorizedForChannelData(prev)
+        && data.diff(prev).affectedKeys().hasOnly(['participants', 'updatedAt'])
+        && data.get('ownerId', '') == prev.get('ownerId', '')
+        && data.get('farmId', '') == prev.get('farmId', '')
+        && prev.participants is list
+        && data.participants is list
+        && request.auth.uid in prev.participants
+        && !(request.auth.uid in data.participants)
+        && prev.participants.hasAll(data.participants)
+        && data.participants.size() == prev.participants.size() - 1;
+    }
+
     function isValidChatChannelUpdate() {
       let data = request.resource.data;
       let prev = resource.data;
@@ -640,8 +656,8 @@ service cloud.firestore {
       allow get: if isSignedIn() && (resource == null || isAuthorizedForChannelData(resource.data));
       allow list: if isSignedIn() && isAuthorizedForChannelData(resource.data);
       allow create: if isValidChatChannelCreate();
-      allow update: if isValidChatChannelUpdate();
-      allow delete: if false;
+      allow update: if isValidChatChannelUpdate() || isValidChatChannelSelfLeave();
+      allow delete: if isChannelOwner(channelId);
 
       match /messages/{messageId} {
         allow get, list: if isChannelParticipant(channelId);
@@ -649,7 +665,9 @@ service cloud.firestore {
                       && isValidChatMessageCreate();
         allow update: if isChannelParticipant(channelId)
                       && isValidChatMessageStatusUpdate(channelId);
-        allow delete: if false;
+        allow delete: if isChannelOwner(channelId)
+                      || (isChannelParticipant(channelId)
+                          && resource.data.get('senderId', resource.data.get('userId', '')) == request.auth.uid);
       }
     }
   }

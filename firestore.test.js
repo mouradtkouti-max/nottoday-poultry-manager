@@ -1020,9 +1020,51 @@ test("Google Play Compliance: Account Deletion self-leave, user_entitlements del
     workerDb.collection("users").doc(WORKER_UID).delete()
   );
 
-  // Owner can delete their owned farm on account deletion
+  // Worker can self-leave a participating chatChannel and delete their own chat messages on account deletion
+  const chanId = "chan_del_self_leave";
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    const adminDb = context.firestore();
+    await adminDb.collection("chatChannels").doc(chanId).set({
+      channelId: chanId,
+      farmId: FARM_ID,
+      ownerId: OWNER_UID,
+      createdBy: OWNER_UID,
+      participants: [OWNER_UID, WORKER_UID],
+      createdAt: now,
+      updatedAt: now,
+    });
+    await adminDb.collection("chatChannels").doc(chanId).collection("messages").doc("msg_w_1").set({
+      id: "msg_w_1",
+      userId: WORKER_UID,
+      senderId: WORKER_UID,
+      senderName: "أحمد",
+      senderRole: "WORKER",
+      cycleId: chanId,
+      farmId: FARM_ID,
+      text: "رسالة ستحذف",
+      timestamp: "10:00",
+      createdAt: now,
+      updatedAt: now,
+    });
+  });
+
+  await assertSucceeds(
+    workerDb.collection("chatChannels").doc(chanId).collection("messages").doc("msg_w_1").delete()
+  );
+  await assertSucceeds(
+    workerDb.collection("chatChannels").doc(chanId).update({
+      participants: [OWNER_UID],
+      updatedAt: now,
+    })
+  );
+
+  // Owner can delete their owned chatChannel and owned farm on account deletion
+  await assertSucceeds(
+    ownerDb.collection("chatChannels").doc(chanId).delete()
+  );
   await assertSucceeds(
     ownerDb.collection("farms").doc(FARM_ID).delete()
   );
 });
+
 

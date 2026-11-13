@@ -16,6 +16,9 @@ fun PoultryTheme(
     isDark: Boolean = false,
     accentColor: AppAccentColorOption = AppAccentColorOption.FOREST_GREEN,
     cornerStyle: AppCornerStyleOption = AppCornerStyleOption.ROUNDED,
+    themeBgColor: Color? = null,
+    themeCardColor: Color? = null,
+    themeHeadingColor: Color? = null,
     content: @Composable () -> Unit,
 ) {
     val activePrimary = if (isDark) accentColor.darkModeColor else accentColor.primaryColor
@@ -28,14 +31,17 @@ fun PoultryTheme(
             onPrimaryContainer = Color.White,
             secondary = activePrimary,
             onSecondary = Color.White,
-            background = Color(0xFF0E121A),
+            background = Color(0xFF0F172A),
             onBackground = Color.White,
-            surface = Color(0xFF161B26),
+            surface = Color(0xFF1E293B),
             onSurface = Color.White,
-            surfaceVariant = Color(0xFF1E2534),
+            surfaceVariant = Color(0xFF1E293B),
             onSurfaceVariant = Color(0xFFCBD5E1)
         )
     } else {
+        val resolvedBg = themeBgColor ?: IceBlueBg
+        val resolvedCard = themeCardColor ?: WhiteCard
+        val resolvedHeading = themeHeadingColor ?: Color(0xFF0F172A)
         lightColorScheme(
             primary = activePrimary,
             onPrimary = Color.White,
@@ -43,10 +49,12 @@ fun PoultryTheme(
             onPrimaryContainer = accentColor.primaryColor,
             secondary = activePrimary,
             onSecondary = Color.White,
-            background = IceBlueBg,
-            onBackground = TextDarkGreen,
-            surface = WhiteCard,
-            onSurface = TextDarkGreen,
+            background = resolvedBg,
+            onBackground = resolvedHeading,
+            surface = resolvedCard,
+            onSurface = resolvedHeading,
+            surfaceVariant = resolvedBg,
+            onSurfaceVariant = Color(0xFF475569)
         )
     }
 

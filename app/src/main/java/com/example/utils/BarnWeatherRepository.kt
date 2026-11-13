@@ -37,9 +37,9 @@ object BarnWeatherRepository {
     private const val READ_TIMEOUT_MS = 10000
     private const val CACHE_FRESHNESS_MS = 30 * 60 * 1000L // 30 minutes
 
-    // In-memory mirror so unit tests on pure JVM (context == null) and runtime stay in sync
-    private val memoryLocationCache = mutableMapOf<String, BarnWeatherLocation>()
-    private val memorySnapshotCache = mutableMapOf<String, OutdoorWeatherSnapshot>()
+    // In-memory thread-safe mirror so unit tests on pure JVM (context == null) and runtime stay in sync
+    private val memoryLocationCache = java.util.concurrent.ConcurrentHashMap<String, BarnWeatherLocation>()
+    private val memorySnapshotCache = java.util.concurrent.ConcurrentHashMap<String, OutdoorWeatherSnapshot>()
 
     fun formatCoordKey(latitude: Double, longitude: Double): String =
         String.format(java.util.Locale.US, "%.3f_%.3f", latitude, longitude)

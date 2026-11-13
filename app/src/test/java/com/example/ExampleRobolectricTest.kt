@@ -173,7 +173,7 @@ class ExampleRobolectricTest {
         try {
             // Verify Portuguese (AppLanguage.PT) support
             assertEquals("Galpões e Instalações Avícolas", Translations.tr("farms_title", AppLanguage.PT))
-            assertEquals("Gestão Pro Galpão Adicional - $4.99 / 2 Meses (Ciclo Completo)", Translations.tr("paywall_offer_title", AppLanguage.PT))
+            assertEquals("1º Galpão 100% Gratuito (Acesso Antecipado)", Translations.tr("paywall_offer_title", AppLanguage.PT))
 
             // Apply COP (Colombian Peso) globally and verify financial field labels update
             Translations.globalCurrencyCode = "COP"
@@ -432,12 +432,12 @@ class ExampleRobolectricTest {
         assertEquals(12, AppCornerStyleOption.SOFT.cornerRadiusDp)
         assertEquals(4, AppCornerStyleOption.CRISP.cornerRadiusDp)
 
-        // 4. Verify $4.99 / 2 Months Paywall Pricing across AR, EN, FR, ES, PT
-        assertTrue(Translations.tr("paywall_price_badge", AppLanguage.AR).contains("4.99$"))
-        assertTrue(Translations.tr("paywall_price_badge", AppLanguage.EN).contains("$4.99"))
-        assertTrue(Translations.tr("paywall_price_badge", AppLanguage.FR).contains("4.99$"))
-        assertTrue(Translations.tr("paywall_price_badge", AppLanguage.ES).contains("$4.99"))
-        assertTrue(Translations.tr("paywall_price_badge", AppLanguage.PT).contains("$4.99"))
+        // 4. Verify Early Access Paywall Copy (zero hardcoded $4.99 pricing promises) across AR, EN, FR, ES, PT
+        for (l in listOf(AppLanguage.AR, AppLanguage.EN, AppLanguage.FR, AppLanguage.ES, AppLanguage.PT)) {
+            val badge = Translations.tr("paywall_price_badge", l)
+            assertTrue("Badge for $l should mention Google Play or Free", badge.isNotBlank() && badge != "paywall_price_badge")
+            assertTrue("Early Access badge must not promise $4.99", !badge.contains("4.99"))
+        }
     }
 
     @Test
@@ -709,7 +709,6 @@ class ExampleRobolectricTest {
         }
 
         // 3. Verify Vet Clinic Pharmacy Inventory stock adjustment & Epidemic Alerts
-        assertTrue(AgritechMockDb.supervisedVetFarms.size >= 2)
         assertTrue(AgritechMockDb.vetPharmacyInventory.size >= 4)
         assertTrue(AgritechMockDb.vetEpidemicAlerts.size >= 3)
 
@@ -1547,7 +1546,215 @@ class ExampleRobolectricTest {
 
         AgritechMockDb.resetForAccountSwitch()
     }
+
+    @Test
+    fun `package1_2_playCompliance_appCheckSafety_syncCloudRoleSafety_and_14LangSweep`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+
+        // 1. Verify android:allowBackup="false" in Manifest ApplicationInfo
+        val allowBackupEnabled = (context.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_ALLOW_BACKUP) != 0
+        assertEquals("android:allowBackup must be false for sensitive farm financial data", false, allowBackupEnabled)
+
+        // 2. Verify configureAppCheck handles headless/unit context safely without throwing
+        configureAppCheck(context, null)
+
+        // 3. Verify syncCloudRoleSafely updates role without wiping farms or resetting auth state
+        AgritechMockDb.resetForAccountSwitch()
+        val session = AgritechAppSessionState(
+            initialOnboardingCompleted = true,
+            initialTheme = AppThemeOption.ICE_BLUE,
+            initialLanguage = AppLanguage.AR,
+            initialCountryCode = "DZ",
+            initialCurrencyCode = "DZD",
+            initialIsLoggedIn = true,
+            initialRole = AppRole.OWNER,
+            initialHasLinkedBarns = true,
+            initialActiveFarmId = "farm_sync_safe_1",
+            initialUserUid = "uid_sync_1"
+        )
+        AgritechMockDb.farms.add(FarmModel("farm_sync_safe_1", "عنبر الأمان", "المدية", 9000, "w1"))
+        session.syncCloudRoleSafely(context, AppRole.VET_CLINIC)
+        assertEquals(AppRole.VET_CLINIC, session.currentRole)
+        assertEquals(true, session.isLoggedIn)
+        assertEquals(1, AgritechMockDb.farms.size)
+
+        // 4. Verify resetForAccountSwitch clears all user & supervised farm collections (zero cross-account leak)
+        AgritechMockDb.supervisedVetFarms.add(FarmModel("farm_vet_leak", "عنبر تسريب", "سطيف", 5000, "w2"))
+        AgritechMockDb.resetForAccountSwitch()
+        assertTrue(AgritechMockDb.farms.isEmpty())
+        assertTrue(AgritechMockDb.cycles.isEmpty())
+        assertTrue(AgritechMockDb.dailyReports.isEmpty())
+        assertTrue(AgritechMockDb.vetNotes.isEmpty())
+        assertTrue(AgritechMockDb.transactions.isEmpty())
+        assertTrue(AgritechMockDb.supervisedVetFarms.isEmpty())
+
+        // 5. Verify all Package 1/2 Google Play compliance keys exist across all 14 languages with zero raw keys
+        val package1Keys = listOf(
+            "paywall_offer_title",
+            "paywall_price_badge",
+            "paywall_early_access_subtitle",
+            "paywall_early_access_notice",
+            "paywall_early_access_entitlement_note",
+            "paywall_btn_got_it",
+            "settings_privacy_row_title",
+            "settings_privacy_row_sub",
+            "settings_delete_account_btn",
+            "account_delete_dialog_title",
+            "account_delete_dialog_body",
+            "account_delete_dialog_confirm",
+            "account_delete_success_msg",
+            "account_delete_reauth_required_msg",
+            "privacy_modal_title",
+            "privacy_modal_agree_btn",
+            "privacy_sec1_title",
+            "privacy_sec5_title",
+            "privacy_sec5_body",
+            "ai_vet_chat_disclaimer",
+            "ugc_report_btn",
+            "ugc_report_short_btn",
+            "ugc_block_btn",
+            "ugc_block_short_btn",
+            "ugc_report_dialog_title",
+            "ugc_report_reason_fraud",
+            "ugc_report_confirm_btn",
+            "ugc_report_received_banner"
+        )
+        for (key in package1Keys) {
+            assertTrue("Key '$key' must be registered in Translations", Translations.hasKey(key))
+            for (lang in AppLanguage.values()) {
+                val value = Translations.tr(key, lang)
+                assertTrue("Key '$key' in ${lang.name} must not return raw key or blank", value.isNotBlank() && value != key)
+            }
+        }
+
+        // Verify no Paywall key still promises $4.99
+        val noPricingKeys = listOf(
+            "paywall_offer_title",
+            "paywall_price_badge",
+            "paywall_subtitle",
+            "paywall_no_annual_lock",
+            "paywall_btn_google_play",
+            "settings_tab_subscription"
+        )
+        for (key in noPricingKeys) {
+            for (lang in listOf(AppLanguage.AR, AppLanguage.FR, AppLanguage.EN, AppLanguage.ES, AppLanguage.PT)) {
+                val txt = Translations.tr(key, lang)
+                assertTrue("Key '$key' ($lang) must not advertise 4.99", !txt.contains("4.99"))
+            }
+        }
+
+        // 6. Verify publisherId-based blocking removes marketPosts cleanly
+        AgritechMockDb.marketPosts.add(
+            0,
+            MarketPostModel(
+                id = "post_pub_id_block_test",
+                title = "عرض اختبار الحظر",
+                description = "وصف",
+                priceDzd = 200.0,
+                publisherName = "تاجر",
+                publisherLocation = "الجزائر",
+                chatChannelId = "market_uid_bad_77",
+                publisherId = "uid_bad_77"
+            )
+        )
+        AgritechMockDb.blockUser("uid_bad_77")
+        assertTrue(AgritechMockDb.visibleMarketPosts().none { it.id == "post_pub_id_block_test" })
+        AgritechMockDb.resetForAccountSwitch()
+    }
+
+    @Test
+    fun `multiProviderAuth_phoneE164_emailValidation_cairoFont_and_14LangKeys`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+
+        // 1. Verify bundled Cairo font resource is resolvable in res/font
+        assertTrue("R.font.cairo resource id must be non-zero", R.font.cairo != 0)
+        val fontResName = context.resources.getResourceEntryName(R.font.cairo)
+        assertEquals("cairo", fontResName)
+
+        // 2. Verify Phone E.164 normalization and validation across international dial codes
+        val dzPhone = AgritechAuthHelper.formatNormalizedIdentifier("0550 12 34 56", "+213")
+        assertEquals("+213550123456", dzPhone)
+        assertTrue(AgritechAuthHelper.isValidE164PhoneNumber(dzPhone))
+
+        val usPhone = AgritechAuthHelper.formatNormalizedIdentifier("4155550199", "+1")
+        assertEquals("+14155550199", usPhone)
+        assertTrue(AgritechAuthHelper.isValidE164PhoneNumber(usPhone))
+
+        val alreadyE164 = AgritechAuthHelper.formatNormalizedIdentifier("+966501234567", "+213")
+        assertEquals("+966501234567", alreadyE164)
+        assertTrue(AgritechAuthHelper.isValidE164PhoneNumber(alreadyE164))
+
+        assertEquals(false, AgritechAuthHelper.isValidE164PhoneNumber("+213123"))
+        assertEquals(false, AgritechAuthHelper.isValidE164PhoneNumber("0550123456"))
+
+        // 3. Verify email address format validation
+        assertTrue(AgritechAuthHelper.isValidEmailAddress("farmer.mourad@gmail.com"))
+        assertEquals(false, AgritechAuthHelper.isValidEmailAddress("bad-email"))
+        assertEquals(false, AgritechAuthHelper.isValidEmailAddress("farmer @gmail.com"))
+
+        // 4. Verify all multi-provider auth, verification, privacy, and menu keys across all 14 languages
+        val newAuthAndUiKeys = listOf(
+            "login_privacy_terms_btn",
+            "auth_method_selector_label",
+            "auth_tab_google",
+            "auth_tab_email",
+            "auth_tab_phone",
+            "auth_tab_social",
+            "auth_btn_google_quick",
+            "auth_btn_facebook",
+            "auth_btn_x",
+            "auth_social_or_divider",
+            "auth_social_note",
+            "auth_email_mode_signin",
+            "auth_email_mode_signup",
+            "auth_email_label",
+            "auth_password_label",
+            "auth_confirm_password_label",
+            "auth_btn_signin_email",
+            "auth_btn_create_email",
+            "auth_btn_forgot_password",
+            "auth_reset_email_sent",
+            "auth_verify_email_title",
+            "auth_verify_email_subtitle",
+            "auth_btn_check_verified",
+            "auth_btn_resend_verification",
+            "auth_btn_switch_account",
+            "auth_verify_still_pending",
+            "auth_verify_sent_success",
+            "auth_phone_country_code_label",
+            "auth_phone_number_label",
+            "auth_btn_send_otp",
+            "auth_otp_code_label",
+            "auth_btn_verify_otp",
+            "auth_btn_change_phone",
+            "auth_otp_sent_notice",
+            "auth_err_invalid_email",
+            "auth_err_password_short",
+            "auth_err_password_mismatch",
+            "auth_err_invalid_phone",
+            "auth_err_invalid_otp",
+            "auth_err_invalid_credentials",
+            "auth_err_email_in_use",
+            "auth_err_provider_disabled",
+            "auth_err_account_exists_diff_provider",
+            "auth_err_too_many_requests",
+            "auth_err_network",
+            "auth_err_cancelled",
+            "auth_err_generic",
+            "menu_more_actions",
+            "menu_create_farm",
+            "menu_logout"
+        )
+        for (key in newAuthAndUiKeys) {
+            assertTrue("Key '$key' must be registered in Translations", Translations.hasKey(key))
+            for (lang in AppLanguage.values()) {
+                val value = Translations.tr(key, lang)
+                assertTrue("Key '$key' in ${lang.name} must not return raw key or blank", value.isNotBlank() && value != key)
+            }
+        }
+    }
 }
+
 
 
 

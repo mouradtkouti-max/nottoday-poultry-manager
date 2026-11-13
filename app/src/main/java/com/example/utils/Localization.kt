@@ -1834,36 +1834,36 @@ object Translations {
             "hi" to "👑 मल्टी-बार्न प्रो प्लान (SaaS Pro)"
         ),
         "paywall_offer_title" to mapOf(
-            "ar" to "إدارة احترافية للعنبر الإضافي - 4.99$ / لشهرين (دورة إنتاج كاملة)",
-            "fr" to "Gestion Pro Bâtiment Supplémentaire - 4.99$ / 2 Mois (Cycle Complet)",
-            "en" to "Premium Additional Barn - $4.99 / 2 Months (Full Production Cycle)",
-            "es" to "Gestión Pro Galpón Adicional - $4.99 / 2 Meses (Ciclo Completo)",
-            "pt" to "Gestão Pro Galpão Adicional - $4.99 / 2 Meses (Ciclo Completo)",
-            "hi" to "प्रीमियम अतिरिक्त शेड प्रबंधन - $4.99 / 2 महीने (पूर्ण उत्पादन चक्र)"
+            "ar" to "العنبر الأول مجاني بالكامل (نسخة الإطلاق المبكر)",
+            "fr" to "1er Bâtiment 100% Gratuit (Accès Anticipé)",
+            "en" to "1st Barn 100% Free (Official Early Access)",
+            "es" to "1er Galpón 100% Gratis (Acceso Anticipado)",
+            "pt" to "1º Galpão 100% Gratuito (Acesso Antecipado)",
+            "hi" to "पहला शेड 100% मुफ़्त (अर्ली एक्सेस संस्करण)"
         ),
         "paywall_price_badge" to mapOf(
-            "ar" to "4.99$ / لشهرين (دورة إنتاج كاملة)",
-            "fr" to "4.99$ / 2 Mois (Cycle Complet)",
-            "en" to "$4.99 / 2 Months (Full Production Cycle)",
-            "es" to "$4.99 / 2 Meses (Ciclo Completo)",
-            "pt" to "$4.99 / 2 Meses (Ciclo Completo)",
-            "hi" to "$4.99 / 2 महीने (पूर्ण उत्पादन चक्र)"
+            "ar" to "العنبر الأول مجاني • التوسع عبر Google Play قريباً",
+            "fr" to "1er bâtiment gratuit • Extension Google Play bientôt",
+            "en" to "1st Barn Free • Google Play Plans Coming Soon",
+            "es" to "1er galpón gratis • Planes Google Play pronto",
+            "pt" to "1º galpão gratuito • Planos Google Play em breve",
+            "hi" to "पहला शेड मुफ़्त • Google Play प्लान जल्द ही"
         ),
         "paywall_subtitle" to mapOf(
-            "ar" to "العنبر الأول مجاني بالكامل (Free Tier). لإضافة عنبر إضافي لدورة إنتاج كاملة (شهرين) بدون أي التزام سنوي، فعّل الباقة الاحترافية.",
-            "fr" to "Le 1er bâtiment est 100% gratuit. Pour ajouter un bâtiment supplémentaire pour un cycle complet (2 mois) sans engagement annuel, activez l'offre Pro.",
-            "en" to "Your 1st Barn is 100% Free. Add an extra barn for a full 2-month production cycle at $4.99 with zero annual lock-in.",
-            "es" to "El 1er galpón es 100% gratis. Agregue un galpón adicional por un ciclo completo de 2 meses ($4.99) sin contrato anual.",
-            "pt" to "O 1º galpão é 100% gratuito. Adicione um galpão extra por um ciclo completo de 2 meses ($4.99) sem fidelidade anual.",
-            "hi" to "आपका पहला शेड 100% मुफ़्त है। बिना किसी वार्षिक अनुबंध के 2 महीने के चक्र के लिए अतिरिक्त शेड जोड़ें।"
+            "ar" to "العنبر الأول والإدارة الأولى مجانية بالكامل في نسخة الإطلاق الرسمي المبكر. باقات التوسع للمنشآت المتعددة ستُفعل لاحقاً عبر فوترة Google Play.",
+            "fr" to "Le 1er bâtiment et la 1ère gestion sont 100% gratuits en accès anticipé. Les offres multi-bâtiments seront disponibles prochainement via Google Play Billing.",
+            "en" to "Your 1st barn and 1st management workspace are 100% free during Official Early Access. Multi-barn expansion plans will launch via Google Play Billing soon.",
+            "es" to "El 1er galpón y la 1ª gestión son 100% gratis en Acceso Anticipado. Los planes multi-galpón llegarán pronto a través de Google Play Billing.",
+            "pt" to "O 1º galpão e a 1ª gestão são 100% gratuitos no Acesso Antecipado. Os planos multi-galpão chegarão em breve via Google Play Billing.",
+            "hi" to "आधिकारिक अर्ली एक्सेस में आपका पहला शेड और प्रबंधन 100% मुफ़्त है। मल्टी-शेड प्लान जल्द ही Google Play बिलिंग के माध्यम से उपलब्ध होंगे।"
         ),
         "paywall_no_annual_lock" to mapOf(
-            "ar" to "✓ بدون اشتراك سنوي إجباري • تدفع فقط للعنبر الإضافي (4.99$ / شهرين)",
-            "fr" to "✓ Aucun abonnement annuel forcé • Payez par cycle de 2 mois (4.99$)",
-            "en" to "✓ No forced annual plan • Pay only $4.99 per 2-month production cycle",
-            "es" to "✓ Sin suscripción anual forzada • Solo $4.99 por ciclo de 2 meses",
-            "pt" to "✓ Sem assinatura anual forçada • Apenas $4.99 por ciclo de 2 meses",
-            "hi" to "✓ कोई वार्षिक अनुबंध नहीं • केवल $4.99 प्रति 2-महीने का चक्र"
+            "ar" to "✓ بدون اشتراك سنوي إجباري • تفعيل مرن لاحقاً عبر Google Play",
+            "fr" to "✓ Aucun engagement annuel forcé • Activation flexible via Google Play",
+            "en" to "✓ No forced annual lock-in • Flexible Google Play Billing coming soon",
+            "es" to "✓ Sin compromiso anual forzado • Facturación flexible en Google Play pronto",
+            "pt" to "✓ Sem fidelidade anual forçada • Faturamento flexível Google Play em breve",
+            "hi" to "✓ कोई अनिवार्य वार्षिक प्लान नहीं • Google Play बिलिंग जल्द ही"
         ),
         "paywall_feat_1" to mapOf(
             "ar" to "فتح عنبر إضافي كامل مع مزامنة سحابية فورية للفريق (QR)",
@@ -1890,12 +1890,12 @@ object Translations {
             "hi" to "असीमित AI पशु चिकित्सक (Gemini) परामर्श"
         ),
         "paywall_btn_google_play" to mapOf(
-            "ar" to "الاشتراك عبر Google Play (4.99$ / لشهرين)",
-            "fr" to "S'abonner via Google Play (4.99$ / 2 Mois)",
-            "en" to "Subscribe via Google Play ($4.99 / 2 Months)",
-            "es" to "Suscribirse con Google Play ($4.99 / 2 Meses)",
-            "pt" to "Assinar via Google Play ($4.99 / 2 Meses)",
-            "hi" to "Google Play के माध्यम से सदस्यता लें ($4.99 / 2 महीने)"
+            "ar" to "قريباً عبر Google Play Billing",
+            "fr" to "Bientôt via Google Play Billing",
+            "en" to "Coming Soon via Google Play Billing",
+            "es" to "Próximamente en Google Play Billing",
+            "pt" to "Em breve via Google Play Billing",
+            "hi" to "जल्द आ रहा है Google Play Billing पर"
         ),
         "paywall_btn_stripe" to mapOf(
             "ar" to "الدفع السريع عبر Stripe 💳 (4.99$ / لشهرين)",
@@ -2298,12 +2298,12 @@ object Translations {
             "hi" to "देश और मुद्रा"
         ),
         "settings_tab_subscription" to mapOf(
-            "ar" to "الباقة (4.99$)",
-            "fr" to "Offre Pro (4.99$)",
-            "en" to "Pro Plan ($4.99)",
-            "es" to "Plan Pro ($4.99)",
-            "pt" to "Plano Pro ($4.99)",
-            "hi" to "प्रो प्लान ($4.99)"
+            "ar" to "الباقة والإطلاق المبكر",
+            "fr" to "Offre & Accès Anticipé",
+            "en" to "Plan & Early Access",
+            "es" to "Plan y Acceso Anticipado",
+            "pt" to "Plano e Acesso Antecipado",
+            "hi" to "प्लान और अर्ली एक्सेस"
         ),
         "appearance_light_mode_title" to mapOf(
             "ar" to "الوضع النهاري (Light Mode)",

@@ -1,5 +1,6 @@
 package com.example
 
+import android.app.Activity
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Bundle
@@ -74,6 +75,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Density
@@ -86,6 +89,8 @@ import com.example.models.*
 import com.example.ui.theme.PoultryTheme
 import com.example.utils.*
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.PhoneAuthProvider
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
@@ -611,7 +616,12 @@ object AgritechMockDb {
         }
         chatMessages.removeAll { it.senderId == cleanUid || it.cycleId == cleanUid }
         chatConversations.removeAll { it.id == cleanUid || it.userName == cleanUid }
-        marketPosts.removeAll { it.chatChannelId == cleanUid || it.publisherName == cleanUid || it.id == cleanUid }
+        marketPosts.removeAll {
+            it.publisherId == cleanUid ||
+                it.chatChannelId == cleanUid ||
+                it.publisherName == cleanUid ||
+                it.id == cleanUid
+        }
         context?.let { LocalFarmPersistence.saveAll(it) }
     }
 
@@ -749,7 +759,8 @@ object AgritechMockDb {
         senderId: String,
         senderName: String,
         senderRole: String,
-        chatChannelId: String
+        chatChannelId: String,
+        displayCategory: String = tx.category
     ): ChatMessageModel {
         val pendingTx = tx.copy(
             status = "PENDING",
@@ -770,16 +781,17 @@ object AgritechMockDb {
         }
         val formattedPrice = String.format(java.util.Locale.US, "%,.0f", pendingTx.amount)
         val cleanNote = if (noteText.isNotBlank()) "\n• البيان: $noteText" else ""
+        val chatLabel = displayCategory.ifBlank { pendingTx.category }
         val chatMsg = ChatMessageModel(
             id = "msg_fin_req_${pendingTx.id}",
             cycleId = chatChannelId,
             senderId = senderId,
             senderName = senderName,
             senderRole = senderRole,
-            text = "🧾 ${pendingTx.category}$cleanNote\n• المبلغ المطلوب اعتماده: $formattedPrice ${pendingTx.currency}",
+            text = "🧾 $chatLabel$cleanNote\n• المبلغ المطلوب اعتماده: $formattedPrice ${pendingTx.currency}",
             timestamp = nowTime,
             linkedTransactionId = pendingTx.id,
-            requestCategory = pendingTx.category,
+            requestCategory = chatLabel,
             requestAmount = pendingTx.amount,
             requestCurrency = pendingTx.currency,
             status = "PENDING"
@@ -1057,11 +1069,9 @@ object AgritechMockDb {
         chatMessages.clear()
         chatConversations.clear()
         dailyReports.clear()
-        dailyReports.addAll(initialDailyReportsSeed)
         vetNotes.clear()
-        vetNotes.addAll(initialVetNotesSeed)
         transactions.clear()
-        transactions.addAll(initialTransactionsSeed)
+        supervisedVetFarms.clear()
         workerPersonalEntries.clear()
         workerPersonalEntries.addAll(initialWorkerPersonalEntriesSeed)
         barnInventoryCounters.clear()
@@ -1093,6 +1103,7 @@ object AgritechMockDb {
         dailyReports.clear()
         vetNotes.clear()
         transactions.clear()
+        supervisedVetFarms.clear()
         workerPersonalEntries.clear()
         barnInventoryCounters.clear()
         blockedUserIds.clear()
@@ -1251,6 +1262,14 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+    override fun onStart() {
+        super.onStart()
+        AgritechAuthHelper.consumePendingOAuthResult(
+            onSuccess = {},
+            onError = {}
+        )
+    }
 }
 
 // ============================================================================
@@ -1273,8 +1292,12 @@ fun AgritechRootApp() {
         val savedAccentColor = SaasPreferencesManager.getSavedAccentColor(context)
         val savedTextScale = SaasPreferencesManager.getSavedTextScale(context)
         val savedCornerStyle = SaasPreferencesManager.getSavedCornerStyle(context)
-        val firebaseSignedIn = AgritechAuthHelper.isSignedIn()
-        val savedLoggedIn = SaasPreferencesManager.getSavedIsLoggedIn(context) || firebaseSignedIn
+        val firebaseSignedIn = AgritechAuthHelper.isSignedIn() && AgritechAuthHelper.isUserFullyVerified()
+        if (firebaseSignedIn) {
+            AgritechAuthHelper.syncMetadataFromFirebaseUser()
+        }
+        val savedLoggedIn = (SaasPreferencesManager.getSavedIsLoggedIn(context) || firebaseSignedIn) &&
+            !AgritechAuthHelper.isEmailVerificationPending()
         val savedRole = SaasPreferencesManager.getSavedUserRole(context)
             ?: if (savedLoggedIn) AppRole.OWNER else null
         val savedLinkedBarns = if (savedLoggedIn) {
@@ -1329,7 +1352,10 @@ fun AgritechRootApp() {
         PoultryTheme(
             isDark = sessionState.currentTheme.isDark,
             accentColor = sessionState.currentAccentColor,
-            cornerStyle = sessionState.currentCornerStyle
+            cornerStyle = sessionState.currentCornerStyle,
+            themeBgColor = sessionState.currentTheme.bgColor,
+            themeCardColor = sessionState.currentTheme.cardColor,
+            themeHeadingColor = sessionState.currentTheme.headingColor
         ) {
             if (!sessionState.hasCompletedOnboarding) {
                 GlobalOnboardingScreen(
@@ -1491,7 +1517,8 @@ fun AgritechMainApp(
             null
         }
         authFlow?.collectLatest { firebaseUser ->
-            if (firebaseUser != null && firestoreRepo != null) {
+            if (firebaseUser != null && firestoreRepo != null && !AgritechAuthHelper.isEmailVerificationPending(firebaseUser)) {
+                AgritechAuthHelper.syncMetadataFromFirebaseUser(firebaseUser)
                 val uid = firebaseUser.uid
                 if (!sessionState.isLoggedIn) {
                     sessionState.markAuthenticated(
@@ -1504,52 +1531,33 @@ fun AgritechMainApp(
                 } else {
                     sessionState.currentUserUid = uid
                 }
-                launch {
-                    try {
-                        firestoreRepo.observeUserRole(uid).collectLatest { cloudRole ->
-                            // Only update role if cloudRole is non-null; never overwrite with null!
-                            if (cloudRole != null) {
-                                sessionState.markAuthenticated(
-                                    context = context,
-                                    role = cloudRole,
-                                    linkedBarns = sessionState.hasLinkedBarns,
-                                    farmId = activeFarmId,
-                                    uid = uid
-                                )
-                            }
-                        }
-                    } catch (_: Exception) {}
-                }
-                launch {
-                    try {
-                        firestoreRepo.observeAllUserFarms(uid, activeFarmId).collectLatest { cloudFarms ->
-                            val validCloudFarms = cloudFarms.filterNot {
-                                it.id in AgritechMockDb.deletedFarmIds || AgritechFirestoreRepository.isUnassignedFarm(it.id)
-                            }
-                            if (validCloudFarms.isNotEmpty()) {
-                                validCloudFarms.forEach { farm ->
-                                    val idx = AgritechMockDb.farms.indexOfFirst { it.id == farm.id }
-                                    if (idx >= 0) {
-                                        AgritechMockDb.farms[idx] = farm
-                                    } else {
-                                        AgritechMockDb.farms.add(farm)
-                                    }
-                                }
-                                if (sessionState.activeFarmId.isBlank() ||
-                                    AgritechFirestoreRepository.isUnassignedFarm(sessionState.activeFarmId)
-                                ) {
-                                    sessionState.activeFarmId = validCloudFarms.first().id
-                                }
-                                AgritechMockDb.persistLocalState()
-                            }
-                        }
-                    } catch (_: Exception) {}
-                }
-                if (activeFarmId.isNotBlank()) {
+                coroutineScope {
                     launch {
                         try {
-                            firestoreRepo.observeFarms(activeFarmId).collectLatest { cloudFarms ->
-                                val validCloudFarms = cloudFarms.filterNot { it.id in AgritechMockDb.deletedFarmIds }
+                            firestoreRepo.observeUserRole(uid).collectLatest { cloudRole ->
+                                // Update role without resetting already-loaded local workspace state
+                                if (cloudRole != null) {
+                                    if (sessionState.isLoggedIn && sessionState.currentUserUid == uid) {
+                                        sessionState.syncCloudRoleSafely(context, cloudRole)
+                                    } else {
+                                        sessionState.markAuthenticated(
+                                            context = context,
+                                            role = cloudRole,
+                                            linkedBarns = sessionState.hasLinkedBarns,
+                                            farmId = activeFarmId,
+                                            uid = uid
+                                        )
+                                    }
+                                }
+                            }
+                        } catch (_: Exception) {}
+                    }
+                    launch {
+                        try {
+                            firestoreRepo.observeAllUserFarms(uid, activeFarmId).collectLatest { cloudFarms ->
+                                val validCloudFarms = cloudFarms.filterNot {
+                                    it.id in AgritechMockDb.deletedFarmIds || AgritechFirestoreRepository.isUnassignedFarm(it.id)
+                                }
                                 if (validCloudFarms.isNotEmpty()) {
                                     validCloudFarms.forEach { farm ->
                                         val idx = AgritechMockDb.farms.indexOfFirst { it.id == farm.id }
@@ -1559,114 +1567,139 @@ fun AgritechMainApp(
                                             AgritechMockDb.farms.add(farm)
                                         }
                                     }
-                                }
-                            }
-                        } catch (_: Exception) {}
-                    }
-                    launch {
-                        try {
-                            firestoreRepo.observeCycles(activeFarmId).collectLatest { cloudCycles ->
-                                if (cloudCycles.isNotEmpty()) {
-                                    cloudCycles.forEach { cycle ->
-                                        val idx = AgritechMockDb.cycles.indexOfFirst { it.id == cycle.id }
-                                        if (idx >= 0) {
-                                            val localCycle = AgritechMockDb.cycles[idx]
-                                            AgritechMockDb.cycles[idx] = AgritechMockDb.mergeCloudCycleWithLocal(
-                                                cloudCycle = cycle,
-                                                localCycle = localCycle
-                                            )
-                                        } else {
-                                            AgritechMockDb.cycles.add(cycle)
-                                        }
+                                    if (sessionState.activeFarmId.isBlank() ||
+                                        AgritechFirestoreRepository.isUnassignedFarm(sessionState.activeFarmId)
+                                    ) {
+                                        sessionState.activeFarmId = validCloudFarms.first().id
                                     }
                                     AgritechMockDb.persistLocalState()
                                 }
                             }
                         } catch (_: Exception) {}
                     }
-                    launch {
-                        try {
-                            firestoreRepo.observeDailyReports(activeFarmId).collectLatest { cloudReports ->
-                                if (cloudReports.isNotEmpty()) {
-                                    cloudReports.forEach { report ->
-                                        val idx = AgritechMockDb.dailyReports.indexOfFirst {
-                                            it.id == report.id || (it.farmId == report.farmId && it.cycleId == report.cycleId && it.dayNumber == report.dayNumber)
+                    if (activeFarmId.isNotBlank()) {
+                        launch {
+                            try {
+                                firestoreRepo.observeFarms(activeFarmId).collectLatest { cloudFarms ->
+                                    val validCloudFarms = cloudFarms.filterNot { it.id in AgritechMockDb.deletedFarmIds }
+                                    if (validCloudFarms.isNotEmpty()) {
+                                        validCloudFarms.forEach { farm ->
+                                            val idx = AgritechMockDb.farms.indexOfFirst { it.id == farm.id }
+                                            if (idx >= 0) {
+                                                AgritechMockDb.farms[idx] = farm
+                                            } else {
+                                                AgritechMockDb.farms.add(farm)
+                                            }
                                         }
-                                        if (idx >= 0) {
-                                            val existingLocal = AgritechMockDb.dailyReports[idx]
-                                            val localIsNewer = (existingLocal.updatedAtMillis > report.updatedAtMillis) ||
-                                                (existingLocal.isEdited && !report.isEdited)
-                                            val mergedReport = if (localIsNewer) {
-                                                existingLocal.copy(
-                                                    actualAvgWeightKg = if (existingLocal.actualAvgWeightKg > 0.0) existingLocal.actualAvgWeightKg else report.actualAvgWeightKg,
-                                                    medicineGiven = existingLocal.medicineGiven || report.medicineGiven,
-                                                    medicineSummary = existingLocal.medicineSummary.ifBlank { report.medicineSummary },
-                                                    withdrawalDays = maxOf(existingLocal.withdrawalDays, report.withdrawalDays)
+                                    }
+                                }
+                            } catch (_: Exception) {}
+                        }
+                        launch {
+                            try {
+                                firestoreRepo.observeCycles(activeFarmId).collectLatest { cloudCycles ->
+                                    if (cloudCycles.isNotEmpty()) {
+                                        cloudCycles.forEach { cycle ->
+                                            val idx = AgritechMockDb.cycles.indexOfFirst { it.id == cycle.id }
+                                            if (idx >= 0) {
+                                                val localCycle = AgritechMockDb.cycles[idx]
+                                                AgritechMockDb.cycles[idx] = AgritechMockDb.mergeCloudCycleWithLocal(
+                                                    cloudCycle = cycle,
+                                                    localCycle = localCycle
                                                 )
                                             } else {
-                                                report.copy(
-                                                    isEdited = report.isEdited || existingLocal.isEdited,
-                                                    previousSummary = report.previousSummary.ifBlank { existingLocal.previousSummary },
-                                                    actualAvgWeightKg = if (report.actualAvgWeightKg > 0.0) report.actualAvgWeightKg else existingLocal.actualAvgWeightKg,
-                                                    medicineGiven = report.medicineGiven || existingLocal.medicineGiven,
-                                                    medicineSummary = report.medicineSummary.ifBlank { existingLocal.medicineSummary },
-                                                    withdrawalDays = maxOf(report.withdrawalDays, existingLocal.withdrawalDays),
-                                                    updatedAtMillis = maxOf(report.updatedAtMillis, existingLocal.updatedAtMillis)
-                                                )
+                                                AgritechMockDb.cycles.add(cycle)
                                             }
-                                            AgritechMockDb.dailyReports[idx] = mergedReport
-                                        } else {
-                                            AgritechMockDb.dailyReports.add(report)
                                         }
+                                        AgritechMockDb.persistLocalState()
                                     }
-                                    AgritechMockDb.persistLocalState()
                                 }
-                            }
-                        } catch (_: Exception) {}
-                    }
-                    launch {
-                        try {
-                            firestoreRepo.observeVetNotes(activeFarmId).collectLatest { cloudNotes ->
-                                if (cloudNotes.isNotEmpty()) {
-                                    cloudNotes.forEach { note ->
-                                        val idx = AgritechMockDb.vetNotes.indexOfFirst { it.id == note.id }
-                                        if (idx >= 0) {
-                                            val existingLocal = AgritechMockDb.vetNotes[idx]
-                                            AgritechMockDb.vetNotes[idx] = note.copy(
-                                                status = if (existingLocal.status == "APPROVED") "APPROVED" else note.status,
-                                                withdrawalDays = maxOf(note.withdrawalDays, existingLocal.withdrawalDays),
-                                                updatedAtMillis = maxOf(note.updatedAtMillis, existingLocal.updatedAtMillis)
-                                            )
-                                        } else {
-                                            AgritechMockDb.vetNotes.add(note)
+                            } catch (_: Exception) {}
+                        }
+                        launch {
+                            try {
+                                firestoreRepo.observeDailyReports(activeFarmId).collectLatest { cloudReports ->
+                                    if (cloudReports.isNotEmpty()) {
+                                        cloudReports.forEach { report ->
+                                            val idx = AgritechMockDb.dailyReports.indexOfFirst {
+                                                it.id == report.id || (it.farmId == report.farmId && it.cycleId == report.cycleId && it.dayNumber == report.dayNumber)
+                                            }
+                                            if (idx >= 0) {
+                                                val existingLocal = AgritechMockDb.dailyReports[idx]
+                                                val localIsNewer = (existingLocal.updatedAtMillis > report.updatedAtMillis) ||
+                                                    (existingLocal.isEdited && !report.isEdited)
+                                                val mergedReport = if (localIsNewer) {
+                                                    existingLocal.copy(
+                                                        actualAvgWeightKg = if (existingLocal.actualAvgWeightKg > 0.0) existingLocal.actualAvgWeightKg else report.actualAvgWeightKg,
+                                                        medicineGiven = existingLocal.medicineGiven || report.medicineGiven,
+                                                        medicineSummary = existingLocal.medicineSummary.ifBlank { report.medicineSummary },
+                                                        withdrawalDays = maxOf(existingLocal.withdrawalDays, report.withdrawalDays)
+                                                    )
+                                                } else {
+                                                    report.copy(
+                                                        isEdited = report.isEdited || existingLocal.isEdited,
+                                                        previousSummary = report.previousSummary.ifBlank { existingLocal.previousSummary },
+                                                        actualAvgWeightKg = if (report.actualAvgWeightKg > 0.0) report.actualAvgWeightKg else existingLocal.actualAvgWeightKg,
+                                                        medicineGiven = report.medicineGiven || existingLocal.medicineGiven,
+                                                        medicineSummary = report.medicineSummary.ifBlank { existingLocal.medicineSummary },
+                                                        withdrawalDays = maxOf(report.withdrawalDays, existingLocal.withdrawalDays),
+                                                        updatedAtMillis = maxOf(report.updatedAtMillis, existingLocal.updatedAtMillis)
+                                                    )
+                                                }
+                                                AgritechMockDb.dailyReports[idx] = mergedReport
+                                            } else {
+                                                AgritechMockDb.dailyReports.add(report)
+                                            }
                                         }
+                                        AgritechMockDb.persistLocalState()
                                     }
-                                    AgritechMockDb.persistLocalState()
                                 }
-                            }
-                        } catch (_: Exception) {}
-                    }
-                    launch {
-                        try {
-                            firestoreRepo.observeTransactions(activeFarmId).collectLatest { cloudTxs ->
-                                if (cloudTxs.isNotEmpty()) {
-                                    cloudTxs.forEach { tx ->
-                                        val idx = AgritechMockDb.transactions.indexOfFirst { it.id == tx.id }
-                                        if (idx >= 0) {
-                                            val existingLocal = AgritechMockDb.transactions[idx]
-                                            AgritechMockDb.transactions[idx] = tx.copy(
-                                                status = if (existingLocal.status == "APPROVED") "APPROVED" else tx.status,
-                                                invoiceData = tx.invoiceData ?: existingLocal.invoiceData,
-                                                approvedBySignature = tx.approvedBySignature.ifBlank { existingLocal.approvedBySignature }
-                                            )
-                                        } else {
-                                            AgritechMockDb.transactions.add(tx)
+                            } catch (_: Exception) {}
+                        }
+                        launch {
+                            try {
+                                firestoreRepo.observeVetNotes(activeFarmId).collectLatest { cloudNotes ->
+                                    if (cloudNotes.isNotEmpty()) {
+                                        cloudNotes.forEach { note ->
+                                            val idx = AgritechMockDb.vetNotes.indexOfFirst { it.id == note.id }
+                                            if (idx >= 0) {
+                                                val existingLocal = AgritechMockDb.vetNotes[idx]
+                                                AgritechMockDb.vetNotes[idx] = note.copy(
+                                                    status = if (existingLocal.status == "APPROVED") "APPROVED" else note.status,
+                                                    withdrawalDays = maxOf(note.withdrawalDays, existingLocal.withdrawalDays),
+                                                    updatedAtMillis = maxOf(note.updatedAtMillis, existingLocal.updatedAtMillis)
+                                                )
+                                            } else {
+                                                AgritechMockDb.vetNotes.add(note)
+                                            }
                                         }
+                                        AgritechMockDb.persistLocalState()
                                     }
-                                    AgritechMockDb.persistLocalState()
                                 }
-                            }
-                        } catch (_: Exception) {}
+                            } catch (_: Exception) {}
+                        }
+                        launch {
+                            try {
+                                firestoreRepo.observeTransactions(activeFarmId).collectLatest { cloudTxs ->
+                                    if (cloudTxs.isNotEmpty()) {
+                                        cloudTxs.forEach { tx ->
+                                            val idx = AgritechMockDb.transactions.indexOfFirst { it.id == tx.id }
+                                            if (idx >= 0) {
+                                                val existingLocal = AgritechMockDb.transactions[idx]
+                                                AgritechMockDb.transactions[idx] = tx.copy(
+                                                    status = if (existingLocal.status == "APPROVED") "APPROVED" else tx.status,
+                                                    invoiceData = tx.invoiceData ?: existingLocal.invoiceData,
+                                                    approvedBySignature = tx.approvedBySignature.ifBlank { existingLocal.approvedBySignature }
+                                                )
+                                            } else {
+                                                AgritechMockDb.transactions.add(tx)
+                                            }
+                                        }
+                                        AgritechMockDb.persistLocalState()
+                                    }
+                                }
+                            } catch (_: Exception) {}
+                        }
                     }
                 }
             }
@@ -1693,6 +1726,54 @@ fun AgritechMainApp(
         }
     }
 
+    val completeVerifiedAuthSession: (AppRole, Boolean) -> Unit = { role, linkedBarns ->
+        authErrorBanner = null
+        AgritechMockDb.accountDeletionConfirmationMessage = null
+        AgritechAuthHelper.syncMetadataFromFirebaseUser()
+        LocalFarmPersistence.restoreFromReloginArchiveIfNeeded(context)
+        LocalFarmPersistence.loadIntoMockDb(context)
+        val currentActive = sessionState.activeFarmId.takeIf {
+            it.isNotBlank() && it !in AgritechMockDb.deletedFarmIds &&
+                (role != AppRole.OWNER || AgritechMockDb.farms.any { f -> f.id == it })
+        } ?: if (role == AppRole.OWNER) {
+            AgritechMockDb.farms.firstOrNull { it.id !in AgritechMockDb.deletedFarmIds }?.id.orEmpty()
+        } else {
+            ""
+        }
+        sessionState.markAuthenticated(
+            context = context,
+            role = role,
+            linkedBarns = linkedBarns,
+            farmId = currentActive,
+            uid = AgritechAuthHelper.currentUserUid()
+        )
+        if (role == AppRole.WORKER && linkedBarns) {
+            sessionState.selectedFarmForWorker = AgritechMockDb.farms.firstOrNull { it.id == currentActive && it.id !in AgritechMockDb.deletedFarmIds }
+        }
+        scope.launch {
+            val res = firestoreRepo?.setUserRoleAndFarm(role, currentActive)
+            if (res != null && res.isFailure) {
+                authErrorBanner = "تنبيه السحابة: تعذر حفظ الملف الشخصي (${res.exceptionOrNull()?.localizedMessage ?: "خطأ غير معروف"})"
+            }
+            if (role == AppRole.OWNER && currentActive.isNotBlank() && currentActive !in AgritechMockDb.deletedFarmIds) {
+                AgritechMockDb.farms.firstOrNull { it.id == currentActive }?.let { farm ->
+                    firestoreRepo?.saveFarmRecord(farm, AppRole.OWNER)
+                }
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        AgritechAuthHelper.consumePendingOAuthResult(
+            onSuccess = {
+                completeVerifiedAuthSession(sessionState.currentRole ?: AppRole.OWNER, true)
+            },
+            onError = { err ->
+                authErrorBanner = AgritechAuthHelper.resolveLocalizedAuthError(err, currentLanguage)
+            }
+        )
+    }
+
     val selectedOwnerFarm = sessionState.selectedFarmForOwner
     val selectedVetFarm = sessionState.selectedFarmForVet
     val selectedWorkerFarm = sessionState.selectedFarmForWorker
@@ -1701,94 +1782,38 @@ fun AgritechMainApp(
             AgritechLoginScreen(
                 currentTheme = currentTheme,
                 lang = currentLanguage,
+                countryCode = sessionState.currentCountryCode,
                 authErrorMessage = authErrorBanner ?: AgritechMockDb.accountDeletionConfirmationMessage,
-                onLogin = { role, linkedBarns ->
+                onClearAuthError = {
+                    authErrorBanner = null
+                    AgritechMockDb.accountDeletionConfirmationMessage = null
+                },
+                onCompleteVerifiedSession = { role, linkedBarns ->
+                    completeVerifiedAuthSession(role, linkedBarns)
+                },
+                onGoogleSignInRequest = { role, linkedBarns ->
                     authErrorBanner = null
                     AgritechMockDb.accountDeletionConfirmationMessage = null
                     val cm = credentialManager
-                    val isAlreadySignedIn = AgritechAuthHelper.isSignedIn()
-                    if (isAlreadySignedIn) {
-                        LocalFarmPersistence.restoreFromReloginArchiveIfNeeded(context)
-                        LocalFarmPersistence.loadIntoMockDb(context)
-                        // Do not automatically assign the first local farm to a user who doesn't own or belong to it:
-                        // Only retain activeFarmId if it was already selected and valid for this role; otherwise start unassigned ("")
-                        val currentActive = sessionState.activeFarmId.takeIf {
-                            it.isNotBlank() && it !in AgritechMockDb.deletedFarmIds &&
-                                (role != AppRole.OWNER || AgritechMockDb.farms.any { f -> f.id == it })
-                        } ?: if (role == AppRole.OWNER) {
-                            AgritechMockDb.farms.firstOrNull { it.id !in AgritechMockDb.deletedFarmIds }?.id.orEmpty()
-                        } else {
-                            ""
-                        }
-                        sessionState.markAuthenticated(
-                            context = context,
-                            role = role,
-                            linkedBarns = linkedBarns,
-                            farmId = currentActive,
-                            uid = AgritechAuthHelper.currentUserUid()
-                        )
-                        if (role == AppRole.WORKER && linkedBarns) {
-                            sessionState.selectedFarmForWorker = AgritechMockDb.farms.firstOrNull { it.id == currentActive && it.id !in AgritechMockDb.deletedFarmIds }
-                        }
-                        scope.launch {
-                            val res = firestoreRepo?.setUserRoleAndFarm(role, currentActive)
-                            if (res != null && res.isFailure) {
-                                authErrorBanner = "تنبيه السحابة: تعذر حفظ الملف الشخصي (${res.exceptionOrNull()?.localizedMessage ?: "خطأ غير معروف"})"
-                            }
-                            if (role == AppRole.OWNER && currentActive.isNotBlank() && currentActive !in AgritechMockDb.deletedFarmIds) {
-                                AgritechMockDb.farms.firstOrNull { it.id == currentActive }?.let { farm ->
-                                    firestoreRepo?.saveFarmRecord(farm, AppRole.OWNER)
-                                }
-                            }
-                        }
+                    if (AgritechAuthHelper.isSignedIn() && AgritechAuthHelper.isUserFullyVerified()) {
+                        completeVerifiedAuthSession(role, linkedBarns)
                     } else if (cm != null) {
                         AgritechAuthHelper.onGoogleSignInClicked(
                             context = context,
                             credentialManager = cm,
                             onAuthSuccess = {
-                                authErrorBanner = null
-                                LocalFarmPersistence.restoreFromReloginArchiveIfNeeded(context)
-                                LocalFarmPersistence.loadIntoMockDb(context)
-                                val currentActive = sessionState.activeFarmId.takeIf {
-                                    it.isNotBlank() && it !in AgritechMockDb.deletedFarmIds &&
-                                        (role != AppRole.OWNER || AgritechMockDb.farms.any { f -> f.id == it })
-                                } ?: if (role == AppRole.OWNER) {
-                                    AgritechMockDb.farms.firstOrNull { it.id !in AgritechMockDb.deletedFarmIds }?.id.orEmpty()
-                                } else {
-                                    ""
-                                }
-                                sessionState.markAuthenticated(
-                                    context = context,
-                                    role = role,
-                                    linkedBarns = linkedBarns,
-                                    farmId = currentActive,
-                                    uid = AgritechAuthHelper.currentUserUid()
-                                )
-                                if (role == AppRole.WORKER && linkedBarns) {
-                                    sessionState.selectedFarmForWorker = AgritechMockDb.farms.firstOrNull { it.id == currentActive && it.id !in AgritechMockDb.deletedFarmIds }
-                                }
-                                scope.launch {
-                                    val res = firestoreRepo?.setUserRoleAndFarm(role, currentActive)
-                                    if (res != null && res.isFailure) {
-                                        authErrorBanner = "تنبيه السحابة: تعذر حفظ الملف الشخصي (${res.exceptionOrNull()?.localizedMessage ?: "خطأ غير معروف"})"
-                                    }
-                                    if (role == AppRole.OWNER && currentActive.isNotBlank() && currentActive !in AgritechMockDb.deletedFarmIds) {
-                                        AgritechMockDb.farms.firstOrNull { it.id == currentActive }?.let { farm ->
-                                            firestoreRepo?.saveFarmRecord(farm, AppRole.OWNER)
-                                        }
-                                    }
-                                }
+                                completeVerifiedAuthSession(role, linkedBarns)
                             },
                             onAuthError = { errMsg ->
-                                authErrorBanner = "تعذر تسجيل الدخول عبر Google ($errMsg). يرجى المصادقة للمتابعة."
+                                authErrorBanner = errMsg
                             },
                             scope = scope,
                             onAuthCancelled = {
-                                authErrorBanner = "تم إلغاء تسجيل الدخول. يجب المصادقة بحساب Google للوصول لبيانات المزرعة."
+                                authErrorBanner = Translations.tr("auth_err_cancelled", currentLanguage)
                             }
                         )
                     } else {
-                        authErrorBanner = "خدمة المصادقة غير متوفرة حالياً. يرجى تسجيل الدخول بحساب Google معتمد."
+                        authErrorBanner = Translations.tr("auth_err_generic", currentLanguage)
                     }
                 },
                 onOpenSettings = onOpenSettings
@@ -2579,27 +2604,124 @@ fun NeumorphicRecessedField(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+private data class DialCountryOption(
+    val countryCode: String,
+    val flag: String,
+    val dialCode: String,
+    val label: String
+)
+
+private val authDialCountries: List<DialCountryOption> = listOf(
+    DialCountryOption("DZ", "🇩🇿", "+213", "DZ +213"),
+    DialCountryOption("MA", "🇲🇦", "+212", "MA +212"),
+    DialCountryOption("TN", "🇹🇳", "+216", "TN +216"),
+    DialCountryOption("SA", "🇸🇦", "+966", "SA +966"),
+    DialCountryOption("EG", "🇪🇬", "+20", "EG +20"),
+    DialCountryOption("US", "🇺🇸", "+1", "US/CA +1"),
+    DialCountryOption("FR", "🇫🇷", "+33", "FR +33"),
+    DialCountryOption("ES", "🇪🇸", "+34", "ES +34"),
+    DialCountryOption("PT", "🇵🇹", "+351", "PT +351"),
+    DialCountryOption("BR", "🇧🇷", "+55", "BR +55"),
+    DialCountryOption("MX", "🇲🇽", "+52", "MX +52"),
+    DialCountryOption("CO", "🇨🇴", "+57", "CO +57"),
+    DialCountryOption("AR", "🇦🇷", "+54", "AR +54"),
+    DialCountryOption("TR", "🇹🇷", "+90", "TR +90"),
+    DialCountryOption("IN", "🇮🇳", "+91", "IN +91"),
+    DialCountryOption("ID", "🇮🇩", "+62", "ID +62"),
+    DialCountryOption("PK", "🇵🇰", "+92", "PK +92"),
+    DialCountryOption("KE", "🇰🇪", "+254", "KE +254"),
+    DialCountryOption("RU", "🇷🇺", "+7", "RU +7"),
+    DialCountryOption("CN", "🇨🇳", "+86", "CN +86"),
+    DialCountryOption("DE", "🇩🇪", "+49", "DE +49"),
+    DialCountryOption("IT", "🇮🇹", "+39", "IT +39")
+)
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun AgritechLoginScreen(
     currentTheme: AppThemeOption,
     lang: AppLanguage,
+    countryCode: String = "DZ",
     authErrorMessage: String? = null,
-    onLogin: (AppRole, Boolean) -> Unit,
+    onClearAuthError: () -> Unit = {},
+    onCompleteVerifiedSession: (AppRole, Boolean) -> Unit,
+    onGoogleSignInRequest: (AppRole, Boolean) -> Unit,
     onOpenSettings: () -> Unit
 ) {
+    val context = LocalContext.current
+    val activity = context as? Activity
     val appearance = LocalAppAppearanceState.current
     val isDark = currentTheme.isDark
     val activeAccent = appearance.accentColor
-    val pearlLoginBg = if (isDark) Color(0xFF0F172A) else Color(0xFFEEF2FA)
-    val loginCardShape = RoundedCornerShape(28.dp)
-    val squircleShape = RoundedCornerShape(24.dp)
+    val screenBg = if (isDark) Color(0xFF0F172A) else currentTheme.bgColor
+    val cardBg = if (isDark) Color(0xFF1E293B) else currentTheme.cardColor
+    val primaryText = if (isDark) Color.White else currentTheme.headingColor
+    val secondaryText = if (isDark) Color(0xFFCBD5E1) else Color(0xFF475569)
+    val softSurface = if (isDark) Color(0xFF0F172A) else activeAccent.copy(alpha = 0.08f)
+    val subtleBorder = if (isDark) Color.White.copy(alpha = 0.14f) else Color(0xFFD0DCE8)
+    val cardCorner = appearance.cornerRadiusDp.dp.coerceAtLeast(12.dp)
+    val controlCorner = (appearance.cornerRadiusDp * 0.75f).dp.coerceAtLeast(8.dp)
 
+    var selectedProviderTab by rememberSaveable { mutableStateOf(AuthProviderTab.GOOGLE) }
     var showQrScannerSheet by remember { mutableStateOf(false) }
     var showPrivacyPolicyModal by remember { mutableStateOf(false) }
-    var isLoginMorphing by remember { mutableStateOf(false) }
+    var isBusy by remember { mutableStateOf(false) }
+    var localError by remember { mutableStateOf<String?>(null) }
+    var localInfo by remember { mutableStateOf<String?>(null) }
     var cardEntered by remember { mutableStateOf(false) }
     val loginScope = rememberCoroutineScope()
+
+    // Email + Password state + Verification Gate state
+    var isEmailSignUpMode by rememberSaveable { mutableStateOf(false) }
+    var emailInput by rememberSaveable { mutableStateOf("") }
+    var passwordInput by rememberSaveable { mutableStateOf("") }
+    var confirmPasswordInput by rememberSaveable { mutableStateOf("") }
+    var passwordVisible by remember { mutableStateOf(false) }
+    var pendingVerificationEmail by rememberSaveable {
+        mutableStateOf(
+            if (AgritechAuthHelper.isEmailVerificationPending()) {
+                AgritechAuthHelper.currentUser()?.email.orEmpty()
+            } else {
+                ""
+            }
+        )
+    }
+    var resendCooldownSeconds by remember { mutableStateOf(0) }
+
+    // Phone Number + SMS OTP state
+    var selectedDialCountry by remember {
+        mutableStateOf(
+            authDialCountries.firstOrNull { it.countryCode.equals(countryCode, ignoreCase = true) }
+                ?: authDialCountries.first()
+        )
+    }
+    var dialDropdownExpanded by remember { mutableStateOf(false) }
+    var phoneInput by rememberSaveable { mutableStateOf("") }
+    var otpVerificationId by rememberSaveable { mutableStateOf<String?>(null) }
+    var otpResendToken by remember { mutableStateOf<PhoneAuthProvider.ForceResendingToken?>(null) }
+    var otpTargetE164 by rememberSaveable { mutableStateOf("") }
+    var otpCodeInput by rememberSaveable { mutableStateOf("") }
+    var otpCooldownSeconds by remember { mutableStateOf(0) }
+
+    LaunchedEffect(countryCode) {
+        authDialCountries.firstOrNull { it.countryCode.equals(countryCode, ignoreCase = true) }?.let {
+            selectedDialCountry = it
+        }
+    }
+
+    LaunchedEffect(resendCooldownSeconds) {
+        if (resendCooldownSeconds > 0) {
+            delay(1000L)
+            resendCooldownSeconds -= 1
+        }
+    }
+
+    LaunchedEffect(otpCooldownSeconds) {
+        if (otpCooldownSeconds > 0) {
+            delay(1000L)
+            otpCooldownSeconds -= 1
+        }
+    }
 
     if (showPrivacyPolicyModal) {
         PrivacyPolicyAndTermsModal(
@@ -2614,21 +2736,12 @@ fun AgritechLoginScreen(
     }
 
     val cardSlideOffsetY by animateDpAsState(
-        targetValue = if (cardEntered) 0.dp else 44.dp,
+        targetValue = if (cardEntered) 0.dp else 28.dp,
         animationSpec = spring(
             dampingRatio = Spring.DampingRatioLowBouncy,
             stiffness = Spring.StiffnessLow
         ),
         label = "login_card_spring_slide"
-    )
-
-    val loginBtnWidth by animateDpAsState(
-        targetValue = if (isLoginMorphing) 56.dp else 320.dp,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioLowBouncy,
-            stiffness = Spring.StiffnessMediumLow
-        ),
-        label = "login_btn_morph_width"
     )
 
     if (showQrScannerSheet) {
@@ -2638,270 +2751,1214 @@ fun AgritechLoginScreen(
             onDismiss = { showQrScannerSheet = false },
             onJoinRole = { joinedRole ->
                 showQrScannerSheet = false
-                onLogin(joinedRole, true)
+                if (AgritechAuthHelper.isSignedIn() && AgritechAuthHelper.isUserFullyVerified()) {
+                    onCompleteVerifiedSession(joinedRole, true)
+                } else {
+                    onGoogleSignInRequest(joinedRole, true)
+                }
             }
         )
     }
 
+    val activeErrorBanner = localError ?: authErrorMessage
+
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(pearlLoginBg)
-            .padding(24.dp),
-        contentAlignment = Alignment.Center
+            .background(screenBg)
+            .windowInsetsPadding(WindowInsets.safeDrawing)
     ) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopStart) {
-            IconButton(onClick = onOpenSettings) {
-                Icon(Icons.Default.Settings, contentDescription = "Settings", tint = currentTheme.headingColor)
-            }
-        }
-
         Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .offset(y = cardSlideOffsetY)
-                .verticalScroll(rememberScrollState()),
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp, vertical = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // 3D Neumorphic Squircle Badge for App Logo
-            val squircleBorderBrush = if (isDark) {
-                Brush.linearGradient(listOf(Color.White.copy(alpha = 0.35f), Color(0xFF1E293B)))
-            } else {
-                Brush.linearGradient(listOf(Color.White, Color(0xFFCBD5E1)))
-            }
-            val squircleSurfaceBrush = if (isDark) {
-                Brush.linearGradient(listOf(Color(0xFF1E293B), Color(0xFF0F172A)))
-            } else {
-                Brush.linearGradient(listOf(Color.White, Color(0xFFE6EEF8)))
-            }
-
-            Box(
+            // Top bar: Settings button with minimum 48.dp touch target
+            Row(
                 modifier = Modifier
-                    .size(78.dp)
-                    .shadow(
-                        elevation = 10.dp,
-                        shape = squircleShape,
-                        spotColor = Color(0xFF6B46FF).copy(alpha = 0.45f)
-                    )
-                    .clip(squircleShape)
-                    .background(brush = squircleSurfaceBrush, shape = squircleShape)
-                    .border(width = 1.5.dp, brush = squircleBorderBrush, shape = squircleShape),
-                contentAlignment = Alignment.Center
+                    .fillMaxWidth()
+                    .widthIn(max = 520.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    Icons.Default.Agriculture,
-                    contentDescription = null,
-                    tint = activeAccent,
-                    modifier = Modifier.size(40.dp)
-                )
+                Surface(
+                    shape = RoundedCornerShape(50),
+                    color = softSurface,
+                    border = BorderStroke(1.dp, activeAccent.copy(alpha = 0.25f))
+                ) {
+                    Text(
+                        text = "🌾 ${lang.label}",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = if (isDark) Color.White else activeAccent,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                    )
+                }
+
+                IconButton(
+                    onClick = onOpenSettings,
+                    modifier = Modifier
+                        .minimumInteractiveComponentSize()
+                        .testTag("btn_login_open_settings")
+                ) {
+                    Icon(
+                        Icons.Default.Settings,
+                        contentDescription = Translations.tr("settings_dialog_title", lang),
+                        tint = primaryText
+                    )
+                }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Clean Solid Agricultural Logo Badge (No Gradients)
+            Surface(
+                modifier = Modifier
+                    .size(76.dp)
+                    .offset(y = cardSlideOffsetY),
+                shape = RoundedCornerShape(cardCorner),
+                color = cardBg,
+                border = BorderStroke(1.5.dp, activeAccent.copy(alpha = 0.45f)),
+                shadowElevation = 6.dp
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        Icons.Default.Agriculture,
+                        contentDescription = Translations.tr("app_title", lang),
+                        tint = activeAccent,
+                        modifier = Modifier.size(38.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
 
             Text(
-                Translations.tr("app_title", lang),
+                text = Translations.tr("app_title", lang),
+                style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.ExtraBold,
-                fontSize = 22.sp,
-                color = if (isDark) Color.White else currentTheme.headingColor
+                color = primaryText,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(horizontal = 8.dp)
             )
+
+            Spacer(modifier = Modifier.height(4.dp))
 
             Text(
-                Translations.tr("app_subtitle", lang),
-                fontSize = 13.sp,
-                color = (if (isDark) Color(0xFFCBD5E1) else currentTheme.headingColor).copy(alpha = 0.85f)
+                text = "🐣 ${Translations.tr("app_subtitle", lang)}",
+                style = MaterialTheme.typography.bodyMedium,
+                color = secondaryText,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(horizontal = 12.dp)
             )
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
+            // Main Unified Solid Login & Verification Card
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .shadow(
-                        elevation = 12.dp,
-                        shape = loginCardShape,
-                        spotColor = Color(0xFF64748B).copy(alpha = 0.35f)
-                    )
+                    .widthIn(max = 520.dp)
+                    .offset(y = cardSlideOffsetY)
                     .testTag("login_spring_card"),
-                shape = loginCardShape,
-                colors = CardDefaults.cardColors(
-                    containerColor = if (isDark) Color(0xFF1E293B) else Color(0xFFF8FAFF)
-                ),
-                border = BorderStroke(
-                    1.2.dp,
-                    Brush.linearGradient(
-                        colors = if (isDark) {
-                            listOf(Color.White.copy(alpha = 0.22f), Color(0xFF0F172A))
-                        } else {
-                            listOf(Color.White, Color(0xFFD8E2F0))
-                        }
-                    )
-                ),
+                shape = RoundedCornerShape(cardCorner),
+                colors = CardDefaults.cardColors(containerColor = cardBg),
+                border = BorderStroke(1.dp, subtleBorder),
                 elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
             ) {
                 Column(
-                    modifier = Modifier.padding(24.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text(
-                        Translations.tr("login_title_owner", lang),
-                        fontWeight = FontWeight.ExtraBold,
-                        fontSize = 16.sp,
-                        color = if (isDark) Color.White else currentTheme.headingColor,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    Text(
-                        Translations.tr("app_subtitle", lang),
-                        fontSize = 13.sp,
-                        color = if (isDark) Color(0xFFCBD5E1) else Color(0xFF64748B),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    // 3D Luminous Capsule Login Button (Linear Gradient #43C6FF -> #6B46FF)
-                    val loginCapsuleShape = if (isLoginMorphing) CircleShape else RoundedCornerShape(50)
-                    val loginGradientBrush = Brush.linearGradient(
-                        colors = listOf(Color(0xFF43C6FF), Color(0xFF6B46FF))
-                    )
-                    val loginTopHighlight = Brush.verticalGradient(
-                        colors = listOf(Color.White.copy(alpha = 0.5f), Color.Transparent)
-                    )
-
-                    Box(
-                        modifier = Modifier
-                            .then(
-                                if (isLoginMorphing) Modifier.width(loginBtnWidth)
-                                else Modifier.fillMaxWidth()
-                            )
-                            .height(52.dp)
-                            .shadow(
-                                elevation = 9.dp,
-                                shape = loginCapsuleShape,
-                                spotColor = Color(0xFF6B46FF),
-                                ambientColor = Color(0xFF43C6FF)
-                            )
-                            .clip(loginCapsuleShape)
-                            .background(brush = loginGradientBrush, shape = loginCapsuleShape)
-                            .border(width = 1.dp, brush = loginTopHighlight, shape = loginCapsuleShape)
-                            .clickable {
-                                if (!isLoginMorphing) {
-                                    isLoginMorphing = true
-                                    onLogin(AppRole.OWNER, true)
-                                    loginScope.launch {
-                                        delay(350)
-                                        isLoginMorphing = false
-                                    }
-                                }
+                    if (pendingVerificationEmail.isNotBlank()) {
+                        // ====================================================
+                        // MANDATORY EMAIL VERIFICATION CONFIRMATION GATE
+                        // ====================================================
+                        Surface(
+                            shape = CircleShape,
+                            color = activeAccent.copy(alpha = 0.14f),
+                            modifier = Modifier.size(64.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    Icons.Default.MarkEmailUnread,
+                                    contentDescription = Translations.tr("auth_verify_email_title", lang),
+                                    tint = activeAccent,
+                                    modifier = Modifier.size(32.dp)
+                                )
                             }
-                            .testTag("btn_owner_login_morph"),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        AnimatedContent(
-                            targetState = isLoginMorphing,
-                            label = "login_btn_morph_content"
-                        ) { loading ->
-                            if (loading) {
+                        }
+
+                        Text(
+                            text = Translations.tr("auth_verify_email_title", lang),
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = primaryText,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        Surface(
+                            shape = RoundedCornerShape(controlCorner),
+                            color = softSurface,
+                            border = BorderStroke(1.dp, activeAccent.copy(alpha = 0.3f)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = pendingVerificationEmail,
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isDark) Color.White else activeAccent,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)
+                            )
+                        }
+
+                        Text(
+                            text = Translations.tr("auth_verify_email_subtitle", lang),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = secondaryText,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        Button(
+                            onClick = {
+                                if (!isBusy) {
+                                    isBusy = true
+                                    localError = null
+                                    localInfo = null
+                                    onClearAuthError()
+                                    AgritechAuthHelper.checkEmailVerificationStatus(
+                                        lang = lang,
+                                        scope = loginScope,
+                                        onVerified = {
+                                            isBusy = false
+                                            pendingVerificationEmail = ""
+                                            onCompleteVerifiedSession(AppRole.OWNER, true)
+                                        },
+                                        onStillPending = {
+                                            isBusy = false
+                                            localError = Translations.tr("auth_verify_still_pending", lang)
+                                        },
+                                        onError = { err ->
+                                            isBusy = false
+                                            localError = err
+                                        }
+                                    )
+                                }
+                            },
+                            enabled = !isBusy,
+                            shape = RoundedCornerShape(controlCorner),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = activeAccent,
+                                contentColor = Color.White
+                            ),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 50.dp)
+                                .testTag("btn_auth_check_verified")
+                        ) {
+                            if (isBusy) {
                                 CircularProgressIndicator(
                                     color = Color.White,
-                                    strokeWidth = 2.5.dp,
-                                    modifier = Modifier.size(22.dp)
+                                    strokeWidth = 2.dp,
+                                    modifier = Modifier.size(20.dp)
                                 )
                             } else {
                                 Text(
-                                    "${Translations.tr("login_btn", lang)} ➔",
-                                    fontWeight = FontWeight.ExtraBold,
-                                    fontSize = 15.sp,
-                                    color = Color.White,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.padding(horizontal = 16.dp)
+                                    text = Translations.tr("auth_btn_check_verified", lang),
+                                    style = MaterialTheme.typography.labelLarge,
+                                    textAlign = TextAlign.Center
                                 )
+                            }
+                        }
+
+                        OutlinedButton(
+                            onClick = {
+                                if (!isBusy && resendCooldownSeconds == 0) {
+                                    isBusy = true
+                                    localError = null
+                                    localInfo = null
+                                    AgritechAuthHelper.resendVerificationEmail(
+                                        lang = lang,
+                                        scope = loginScope,
+                                        onSent = {
+                                            isBusy = false
+                                            resendCooldownSeconds = 60
+                                            localInfo = Translations.tr("auth_verify_sent_success", lang)
+                                        },
+                                        onError = { err ->
+                                            isBusy = false
+                                            localError = err
+                                        }
+                                    )
+                                }
+                            },
+                            enabled = !isBusy && resendCooldownSeconds == 0,
+                            shape = RoundedCornerShape(controlCorner),
+                            border = BorderStroke(1.dp, activeAccent),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 48.dp)
+                                .testTag("btn_auth_resend_verification")
+                        ) {
+                            val label = Translations.tr("auth_btn_resend_verification", lang)
+                            Text(
+                                text = if (resendCooldownSeconds > 0) "$label (${resendCooldownSeconds}s)" else label,
+                                style = MaterialTheme.typography.labelLarge,
+                                color = if (isDark) Color.White else activeAccent,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+
+                        TextButton(
+                            onClick = {
+                                FirebaseAuth.getInstance().signOut()
+                                pendingVerificationEmail = ""
+                                localError = null
+                                localInfo = null
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .minimumInteractiveComponentSize()
+                                .testTag("btn_auth_switch_account")
+                        ) {
+                            Text(
+                                text = Translations.tr("auth_btn_switch_account", lang),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = secondaryText
+                            )
+                        }
+                    } else {
+                        // ====================================================
+                        // UNIFIED 4-PROVIDER AUTHENTICATION CARD
+                        // ====================================================
+                        Text(
+                            text = Translations.tr("login_title_owner", lang),
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = primaryText,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        Text(
+                            text = Translations.tr("auth_method_selector_label", lang),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = secondaryText,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        // 4 Responsive Provider Tabs (Google/Gmail, Email+Verify, Phone OTP, Social FB/X)
+                        FlowRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            val tabs = listOf(
+                                Triple(AuthProviderTab.GOOGLE, "G  ${Translations.tr("auth_tab_google", lang)}", "tab_auth_google"),
+                                Triple(AuthProviderTab.EMAIL, "✉️ ${Translations.tr("auth_tab_email", lang)}", "tab_auth_email"),
+                                Triple(AuthProviderTab.PHONE, "📱 ${Translations.tr("auth_tab_phone", lang)}", "tab_auth_phone"),
+                                Triple(AuthProviderTab.SOCIAL, "🌐 ${Translations.tr("auth_tab_social", lang)}", "tab_auth_social")
+                            )
+                            tabs.forEach { (tab, title, tag) ->
+                                val selected = selectedProviderTab == tab
+                                Surface(
+                                    shape = RoundedCornerShape(controlCorner),
+                                    color = if (selected) activeAccent else softSurface,
+                                    border = BorderStroke(
+                                        width = 1.dp,
+                                        color = if (selected) activeAccent else subtleBorder
+                                    ),
+                                    modifier = Modifier
+                                        .defaultMinSize(minHeight = 48.dp)
+                                        .clip(RoundedCornerShape(controlCorner))
+                                        .clickable {
+                                            selectedProviderTab = tab
+                                            localError = null
+                                            localInfo = null
+                                            onClearAuthError()
+                                        }
+                                        .testTag(tag)
+                                ) {
+                                    Box(
+                                        contentAlignment = Alignment.Center,
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)
+                                    ) {
+                                        Text(
+                                            text = title,
+                                            style = MaterialTheme.typography.labelMedium,
+                                            fontWeight = if (selected) FontWeight.ExtraBold else FontWeight.SemiBold,
+                                            color = if (selected) Color.White else primaryText,
+                                            maxLines = 1
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        when (selectedProviderTab) {
+                            AuthProviderTab.GOOGLE -> {
+                                // Primary Solid Button for Google / Gmail Quick Sign-In
+                                Button(
+                                    onClick = {
+                                        if (!isBusy) {
+                                            isBusy = true
+                                            localError = null
+                                            localInfo = null
+                                            onClearAuthError()
+                                            onGoogleSignInRequest(AppRole.OWNER, true)
+                                            loginScope.launch {
+                                                delay(450L)
+                                                isBusy = false
+                                            }
+                                        }
+                                    },
+                                    enabled = !isBusy,
+                                    shape = RoundedCornerShape(controlCorner),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = activeAccent,
+                                        contentColor = Color.White
+                                    ),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .heightIn(min = 52.dp)
+                                        .testTag("btn_owner_login_morph")
+                                ) {
+                                    if (isBusy) {
+                                        CircularProgressIndicator(
+                                            color = Color.White,
+                                            strokeWidth = 2.5.dp,
+                                            modifier = Modifier.size(22.dp)
+                                        )
+                                    } else {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.Center
+                                        ) {
+                                            Icon(
+                                                Icons.Default.AccountCircle,
+                                                contentDescription = null,
+                                                tint = Color.White,
+                                                modifier = Modifier.size(22.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text(
+                                                text = Translations.tr("auth_btn_google_quick", lang),
+                                                style = MaterialTheme.typography.labelLarge,
+                                                fontWeight = FontWeight.ExtraBold,
+                                                textAlign = TextAlign.Center
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            AuthProviderTab.EMAIL -> {
+                                // Toggle between Sign In & Create Account
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    listOf(
+                                        Triple(false, Translations.tr("auth_email_mode_signin", lang), "toggle_email_signin"),
+                                        Triple(true, Translations.tr("auth_email_mode_signup", lang), "toggle_email_signup")
+                                    ).forEach { (isSignUpOption, label, tag) ->
+                                        val isCurrent = isEmailSignUpMode == isSignUpOption
+                                        Surface(
+                                            shape = RoundedCornerShape(controlCorner),
+                                            color = if (isCurrent) activeAccent.copy(alpha = 0.16f) else Color.Transparent,
+                                            border = BorderStroke(
+                                                1.dp,
+                                                if (isCurrent) activeAccent else subtleBorder
+                                            ),
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .heightIn(min = 48.dp)
+                                                .clip(RoundedCornerShape(controlCorner))
+                                                .clickable {
+                                                    isEmailSignUpMode = isSignUpOption
+                                                    localError = null
+                                                    localInfo = null
+                                                }
+                                                .testTag(tag)
+                                        ) {
+                                            Box(
+                                                contentAlignment = Alignment.Center,
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 10.dp)
+                                            ) {
+                                                Text(
+                                                    text = label,
+                                                    style = MaterialTheme.typography.labelMedium,
+                                                    fontWeight = if (isCurrent) FontWeight.ExtraBold else FontWeight.Medium,
+                                                    color = if (isCurrent) (if (isDark) Color.White else activeAccent) else secondaryText,
+                                                    textAlign = TextAlign.Center
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+
+                                OutlinedTextField(
+                                    value = emailInput,
+                                    onValueChange = {
+                                        emailInput = it
+                                        localError = null
+                                    },
+                                    label = { Text(Translations.tr("auth_email_label", lang)) },
+                                    singleLine = true,
+                                    keyboardOptions = KeyboardOptions(
+                                        keyboardType = KeyboardType.Email,
+                                        imeAction = ImeAction.Next
+                                    ),
+                                    leadingIcon = {
+                                        Icon(Icons.Default.Email, contentDescription = null, tint = activeAccent)
+                                    },
+                                    shape = RoundedCornerShape(controlCorner),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .testTag("input_auth_email")
+                                )
+
+                                OutlinedTextField(
+                                    value = passwordInput,
+                                    onValueChange = {
+                                        passwordInput = it
+                                        localError = null
+                                    },
+                                    label = { Text(Translations.tr("auth_password_label", lang)) },
+                                    singleLine = true,
+                                    visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                                    keyboardOptions = KeyboardOptions(
+                                        keyboardType = KeyboardType.Password,
+                                        imeAction = if (isEmailSignUpMode) ImeAction.Next else ImeAction.Done
+                                    ),
+                                    leadingIcon = {
+                                        Icon(Icons.Default.Lock, contentDescription = null, tint = activeAccent)
+                                    },
+                                    trailingIcon = {
+                                        IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                                            Icon(
+                                                if (passwordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                                contentDescription = Translations.tr("auth_password_label", lang),
+                                                tint = secondaryText
+                                            )
+                                        }
+                                    },
+                                    shape = RoundedCornerShape(controlCorner),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .testTag("input_auth_password")
+                                )
+
+                                if (isEmailSignUpMode) {
+                                    OutlinedTextField(
+                                        value = confirmPasswordInput,
+                                        onValueChange = {
+                                            confirmPasswordInput = it
+                                            localError = null
+                                        },
+                                        label = { Text(Translations.tr("auth_confirm_password_label", lang)) },
+                                        singleLine = true,
+                                        visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                                        keyboardOptions = KeyboardOptions(
+                                            keyboardType = KeyboardType.Password,
+                                            imeAction = ImeAction.Done
+                                        ),
+                                        leadingIcon = {
+                                            Icon(Icons.Default.VerifiedUser, contentDescription = null, tint = activeAccent)
+                                        },
+                                        shape = RoundedCornerShape(controlCorner),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .testTag("input_auth_confirm_password")
+                                    )
+                                } else {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.End
+                                    ) {
+                                        TextButton(
+                                            onClick = {
+                                                localError = null
+                                                localInfo = null
+                                                if (!AgritechAuthHelper.isValidEmailAddress(emailInput)) {
+                                                    localError = Translations.tr("auth_err_invalid_email", lang)
+                                                } else if (!isBusy) {
+                                                    isBusy = true
+                                                    AgritechAuthHelper.sendPasswordResetEmail(
+                                                        email = emailInput,
+                                                        lang = lang,
+                                                        scope = loginScope,
+                                                        onSent = {
+                                                            isBusy = false
+                                                            localInfo = Translations.tr("auth_reset_email_sent", lang)
+                                                        },
+                                                        onError = { err ->
+                                                            isBusy = false
+                                                            localError = err
+                                                        }
+                                                    )
+                                                }
+                                            },
+                                            modifier = Modifier
+                                                .minimumInteractiveComponentSize()
+                                                .testTag("btn_auth_forgot_password")
+                                        ) {
+                                            Text(
+                                                text = Translations.tr("auth_btn_forgot_password", lang),
+                                                style = MaterialTheme.typography.labelMedium,
+                                                color = activeAccent
+                                            )
+                                        }
+                                    }
+                                }
+
+                                Button(
+                                    onClick = {
+                                        localError = null
+                                        localInfo = null
+                                        onClearAuthError()
+                                        when {
+                                            !AgritechAuthHelper.isValidEmailAddress(emailInput) -> {
+                                                localError = Translations.tr("auth_err_invalid_email", lang)
+                                            }
+                                            passwordInput.length < 6 -> {
+                                                localError = Translations.tr("auth_err_password_short", lang)
+                                            }
+                                            isEmailSignUpMode && passwordInput != confirmPasswordInput -> {
+                                                localError = Translations.tr("auth_err_password_mismatch", lang)
+                                            }
+                                            !isBusy -> {
+                                                isBusy = true
+                                                AgritechAuthHelper.signInWithEmailPassword(
+                                                    email = emailInput,
+                                                    password = passwordInput,
+                                                    isSignUp = isEmailSignUpMode,
+                                                    lang = lang,
+                                                    scope = loginScope,
+                                                    onVerifiedSuccess = {
+                                                        isBusy = false
+                                                        onCompleteVerifiedSession(AppRole.OWNER, true)
+                                                    },
+                                                    onVerificationRequired = { emailAddr ->
+                                                        isBusy = false
+                                                        resendCooldownSeconds = 60
+                                                        pendingVerificationEmail = emailAddr
+                                                        localInfo = Translations.tr("auth_verify_sent_success", lang)
+                                                    },
+                                                    onError = { err ->
+                                                        isBusy = false
+                                                        localError = err
+                                                    }
+                                                )
+                                            }
+                                        }
+                                    },
+                                    enabled = !isBusy,
+                                    shape = RoundedCornerShape(controlCorner),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = activeAccent,
+                                        contentColor = Color.White
+                                    ),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .heightIn(min = 52.dp)
+                                        .testTag("btn_auth_email_submit")
+                                ) {
+                                    if (isBusy) {
+                                        CircularProgressIndicator(
+                                            color = Color.White,
+                                            strokeWidth = 2.dp,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    } else {
+                                        Text(
+                                            text = if (isEmailSignUpMode) {
+                                                Translations.tr("auth_btn_create_email", lang)
+                                            } else {
+                                                Translations.tr("auth_btn_signin_email", lang)
+                                            },
+                                            style = MaterialTheme.typography.labelLarge,
+                                            textAlign = TextAlign.Center
+                                        )
+                                    }
+                                }
+                            }
+
+                            AuthProviderTab.PHONE -> {
+                                if (otpVerificationId == null) {
+                                    // Step 1: Country Dial Code + Phone Number Input
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Box {
+                                            OutlinedButton(
+                                                onClick = { dialDropdownExpanded = true },
+                                                shape = RoundedCornerShape(controlCorner),
+                                                border = BorderStroke(1.dp, subtleBorder),
+                                                modifier = Modifier
+                                                    .heightIn(min = 56.dp)
+                                                    .testTag("btn_auth_country_dial")
+                                            ) {
+                                                Text(
+                                                    text = "${selectedDialCountry.flag} ${selectedDialCountry.dialCode}",
+                                                    style = MaterialTheme.typography.labelLarge,
+                                                    color = primaryText
+                                                )
+                                                Icon(
+                                                    Icons.Default.ArrowDropDown,
+                                                    contentDescription = Translations.tr("auth_phone_country_code_label", lang),
+                                                    tint = primaryText
+                                                )
+                                            }
+                                            DropdownMenu(
+                                                expanded = dialDropdownExpanded,
+                                                onDismissRequest = { dialDropdownExpanded = false }
+                                            ) {
+                                                authDialCountries.forEach { option ->
+                                                    DropdownMenuItem(
+                                                        text = { Text("${option.flag} ${option.label}") },
+                                                        onClick = {
+                                                            selectedDialCountry = option
+                                                            dialDropdownExpanded = false
+                                                        }
+                                                    )
+                                                }
+                                            }
+                                        }
+
+                                        OutlinedTextField(
+                                            value = phoneInput,
+                                            onValueChange = { raw ->
+                                                phoneInput = raw.filter { it.isDigit() || it == '+' || it == ' ' }
+                                                localError = null
+                                            },
+                                            label = { Text(Translations.tr("auth_phone_number_label", lang)) },
+                                            placeholder = { Text("550 12 34 56") },
+                                            singleLine = true,
+                                            keyboardOptions = KeyboardOptions(
+                                                keyboardType = KeyboardType.Phone,
+                                                imeAction = ImeAction.Done
+                                            ),
+                                            shape = RoundedCornerShape(controlCorner),
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .testTag("input_auth_phone")
+                                        )
+                                    }
+
+                                    Button(
+                                        onClick = {
+                                            localError = null
+                                            localInfo = null
+                                            onClearAuthError()
+                                            val normalized = AgritechAuthHelper.formatNormalizedIdentifier(
+                                                phoneInput,
+                                                selectedDialCountry.dialCode
+                                            )
+                                            if (phoneInput.isBlank() || !AgritechAuthHelper.isValidE164PhoneNumber(normalized)) {
+                                                localError = Translations.tr("auth_err_invalid_phone", lang)
+                                            } else if (activity == null) {
+                                                localError = Translations.tr("auth_err_generic", lang)
+                                            } else if (!isBusy) {
+                                                isBusy = true
+                                                otpTargetE164 = normalized
+                                                AgritechAuthHelper.sendPhoneVerificationCode(
+                                                    activity = activity,
+                                                    e164Phone = normalized,
+                                                    resendToken = otpResendToken,
+                                                    lang = lang,
+                                                    scope = loginScope,
+                                                    onCodeSent = { verId, token ->
+                                                        isBusy = false
+                                                        otpVerificationId = verId
+                                                        otpResendToken = token
+                                                        otpCooldownSeconds = 60
+                                                        localInfo = "${Translations.tr("auth_otp_sent_notice", lang)} ($normalized)"
+                                                    },
+                                                    onAutoVerified = {
+                                                        isBusy = false
+                                                        onCompleteVerifiedSession(AppRole.OWNER, true)
+                                                    },
+                                                    onError = { err ->
+                                                        isBusy = false
+                                                        localError = err
+                                                    }
+                                                )
+                                            }
+                                        },
+                                        enabled = !isBusy,
+                                        shape = RoundedCornerShape(controlCorner),
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = activeAccent,
+                                            contentColor = Color.White
+                                        ),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .heightIn(min = 52.dp)
+                                            .testTag("btn_auth_send_otp")
+                                    ) {
+                                        if (isBusy) {
+                                            CircularProgressIndicator(
+                                                color = Color.White,
+                                                strokeWidth = 2.dp,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        } else {
+                                            Text(
+                                                text = Translations.tr("auth_btn_send_otp", lang),
+                                                style = MaterialTheme.typography.labelLarge,
+                                                textAlign = TextAlign.Center
+                                            )
+                                        }
+                                    }
+                                } else {
+                                    // Step 2: 6-Digit SMS OTP Code Confirmation
+                                    Surface(
+                                        shape = RoundedCornerShape(controlCorner),
+                                        color = softSurface,
+                                        border = BorderStroke(1.dp, activeAccent.copy(alpha = 0.25f)),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Text(
+                                            text = "${Translations.tr("auth_otp_sent_notice", lang)}: $otpTargetE164",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = primaryText,
+                                            textAlign = TextAlign.Center,
+                                            modifier = Modifier.padding(10.dp)
+                                        )
+                                    }
+
+                                    OutlinedTextField(
+                                        value = otpCodeInput,
+                                        onValueChange = { raw ->
+                                            val digits = raw.filter { it.isDigit() }.take(6)
+                                            otpCodeInput = digits
+                                            localError = null
+                                        },
+                                        label = { Text(Translations.tr("auth_otp_code_label", lang)) },
+                                        singleLine = true,
+                                        keyboardOptions = KeyboardOptions(
+                                            keyboardType = KeyboardType.NumberPassword,
+                                            imeAction = ImeAction.Done
+                                        ),
+                                        leadingIcon = {
+                                            Icon(Icons.Default.Sms, contentDescription = null, tint = activeAccent)
+                                        },
+                                        shape = RoundedCornerShape(controlCorner),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .testTag("input_auth_otp_code")
+                                    )
+
+                                    Button(
+                                        onClick = {
+                                            val verId = otpVerificationId
+                                            localError = null
+                                            if (verId.isNullOrBlank() || otpCodeInput.length != 6) {
+                                                localError = Translations.tr("auth_err_invalid_otp", lang)
+                                            } else if (!isBusy) {
+                                                isBusy = true
+                                                AgritechAuthHelper.verifyPhoneOtpCode(
+                                                    verificationId = verId,
+                                                    smsCode = otpCodeInput,
+                                                    lang = lang,
+                                                    scope = loginScope,
+                                                    onSuccess = {
+                                                        isBusy = false
+                                                        onCompleteVerifiedSession(AppRole.OWNER, true)
+                                                    },
+                                                    onError = { err ->
+                                                        isBusy = false
+                                                        localError = err
+                                                    }
+                                                )
+                                            }
+                                        },
+                                        enabled = !isBusy,
+                                        shape = RoundedCornerShape(controlCorner),
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = activeAccent,
+                                            contentColor = Color.White
+                                        ),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .heightIn(min = 52.dp)
+                                            .testTag("btn_auth_verify_otp")
+                                    ) {
+                                        if (isBusy) {
+                                            CircularProgressIndicator(
+                                                color = Color.White,
+                                                strokeWidth = 2.dp,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        } else {
+                                            Text(
+                                                text = Translations.tr("auth_btn_verify_otp", lang),
+                                                style = MaterialTheme.typography.labelLarge
+                                            )
+                                        }
+                                    }
+
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        TextButton(
+                                            onClick = {
+                                                otpVerificationId = null
+                                                otpCodeInput = ""
+                                                localError = null
+                                                localInfo = null
+                                            },
+                                            modifier = Modifier.minimumInteractiveComponentSize()
+                                        ) {
+                                            Text(
+                                                text = Translations.tr("auth_btn_change_phone", lang),
+                                                style = MaterialTheme.typography.labelMedium,
+                                                color = secondaryText
+                                            )
+                                        }
+
+                                        TextButton(
+                                            onClick = {
+                                                if (!isBusy && otpCooldownSeconds == 0 && activity != null && otpTargetE164.isNotBlank()) {
+                                                    isBusy = true
+                                                    AgritechAuthHelper.sendPhoneVerificationCode(
+                                                        activity = activity,
+                                                        e164Phone = otpTargetE164,
+                                                        resendToken = otpResendToken,
+                                                        lang = lang,
+                                                        scope = loginScope,
+                                                        onCodeSent = { verId, token ->
+                                                            isBusy = false
+                                                            otpVerificationId = verId
+                                                            otpResendToken = token
+                                                            otpCooldownSeconds = 60
+                                                        },
+                                                        onAutoVerified = {
+                                                            isBusy = false
+                                                            onCompleteVerifiedSession(AppRole.OWNER, true)
+                                                        },
+                                                        onError = { err ->
+                                                            isBusy = false
+                                                            localError = err
+                                                        }
+                                                    )
+                                                }
+                                            },
+                                            enabled = !isBusy && otpCooldownSeconds == 0,
+                                            modifier = Modifier.minimumInteractiveComponentSize()
+                                        ) {
+                                            val resendTxt = Translations.tr("auth_btn_resend_verification", lang)
+                                            Text(
+                                                text = if (otpCooldownSeconds > 0) "$resendTxt (${otpCooldownSeconds}s)" else resendTxt,
+                                                style = MaterialTheme.typography.labelMedium,
+                                                color = activeAccent
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            AuthProviderTab.SOCIAL -> {
+                                // Social Networks (Facebook + X) dedicated tab
+                                Text(
+                                    text = Translations.tr("auth_social_note", lang),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = secondaryText,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+
+                                Button(
+                                    onClick = {
+                                        localError = null
+                                        localInfo = null
+                                        onClearAuthError()
+                                        if (activity == null) {
+                                            localError = Translations.tr("auth_err_generic", lang)
+                                        } else if (!isBusy) {
+                                            isBusy = true
+                                            AgritechAuthHelper.signInWithOAuthProvider(
+                                                activity = activity,
+                                                providerId = "facebook.com",
+                                                lang = lang,
+                                                onSuccess = {
+                                                    isBusy = false
+                                                    onCompleteVerifiedSession(AppRole.OWNER, true)
+                                                },
+                                                onError = { err ->
+                                                    isBusy = false
+                                                    localError = err
+                                                }
+                                            )
+                                        }
+                                    },
+                                    enabled = !isBusy,
+                                    shape = RoundedCornerShape(controlCorner),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = Color(0xFF1877F2),
+                                        contentColor = Color.White
+                                    ),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .heightIn(min = 50.dp)
+                                        .testTag("btn_login_facebook_tab")
+                                ) {
+                                    Text(
+                                        text = "f   ${Translations.tr("auth_btn_facebook", lang)}",
+                                        style = MaterialTheme.typography.labelLarge,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+
+                                Button(
+                                    onClick = {
+                                        localError = null
+                                        localInfo = null
+                                        onClearAuthError()
+                                        if (activity == null) {
+                                            localError = Translations.tr("auth_err_generic", lang)
+                                        } else if (!isBusy) {
+                                            isBusy = true
+                                            AgritechAuthHelper.signInWithOAuthProvider(
+                                                activity = activity,
+                                                providerId = "twitter.com",
+                                                lang = lang,
+                                                onSuccess = {
+                                                    isBusy = false
+                                                    onCompleteVerifiedSession(AppRole.OWNER, true)
+                                                },
+                                                onError = { err ->
+                                                    isBusy = false
+                                                    localError = err
+                                                }
+                                            )
+                                        }
+                                    },
+                                    enabled = !isBusy,
+                                    shape = RoundedCornerShape(controlCorner),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = if (isDark) Color(0xFF0F172A) else Color(0xFF111827),
+                                        contentColor = Color.White
+                                    ),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .heightIn(min = 50.dp)
+                                        .testTag("btn_login_x_tab")
+                                ) {
+                                    Text(
+                                        text = "𝕏   ${Translations.tr("auth_btn_x", lang)}",
+                                        style = MaterialTheme.typography.labelLarge,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+
+                        // Always-visible Social Quick Row (Facebook + X) on non-Social tabs so all 4 providers are 1-tap discoverable
+                        if (selectedProviderTab != AuthProviderTab.SOCIAL) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                HorizontalDivider(modifier = Modifier.weight(1f), color = subtleBorder)
+                                Text(
+                                    text = Translations.tr("auth_social_or_divider", lang),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = secondaryText,
+                                    modifier = Modifier.padding(horizontal = 10.dp)
+                                )
+                                HorizontalDivider(modifier = Modifier.weight(1f), color = subtleBorder)
+                            }
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Button(
+                                    onClick = {
+                                        localError = null
+                                        localInfo = null
+                                        onClearAuthError()
+                                        if (activity == null) {
+                                            localError = Translations.tr("auth_err_generic", lang)
+                                        } else if (!isBusy) {
+                                            isBusy = true
+                                            AgritechAuthHelper.signInWithOAuthProvider(
+                                                activity = activity,
+                                                providerId = "facebook.com",
+                                                lang = lang,
+                                                onSuccess = {
+                                                    isBusy = false
+                                                    onCompleteVerifiedSession(AppRole.OWNER, true)
+                                                },
+                                                onError = { err ->
+                                                    isBusy = false
+                                                    localError = err
+                                                }
+                                            )
+                                        }
+                                    },
+                                    enabled = !isBusy,
+                                    shape = RoundedCornerShape(controlCorner),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = Color(0xFF1877F2),
+                                        contentColor = Color.White
+                                    ),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .heightIn(min = 48.dp)
+                                        .testTag("btn_login_facebook")
+                                ) {
+                                    Text(
+                                        text = "f  Facebook",
+                                        style = MaterialTheme.typography.labelLarge,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+
+                                Button(
+                                    onClick = {
+                                        localError = null
+                                        localInfo = null
+                                        onClearAuthError()
+                                        if (activity == null) {
+                                            localError = Translations.tr("auth_err_generic", lang)
+                                        } else if (!isBusy) {
+                                            isBusy = true
+                                            AgritechAuthHelper.signInWithOAuthProvider(
+                                                activity = activity,
+                                                providerId = "twitter.com",
+                                                lang = lang,
+                                                onSuccess = {
+                                                    isBusy = false
+                                                    onCompleteVerifiedSession(AppRole.OWNER, true)
+                                                },
+                                                onError = { err ->
+                                                    isBusy = false
+                                                    localError = err
+                                                }
+                                            )
+                                        }
+                                    },
+                                    enabled = !isBusy,
+                                    shape = RoundedCornerShape(controlCorner),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = if (isDark) Color(0xFF0F172A) else Color(0xFF111827),
+                                        contentColor = Color.White
+                                    ),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .heightIn(min = 48.dp)
+                                        .testTag("btn_login_x")
+                                ) {
+                                    Text(
+                                        text = "𝕏  X",
+                                        style = MaterialTheme.typography.labelLarge,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
                             }
                         }
                     }
 
-                    if (authErrorMessage != null) {
+                    // Info & Error Banners
+                    if (!localInfo.isNullOrBlank()) {
                         Surface(
-                            shape = RoundedCornerShape(18.dp),
-                            color = Color(0xFFFFEBEE),
-                            border = BorderStroke(1.dp, ActionRed.copy(alpha = 0.4f)),
+                            shape = RoundedCornerShape(controlCorner),
+                            color = activeAccent.copy(alpha = 0.14f),
+                            border = BorderStroke(1.dp, activeAccent.copy(alpha = 0.45f)),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("login_auth_info_banner")
+                        ) {
+                            Text(
+                                text = localInfo!!,
+                                color = if (isDark) Color.White else activeAccent,
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.padding(12.dp)
+                            )
+                        }
+                    }
+
+                    if (!activeErrorBanner.isNullOrBlank()) {
+                        Surface(
+                            shape = RoundedCornerShape(controlCorner),
+                            color = if (isDark) Color(0xFF3F1D24) else Color(0xFFFFEBEE),
+                            border = BorderStroke(1.dp, ActionRed.copy(alpha = 0.45f)),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .testTag("login_auth_error_banner")
                         ) {
                             Text(
-                                text = authErrorMessage,
-                                color = ActionRed,
-                                fontSize = 12.sp,
+                                text = activeErrorBanner,
+                                color = if (isDark) Color(0xFFFCA5A5) else ActionRed,
+                                style = MaterialTheme.typography.bodySmall,
                                 fontWeight = FontWeight.SemiBold,
-                                modifier = Modifier.padding(10.dp)
+                                modifier = Modifier.padding(12.dp)
                             )
                         }
                     }
 
-                    // Soft Raised Neumorphic Capsule for QR Scan Join ("📷 مسح رمز الانضمام")
-                    val qrCapsuleShape = RoundedCornerShape(50)
-                    val qrRaisedBrush = if (isDark) {
-                        Brush.verticalGradient(listOf(Color(0xFF26354D), Color(0xFF162032)))
-                    } else {
-                        Brush.verticalGradient(listOf(Color.White, Color(0xFFE6EEF8)))
-                    }
-                    val qrBevelBorder = if (isDark) {
-                        Brush.linearGradient(listOf(Color.White.copy(alpha = 0.25f), Color(0xFF0F172A)))
-                    } else {
-                        Brush.linearGradient(listOf(Color.White, Color(0xFFCBD5E1)))
-                    }
-
-                    Box(
+                    // QR Scan Join Action (Solid Clean Surface, Minimum 48.dp Touch Target)
+                    OutlinedButton(
+                        onClick = { showQrScannerSheet = true },
+                        shape = RoundedCornerShape(controlCorner),
+                        border = BorderStroke(1.2.dp, subtleBorder),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = softSurface,
+                            contentColor = if (isDark) Color.White else activeAccent
+                        ),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(50.dp)
-                            .shadow(
-                                elevation = 5.dp,
-                                shape = qrCapsuleShape,
-                                spotColor = Color(0xFF64748B)
-                            )
-                            .clip(qrCapsuleShape)
-                            .background(brush = qrRaisedBrush, shape = qrCapsuleShape)
-                            .border(width = 1.2.dp, brush = qrBevelBorder, shape = qrCapsuleShape)
-                            .clickable { showQrScannerSheet = true }
-                            .testTag("btn_scan_qr_join"),
-                        contentAlignment = Alignment.Center
+                            .heightIn(min = 50.dp)
+                            .testTag("btn_scan_qr_join")
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.Center,
-                            modifier = Modifier.padding(horizontal = 16.dp)
-                        ) {
-                            Icon(
-                                Icons.Default.QrCodeScanner,
-                                contentDescription = Translations.tr("btn_scan_qr_join", lang),
-                                tint = activeAccent,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                Translations.tr("btn_scan_qr_join", lang),
-                                fontWeight = FontWeight.ExtraBold,
-                                fontSize = 14.sp,
-                                color = if (isDark) Color.White else activeAccent,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
+                        Icon(
+                            Icons.Default.QrCodeScanner,
+                            contentDescription = Translations.tr("btn_scan_qr_join", lang),
+                            tint = activeAccent,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = Translations.tr("btn_scan_qr_join", lang),
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isDark) Color.White else activeAccent,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     }
-
-                    Spacer(modifier = Modifier.height(6.dp))
 
                     TextButton(
                         onClick = { showPrivacyPolicyModal = true },
                         modifier = Modifier
                             .fillMaxWidth()
+                            .minimumInteractiveComponentSize()
                             .testTag("btn_login_privacy_policy")
                     ) {
                         Text(
-                            "🔒 سياسة الخصوصية وشروط الاستخدام",
-                            fontSize = 12.5.sp,
+                            text = Translations.tr("login_privacy_terms_btn", lang),
+                            style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.Bold,
                             color = activeAccent,
                             textAlign = TextAlign.Center
@@ -3134,15 +4191,17 @@ fun AgritechOwnerDashboard(
     Scaffold(
         containerColor = currentTheme.bgColor,
         topBar = {
+            var showTopBarOverflowMenu by remember { mutableStateOf(false) }
             TopAppBar(
                 title = {
                     Column {
                         Text(
                             Translations.tr("farms_title", lang),
+                            style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 15.5.sp,
                             color = primaryTextColor,
-                            maxLines = 1
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                         Text(
                             when (activeRole.normalizedHubRole) {
@@ -3155,38 +4214,19 @@ fun AgritechOwnerDashboard(
                                 AppRole.VET_IMPORTER -> Translations.tr("role_badge_vet_importer", lang)
                                 else -> Translations.tr("role_badge_owner_barn", lang)
                             },
-                            fontSize = 11.5.sp,
+                            style = MaterialTheme.typography.labelSmall,
                             color = secondaryTextColor,
-                            maxLines = 1
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 },
                 actions = {
-                    if (!hasLinkedBarns) {
-                        IconButton(
-                            onClick = onTapNewBarnOrCycle,
-                            modifier = Modifier.testTag("btn_create_farm_unlock_barns")
-                        ) {
-                            Icon(
-                                Icons.Default.AddHome,
-                                contentDescription = "+ إنشاء مزرعة 🏠",
-                                tint = primaryTextColor
-                            )
-                        }
-                    }
-                    IconButton(
-                        onClick = { showQrJoinSheetFromDashboard = true },
-                        modifier = Modifier.testTag("btn_dashboard_qr_join")
-                    ) {
-                        Icon(
-                            Icons.Default.QrCodeScanner,
-                            contentDescription = Translations.tr("btn_scan_qr_join", lang),
-                            tint = primaryTextColor
-                        )
-                    }
                     IconButton(
                         onClick = { showGeneralChatSheet = true },
-                        modifier = Modifier.testTag("btn_general_admin_chat")
+                        modifier = Modifier
+                            .minimumInteractiveComponentSize()
+                            .testTag("btn_general_admin_chat")
                     ) {
                         Icon(
                             Icons.Default.Chat,
@@ -3194,11 +4234,92 @@ fun AgritechOwnerDashboard(
                             tint = primaryTextColor
                         )
                     }
-                    IconButton(onClick = onOpenSettings) {
-                        Icon(Icons.Default.Settings, contentDescription = "Settings", tint = primaryTextColor)
-                    }
-                    IconButton(onClick = onLogout) {
-                        Icon(Icons.Default.Logout, contentDescription = "Logout", tint = primaryTextColor)
+                    Box {
+                        IconButton(
+                            onClick = { showTopBarOverflowMenu = true },
+                            modifier = Modifier
+                                .minimumInteractiveComponentSize()
+                                .testTag("btn_dashboard_more_menu")
+                        ) {
+                            Icon(
+                                Icons.Default.MoreVert,
+                                contentDescription = Translations.tr("menu_more_actions", lang),
+                                tint = primaryTextColor
+                            )
+                        }
+                        DropdownMenu(
+                            expanded = showTopBarOverflowMenu,
+                            onDismissRequest = { showTopBarOverflowMenu = false }
+                        ) {
+                            if (!hasLinkedBarns) {
+                                DropdownMenuItem(
+                                    text = { Text(Translations.tr("menu_create_farm", lang)) },
+                                    leadingIcon = {
+                                        Icon(
+                                            Icons.Default.AddHome,
+                                            contentDescription = null,
+                                            tint = accentEmerald
+                                        )
+                                    },
+                                    onClick = {
+                                        showTopBarOverflowMenu = false
+                                        onTapNewBarnOrCycle()
+                                    },
+                                    modifier = Modifier.testTag("btn_create_farm_unlock_barns")
+                                )
+                            }
+                            DropdownMenuItem(
+                                text = { Text(Translations.tr("btn_scan_qr_join", lang)) },
+                                leadingIcon = {
+                                    Icon(
+                                        Icons.Default.QrCodeScanner,
+                                        contentDescription = null,
+                                        tint = accentEmerald
+                                    )
+                                },
+                                onClick = {
+                                    showTopBarOverflowMenu = false
+                                    showQrJoinSheetFromDashboard = true
+                                },
+                                modifier = Modifier.testTag("btn_dashboard_qr_join")
+                            )
+                            DropdownMenuItem(
+                                text = { Text(Translations.tr("settings_dialog_title", lang)) },
+                                leadingIcon = {
+                                    Icon(
+                                        Icons.Default.Settings,
+                                        contentDescription = null,
+                                        tint = primaryTextColor
+                                    )
+                                },
+                                onClick = {
+                                    showTopBarOverflowMenu = false
+                                    onOpenSettings()
+                                },
+                                modifier = Modifier.testTag("btn_dashboard_settings_menu")
+                            )
+                            HorizontalDivider()
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        Translations.tr("menu_logout", lang),
+                                        color = ActionRed
+                                    )
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        Icons.Default.Logout,
+                                        contentDescription = null,
+                                        tint = ActionRed
+                                    )
+                                },
+                                onClick = {
+                                    showTopBarOverflowMenu = false
+                                    onLogout()
+                                },
+                                modifier = Modifier.testTag("btn_dashboard_logout_menu")
+                            )
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = currentTheme.bgColor)
@@ -3396,6 +4517,7 @@ fun AgritechOwnerDashboard(
                         posts = AgritechMockDb.visibleMarketPosts(),
                         currentTheme = currentTheme,
                         lang = lang,
+                        firestoreRepo = firestoreRepo,
                         onContactPublisher = { post ->
                             val matchedConv = AgritechMockDb.chatConversations.firstOrNull {
                                 it.id == post.chatChannelId
@@ -6016,6 +7138,7 @@ fun ChatDetailScreen(
     if (showUgcReportDialog) {
         UgcReportReasonDialog(
             currentTheme = currentTheme,
+            lang = lang,
             onDismiss = { showUgcReportDialog = false },
             onConfirmReport = { reason ->
                 showUgcReportDialog = false
@@ -6026,7 +7149,7 @@ fun ChatDetailScreen(
                     context = context,
                     firestoreRepo = firestoreRepo
                 )
-                ugcReportConfirmationBanner = "تم استلام بلاغك وإخفاء المحتوى، ستتم مراجعته خلال 24 ساعة"
+                ugcReportConfirmationBanner = Translations.tr("ugc_report_received_banner", lang)
                 scope.launch {
                     firestoreRepo?.submitUgcReportToCloud(
                         itemId = conversation.id,
@@ -6162,7 +7285,7 @@ fun ChatDetailScreen(
                         border = BorderStroke(1.dp, Color(0xFFF59E0B).copy(alpha = 0.45f))
                     ) {
                         Text(
-                            "🚩 إبلاغ",
+                            Translations.tr("ugc_report_short_btn", lang),
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
                             fontSize = 10.sp,
                             fontWeight = FontWeight.ExtraBold,
@@ -6190,7 +7313,7 @@ fun ChatDetailScreen(
                         border = BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha = 0.45f))
                     ) {
                         Text(
-                            "🚫 حظر",
+                            Translations.tr("ugc_block_short_btn", lang),
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
                             fontSize = 10.sp,
                             fontWeight = FontWeight.ExtraBold,
@@ -6208,15 +7331,15 @@ fun ChatDetailScreen(
                     .padding(horizontal = 12.dp, vertical = 6.dp)
                     .testTag("ugc_report_confirmation_banner"),
                 shape = RoundedCornerShape(10.dp),
-                color = Color(0xFFECFDF5),
-                border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.45f))
+                color = appearance.accentContainerColor,
+                border = BorderStroke(1.dp, activeAccent.copy(alpha = 0.45f))
             ) {
                 Text(
                     bannerMsg,
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                     fontSize = 11.5.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF065F46)
+                    color = if (isDark) Color.White else activeAccent
                 )
             }
         }
@@ -6513,25 +7636,33 @@ fun UniversalFinancialRequestDialog(
                     val amt = (amountText.toDoubleOrNull() ?: 0.0).coerceAtLeast(0.0)
                     if (amt > 0.0) {
                         val chosenCat = categories[selectedCatIdx]
+                        val firestoreCategory = if (selectedCatIdx == 4) "MEDICATION" else chosenCat
+                        val finalNote = if (selectedCatIdx == 4) {
+                            listOf(chosenCat, noteText.trim()).filter { it.isNotBlank() }.joinToString(" • ")
+                        } else {
+                            noteText.trim()
+                        }
                         val txId = "tx_req_${farm.id}_${cycle.id}_$dialogIdempotencyUuid"
                         val pendingTx = TransactionModel(
                             id = txId,
                             farmId = farm.id,
                             cycleId = cycle.id,
                             type = TransactionType.EXPENSE,
-                            category = chosenCat,
+                            category = firestoreCategory,
                             amount = amt,
                             currency = curr,
                             date = "${Translations.tr("day_prefix", lang)} $dayNumber",
-                            status = "PENDING"
+                            status = "PENDING",
+                            notes = finalNote
                         )
                         val chatMsg = AgritechMockDb.recordUniversalFinancialRequest(
                             tx = pendingTx,
-                            noteText = noteText.trim(),
+                            noteText = finalNote,
                             senderId = "contact_${channelId}",
                             senderName = senderName,
                             senderRole = senderRole,
-                            chatChannelId = channelId
+                            chatChannelId = channelId,
+                            displayCategory = chosenCat
                         )
                         if (firestoreRepo != null) {
                             scope.launch {
@@ -6539,7 +7670,7 @@ fun UniversalFinancialRequestDialog(
                                     idempotencyKey = txId,
                                     tx = pendingTx
                                 )
-                                firestoreRepo.sendChatMessage(chatMsg)
+                                firestoreRepo.sendChatMessage(chatMsg, farmIdHint = farm.id)
                             }
                         }
                         onOrderSubmitted?.invoke(amt, chosenCat, noteText.trim())
@@ -6645,9 +7776,11 @@ fun MarketFeedScreen(
     firestoreRepo: AgritechFirestoreRepository? = null,
     onContactPublisher: (MarketPostModel) -> Unit
 ) {
+    val appearance = LocalAppAppearanceState.current
     var ugcFeedbackBanner by remember { mutableStateOf<String?>(null) }
     val visiblePosts = posts.filter { post ->
         post.id !in AgritechMockDb.reportedUgcItemIds &&
+            post.publisherId !in AgritechMockDb.blockedUserIds &&
             post.chatChannelId !in AgritechMockDb.blockedUserIds &&
             post.publisherName !in AgritechMockDb.blockedUserIds
     }
@@ -6666,15 +7799,15 @@ fun MarketFeedScreen(
                         .fillMaxWidth()
                         .testTag("ugc_report_confirmation_banner"),
                     shape = RoundedCornerShape(12.dp),
-                    color = Color(0xFFECFDF5),
-                    border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.45f))
+                    color = appearance.accentContainerColor,
+                    border = BorderStroke(1.dp, appearance.accentColor.copy(alpha = 0.45f))
                 ) {
                     Text(
                         msg,
                         modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF065F46)
+                        color = if (currentTheme.isDark) Color.White else appearance.accentColor
                     )
                 }
             }
@@ -6685,6 +7818,7 @@ fun MarketFeedScreen(
                 post = post,
                 currentTheme = currentTheme,
                 lang = lang,
+                firestoreRepo = firestoreRepo,
                 onContact = { onContactPublisher(post) },
                 onReportedNotice = { notice ->
                     ugcFeedbackBanner = notice
@@ -6703,18 +7837,12 @@ fun MarketPostCard(
     post: MarketPostModel,
     currentTheme: AppThemeOption,
     lang: AppLanguage,
+    firestoreRepo: AgritechFirestoreRepository? = null,
     onContact: () -> Unit,
     onReportedNotice: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val firestoreRepo = remember {
-        try {
-            AgritechFirestoreRepository(context)
-        } catch (_: Exception) {
-            null
-        }
-    }
     var showReportDialog by remember { mutableStateOf(false) }
     val appearance = LocalAppAppearanceState.current
     val isDark = currentTheme.isDark
@@ -6727,25 +7855,27 @@ fun MarketPostCard(
     val imageContainerBorder = if (isDark) Color(0xFF334155) else Color(0xFFE2E8F0)
     val cardShape = RoundedCornerShape(appearance.cornerRadiusDp.dp)
     val btnShape = RoundedCornerShape((appearance.cornerRadiusDp - 6).coerceAtLeast(4).dp)
+    val targetAuthorId = post.publisherId.ifBlank { post.chatChannelId.ifBlank { post.publisherName } }
 
     if (showReportDialog) {
         UgcReportReasonDialog(
             currentTheme = currentTheme,
+            lang = lang,
             onDismiss = { showReportDialog = false },
             onConfirmReport = { reason ->
                 showReportDialog = false
                 AgritechMockDb.reportUgcContent(
                     itemId = post.id,
-                    targetUid = post.chatChannelId,
+                    targetUid = targetAuthorId,
                     reason = reason,
                     context = context,
                     firestoreRepo = firestoreRepo
                 )
-                onReportedNotice("تم استلام بلاغك وإخفاء المحتوى، ستتم مراجعته خلال 24 ساعة")
+                onReportedNotice(Translations.tr("ugc_report_received_banner", lang))
                 scope.launch {
                     firestoreRepo?.submitUgcReportToCloud(
                         itemId = post.id,
-                        targetUid = post.chatChannelId,
+                        targetUid = targetAuthorId,
                         reason = reason,
                         contentType = "MARKET_POST"
                     )
@@ -6763,7 +7893,8 @@ fun MarketPostCard(
             try {
                 val parsed = Uri.parse(uriStr)
                 context.contentResolver.openInputStream(parsed)?.use { stream ->
-                    BitmapFactory.decodeStream(stream)?.asImageBitmap()
+                    val opts = BitmapFactory.Options().apply { inSampleSize = 4 }
+                    BitmapFactory.decodeStream(stream, null, opts)?.asImageBitmap()
                 }
             } catch (_: Exception) {
                 null
@@ -6932,7 +8063,7 @@ fun MarketPostCard(
                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
                 ) {
                     Text(
-                        "🚩 إبلاغ عن محتوى مخالف",
+                        Translations.tr("ugc_report_btn", lang),
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         color = if (isDark) Color(0xFFFBBF24) else Color(0xFFB45309),
@@ -6944,7 +8075,7 @@ fun MarketPostCard(
                 OutlinedButton(
                     onClick = {
                         AgritechMockDb.blockUser(
-                            targetUid = post.chatChannelId.ifBlank { post.publisherName },
+                            targetUid = targetAuthorId,
                             context = context,
                             firestoreRepo = firestoreRepo
                         )
@@ -6960,7 +8091,7 @@ fun MarketPostCard(
                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
                 ) {
                     Text(
-                        "🚫 حظر هذا المستخدم",
+                        Translations.tr("ugc_block_btn", lang),
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         color = if (isDark) Color(0xFFF87171) else Color(0xFFDC2626),
@@ -6996,24 +8127,31 @@ fun AddMarketPostDialog(
     onPublishPost: (MarketPostModel) -> Unit
 ) {
     val context = LocalContext.current
+    val appearance = LocalAppAppearanceState.current
     val isDark = currentTheme.isDark
     val dialogBg = if (isDark) Color(0xFF1E293B) else Color.White
     val fieldBg = if (isDark) Color(0xFF0F172A) else Color.White
     val fieldBorder = if (isDark) Color(0xFF334155) else Color(0xFFE2E8F0)
     val primaryText = if (isDark) Color(0xFFFFFFFF) else Color(0xFF0F172A)
     val secondaryText = if (isDark) Color(0xFFCBD5E1) else Color(0xFF64748B)
-    val accentEmerald = if (isDark) Color(0xFF34D399) else Color(0xFF1B5E20)
+    val accentEmerald = appearance.accentColor
 
     var titleInput by remember { mutableStateOf("") }
     var descInput by remember { mutableStateOf("") }
     var priceInput by remember { mutableStateOf("") }
     var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
 
-    // Real Android Photo Picker (ActivityResultContracts.PickVisualMedia)
+    // Real Android Photo Picker (ActivityResultContracts.PickVisualMedia) with persistable read URI grant
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia()
     ) { uri: Uri? ->
         if (uri != null) {
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            }
             selectedImageUri = uri
         }
     }
@@ -7022,7 +8160,8 @@ fun AddMarketPostDialog(
         selectedImageUri?.let { uri ->
             try {
                 context.contentResolver.openInputStream(uri)?.use { stream ->
-                    BitmapFactory.decodeStream(stream)?.asImageBitmap()
+                    val opts = BitmapFactory.Options().apply { inSampleSize = 4 }
+                    BitmapFactory.decodeStream(stream, null, opts)?.asImageBitmap()
                 }
             } catch (_: Exception) {
                 null
@@ -7160,7 +8299,7 @@ fun AddMarketPostDialog(
                     ),
                     colors = ButtonDefaults.outlinedButtonColors(
                         containerColor = if (selectedImageUri != null) {
-                            if (isDark) Color(0xFF064E3B) else LightGreenContainer
+                            appearance.accentContainerColor
                         } else fieldBg
                     )
                 ) {
@@ -7192,6 +8331,8 @@ fun AddMarketPostDialog(
                         } catch (_: Exception) {
                             null
                         }
+                        val ownerUid = currentUser?.uid?.takeIf { it.isNotBlank() }.orEmpty()
+                        val resolvedChatChannel = if (ownerUid.isNotBlank()) "market_$ownerUid" else "general_admin"
                         val activeFarm = AgritechMockDb.farms.firstOrNull()
                         val resolvedPublisherName = currentUser?.displayName?.takeIf { it.isNotBlank() }
                             ?: activeFarm?.name?.takeIf { it.isNotBlank() }
@@ -7208,8 +8349,9 @@ fun AddMarketPostDialog(
                                 publisherName = resolvedPublisherName,
                                 publisherLocation = resolvedPublisherLocation,
                                 imageCaption = cleanTitle,
-                                chatChannelId = "general_admin",
-                                imageUri = selectedImageUri?.toString()
+                                chatChannelId = resolvedChatChannel,
+                                imageUri = selectedImageUri?.toString(),
+                                publisherId = ownerUid
                             )
                         )
                     }
@@ -9220,6 +10362,24 @@ fun OwnerGlobalAiVetPlaceholderScreen(
                                 }
                             }
                         }
+                    }
+
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("ai_vet_chat_disclaimer_banner"),
+                        shape = RoundedCornerShape(10.dp),
+                        color = appearance.accentContainerColor,
+                        border = BorderStroke(1.dp, aiAccent.copy(alpha = 0.35f))
+                    ) {
+                        Text(
+                            text = Translations.tr("ai_vet_chat_disclaimer", lang),
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = if (isDark) Color(0xFFFFFFFF) else aiAccent,
+                            lineHeight = 16.sp
+                        )
                     }
 
                     Row(
@@ -15720,7 +16880,7 @@ fun VetMedicineInvoiceDialog(
                                     tx = medTx,
                                     vetNote = vetNote
                                 )
-                                firestoreRepo.sendChatMessage(chatMsg)
+                                firestoreRepo.sendChatMessage(chatMsg, farmIdHint = farm.id)
                             }
                         }
 
@@ -15763,10 +16923,32 @@ fun TeamChatTab(
     firestoreRepo: AgritechFirestoreRepository? = null
 ) {
     val scope = rememberCoroutineScope()
+    val sessionState = LocalAgritechAppState.current
+    val currentRole = sessionState.currentRole ?: AppRole.OWNER
     val messages = AgritechMockDb.streamChatMessages(channelId)
     var messageInput by remember { mutableStateOf("") }
     var pendingChatApprovalMsg by remember { mutableStateOf<ChatMessageModel?>(null) }
-    val currentUserId = "owner_1"
+    val currentUserId = remember(sessionState.currentUserUid, currentRole) {
+        try {
+            FirebaseAuth.getInstance().currentUser?.uid
+        } catch (_: Exception) {
+            null
+        } ?: sessionState.currentUserUid ?: when {
+            currentRole.isVetRole -> "vet_1"
+            currentRole == AppRole.WORKER -> "worker_1"
+            else -> "owner_1"
+        }
+    }
+    val resolvedSenderRole = when {
+        currentRole.isOwnerRole -> Translations.tr("role_badge_owner_barn", lang)
+        currentRole.isVetRole -> Translations.tr("role_badge_vet_clinic", lang)
+        currentRole == AppRole.WORKER -> Translations.tr("role_badge_worker", lang)
+        currentRole == AppRole.FEED_SUPPLIER -> Translations.tr("role_badge_feed_supplier", lang)
+        currentRole == AppRole.CHICK_HATCHERY -> Translations.tr("role_badge_chick_hatchery", lang)
+        currentRole == AppRole.WHOLESALE_TRADER -> Translations.tr("role_badge_wholesale_trader", lang)
+        currentRole == AppRole.VET_IMPORTER -> Translations.tr("role_badge_vet_importer", lang)
+        else -> Translations.tr("role_badge_owner_barn", lang)
+    }
     val appearance = LocalAppAppearanceState.current
     val sendBtnAccent = appearance.accentOption.primaryColor
     val isDark = currentTheme.isDark
@@ -15800,8 +16982,17 @@ fun TeamChatTab(
                     transactionId = targetTxId,
                     signatureTag = sigTag
                 )
-                val targetFarmId = targetTx?.farmId ?: "farm_1"
-                if (firestoreRepo != null) {
+                val strippedCycleHint = channelId.removeSuffix("_worker").removeSuffix("_vet")
+                val targetFarmId = targetTx?.farmId?.takeIf { it.isNotBlank() }
+                    ?: AgritechMockDb.cycles.firstOrNull {
+                        it.id == channelId || it.id == strippedCycleHint
+                    }?.farmId?.takeIf { it.isNotBlank() }
+                    ?: sessionState.selectedFarmForOwner?.id?.takeIf { it.isNotBlank() }
+                    ?: sessionState.activeFarmId.takeIf {
+                        it.isNotBlank() && !AgritechFirestoreRepository.isUnassignedFarm(it)
+                    }
+                    ?: AgritechMockDb.farms.firstOrNull()?.id.orEmpty()
+                if (firestoreRepo != null && targetFarmId.isNotBlank()) {
                     scope.launch {
                         firestoreRepo.approveVetInvoiceTransaction(
                             farmId = targetFarmId,
@@ -15830,7 +17021,11 @@ fun TeamChatTab(
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             items(messages, key = { it.id }) { msg ->
-                val isMe = msg.senderId == currentUserId || msg.senderRole.contains("مالك") || msg.senderRole.contains("Owner", ignoreCase = true)
+                val isMe = if (currentRole.isOwnerRole) {
+                    msg.senderId == currentUserId || msg.senderId == "owner_1"
+                } else {
+                    msg.senderId == currentUserId
+                }
 
                 // Role-specific header accent color
                 val roleAccentColor = when {
@@ -16066,25 +17261,45 @@ fun TeamChatTab(
                                 val nowTime = java.time.LocalTime.now().format(
                                     java.time.format.DateTimeFormatter.ofPattern("hh:mm a", java.util.Locale("ar"))
                                 )
+                                val preferredFarm = AgritechMockDb.farms.firstOrNull { it.id == sessionState.activeFarmId }
+                                    ?: sessionState.selectedFarmForOwner
+                                    ?: AgritechMockDb.farms.firstOrNull()
                                 val resolvedSenderName = try {
                                     FirebaseAuth.getInstance().currentUser?.displayName?.takeIf { it.isNotBlank() }
                                 } catch (_: Exception) {
                                     null
-                                } ?: AgritechMockDb.farms.firstOrNull()?.name?.takeIf { it.isNotBlank() }
-                                    ?: Translations.tr("role_badge_owner_barn", lang)
+                                } ?: preferredFarm?.name?.takeIf { it.isNotBlank() }
+                                    ?: resolvedSenderRole
+                                val strippedCycleId = channelId.removeSuffix("_worker").removeSuffix("_vet")
+                                val channelFarmHint = AgritechMockDb.cycles.firstOrNull {
+                                    it.id == channelId || it.id == strippedCycleId
+                                }?.farmId ?: sessionState.activeFarmId.takeIf {
+                                    it.isNotBlank() && !AgritechFirestoreRepository.isUnassignedFarm(it)
+                                }
+                                val marketTargetUid = if (channelId.startsWith("market_")) {
+                                    channelId.removePrefix("market_").takeIf { it.isNotBlank() }
+                                } else {
+                                    AgritechMockDb.marketPosts.firstOrNull {
+                                        it.chatChannelId == channelId && it.publisherId.isNotBlank()
+                                    }?.publisherId
+                                }
                                 val newMsg = ChatMessageModel(
                                     id = "msg_${System.currentTimeMillis()}",
                                     cycleId = channelId,
                                     senderId = currentUserId,
                                     senderName = resolvedSenderName,
-                                    senderRole = "مالك المزرعة 👨‍🌾",
+                                    senderRole = resolvedSenderRole,
                                     text = trimmed,
                                     timestamp = nowTime
                                 )
                                 AgritechMockDb.sendChatMessage(newMsg)
                                 if (firestoreRepo != null) {
                                     scope.launch {
-                                        firestoreRepo.sendChatMessage(newMsg)
+                                        firestoreRepo.sendChatMessage(
+                                            message = newMsg,
+                                            farmIdHint = channelFarmHint,
+                                            targetUid = marketTargetUid
+                                        )
                                     }
                                 }
                                 messageInput = ""
@@ -19711,11 +20926,13 @@ fun AgritechVetNotebookScreen(
                 1 -> {
                     // Tab 1: 💰 الخزنة (Vet Clinic Financial Wallet & Dues)
                     val vetTransactions = AgritechMockDb.transactions.filter {
-                        it.category.contains("أدوية") ||
-                            it.category.contains("لقاح") ||
-                            it.category.contains("بيطر") ||
-                            it.category.contains("MEDICATION", ignoreCase = true) ||
-                            it.category.contains("Vet", ignoreCase = true)
+                        it.farmId == farm.id && (
+                            it.category.contains("أدوية") ||
+                                it.category.contains("لقاح") ||
+                                it.category.contains("بيطر") ||
+                                it.category.contains("MEDICATION", ignoreCase = true) ||
+                                it.category.contains("Vet", ignoreCase = true)
+                            )
                     }
                     val collectedTotal = vetTransactions
                         .filter { it.status.equals("APPROVED", ignoreCase = true) }

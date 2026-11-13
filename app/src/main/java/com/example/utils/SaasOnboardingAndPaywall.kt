@@ -763,6 +763,33 @@ class AgritechAppSessionState(
         )
     }
 
+    /**
+     * Updates the user's cloud-synced role safely in place without resetting AgritechMockDb
+     * when the user is already authenticated with the same UID.
+     */
+    fun syncCloudRoleSafely(context: Context, cloudRole: AppRole) {
+        val safeRole = if (cloudRole.isCurrentlyAvailable) cloudRole else AppRole.OWNER_BARN
+        val persistedRoles = SaasPreferencesManager.getEnabledRolesForUser(context, currentUserUid)
+        val resolvedRole = if (persistedRoles.isNotEmpty() && safeRole.normalizedHubRole !in persistedRoles &&
+            !SaasPreferencesManager.hasAdditionalRoleEntitlement(context, currentUserUid)
+        ) {
+            persistedRoles.first()
+        } else {
+            safeRole
+        }
+        if (currentRole != resolvedRole) {
+            currentRole = resolvedRole
+            SaasPreferencesManager.saveAuthSession(
+                context = context,
+                isLoggedIn = true,
+                role = resolvedRole,
+                hasLinkedBarns = hasLinkedBarns,
+                activeFarmId = activeFarmId,
+                userUid = currentUserUid
+            )
+        }
+    }
+
     fun performExplicitLogout(context: Context, persistBeforeLogout: Boolean = true) {
         val outgoingIdentityKey = com.example.AgritechAuthHelper.resolveActiveStorageIdentityKey(currentUserUid)
         if (persistBeforeLogout && outgoingIdentityKey != "local_guest_default") {
@@ -2071,15 +2098,15 @@ fun PremiumSettingsModal(
 
                                         HorizontalDivider(color = borderCol, thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp))
 
-                                        // Row 4: 💎 باقة الاشتراك (SaaS Pro - $4.99 / 2 Months)
+                                        // Row 4: 💎 باقة الإطلاق المبكر (Early Access — 1st Barn Free)
                                         WhatsAppSettingsHubRow(
                                             iconEmoji = "💎",
-                                            iconBg = if (isDark) Color(0xFF78350F).copy(alpha = 0.5f) else Color(0xFFFEF3C7),
+                                            iconBg = activeAccentContainer,
                                             title = Translations.tr("settings_hub_row_subscription_title", selectedLang),
                                             subtitle = Translations.tr("paywall_price_badge", selectedLang),
                                             textPrimary = textPrimary,
-                                            textSecondary = if (isDark) Color(0xFFFDE68A) else Color(0xFFB45309),
-                                            accentColor = Color(0xFFF59E0B),
+                                            textSecondary = activeAccent,
+                                            accentColor = activeAccent,
                                             testTag = "settings_row_subscription",
                                             secondaryTestTag = "settings_nav_subscription",
                                             onClick = { showPaywallFromSettings = true }
@@ -2254,8 +2281,8 @@ fun PremiumSettingsModal(
                                         WhatsAppSettingsHubRow(
                                             iconEmoji = "🔒",
                                             iconBg = activeAccentContainer,
-                                            title = "🔒 سياسة الخصوصية وشروط الاستخدام",
-                                            subtitle = "بيانات الحساب، إذن الكاميرا (QR)، وإخلاء المسؤولية البيطرية",
+                                            title = Translations.tr("settings_privacy_row_title", selectedLang),
+                                            subtitle = Translations.tr("settings_privacy_row_sub", selectedLang),
                                             textPrimary = textPrimary,
                                             textSecondary = textSecondary,
                                             accentColor = activeAccent,
@@ -2281,7 +2308,7 @@ fun PremiumSettingsModal(
                                         .testTag("btn_delete_account_permanently")
                                 ) {
                                     Text(
-                                        text = "🗑️ حذف الحساب وجميع بياناتي نهائياً (Delete Account & Data)",
+                                        text = Translations.tr("settings_delete_account_btn", selectedLang),
                                         fontWeight = FontWeight.ExtraBold,
                                         fontSize = 13.sp,
                                         color = if (isDark) Color(0xFFFDA4AF) else Color(0xFFE11D48)
@@ -2728,7 +2755,7 @@ fun PremiumSettingsModal(
             modifier = Modifier.testTag("dialog_confirm_delete_account"),
             title = {
                 Text(
-                    text = "⚠️ تأكيد حذف الحساب وجميع البيانات نهائياً",
+                    text = Translations.tr("account_delete_dialog_title", selectedLang),
                     fontWeight = FontWeight.ExtraBold,
                     fontSize = 15.5.sp,
                     color = Color(0xFFE11D48)
@@ -2736,7 +2763,7 @@ fun PremiumSettingsModal(
             },
             text = {
                 Text(
-                    text = "هل أنت متأكد من رغبتك في حذف حسابك نهائياً؟ سيتم مسح وثيقة حسابك وجميع عنابرك وتقاريرك اليومية وفواتيرك السحابية والمحلية نهائياً ولا يمكن التراجع عن هذا الإجراء.",
+                    text = Translations.tr("account_delete_dialog_body", selectedLang),
                     fontSize = 13.sp,
                     color = textPrimary,
                     lineHeight = 19.sp
@@ -2750,15 +2777,22 @@ fun PremiumSettingsModal(
                             ?: ""
                         showDeleteAccountConfirmDialog = false
                         deleteAccountScope.launch {
-                            runCatching {
+                            val deletionOutcome = runCatching {
                                 com.example.AgritechFirestoreRepository(context)
-                                    .deleteUserAccountAndDataCompletely(uidToDelete)
-                            }
+                                    .deleteUserAccountAndDataWithOutcome(uidToDelete)
+                            }.getOrNull()
                             com.example.AgritechMockDb.clearAllDataForDeletedAccount(uidToDelete, context)
                             sessionState.performExplicitLogout(context, persistBeforeLogout = false)
+                            val feedbackMsg = when (deletionOutcome?.status) {
+                                com.example.AccountDeletionStatus.REAUTH_REQUIRED_DATA_WIPED ->
+                                    Translations.tr("account_delete_reauth_required_msg", selectedLang)
+                                else ->
+                                    Translations.tr("account_delete_success_msg", selectedLang)
+                            }
+                            com.example.AgritechMockDb.accountDeletionConfirmationMessage = feedbackMsg
                             android.widget.Toast.makeText(
                                 context,
-                                "تم حذف حسابك وجميع بياناتك نهائياً بنجاح",
+                                feedbackMsg,
                                 android.widget.Toast.LENGTH_LONG
                             ).show()
                             onDismiss()
@@ -2769,7 +2803,7 @@ fun PremiumSettingsModal(
                     modifier = Modifier.testTag("btn_confirm_delete_account_permanently")
                 ) {
                     Text(
-                        text = "🗑️ نعم، احذف حسابي وبياناتي نهائياً",
+                        text = Translations.tr("account_delete_dialog_confirm", selectedLang),
                         color = Color.White,
                         fontWeight = FontWeight.ExtraBold,
                         fontSize = 12.sp
@@ -3430,7 +3464,7 @@ fun CurrencySelectorBottomSheet(
 }
 
 // ============================================================================
-// 5. FREEMIUM SUBSCRIPTION PAYWALL BOTTOM SHEET ($4.99 / 2 MONTHS FOR 2ND+ BARN)
+// 5. FREEMIUM EARLY ACCESS PAYWALL BOTTOM SHEET (1ST BARN FREE)
 // ============================================================================
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -3443,20 +3477,21 @@ fun SubscriptionPaywallBottomSheet(
     onSubscriptionSuccess: (paymentProvider: String) -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val scope = rememberCoroutineScope()
-    var isProcessingPayment by remember { mutableStateOf(false) }
-    var activePaymentProvider by remember { mutableStateOf<String?>(null) }
-
+    val appearance = LocalAppAppearanceState.current
     val isDark = currentTheme.isDark
     val primaryText = if (isDark) Color(0xFFFFFFFF) else Color(0xFF0F172A)
     val secondaryText = if (isDark) Color(0xFFCBD5E1) else Color(0xFF475569)
-    val accentEmerald = if (isDark) Color(0xFF34D399) else TextForestGreen
+    val activeAccent = appearance.accentColor
+    val activeAccentContainer = appearance.accentContainerColor
+    val primaryBtnColor = appearance.accentOption.primaryColor
+    val sheetCorner = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+    val cardShape = RoundedCornerShape(appearance.cornerRadiusDp.dp)
 
     ModalBottomSheet(
-        onDismissRequest = { if (!isProcessingPayment) onDismiss() },
+        onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = currentTheme.cardColor,
-        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+        containerColor = if (isDark) Color(0xFF1E293B) else currentTheme.cardColor,
+        shape = sheetCorner,
         modifier = Modifier.testTag("subscription_paywall_bottom_sheet")
     ) {
         Column(
@@ -3476,31 +3511,32 @@ fun SubscriptionPaywallBottomSheet(
             ) {
                 Surface(
                     shape = RoundedCornerShape(10.dp),
-                    color = if (isDark) Color(0xFF78350F).copy(alpha = 0.45f) else Color(0xFFFEF3C7),
-                    border = BorderStroke(1.dp, Color(0xFFF59E0B))
+                    color = activeAccentContainer,
+                    border = BorderStroke(1.dp, activeAccent.copy(alpha = 0.6f))
                 ) {
                     Text(
                         text = Translations.tr("paywall_badge", lang),
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                         fontSize = 12.sp,
                         fontWeight = FontWeight.ExtraBold,
-                        color = if (isDark) Color(0xFFFDE68A) else Color(0xFFB45309)
+                        color = activeAccent
                     )
                 }
 
                 IconButton(
-                    onClick = { if (!isProcessingPayment) onDismiss() },
+                    onClick = onDismiss,
                     modifier = Modifier.testTag("btn_close_paywall_sheet")
                 ) {
                     Icon(Icons.Default.Close, contentDescription = "Close", tint = secondaryText)
                 }
             }
 
-            // Main Offer Banner Card ("إدارة احترافية للعنبر الإضافي - 4.99$ / لشهرين (دورة إنتاج كاملة)")
+            // Main Early Access Offer Banner Card (No unimplemented $4.99 price claims)
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(20.dp),
+                shape = cardShape,
                 colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A)),
+                border = BorderStroke(1.dp, Color(0xFF334155)),
                 elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
             ) {
                 Column(
@@ -3513,7 +3549,7 @@ fun SubscriptionPaywallBottomSheet(
                     ) {
                         Surface(
                             shape = CircleShape,
-                            color = Color(0xFF10B981).copy(alpha = 0.2f),
+                            color = activeAccent.copy(alpha = 0.22f),
                             modifier = Modifier.size(44.dp)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
@@ -3529,9 +3565,10 @@ fun SubscriptionPaywallBottomSheet(
                                 modifier = Modifier.testTag("paywall_offer_title_text")
                             )
                             Text(
-                                text = "Freemium Tier: 1st Barn 100% FREE ($existingBarnsCount Active) • $4.99 / 2 Months",
+                                text = Translations.tr("paywall_early_access_subtitle", lang)
+                                    .replace("{count}", existingBarnsCount.toString()),
                                 fontSize = 11.5.sp,
-                                color = Color(0xFF6EE7B7)
+                                color = Color(0xFFCBD5E1)
                             )
                         }
                     }
@@ -3545,8 +3582,8 @@ fun SubscriptionPaywallBottomSheet(
 
                     Surface(
                         shape = RoundedCornerShape(10.dp),
-                        color = Color(0xFF064E3B),
-                        border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.5f)),
+                        color = Color(0xFF1E293B),
+                        border = BorderStroke(1.dp, activeAccent.copy(alpha = 0.55f)),
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("paywall_no_annual_lock_badge")
@@ -3556,7 +3593,7 @@ fun SubscriptionPaywallBottomSheet(
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                             fontSize = 11.5.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF6EE7B7)
+                            color = Color.White
                         )
                     }
                 }
@@ -3575,7 +3612,7 @@ fun SubscriptionPaywallBottomSheet(
                         Icon(
                             Icons.Default.Verified,
                             contentDescription = null,
-                            tint = accentEmerald,
+                            tint = activeAccent,
                             modifier = Modifier.size(20.dp)
                         )
                         Text(
@@ -3590,11 +3627,11 @@ fun SubscriptionPaywallBottomSheet(
 
             HorizontalDivider(color = if (isDark) Color(0xFF334155) else Color(0xFFE2E8F0))
 
-            // Official Early Access Release Banner (Google Play Payments Policy Compliance — No Stripe or Fake Sandbox)
+            // Official Early Access Release Banner (Google Play Payments Policy Compliance)
             Surface(
-                shape = RoundedCornerShape(16.dp),
-                color = if (isDark) Color(0xFF064E3B).copy(alpha = 0.55f) else Color(0xFFECFDF5),
-                border = BorderStroke(1.5.dp, Color(0xFF10B981)),
+                shape = cardShape,
+                color = activeAccentContainer,
+                border = BorderStroke(1.5.dp, activeAccent.copy(alpha = 0.65f)),
                 modifier = Modifier
                     .fillMaxWidth()
                     .testTag("card_early_access_billing_notice")
@@ -3604,14 +3641,14 @@ fun SubscriptionPaywallBottomSheet(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(
-                        text = "🎁 نسخة الإطلاق الرسمي المبكر: العنبر الأول والإدارة الأولى مجانية بالكامل. الباقات الإضافية للمنشآت المتعددة ستتوفر قريباً عبر نظام فوترة Google Play الرسمي.",
+                        text = Translations.tr("paywall_early_access_notice", lang),
                         fontSize = 13.sp,
                         fontWeight = FontWeight.ExtraBold,
-                        color = if (isDark) Color(0xFFA7F3D0) else Color(0xFF065F46),
+                        color = primaryText,
                         lineHeight = 20.sp
                     )
                     Text(
-                        text = "✓ يتم التحقق تلقائياً من الاستحقاق السحابي المعتمد (user_entitlements) للحسابات المصرح لها.",
+                        text = Translations.tr("paywall_early_access_entitlement_note", lang),
                         fontSize = 11.5.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = secondaryText
@@ -3620,16 +3657,16 @@ fun SubscriptionPaywallBottomSheet(
             }
 
             Button(
-                onClick = { onDismiss() },
+                onClick = onDismiss,
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(min = 52.dp)
                     .testTag("btn_close_early_access_paywall"),
-                shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = TextForestGreen)
+                shape = RoundedCornerShape((appearance.cornerRadiusDp - 6).coerceAtLeast(4).dp),
+                colors = ButtonDefaults.buttonColors(containerColor = primaryBtnColor)
             ) {
                 Text(
-                    text = "حسناً، فهمت",
+                    text = Translations.tr("paywall_btn_got_it", lang),
                     fontWeight = FontWeight.ExtraBold,
                     fontSize = 14.sp,
                     color = Color.White
@@ -6937,28 +6974,24 @@ fun PrivacyPolicyAndTermsModal(
     accentColor: Color = LocalAppAppearanceState.current.accentColor,
     onDismiss: () -> Unit
 ) {
+    val appearance = LocalAppAppearanceState.current
     val cardBg = if (isDark) Color(0xFF1E293B) else Color.White
     val sectionBg = if (isDark) Color(0xFF0F172A) else Color(0xFFF8FAFC)
     val borderCol = if (isDark) Color(0xFF334155) else Color(0xFFE2E8F0)
     val textPrimary = if (isDark) Color(0xFFFFFFFF) else Color(0xFF0F172A)
     val textSecondary = if (isDark) Color(0xFFCBD5E1) else Color(0xFF475569)
+    val modalShape = RoundedCornerShape(appearance.cornerRadiusDp.dp)
 
-        val isEnglishModal = lang == AppLanguage.EN
-        val modalTitle = if (isEnglishModal) {
-            "🔒 Privacy Policy, Terms of Use & Veterinary Disclaimer — IQ Notebook"
-        } else {
-            "🔒 سياسة الخصوصية وشروط الاستخدام وإخلاء المسؤولية — IQ Notebook"
-        }
-        AlertDialog(
+    AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = cardBg,
-        shape = RoundedCornerShape(22.dp),
+        shape = modalShape,
         modifier = Modifier
             .fillMaxWidth()
             .testTag("modal_privacy_policy_terms"),
         title = {
             Text(
-                text = modalTitle,
+                text = Translations.tr("privacy_modal_title", lang),
                 fontWeight = FontWeight.ExtraBold,
                 fontSize = 16.sp,
                 color = textPrimary
@@ -6971,25 +7004,17 @@ fun PrivacyPolicyAndTermsModal(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                val sections = if (isEnglishModal) {
-                    listOf(
-                        "1. App Identity & Nature 📋" to "IQ Notebook — Smart Farm Ledger is a smart digital ledger strictly for documenting and calculating poultry cycle expenses, bird weights, and profits.",
-                        "2. Data Processed & Deletion 🔐" to "Your email and account UID (via Google Sign-In) are used strictly for real-time cloud synchronization between owner and team devices. You can permanently delete your account and all cloud/local data anytime from Settings.",
-                        "3. Camera Permission (CAMERA) 📷" to "Camera access is used exclusively to scan team/barn QR join codes. The app never captures, stores, or uploads personal photos or videos.",
-                        "4. Veterinary & Scientific Disclaimer 🩺" to "Reference guidelines in the \"📖 Book\" tab are adapted from standard broiler management handbooks (Ross 308 Broiler Management Handbook) for farm guidance only and do not replace on-site inspection or prescriptions by a licensed veterinarian."
-                    )
-                } else {
-                    listOf(
-                        "1. طبيعة التطبيق 📋" to "IQ Notebook — دفتر المزرعة الذكي: دفتر رقمي ذكي لتوثيق وحساب مصاريف وأوزان وأرباح دورة الدواجن فقط.",
-                        "2. البيانات التي يعالجها التطبيق 🔐" to "البريد الإلكتروني ومعرّف الحساب (عبر Google Sign-In) للمزامنة السحابية بين أجهزة المالك والعمال، مع إمكانية حذف الحساب والبيانات نهائياً في أي وقت من الإعدادات.",
-                        "3. استخدام الكاميرا (CAMERA) 📷" to "يستخدم التطبيق الكاميرا حصرياً لمسح رمز الاستجابة السريعة (QR Code) عند ربط جهاز العامل أو الطبيب بالعنبر، ولا يقوم بالتقاط أو تخزين أو رفع أي صور أو مقاطع فيديو شخصية.",
-                        "4. إخلاء المسؤولية البيطرية والعلمية 🩺" to "المعلومات الواردة في تبويب \"📖 الكتاب\" مستندة إلى المراجع القياسية الإرشادية لسلالة التسمين (Ross 308 Broiler Management Handbook) وهي لأغراض التوعية والإرشاد المزرعي فقط ولا تغني عن الفحص الميداني أو الوصفة الطبية من طبيب بيطري مرخص."
-                    )
-                }
+                val sections = listOf(
+                    Translations.tr("privacy_sec1_title", lang) to Translations.tr("privacy_sec1_body", lang),
+                    Translations.tr("privacy_sec2_title", lang) to Translations.tr("privacy_sec2_body", lang),
+                    Translations.tr("privacy_sec3_title", lang) to Translations.tr("privacy_sec3_body", lang),
+                    Translations.tr("privacy_sec4_title", lang) to Translations.tr("privacy_sec4_body", lang),
+                    Translations.tr("privacy_sec5_title", lang) to Translations.tr("privacy_sec5_body", lang)
+                )
 
                 sections.forEach { (heading, body) ->
                     Surface(
-                        shape = RoundedCornerShape(14.dp),
+                        shape = RoundedCornerShape((appearance.cornerRadiusDp - 6).coerceAtLeast(4).dp),
                         color = sectionBg,
                         border = BorderStroke(1.dp, borderCol),
                         modifier = Modifier.fillMaxWidth()
@@ -7018,12 +7043,12 @@ fun PrivacyPolicyAndTermsModal(
         confirmButton = {
             Button(
                 onClick = onDismiss,
-                colors = ButtonDefaults.buttonColors(containerColor = accentColor),
-                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = appearance.accentOption.primaryColor),
+                shape = RoundedCornerShape((appearance.cornerRadiusDp - 8).coerceAtLeast(4).dp),
                 modifier = Modifier.testTag("btn_close_privacy_policy_modal")
             ) {
                 Text(
-                    text = if (isEnglishModal) "Agree & Close" else "موافق وإغلاق",
+                    text = Translations.tr("privacy_modal_agree_btn", lang),
                     color = Color.White,
                     fontWeight = FontWeight.Bold,
                     fontSize = 13.sp
@@ -7039,31 +7064,34 @@ fun PrivacyPolicyAndTermsModal(
 @Composable
 fun UgcReportReasonDialog(
     targetTitle: String = "",
+    lang: AppLanguage = AppLanguage.AR,
     currentTheme: AppThemeOption = AppThemeOption.ICE_BLUE,
     isDark: Boolean = currentTheme.isDark,
     accentColor: Color = LocalAppAppearanceState.current.accentColor,
     onConfirmReport: (reason: String) -> Unit,
     onDismiss: () -> Unit
 ) {
+    val appearance = LocalAppAppearanceState.current
     val cardBg = if (isDark) Color(0xFF1E293B) else Color.White
     val textPrimary = if (isDark) Color(0xFFFFFFFF) else Color(0xFF0F172A)
     val textSecondary = if (isDark) Color(0xFFCBD5E1) else Color(0xFF475569)
     val borderCol = if (isDark) Color(0xFF334155) else Color(0xFFE2E8F0)
     val reasons = listOf(
-        "محتوى مضلل / احتيال",
-        "إساءة أو محتوى غير لائق",
-        "إعلان مخالف"
+        Translations.tr("ugc_report_reason_fraud", lang),
+        Translations.tr("ugc_report_reason_abuse", lang),
+        Translations.tr("ugc_report_reason_spam", lang)
     )
-    var selectedReason by remember { mutableStateOf(reasons.first()) }
+    var selectedReason by remember(lang) { mutableStateOf(reasons.first()) }
+    val dialogShape = RoundedCornerShape(appearance.cornerRadiusDp.dp)
 
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = cardBg,
-        shape = RoundedCornerShape(20.dp),
+        shape = dialogShape,
         modifier = Modifier.testTag("dialog_ugc_report_reason"),
         title = {
             Text(
-                text = "🚩 إبلاغ عن محتوى مخالف",
+                text = Translations.tr("ugc_report_dialog_title", lang),
                 fontWeight = FontWeight.ExtraBold,
                 fontSize = 15.5.sp,
                 color = Color(0xFFE11D48)
@@ -7072,14 +7100,14 @@ fun UgcReportReasonDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
-                    text = "اختر سبب الإبلاغ ليتم إخفاء المحتوى فوراً ومراجعته:",
+                    text = Translations.tr("ugc_report_dialog_subtitle", lang),
                     fontSize = 12.5.sp,
                     color = textSecondary
                 )
                 reasons.forEachIndexed { idx, reasonText ->
                     val isSelected = selectedReason == reasonText
                     Surface(
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape((appearance.cornerRadiusDp - 8).coerceAtLeast(4).dp),
                         color = if (isSelected) Color(0xFFE11D48).copy(alpha = 0.14f) else Color.Transparent,
                         border = BorderStroke(
                             width = if (isSelected) 1.5.dp else 1.dp,
@@ -7087,7 +7115,7 @@ fun UgcReportReasonDialog(
                         ),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
+                            .clip(RoundedCornerShape((appearance.cornerRadiusDp - 8).coerceAtLeast(4).dp))
                             .clickable { selectedReason = reasonText }
                             .testTag("ugc_reason_option_$idx")
                     ) {
@@ -7114,11 +7142,11 @@ fun UgcReportReasonDialog(
             Button(
                 onClick = { onConfirmReport(selectedReason) },
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE11D48)),
-                shape = RoundedCornerShape(12.dp),
+                shape = RoundedCornerShape((appearance.cornerRadiusDp - 8).coerceAtLeast(4).dp),
                 modifier = Modifier.testTag("btn_confirm_ugc_report")
             ) {
                 Text(
-                    text = "إرسال البلاغ وإخفاء المحتوى",
+                    text = Translations.tr("ugc_report_confirm_btn", lang),
                     color = Color.White,
                     fontWeight = FontWeight.Bold,
                     fontSize = 12.5.sp
@@ -7131,7 +7159,7 @@ fun UgcReportReasonDialog(
                 modifier = Modifier.testTag("btn_cancel_ugc_report")
             ) {
                 Text(
-                    text = "إلغاء",
+                    text = Translations.tr("btn_cancel", lang),
                     color = textSecondary,
                     fontWeight = FontWeight.SemiBold
                 )
