@@ -2526,7 +2526,7 @@ object GlobalLanguageDictionaries {
     )
 
     private val trDict: Map<String, String> = mapOf(
-        "app_title" to "Kümes Yönetimi 🐥",
+        "app_title" to "IQ Notebook — Akıllı Çiftlik Defteri",
         "app_subtitle" to "Günlük broyler üretim ve kümes takip sistemi",
         "role_owner" to "Çiftlik Sahibi",
         "role_vet" to "Veteriner Hekim",
@@ -2637,7 +2637,7 @@ object GlobalLanguageDictionaries {
     )
 
     private val idDict: Map<String, String> = mapOf(
-        "app_title" to "Manajer Kandang Ayam 🐥",
+        "app_title" to "IQ Notebook — Buku Catatan Peternakan Cerdas",
         "app_subtitle" to "Sistem pelacakan kandang broiler & produksi harian",
         "role_owner" to "Pemilik Peternakan",
         "role_vet" to "Dokter Hewan",
@@ -2748,7 +2748,7 @@ object GlobalLanguageDictionaries {
     )
 
     private val urDict: Map<String, String> = mapOf(
-        "app_title" to "پولٹری فارم مینیجر 🐥",
+        "app_title" to "IQ Notebook — اسمارٹ فارم لیجر",
         "app_subtitle" to "برائلر شیڈز اور روزانہ پیداوار کا نظام",
         "role_owner" to "فارم مالک",
         "role_vet" to "ویٹرنری ڈاکٹر",
@@ -2859,7 +2859,7 @@ object GlobalLanguageDictionaries {
     )
 
     private val swDict: Map<String, String> = mapOf(
-        "app_title" to "Meneja wa Kuku 🐥",
+        "app_title" to "IQ Notebook — Daftari Mahiri la Shamba",
         "app_subtitle" to "Mfumo wa ufuatiliaji wa mabanda na uzalishaji wa kila siku",
         "role_owner" to "Mmiliki wa Shamba",
         "role_vet" to "Daktari wa Mifugo",
@@ -2970,7 +2970,7 @@ object GlobalLanguageDictionaries {
     )
 
     private val ruDict: Map<String, String> = mapOf(
-        "app_title" to "Управление Птицефермой 🐥",
+        "app_title" to "IQ Notebook — Умный Журнал Фермы",
         "app_subtitle" to "Система учета птичников и суточного производства",
         "role_owner" to "Владелец фермы",
         "role_vet" to "Ветеринар",
@@ -3081,7 +3081,7 @@ object GlobalLanguageDictionaries {
     )
 
     private val zhDict: Map<String, String> = mapOf(
-        "app_title" to "智慧家禽农场管家 🐥",
+        "app_title" to "IQ Notebook — 智慧农场账本",
         "app_subtitle" to "肉鸡鸡舍与每日生产数字化管理系统",
         "role_owner" to "农场主 / 场长",
         "role_vet" to "执业兽医",
@@ -3192,7 +3192,7 @@ object GlobalLanguageDictionaries {
     )
 
     private val deDict: Map<String, String> = mapOf(
-        "app_title" to "Geflügel-Manager 🐥",
+        "app_title" to "IQ Notebook — Digitales Stallbuch",
         "app_subtitle" to "Tägliches Produktions- & Stall-Managementsystem",
         "role_owner" to "Betriebsleiter",
         "role_vet" to "Tierarzt",
@@ -3303,7 +3303,7 @@ object GlobalLanguageDictionaries {
     )
 
     private val itDict: Map<String, String> = mapOf(
-        "app_title" to "Gestione Avicola 🐥",
+        "app_title" to "IQ Notebook — Registro Agricolo Intelligente",
         "app_subtitle" to "Sistema di monitoraggio capannoni e produzione giornaliera",
         "role_owner" to "Titolare Azienda",
         "role_vet" to "Veterinario",

@@ -22,6 +22,6 @@ dependencyResolutionManagement {
   }
 }
 
-rootProject.name = "Poultry Manager"
+rootProject.name = "IQ Notebook"
 
 include(":app")

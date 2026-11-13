@@ -48,11 +48,11 @@ object Translations {
     var globalCountryCode by mutableStateOf("DZ")
     private val dict: Map<String, Map<String, String>> = mapOf(
         "app_title" to mapOf(
-            "ar" to "دفتر إدارة الدواجن 🐥",
-            "fr" to "Gestion Avicole 🐥",
-            "en" to "Poultry Manager 🐥",
-            "es" to "Gestión Avícola 🐥",
-            "hi" to "पोल्ट्री प्रबंधन 🐥"
+            "ar" to "IQ Notebook — دفتر المزرعة الذكي",
+            "fr" to "IQ Notebook — Registre Avicole Intelligent",
+            "en" to "IQ Notebook — Smart Farm Ledger",
+            "es" to "IQ Notebook — Cuaderno Agrícola Inteligente",
+            "hi" to "IQ Notebook — स्मार्ट फार्म लेजर"
         ),
         "app_subtitle" to mapOf(
             "ar" to "نظام متابعة العنابر والإنتاج اليومي",
@@ -1770,12 +1770,12 @@ object Translations {
             "hi" to "🌍 वैश्विक प्लेटफ़ॉर्म सेटअप"
         ),
         "onboarding_title" to mapOf(
-            "ar" to "مرحباً بك في دفتر إدارة الدواجن العالمي 🐥",
-            "fr" to "Bienvenue sur Gestion Avicole Globale 🐥",
-            "en" to "Welcome to Global Poultry Manager 🐥",
-            "es" to "Bienvenido a Gestión Avícola Global 🐥",
-            "pt" to "Bem-vindo ao Gestor Avícola Global 🐥",
-            "hi" to "ग्लोबल पोल्ट्री मैनेजर में आपका स्वागत है 🐥"
+            "ar" to "مرحباً بك في IQ Notebook — دفتر المزرعة الذكي 🐥",
+            "fr" to "Bienvenue dans IQ Notebook — Registre Avicole Intelligent 🐥",
+            "en" to "Welcome to IQ Notebook — Smart Farm Ledger 🐥",
+            "es" to "Bienvenido a IQ Notebook — Cuaderno Agrícola Inteligente 🐥",
+            "pt" to "Bem-vindo ao IQ Notebook — Caderno Agrícola Inteligente 🐥",
+            "hi" to "IQ Notebook — स्मार्ट फार्म लेजर में आपका स्वागत है 🐥"
         ),
         "onboarding_subtitle" to mapOf(
             "ar" to "اختر لغتك، دولتك، وعملتك المحلية لضبط كافة السجلات المالية والفواتير تلقائياً.",
@@ -5142,7 +5142,7 @@ object Translations {
         "climate_header_btn_label" to "Clima",
         "climate_modal_title" to "Clima ao Vivo e Resumo Rápido",
         "climate_modal_subtitle" to "Temperatura, amônia, ventilação e indicadores-chave do lote",
-        "app_title" to "Gestor Avícola 🐥",
+        "app_title" to "IQ Notebook — Caderno Agrícola Inteligente",
         "app_subtitle" to "Controle de galpões de frango de corte e produção diária",
         "role_owner" to "Produtor / Dono",
         "role_vet" to "Médico Veterinário",

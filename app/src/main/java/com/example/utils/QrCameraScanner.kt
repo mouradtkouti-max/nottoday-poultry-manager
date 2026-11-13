@@ -192,7 +192,7 @@ fun RealQrCameraScannerView(
 
     LaunchedEffect(Unit) {
         if (!hasCameraPermission) {
-            permissionLauncher.launch(Manifest.permission.CAMERA)
+            runCatching { permissionLauncher.launch(Manifest.permission.CAMERA) }
         }
     }
 
@@ -209,16 +209,20 @@ fun RealQrCameraScannerView(
             Box(modifier = Modifier.fillMaxSize()) {
                 val cameraExecutor = remember { Executors.newSingleThreadExecutor() }
                 val barcodeScanner = remember {
-                    val options = BarcodeScannerOptions.Builder()
-                        .setBarcodeFormats(Barcode.FORMAT_QR_CODE)
-                        .build()
-                    BarcodeScanning.getClient(options)
+                    runCatching {
+                        val options = BarcodeScannerOptions.Builder()
+                            .setBarcodeFormats(Barcode.FORMAT_QR_CODE)
+                            .build()
+                        BarcodeScanning.getClient(options)
+                    }.getOrNull()
                 }
+                var isScannerDisposed by remember { mutableStateOf(false) }
 
                 DisposableEffect(Unit) {
                     onDispose {
+                        isScannerDisposed = true
                         try {
-                            barcodeScanner.close()
+                            barcodeScanner?.close()
                             cameraExecutor.shutdown()
                         } catch (_: Exception) {}
                     }
@@ -234,60 +238,76 @@ fun RealQrCameraScannerView(
                             implementationMode = PreviewView.ImplementationMode.COMPATIBLE
                             scaleType = PreviewView.ScaleType.FILL_CENTER
                         }
-                        val cameraProviderFuture = ProcessCameraProvider.getInstance(ctx)
-                        cameraProviderFuture.addListener({
-                            try {
-                                val cameraProvider = cameraProviderFuture.get()
-                                val preview = Preview.Builder().build().also {
-                                    it.setSurfaceProvider(previewView.surfaceProvider)
-                                }
-                                val imageAnalysis = ImageAnalysis.Builder()
-                                    .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                                    .build()
+                        try {
+                            val cameraProviderFuture = ProcessCameraProvider.getInstance(ctx)
+                            cameraProviderFuture.addListener({
+                                if (isScannerDisposed) return@addListener
+                                try {
+                                    val cameraProvider = cameraProviderFuture.get()
+                                    val preview = Preview.Builder().build().also {
+                                        it.setSurfaceProvider(previewView.surfaceProvider)
+                                    }
+                                    val imageAnalysis = ImageAnalysis.Builder()
+                                        .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                                        .build()
 
-                                imageAnalysis.setAnalyzer(cameraExecutor) { imageProxy ->
-                                    val mediaImage = imageProxy.image
-                                    if (mediaImage != null && lastScannedRaw == null) {
-                                        val inputImage = InputImage.fromMediaImage(
-                                            mediaImage,
-                                            imageProxy.imageInfo.rotationDegrees
-                                        )
-                                        barcodeScanner.process(inputImage)
-                                            .addOnSuccessListener { barcodes ->
-                                                for (barcode in barcodes) {
-                                                    val raw = barcode.rawValue
-                                                    if (!raw.isNullOrBlank() && lastScannedRaw == null) {
-                                                        val parsed = parseAgritechQrInvite(raw, selectedRoleFallback)
-                                                        if (parsed != null) {
-                                                            lastScannedRaw = raw
-                                                            onQrCodeScanned(parsed)
-                                                            break
+                                    imageAnalysis.setAnalyzer(cameraExecutor) { imageProxy ->
+                                        val mediaImage = try {
+                                            imageProxy.image
+                                        } catch (_: Exception) {
+                                            null
+                                        }
+                                        val scanner = barcodeScanner
+                                        if (!isScannerDisposed && scanner != null && mediaImage != null && lastScannedRaw == null) {
+                                            try {
+                                                val inputImage = InputImage.fromMediaImage(
+                                                    mediaImage,
+                                                    imageProxy.imageInfo.rotationDegrees
+                                                )
+                                                scanner.process(inputImage)
+                                                    .addOnSuccessListener { barcodes ->
+                                                        if (isScannerDisposed) return@addOnSuccessListener
+                                                        for (barcode in barcodes) {
+                                                            val raw = barcode.rawValue
+                                                            if (!raw.isNullOrBlank() && lastScannedRaw == null) {
+                                                                val parsed = parseAgritechQrInvite(raw, selectedRoleFallback)
+                                                                if (parsed != null) {
+                                                                    lastScannedRaw = raw
+                                                                    onQrCodeScanned(parsed)
+                                                                    break
+                                                                }
+                                                            }
                                                         }
                                                     }
-                                                }
+                                                    .addOnFailureListener { e ->
+                                                        Log.w("QrCameraScanner", "ML Kit QR scan error", e)
+                                                    }
+                                                    .addOnCompleteListener {
+                                                        runCatching { imageProxy.close() }
+                                                    }
+                                            } catch (e: Exception) {
+                                                Log.w("QrCameraScanner", "InputImage frame conversion error", e)
+                                                runCatching { imageProxy.close() }
                                             }
-                                            .addOnFailureListener { e ->
-                                                Log.w("QrCameraScanner", "ML Kit QR scan error", e)
-                                            }
-                                            .addOnCompleteListener {
-                                                imageProxy.close()
-                                            }
-                                    } else {
-                                        imageProxy.close()
+                                        } else {
+                                            runCatching { imageProxy.close() }
+                                        }
                                     }
-                                }
 
-                                cameraProvider.unbindAll()
-                                cameraProvider.bindToLifecycle(
-                                    lifecycleOwner,
-                                    CameraSelector.DEFAULT_BACK_CAMERA,
-                                    preview,
-                                    imageAnalysis
-                                )
-                            } catch (e: Exception) {
-                                Log.w("QrCameraScanner", "CameraX bind failed", e)
-                            }
-                        }, ContextCompat.getMainExecutor(ctx))
+                                    cameraProvider.unbindAll()
+                                    cameraProvider.bindToLifecycle(
+                                        lifecycleOwner,
+                                        CameraSelector.DEFAULT_BACK_CAMERA,
+                                        preview,
+                                        imageAnalysis
+                                    )
+                                } catch (e: Exception) {
+                                    Log.w("QrCameraScanner", "CameraX bind failed", e)
+                                }
+                            }, ContextCompat.getMainExecutor(ctx))
+                        } catch (e: Exception) {
+                            Log.w("QrCameraScanner", "CameraX ProcessCameraProvider init failed", e)
+                        }
                         previewView
                     }
                 )
@@ -376,7 +396,7 @@ fun RealQrCameraScannerView(
                 )
                 Spacer(modifier = Modifier.height(10.dp))
                 Button(
-                    onClick = { permissionLauncher.launch(Manifest.permission.CAMERA) },
+                    onClick = { runCatching { permissionLauncher.launch(Manifest.permission.CAMERA) } },
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = TextForestGreen),
                     modifier = Modifier.testTag("btn_request_camera_permission")

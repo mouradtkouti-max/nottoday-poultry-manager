@@ -663,10 +663,11 @@ class AgritechAppSessionState(
 
     fun syncEnabledRolesFromPrefs(context: Context) {
         val persisted = SaasPreferencesManager.getEnabledRolesForUser(context, currentUserUid)
+        val activeRole = currentRole
         if (persisted.isNotEmpty()) {
             enabledRolesForUser = persisted
-        } else if (hasSelectedInitialProfession && currentRole != null && currentRole!!.isCurrentlyAvailable) {
-            val seed = setOf(currentRole!!.normalizedHubRole)
+        } else if (hasSelectedInitialProfession && activeRole != null && activeRole.isCurrentlyAvailable) {
+            val seed = setOf(activeRole.normalizedHubRole)
             SaasPreferencesManager.saveEnabledRolesForUser(context, seed, currentUserUid)
             enabledRolesForUser = seed
         } else {
@@ -762,9 +763,9 @@ class AgritechAppSessionState(
         )
     }
 
-    fun performExplicitLogout(context: Context) {
+    fun performExplicitLogout(context: Context, persistBeforeLogout: Boolean = true) {
         val outgoingIdentityKey = com.example.AgritechAuthHelper.resolveActiveStorageIdentityKey(currentUserUid)
-        if (outgoingIdentityKey != "local_guest_default") {
+        if (persistBeforeLogout && outgoingIdentityKey != "local_guest_default") {
             LocalFarmPersistence.saveAll(context, outgoingIdentityKey)
         }
         isLoggedIn = false
@@ -2754,7 +2755,7 @@ fun PremiumSettingsModal(
                                     .deleteUserAccountAndDataCompletely(uidToDelete)
                             }
                             com.example.AgritechMockDb.clearAllDataForDeletedAccount(uidToDelete, context)
-                            sessionState.performExplicitLogout(context)
+                            sessionState.performExplicitLogout(context, persistBeforeLogout = false)
                             android.widget.Toast.makeText(
                                 context,
                                 "تم حذف حسابك وجميع بياناتك نهائياً بنجاح",
@@ -6942,7 +6943,13 @@ fun PrivacyPolicyAndTermsModal(
     val textPrimary = if (isDark) Color(0xFFFFFFFF) else Color(0xFF0F172A)
     val textSecondary = if (isDark) Color(0xFFCBD5E1) else Color(0xFF475569)
 
-    AlertDialog(
+        val isEnglishModal = lang == AppLanguage.EN
+        val modalTitle = if (isEnglishModal) {
+            "🔒 Privacy Policy, Terms of Use & Veterinary Disclaimer — IQ Notebook"
+        } else {
+            "🔒 سياسة الخصوصية وشروط الاستخدام وإخلاء المسؤولية — IQ Notebook"
+        }
+        AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = cardBg,
         shape = RoundedCornerShape(22.dp),
@@ -6951,7 +6958,7 @@ fun PrivacyPolicyAndTermsModal(
             .testTag("modal_privacy_policy_terms"),
         title = {
             Text(
-                text = "🔒 سياسة الخصوصية وشروط الاستخدام وإخلاء المسؤولية",
+                text = modalTitle,
                 fontWeight = FontWeight.ExtraBold,
                 fontSize = 16.sp,
                 color = textPrimary
@@ -6964,12 +6971,21 @@ fun PrivacyPolicyAndTermsModal(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                val sections = listOf(
-                    "1. طبيعة التطبيق 📋" to "دفتر رقمي ذكي لتوثيق وحساب مصاريف وأوزان وأرباح دورة الدواجن فقط.",
-                    "2. البيانات التي يعالجها التطبيق 🔐" to "البريد الإلكتروني ومعرّف الحساب (عبر Google Sign-In) للمزامنة السحابية بين أجهزة المالك والعمال، مع إمكانية حذف الحساب والبيانات في أي وقت من الإعدادات.",
-                    "3. استخدام الكاميرا (CAMERA) 📷" to "يستخدم التطبيق الكاميرا حصرياً لمسح رمز الاستجابة السريعة (QR Code) عند ربط جهاز العامل أو الطبيب بالعنبر، ولا يقوم بالتقاط أو تخزين أو رفع أي صور أو مقاطع فيديو شخصية.",
-                    "4. إخلاء المسؤولية البيطرية والعلمية 🩺" to "المعلومات الواردة في تبويب \"📖 الكتاب\" مستندة إلى المراجع القياسية الإرشادية لسلالة التسمين (Ross 308 Broiler Management Handbook) وهي لأغراض التوعية والإرشاد المزرعي فقط ولا تغني عن الفحص الميداني أو الوصفة الطبية من طبيب بيطري مرخص."
-                )
+                val sections = if (isEnglishModal) {
+                    listOf(
+                        "1. App Identity & Nature 📋" to "IQ Notebook — Smart Farm Ledger is a smart digital ledger strictly for documenting and calculating poultry cycle expenses, bird weights, and profits.",
+                        "2. Data Processed & Deletion 🔐" to "Your email and account UID (via Google Sign-In) are used strictly for real-time cloud synchronization between owner and team devices. You can permanently delete your account and all cloud/local data anytime from Settings.",
+                        "3. Camera Permission (CAMERA) 📷" to "Camera access is used exclusively to scan team/barn QR join codes. The app never captures, stores, or uploads personal photos or videos.",
+                        "4. Veterinary & Scientific Disclaimer 🩺" to "Reference guidelines in the \"📖 Book\" tab are adapted from standard broiler management handbooks (Ross 308 Broiler Management Handbook) for farm guidance only and do not replace on-site inspection or prescriptions by a licensed veterinarian."
+                    )
+                } else {
+                    listOf(
+                        "1. طبيعة التطبيق 📋" to "IQ Notebook — دفتر المزرعة الذكي: دفتر رقمي ذكي لتوثيق وحساب مصاريف وأوزان وأرباح دورة الدواجن فقط.",
+                        "2. البيانات التي يعالجها التطبيق 🔐" to "البريد الإلكتروني ومعرّف الحساب (عبر Google Sign-In) للمزامنة السحابية بين أجهزة المالك والعمال، مع إمكانية حذف الحساب والبيانات نهائياً في أي وقت من الإعدادات.",
+                        "3. استخدام الكاميرا (CAMERA) 📷" to "يستخدم التطبيق الكاميرا حصرياً لمسح رمز الاستجابة السريعة (QR Code) عند ربط جهاز العامل أو الطبيب بالعنبر، ولا يقوم بالتقاط أو تخزين أو رفع أي صور أو مقاطع فيديو شخصية.",
+                        "4. إخلاء المسؤولية البيطرية والعلمية 🩺" to "المعلومات الواردة في تبويب \"📖 الكتاب\" مستندة إلى المراجع القياسية الإرشادية لسلالة التسمين (Ross 308 Broiler Management Handbook) وهي لأغراض التوعية والإرشاد المزرعي فقط ولا تغني عن الفحص الميداني أو الوصفة الطبية من طبيب بيطري مرخص."
+                    )
+                }
 
                 sections.forEach { (heading, body) ->
                     Surface(
@@ -7007,7 +7023,7 @@ fun PrivacyPolicyAndTermsModal(
                 modifier = Modifier.testTag("btn_close_privacy_policy_modal")
             ) {
                 Text(
-                    text = "موافق وإغلاق",
+                    text = if (isEnglishModal) "Agree & Close" else "موافق وإغلاق",
                     color = Color.White,
                     fontWeight = FontWeight.Bold,
                     fontSize = 13.sp

@@ -331,7 +331,7 @@ object AiVetGeminiService {
             q.contains("أحمر") || q.contains("بني") || q.contains("coccid") || q.contains("diarr") || q.contains("blood")
         val hasValidTemp = resolvedTemp != null
         val isHeatStress = q.contains("حرارة") || q.contains("نهجان") || q.contains("احتباس") ||
-            q.contains("heat") || q.contains("chaleur") || (hasValidTemp && resolvedTemp!! >= 31.0)
+            q.contains("heat") || q.contains("chaleur") || (resolvedTemp != null && resolvedTemp >= 31.0)
 
         val tempDisplayAr = if (hasValidTemp) {
             "${String.format(java.util.Locale.US, "%.1f", resolvedTemp)}°C"

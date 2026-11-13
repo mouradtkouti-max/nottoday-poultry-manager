@@ -1693,6 +1693,9 @@ fun AgritechMainApp(
         }
     }
 
+    val selectedOwnerFarm = sessionState.selectedFarmForOwner
+    val selectedVetFarm = sessionState.selectedFarmForVet
+    val selectedWorkerFarm = sessionState.selectedFarmForWorker
     when {
         !sessionState.isLoggedIn || sessionState.currentRole == null -> {
             AgritechLoginScreen(
@@ -1791,9 +1794,9 @@ fun AgritechMainApp(
                 onOpenSettings = onOpenSettings
             )
         }
-        sessionState.selectedFarmForOwner != null -> {
+        selectedOwnerFarm != null -> {
             BackHandler { sessionState.selectedFarmForOwner = null }
-            val farm = sessionState.selectedFarmForOwner!!
+            val farm = selectedOwnerFarm
             LaunchedEffect(farm.id) {
                 if (farm.id.isNotBlank() && sessionState.activeFarmId != farm.id) {
                     sessionState.activeFarmId = farm.id
@@ -1926,9 +1929,9 @@ fun AgritechMainApp(
                 onBack = { sessionState.selectedFarmForOwner = null }
             )
         }
-        sessionState.selectedFarmForVet != null -> {
+        selectedVetFarm != null -> {
             BackHandler { sessionState.selectedFarmForVet = null }
-            val farm = sessionState.selectedFarmForVet!!
+            val farm = selectedVetFarm
             LaunchedEffect(farm.id) {
                 if (farm.id.isNotBlank() && sessionState.activeFarmId != farm.id) {
                     sessionState.activeFarmId = farm.id
@@ -1963,9 +1966,9 @@ fun AgritechMainApp(
                 onBack = { sessionState.selectedFarmForVet = null }
             )
         }
-        sessionState.selectedFarmForWorker != null -> {
+        selectedWorkerFarm != null -> {
             BackHandler { sessionState.selectedFarmForWorker = null }
-            val farm = sessionState.selectedFarmForWorker!!
+            val farm = selectedWorkerFarm
             LaunchedEffect(farm.id) {
                 if (farm.id.isNotBlank() && sessionState.activeFarmId != farm.id) {
                     sessionState.activeFarmId = farm.id
@@ -3075,8 +3078,7 @@ fun AgritechOwnerDashboard(
         )
     }
 
-    if (targetFarmForVetInvoice != null) {
-        val invFarm = targetFarmForVetInvoice!!
+    targetFarmForVetInvoice?.let { invFarm ->
         val invCycle = AgritechMockDb.resolveCycleForFarm(invFarm)
         val invReports = AgritechMockDb.resolveReportsForFarmAndCycle(invFarm.id, invCycle.id)
         val invDay = PoultryCalculators.calculateCycleDay(invCycle.startDate, invReports.maxOfOrNull { it.dayNumber } ?: 1)
@@ -3570,9 +3572,9 @@ fun AgritechOwnerDashboard(
                             )
                         )
 
-                        if (newCycleValidationError != null) {
+                        newCycleValidationError?.let { errMsg ->
                             Text(
-                                text = newCycleValidationError!!,
+                                text = errMsg,
                                 fontSize = 11.5.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = ActionRed,
@@ -4506,8 +4508,7 @@ fun ManagementHubScreen(
                         it.status.equals("PENDING", ignoreCase = true)
                     }
                     var pendingHubTxForSignature by remember { mutableStateOf<TransactionModel?>(null) }
-                    if (pendingHubTxForSignature != null) {
-                        val targetTx = pendingHubTxForSignature!!
+                    pendingHubTxForSignature?.let { targetTx ->
                         InvoiceApprovalSignatureDialog(
                             categoryOrTitle = Translations.getLocalizedTxCategory(targetTx.category, lang),
                             dateOrDayText = targetTx.date,
@@ -5610,9 +5611,9 @@ fun WorkerFreeTextTransactionDialog(
                         .testTag("input_worker_tx_amount")
                 )
 
-                if (validationError != null) {
+                validationError?.let { errMsg ->
                     Text(
-                        text = validationError!!,
+                        text = errMsg,
                         fontSize = 11.5.sp,
                         fontWeight = FontWeight.Bold,
                         color = ActionRed
@@ -11044,7 +11045,7 @@ fun QrScannerJoinBottomSheet(
                 }
             )
 
-            if (detectedQrBanner != null) {
+            detectedQrBanner?.let { bannerText ->
                 Surface(
                     shape = RoundedCornerShape(12.dp),
                     color = LightGreenContainer,
@@ -11052,7 +11053,7 @@ fun QrScannerJoinBottomSheet(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
-                        text = detectedQrBanner!!,
+                        text = bannerText,
                         modifier = Modifier.padding(10.dp),
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
@@ -11407,7 +11408,7 @@ fun PersonalAccountWhatsAppQrBottomSheet(
                     }
                 )
 
-                if (detectedQrBanner != null) {
+                detectedQrBanner?.let { bannerText ->
                     Surface(
                         shape = RoundedCornerShape(12.dp),
                         color = accentContainer,
@@ -11415,7 +11416,7 @@ fun PersonalAccountWhatsAppQrBottomSheet(
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text(
-                            text = detectedQrBanner!!,
+                            text = bannerText,
                             modifier = Modifier.padding(10.dp),
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
@@ -12135,8 +12136,7 @@ fun AgritechFarmNotebookScreen(
         )
     }
 
-    if (selectedTransactionForReceipt != null) {
-        val txForReceipt = selectedTransactionForReceipt!!
+    selectedTransactionForReceipt?.let { txForReceipt ->
         DigitalTransactionReceiptBottomSheet(
             farmName = Translations.getLocalizedFarmName(farm.id, lang, farm.name),
             cycle = cycle,
@@ -12154,9 +12154,9 @@ fun AgritechFarmNotebookScreen(
         )
     }
 
-    if (selectedInvoiceForView != null) {
+    selectedInvoiceForView?.let { invoice ->
         ProfessionalSalesInvoiceModal(
-            invoice = selectedInvoiceForView!!,
+            invoice = invoice,
             lang = lang,
             onDismiss = { selectedInvoiceForView = null }
         )
@@ -12946,9 +12946,9 @@ fun AgritechFarmNotebookScreen(
                 )
             }
 
-            if (selectedOwnerDayReportForMedicalDetails != null) {
-                val activeReport = reportsForCycle.firstOrNull { it.dayNumber == selectedOwnerDayReportForMedicalDetails!!.dayNumber }
-                    ?: selectedOwnerDayReportForMedicalDetails!!
+            selectedOwnerDayReportForMedicalDetails?.let { selectedReport ->
+                val activeReport = reportsForCycle.firstOrNull { it.dayNumber == selectedReport.dayNumber }
+                    ?: selectedReport
                 val matchingVetNotes = liveVetNotesForFarm.filter { it.dayNumber == activeReport.dayNumber }
                 val effectiveDayVetNotes = if (matchingVetNotes.isNotEmpty()) {
                     matchingVetNotes
@@ -13025,15 +13025,15 @@ fun AgritechFarmNotebookScreen(
                 )
             }
 
-            if (activeContextualChatChannel != null) {
+            activeContextualChatChannel?.let { channel ->
                 ContextualChatBottomSheet(
                     title = activeContextualChatTitle,
                     subtitle = "${Translations.getLocalizedFarmName(farm.id, lang, farm.name)} • ${activeCycle.id}",
-                    channelId = activeContextualChatChannel!!,
+                    channelId = channel,
                     currentTheme = currentTheme,
                     lang = lang,
                     firestoreRepo = firestoreRepo,
-                    onOpenVetInvoice = if (activeContextualChatChannel!!.contains("vet")) {
+                    onOpenVetInvoice = if (channel.contains("vet")) {
                         {
                             activeContextualChatChannel = null
                             showVetMedicineInvoiceDialog = true
@@ -14660,7 +14660,7 @@ fun AgritechFarmNotebookScreen(
                             }
                         }
 
-                        if (vetInvoiceSuccessBanner != null) {
+                        vetInvoiceSuccessBanner?.let { bannerMsg ->
                             item {
                                 Surface(
                                     shape = notebookBtnShape,
@@ -14680,7 +14680,7 @@ fun AgritechFarmNotebookScreen(
                                         )
                                         Spacer(modifier = Modifier.width(8.dp))
                                         Text(
-                                            vetInvoiceSuccessBanner!!,
+                                            bannerMsg,
                                             fontSize = 12.sp,
                                             fontWeight = FontWeight.Bold,
                                             color = notebookAccent
@@ -15168,9 +15168,9 @@ fun OwnerDailyReportDialog(
                         }
                     }
                 }
-                if (dailyReportValidationError != null) {
+                dailyReportValidationError?.let { errMsg ->
                     Text(
-                        text = dailyReportValidationError!!,
+                        text = errMsg,
                         fontSize = 11.5.sp,
                         fontWeight = FontWeight.Bold,
                         color = ActionRed,
@@ -18608,7 +18608,7 @@ fun DigitalTransactionReceiptBottomSheet(
             }
 
             // Optional confirmation & WhatsApp formatted preview after tapping Share
-            if (sharedWhatsAppPreview != null) {
+            sharedWhatsAppPreview?.let { previewText ->
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(14.dp),
@@ -18624,7 +18624,7 @@ fun DigitalTransactionReceiptBottomSheet(
                         )
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            sharedWhatsAppPreview!!,
+                            previewText,
                             fontSize = 11.sp,
                             color = primaryText
                         )
@@ -19292,9 +19292,9 @@ fun AgritechVetNotebookScreen(
         )
     }
 
-    if (selectedDayReportForDetails != null) {
-        val activeReport = liveReports.firstOrNull { it.dayNumber == selectedDayReportForDetails!!.dayNumber }
-            ?: selectedDayReportForDetails!!
+    selectedDayReportForDetails?.let { selectedReport ->
+        val activeReport = liveReports.firstOrNull { it.dayNumber == selectedReport.dayNumber }
+            ?: selectedReport
         val matchingVetNotes = liveVetNotes.filter { it.dayNumber == activeReport.dayNumber }
         val effectiveDayVetNotes = if (matchingVetNotes.isNotEmpty()) {
             matchingVetNotes
@@ -20590,9 +20590,9 @@ fun AgritechWorkerDashboard(
                             OutlinedTextField(value = tempText, onValueChange = { tempText = it }, label = { Text(Translations.tr("th_temp", lang)) }, placeholder = { Text("30.0") }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
                             OutlinedTextField(value = gasText, onValueChange = { gasText = it }, label = { Text(Translations.tr("th_gas", lang)) }, placeholder = { Text("2.5") }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
 
-                            if (workerValidationError != null) {
+                            workerValidationError?.let { errMsg ->
                                 Text(
-                                    text = workerValidationError!!,
+                                    text = errMsg,
                                     fontSize = 11.5.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = ActionRed
