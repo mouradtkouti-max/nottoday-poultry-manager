@@ -811,6 +811,37 @@ object AgritechMockDb {
     }
 
     fun mergeCloudCycleWithLocal(cloudCycle: CycleModel, localCycle: CycleModel): CycleModel {
+        val localIsStrictlyNewer = localCycle.updatedAtMillis > 0L &&
+            cloudCycle.updatedAtMillis > 0L &&
+            localCycle.updatedAtMillis > cloudCycle.updatedAtMillis
+
+        if (localIsStrictlyNewer) {
+            return localCycle.copy(
+                totalBirdsPlaced = if (localCycle.totalBirdsPlaced > 0) localCycle.totalBirdsPlaced else cloudCycle.totalBirdsPlaced,
+                targetWeight = if (localCycle.targetWeight > 0.0) localCycle.targetWeight else cloudCycle.targetWeight,
+                startDate = localCycle.startDate.ifBlank { cloudCycle.startDate },
+                currencyCode = localCycle.currencyCode.ifBlank { cloudCycle.currencyCode }
+            )
+        }
+
+        // Cloud is newer or authoritative: respect cloud corrections/reductions directly without blind maxOf
+        val hasCloudTimestamp = cloudCycle.updatedAtMillis > 0L ||
+            cloudCycle.lastDailyReportId.isNotBlank() ||
+            cloudCycle.feedDeficitKg > 0.0 ||
+            cloudCycle.cumulativeFeedConsumedKg > 0.0
+
+        if (hasCloudTimestamp) {
+            return cloudCycle.copy(
+                feedInventoryKg = cloudCycle.feedInventoryKg.coerceAtLeast(0.0),
+                feedDeficitKg = cloudCycle.feedDeficitKg.coerceAtLeast(0.0),
+                cumulativeFeedConsumedKg = cloudCycle.cumulativeFeedConsumedKg.coerceAtLeast(0.0),
+                cumulativeMortality = cloudCycle.cumulativeMortality.coerceAtLeast(0),
+                cumulativeBirdsSold = cloudCycle.cumulativeBirdsSold.coerceAtLeast(0),
+                cumulativeSoldWeightKg = cloudCycle.cumulativeSoldWeightKg.coerceAtLeast(0.0),
+                updatedAtMillis = maxOf(cloudCycle.updatedAtMillis, localCycle.updatedAtMillis)
+            )
+        }
+
         val totalPurchasedFeedKg = transactions.filter {
             (it.cycleId == cloudCycle.id || it.cycleId == localCycle.id) &&
                 it.type == TransactionType.EXPENSE &&
@@ -825,17 +856,27 @@ object AgritechMockDb {
             .filter { it.cycleId == cloudCycle.id || it.cycleId == localCycle.id }
             .sumOf { it.feedIntakeKg }
 
-        val accurateFeedInventoryKg = when {
-            totalPurchasedFeedKg > 0.0 -> (totalPurchasedFeedKg - totalConsumedFeedKg).coerceAtLeast(0.0)
-            totalConsumedFeedKg > 0.0 -> localCycle.feedInventoryKg.coerceAtLeast(0.0)
+        val (accurateFeedInventoryKg, accurateFeedDeficitKg) = when {
+            totalPurchasedFeedKg > 0.0 || totalConsumedFeedKg > 0.0 ->
+                AgritechFirestoreRepository.applyFeedDeltaWithDeficit(
+                    currentInventoryKg = totalPurchasedFeedKg,
+                    currentDeficitKg = 0.0,
+                    consumptionDeltaKg = totalConsumedFeedKg
+                )
             localCycle.feedInventoryKg > 0.0 && cloudCycle.feedInventoryKg > 0.0 ->
-                minOf(localCycle.feedInventoryKg, cloudCycle.feedInventoryKg)
-            localCycle.feedInventoryKg > 0.0 -> localCycle.feedInventoryKg
-            else -> cloudCycle.feedInventoryKg.coerceAtLeast(0.0)
+                Pair(minOf(localCycle.feedInventoryKg, cloudCycle.feedInventoryKg), maxOf(localCycle.feedDeficitKg, cloudCycle.feedDeficitKg))
+            localCycle.feedInventoryKg > 0.0 ->
+                Pair(localCycle.feedInventoryKg, localCycle.feedDeficitKg)
+            else -> Pair(
+                cloudCycle.feedInventoryKg.coerceAtLeast(0.0),
+                cloudCycle.feedDeficitKg.coerceAtLeast(0.0)
+            )
         }
 
         return cloudCycle.copy(
             feedInventoryKg = accurateFeedInventoryKg,
+            feedDeficitKg = accurateFeedDeficitKg,
+            cumulativeFeedConsumedKg = maxOf(cloudCycle.cumulativeFeedConsumedKg, totalConsumedFeedKg),
             cumulativeMortality = maxOf(cloudCycle.cumulativeMortality, localCycle.cumulativeMortality),
             cumulativeBirdsSold = maxOf(cloudCycle.cumulativeBirdsSold, localCycle.cumulativeBirdsSold),
             cumulativeSoldWeightKg = maxOf(cloudCycle.cumulativeSoldWeightKg, localCycle.cumulativeSoldWeightKg)
@@ -843,23 +884,23 @@ object AgritechMockDb {
     }
 
     fun mergeCloudReportWithLocal(cloudReport: DailyReportModel, existingLocal: DailyReportModel): DailyReportModel {
-        val localIsNewer = (existingLocal.updatedAtMillis > cloudReport.updatedAtMillis) ||
-            (existingLocal.isEdited && !cloudReport.isEdited)
+        val localIsNewer = existingLocal.updatedAtMillis > 0L &&
+            existingLocal.updatedAtMillis > cloudReport.updatedAtMillis
         return if (localIsNewer) {
             existingLocal.copy(
                 actualAvgWeightKg = if (existingLocal.actualAvgWeightKg > 0.0) existingLocal.actualAvgWeightKg else cloudReport.actualAvgWeightKg,
                 medicineGiven = existingLocal.medicineGiven || cloudReport.medicineGiven,
                 medicineSummary = existingLocal.medicineSummary.ifBlank { cloudReport.medicineSummary },
-                withdrawalDays = maxOf(existingLocal.withdrawalDays, cloudReport.withdrawalDays)
+                withdrawalDays = existingLocal.withdrawalDays
             )
         } else {
             cloudReport.copy(
                 isEdited = cloudReport.isEdited || existingLocal.isEdited,
                 previousSummary = cloudReport.previousSummary.ifBlank { existingLocal.previousSummary },
                 actualAvgWeightKg = if (cloudReport.actualAvgWeightKg > 0.0) cloudReport.actualAvgWeightKg else existingLocal.actualAvgWeightKg,
-                medicineGiven = cloudReport.medicineGiven || existingLocal.medicineGiven,
+                medicineGiven = cloudReport.medicineGiven,
                 medicineSummary = cloudReport.medicineSummary.ifBlank { existingLocal.medicineSummary },
-                withdrawalDays = maxOf(cloudReport.withdrawalDays, existingLocal.withdrawalDays),
+                withdrawalDays = cloudReport.withdrawalDays,
                 updatedAtMillis = maxOf(cloudReport.updatedAtMillis, existingLocal.updatedAtMillis)
             )
         }
@@ -904,6 +945,7 @@ object AgritechMockDb {
         vetNoteId: String = "",
         signatureTag: String = "Signed_By_Owner_${System.currentTimeMillis()}"
     ) {
+        val nowMillis = System.currentTimeMillis()
         var resolvedTxId = transactionId
         if (vetNoteId.isNotBlank()) {
             val vnIdx = vetNotes.indexOfFirst { it.id == vetNoteId }
@@ -912,7 +954,7 @@ object AgritechMockDb {
                 if (resolvedTxId.isBlank() && vn.linkedTransactionId.isNotBlank()) {
                     resolvedTxId = vn.linkedTransactionId
                 }
-                vetNotes[vnIdx] = vn.copy(status = "APPROVED")
+                vetNotes[vnIdx] = vn.copy(status = "APPROVED", updatedAtMillis = nowMillis)
             }
         }
         if (resolvedTxId.isNotBlank()) {
@@ -921,7 +963,8 @@ object AgritechMockDb {
                 val currentTx = transactions[txIdx]
                 val updatedTx = currentTx.copy(
                     status = "APPROVED",
-                    approvedBySignature = signatureTag
+                    approvedBySignature = signatureTag,
+                    updatedAtMillis = nowMillis
                 )
                 transactions[txIdx] = updatedTx
 
@@ -938,14 +981,23 @@ object AgritechMockDb {
                         }
                         if (cycleIdx >= 0) {
                             val c = cycles[cycleIdx]
-                            cycles[cycleIdx] = c.copy(feedInventoryKg = c.feedInventoryKg + addedFeedKg)
+                            val (newInv, newDeficit) = AgritechFirestoreRepository.applyFeedDeltaWithDeficit(
+                                currentInventoryKg = c.feedInventoryKg,
+                                currentDeficitKg = c.feedDeficitKg,
+                                consumptionDeltaKg = -addedFeedKg
+                            )
+                            cycles[cycleIdx] = c.copy(
+                                feedInventoryKg = newInv,
+                                feedDeficitKg = newDeficit,
+                                updatedAtMillis = nowMillis
+                            )
                         }
                     }
                 }
             }
             for (i in vetNotes.indices) {
                 if (vetNotes[i].linkedTransactionId == resolvedTxId && vetNotes[i].status != "APPROVED") {
-                    vetNotes[i] = vetNotes[i].copy(status = "APPROVED")
+                    vetNotes[i] = vetNotes[i].copy(status = "APPROVED", updatedAtMillis = nowMillis)
                 }
             }
             for (i in chatMessages.indices) {
@@ -994,9 +1046,11 @@ object AgritechMockDb {
             return false
         }
 
+        val nowMillis = System.currentTimeMillis()
         cycles[cycleIdx] = c.copy(
             cumulativeBirdsSold = c.cumulativeBirdsSold + invoice.totalBirdsSold,
-            cumulativeSoldWeightKg = c.cumulativeSoldWeightKg + invoice.totalNetKg
+            cumulativeSoldWeightKg = c.cumulativeSoldWeightKg + invoice.totalNetKg,
+            updatedAtMillis = nowMillis
         )
         transactions.add(
             TransactionModel(
@@ -1008,11 +1062,138 @@ object AgritechMockDb {
                 amount = invoice.totalAmount,
                 currency = invoice.currency,
                 date = dateText,
-                invoiceData = invoice
+                invoiceData = invoice,
+                updatedAtMillis = nowMillis
             )
         )
         persistLocalState()
         return true
+    }
+
+    /**
+     * Removes a member from `farm.members` locally and clears `assignedWorkerId` if the removed member was the assigned worker.
+     */
+    fun removeMemberFromFarmLocally(farmId: String, memberUid: String) {
+        val cleanFarmId = farmId.trim()
+        val cleanUid = memberUid.trim()
+        if (cleanFarmId.isBlank() || cleanUid.isBlank()) return
+        val idx = farms.indexOfFirst { it.id == cleanFarmId }
+        if (idx >= 0) {
+            val farm = farms[idx]
+            val updatedMembers = farm.members.toMutableMap().apply { remove(cleanUid) }
+            val updatedAssignedWorker = if (farm.assignedWorkerId == cleanUid || updatedMembers[farm.assignedWorkerId] != "WORKER") {
+                updatedMembers.entries.firstOrNull { it.value == "WORKER" }?.key ?: ""
+            } else {
+                farm.assignedWorkerId
+            }
+            farms[idx] = farm.copy(
+                members = updatedMembers,
+                assignedWorkerId = updatedAssignedWorker
+            )
+            persistLocalState()
+        }
+    }
+
+    /**
+     * Operation-specific delta rollback for a failed cloud sales invoice write:
+     * Reverses ONLY the sold birds and sold weight delta of this invoice without overwriting concurrent feed or mortality updates.
+     */
+    fun rollbackSalesInvoiceDelta(
+        cycleId: String,
+        txId: String,
+        soldBirdsDelta: Int,
+        soldWeightDeltaKg: Double
+    ) {
+        transactions.removeAll { it.id == txId }
+        val cIdx = cycles.indexOfFirst { it.id == cycleId }
+        if (cIdx >= 0) {
+            val cur = cycles[cIdx]
+            cycles[cIdx] = cur.copy(
+                cumulativeBirdsSold = (cur.cumulativeBirdsSold - soldBirdsDelta).coerceAtLeast(0),
+                cumulativeSoldWeightKg = (cur.cumulativeSoldWeightKg - soldWeightDeltaKg).coerceAtLeast(0.0),
+                updatedAtMillis = System.currentTimeMillis()
+            )
+        }
+        persistLocalState()
+    }
+
+    /**
+     * Operation-specific delta rollback for a failed cloud feed purchase write:
+     * Reverses ONLY the added feed delta (respecting `feedDeficitKg`) without overwriting concurrent sales or mortality updates.
+     */
+    fun rollbackFeedPurchaseDelta(
+        cycleId: String,
+        txId: String,
+        addedFeedKg: Double
+    ) {
+        transactions.removeAll { it.id == txId }
+        countedFeedTxIds.remove(txId)
+        if (addedFeedKg > 0.0) {
+            val cIdx = cycles.indexOfFirst { it.id == cycleId }
+            if (cIdx >= 0) {
+                val cur = cycles[cIdx]
+                val (restoredInv, restoredDeficit) = AgritechFirestoreRepository.applyFeedDeltaWithDeficit(
+                    currentInventoryKg = cur.feedInventoryKg,
+                    currentDeficitKg = cur.feedDeficitKg,
+                    consumptionDeltaKg = addedFeedKg
+                )
+                cycles[cIdx] = cur.copy(
+                    feedInventoryKg = restoredInv,
+                    feedDeficitKg = restoredDeficit,
+                    updatedAtMillis = System.currentTimeMillis()
+                )
+            }
+        }
+        persistLocalState()
+    }
+
+    /**
+     * Operation-specific delta rollback for a failed cloud daily report write:
+     * Restores the previous report state (or removes the newly created report) and reverses ONLY its feed and mortality delta on the cycle.
+     */
+    fun rollbackDailyReportMutation(
+        previousReport: DailyReportModel?,
+        attemptedReport: DailyReportModel
+    ) {
+        val feedDeltaToReverse = attemptedReport.feedIntakeKg - (previousReport?.feedIntakeKg ?: 0.0)
+        val mortalityDeltaToReverse = attemptedReport.mortalityCount - (previousReport?.mortalityCount ?: 0)
+        if (previousReport != null) {
+            val rIdx = dailyReports.indexOfFirst {
+                it.id == attemptedReport.id || it.id == previousReport.id ||
+                    (it.farmId == attemptedReport.farmId && it.cycleId == attemptedReport.cycleId && it.dayNumber == attemptedReport.dayNumber)
+            }
+            if (rIdx >= 0) {
+                dailyReports[rIdx] = previousReport
+            } else {
+                dailyReports.add(previousReport)
+                dailyReports.sortBy { it.dayNumber }
+            }
+        } else {
+            dailyReports.removeAll {
+                it.id == attemptedReport.id ||
+                    (it.farmId == attemptedReport.farmId && it.cycleId == attemptedReport.cycleId && it.dayNumber == attemptedReport.dayNumber)
+            }
+        }
+
+        val cIdx = cycles.indexOfFirst {
+            it.id == attemptedReport.cycleId || (it.farmId == attemptedReport.farmId && it.status.equals("active", ignoreCase = true))
+        }
+        if (cIdx >= 0 && (kotlin.math.abs(feedDeltaToReverse) > 0.0001 || mortalityDeltaToReverse != 0)) {
+            val cur = cycles[cIdx]
+            val (restoredInv, restoredDeficit) = AgritechFirestoreRepository.applyFeedDeltaWithDeficit(
+                currentInventoryKg = cur.feedInventoryKg,
+                currentDeficitKg = cur.feedDeficitKg,
+                consumptionDeltaKg = -feedDeltaToReverse
+            )
+            cycles[cIdx] = cur.copy(
+                feedInventoryKg = restoredInv,
+                feedDeficitKg = restoredDeficit,
+                cumulativeFeedConsumedKg = (cur.cumulativeFeedConsumedKg - feedDeltaToReverse).coerceAtLeast(0.0),
+                cumulativeMortality = (cur.cumulativeMortality - mortalityDeltaToReverse).coerceAtLeast(0),
+                updatedAtMillis = System.currentTimeMillis()
+            )
+        }
+        persistLocalState()
     }
 
     /**
@@ -1130,65 +1311,107 @@ object AgritechMockDb {
      * - Adjusts `cycle.feedInventoryKg` by the feed delta and `cycle.cumulativeMortality` by the mortality delta.
      */
     fun upsertDailyReportWithAudit(report: DailyReportModel): DailyReportModel {
-        val existingIdx = dailyReports.indexOfFirst {
-            it.id == report.id || (it.farmId == report.farmId && it.cycleId == report.cycleId && it.dayNumber == report.dayNumber)
+        val resolvedCycleId = report.cycleId.trim().ifBlank {
+            cycles.firstOrNull { it.farmId == report.farmId && it.status.equals("active", ignoreCase = true) }?.id
+                ?: cycles.firstOrNull { it.farmId == report.farmId }?.id
+                ?: "cycle_default_${report.farmId}"
         }
+        val canonicalId = AgritechFirestoreRepository.buildCanonicalDailyReportId(
+            farmId = report.farmId,
+            cycleId = resolvedCycleId,
+            dayNumber = report.dayNumber
+        )
+        val normalizedReport = report.copy(
+            id = canonicalId,
+            cycleId = resolvedCycleId
+        )
+
+        val existingIdx = dailyReports.indexOfFirst {
+            it.id == canonicalId || (it.farmId == normalizedReport.farmId && it.cycleId == resolvedCycleId && it.dayNumber == normalizedReport.dayNumber)
+        }
+        val nowMillis = System.currentTimeMillis()
         val finalReport = if (existingIdx >= 0) {
             val old = dailyReports[existingIdx]
-            val hasActualValueChange = report.hasActualValueChangesFrom(old)
+            val hasActualValueChange = normalizedReport.hasActualValueChangesFrom(old)
 
             if (!hasActualValueChange) {
-                val unchanged = report.copy(
-                    id = old.id,
+                val unchanged = normalizedReport.copy(
+                    id = canonicalId,
+                    cycleId = resolvedCycleId,
                     isEdited = old.isEdited,
                     previousSummary = old.previousSummary,
-                    withdrawalDays = maxOf(report.withdrawalDays, old.withdrawalDays),
+                    withdrawalDays = maxOf(normalizedReport.withdrawalDays, old.withdrawalDays),
                     updatedAtMillis = old.updatedAtMillis
                 )
                 dailyReports[existingIdx] = unchanged
                 unchanged
             } else {
-                val prevSummary = report.previousSummary.ifBlank {
+                val prevSummary = normalizedReport.previousSummary.ifBlank {
                     old.previousSummary.ifBlank {
                         val tempStr = old.temperature?.let { "${String.format(java.util.Locale.US, "%.1f", it)}°" } ?: "—"
                         "العلف: ${Translations.formatQuintalNumber(old.feedIntakeKg / 100.0)} ق • الماء: ${old.waterIntakeLiters.toInt()} L • النافق: ${old.mortalityCount} • الحرارة: $tempStr"
                     }
                 }
-                val updated = report.copy(
-                    id = old.id,
+                val updated = normalizedReport.copy(
+                    id = canonicalId,
+                    cycleId = resolvedCycleId,
                     isEdited = true,
                     previousSummary = prevSummary,
-                    withdrawalDays = maxOf(report.withdrawalDays, old.withdrawalDays),
-                    updatedAtMillis = System.currentTimeMillis()
+                    withdrawalDays = maxOf(normalizedReport.withdrawalDays, old.withdrawalDays),
+                    updatedAtMillis = nowMillis
                 )
                 dailyReports[existingIdx] = updated
                 val feedDeltaKg = updated.feedIntakeKg - old.feedIntakeKg
                 val mortalityDelta = updated.mortalityCount - old.mortalityCount
                 if (kotlin.math.abs(feedDeltaKg) > 0.0001 || mortalityDelta != 0) {
-                    val cycleIdx = cycles.indexOfFirst { it.id == updated.cycleId || (it.farmId == updated.farmId && it.status.equals("active", true)) }
+                    val cycleIdx = cycles.indexOfFirst { it.id == resolvedCycleId }
+                        .takeIf { it >= 0 }
+                        ?: cycles.indexOfFirst { it.farmId == updated.farmId && it.status.equals("active", true) }
                     if (cycleIdx >= 0) {
                         val c = cycles[cycleIdx]
+                        val (newInv, newDeficit) = AgritechFirestoreRepository.applyFeedDeltaWithDeficit(
+                            currentInventoryKg = c.feedInventoryKg,
+                            currentDeficitKg = c.feedDeficitKg,
+                            consumptionDeltaKg = feedDeltaKg
+                        )
                         cycles[cycleIdx] = c.copy(
-                            feedInventoryKg = (c.feedInventoryKg - feedDeltaKg).coerceAtLeast(0.0),
-                            cumulativeMortality = (c.cumulativeMortality + mortalityDelta).coerceAtLeast(0)
+                            feedInventoryKg = newInv,
+                            feedDeficitKg = newDeficit,
+                            cumulativeFeedConsumedKg = (c.cumulativeFeedConsumedKg + feedDeltaKg).coerceAtLeast(0.0),
+                            cumulativeMortality = (c.cumulativeMortality + mortalityDelta).coerceAtLeast(0),
+                            lastDailyReportId = canonicalId,
+                            updatedAtMillis = nowMillis
                         )
                     }
                 }
                 updated
             }
         } else {
-            val stamped = report.copy(updatedAtMillis = System.currentTimeMillis())
+            val stamped = normalizedReport.copy(
+                id = canonicalId,
+                cycleId = resolvedCycleId,
+                updatedAtMillis = nowMillis
+            )
             dailyReports.add(stamped)
             dailyReports.sortBy { it.dayNumber }
-            if (stamped.feedIntakeKg > 0.0 || stamped.mortalityCount > 0) {
-                val cycleIdx = cycles.indexOfFirst { it.id == stamped.cycleId || (it.farmId == stamped.farmId && it.status.equals("active", true)) }
-                if (cycleIdx >= 0) {
-                    val c = cycles[cycleIdx]
-                    cycles[cycleIdx] = c.copy(
-                        feedInventoryKg = (c.feedInventoryKg - stamped.feedIntakeKg).coerceAtLeast(0.0),
-                        cumulativeMortality = (c.cumulativeMortality + stamped.mortalityCount).coerceAtLeast(0)
-                    )
-                }
+            val cycleIdx = cycles.indexOfFirst { it.id == resolvedCycleId }
+                .takeIf { it >= 0 }
+                ?: cycles.indexOfFirst { it.farmId == stamped.farmId && it.status.equals("active", true) }
+            if (cycleIdx >= 0) {
+                val c = cycles[cycleIdx]
+                val (newInv, newDeficit) = AgritechFirestoreRepository.applyFeedDeltaWithDeficit(
+                    currentInventoryKg = c.feedInventoryKg,
+                    currentDeficitKg = c.feedDeficitKg,
+                    consumptionDeltaKg = stamped.feedIntakeKg
+                )
+                cycles[cycleIdx] = c.copy(
+                    feedInventoryKg = newInv,
+                    feedDeficitKg = newDeficit,
+                    cumulativeFeedConsumedKg = (c.cumulativeFeedConsumedKg + stamped.feedIntakeKg).coerceAtLeast(0.0),
+                    cumulativeMortality = (c.cumulativeMortality + stamped.mortalityCount).coerceAtLeast(0),
+                    lastDailyReportId = canonicalId,
+                    updatedAtMillis = nowMillis
+                )
             }
             stamped
         }
@@ -1208,6 +1431,10 @@ object AgritechMockDb {
             val reset = existing.copy(
                 startDate = todayIso,
                 feedInventoryKg = 0.0,
+                feedDeficitKg = 0.0,
+                cumulativeFeedConsumedKg = 0.0,
+                lastDailyReportId = "",
+                updatedAtMillis = System.currentTimeMillis(),
                 cumulativeMortality = 0,
                 cumulativeBirdsSold = 0,
                 cumulativeSoldWeightKg = 0.0,
@@ -1514,7 +1741,7 @@ fun AgritechMainApp(
         authFlow?.collectLatest { firebaseUser ->
             if (firebaseUser != null && firestoreRepo != null) {
                 val uid = firebaseUser.uid
-                if (!sessionState.isLoggedIn) {
+                if (!sessionState.isLoggedIn || sessionState.currentUserUid != uid) {
                     sessionState.markAuthenticated(
                         context = context,
                         role = sessionState.currentRole ?: AppRole.OWNER,
@@ -1522,8 +1749,6 @@ fun AgritechMainApp(
                         farmId = activeFarmId,
                         uid = uid
                     )
-                } else {
-                    sessionState.currentUserUid = uid
                 }
                 coroutineScope {
                     launch {
@@ -1614,33 +1839,24 @@ fun AgritechMainApp(
                             try {
                                 firestoreRepo.observeDailyReports(activeFarmId).collectLatest { cloudReports ->
                                     if (cloudReports.isNotEmpty()) {
+                                        val cloudIds = cloudReports.map { it.id }.toSet()
+                                        val maxCloudTs = cloudReports.maxOfOrNull { it.updatedAtMillis } ?: 0L
+                                        AgritechMockDb.dailyReports.removeAll { localRep ->
+                                            localRep.farmId == activeFarmId &&
+                                                localRep.id !in cloudIds &&
+                                                localRep.updatedAtMillis > 0L &&
+                                                localRep.updatedAtMillis <= maxCloudTs
+                                        }
                                         cloudReports.forEach { report ->
                                             val idx = AgritechMockDb.dailyReports.indexOfFirst {
                                                 it.id == report.id || (it.farmId == report.farmId && it.cycleId == report.cycleId && it.dayNumber == report.dayNumber)
                                             }
                                             if (idx >= 0) {
                                                 val existingLocal = AgritechMockDb.dailyReports[idx]
-                                                val localIsNewer = (existingLocal.updatedAtMillis > report.updatedAtMillis) ||
-                                                    (existingLocal.isEdited && !report.isEdited)
-                                                val mergedReport = if (localIsNewer) {
-                                                    existingLocal.copy(
-                                                        actualAvgWeightKg = if (existingLocal.actualAvgWeightKg > 0.0) existingLocal.actualAvgWeightKg else report.actualAvgWeightKg,
-                                                        medicineGiven = existingLocal.medicineGiven || report.medicineGiven,
-                                                        medicineSummary = existingLocal.medicineSummary.ifBlank { report.medicineSummary },
-                                                        withdrawalDays = maxOf(existingLocal.withdrawalDays, report.withdrawalDays)
-                                                    )
-                                                } else {
-                                                    report.copy(
-                                                        isEdited = report.isEdited || existingLocal.isEdited,
-                                                        previousSummary = report.previousSummary.ifBlank { existingLocal.previousSummary },
-                                                        actualAvgWeightKg = if (report.actualAvgWeightKg > 0.0) report.actualAvgWeightKg else existingLocal.actualAvgWeightKg,
-                                                        medicineGiven = report.medicineGiven || existingLocal.medicineGiven,
-                                                        medicineSummary = report.medicineSummary.ifBlank { existingLocal.medicineSummary },
-                                                        withdrawalDays = maxOf(report.withdrawalDays, existingLocal.withdrawalDays),
-                                                        updatedAtMillis = maxOf(report.updatedAtMillis, existingLocal.updatedAtMillis)
-                                                    )
-                                                }
-                                                AgritechMockDb.dailyReports[idx] = mergedReport
+                                                AgritechMockDb.dailyReports[idx] = AgritechMockDb.mergeCloudReportWithLocal(
+                                                    cloudReport = report,
+                                                    existingLocal = existingLocal
+                                                )
                                             } else {
                                                 AgritechMockDb.dailyReports.add(report)
                                             }
@@ -1658,9 +1874,11 @@ fun AgritechMainApp(
                                             val idx = AgritechMockDb.vetNotes.indexOfFirst { it.id == note.id }
                                             if (idx >= 0) {
                                                 val existingLocal = AgritechMockDb.vetNotes[idx]
+                                                val localIsStrictlyNewer = existingLocal.updatedAtMillis > 0L &&
+                                                    existingLocal.updatedAtMillis > note.updatedAtMillis
                                                 AgritechMockDb.vetNotes[idx] = note.copy(
-                                                    status = if (existingLocal.status == "APPROVED") "APPROVED" else note.status,
-                                                    withdrawalDays = maxOf(note.withdrawalDays, existingLocal.withdrawalDays),
+                                                    status = if (localIsStrictlyNewer) existingLocal.status else note.status,
+                                                    withdrawalDays = if (localIsStrictlyNewer) existingLocal.withdrawalDays else note.withdrawalDays,
                                                     updatedAtMillis = maxOf(note.updatedAtMillis, existingLocal.updatedAtMillis)
                                                 )
                                             } else {
@@ -1680,10 +1898,13 @@ fun AgritechMainApp(
                                             val idx = AgritechMockDb.transactions.indexOfFirst { it.id == tx.id }
                                             if (idx >= 0) {
                                                 val existingLocal = AgritechMockDb.transactions[idx]
+                                                val localIsStrictlyNewer = existingLocal.updatedAtMillis > 0L &&
+                                                    existingLocal.updatedAtMillis > tx.updatedAtMillis
                                                 AgritechMockDb.transactions[idx] = tx.copy(
-                                                    status = if (existingLocal.status == "APPROVED") "APPROVED" else tx.status,
+                                                    status = if (localIsStrictlyNewer) existingLocal.status else tx.status,
                                                     invoiceData = tx.invoiceData ?: existingLocal.invoiceData,
-                                                    approvedBySignature = tx.approvedBySignature.ifBlank { existingLocal.approvedBySignature }
+                                                    approvedBySignature = tx.approvedBySignature.ifBlank { existingLocal.approvedBySignature },
+                                                    updatedAtMillis = maxOf(tx.updatedAtMillis, existingLocal.updatedAtMillis)
                                                 )
                                             } else {
                                                 AgritechMockDb.transactions.add(tx)
@@ -1847,7 +2068,6 @@ fun AgritechMainApp(
                     }
                     val invoice = normalizedTx.invoiceData
                     if (invoice != null && normalizedTx.type == TransactionType.INCOME) {
-                        val preSaleCycleSnapshot = AgritechMockDb.cycles.firstOrNull { it.id == normalizedTx.cycleId }?.copy()
                         val hadTxBefore = AgritechMockDb.transactions.any { it.id == normalizedTx.id }
                         val recordedLocally = AgritechMockDb.recordSalesInvoiceIdempotent(
                             farmId = normalizedTx.farmId,
@@ -1869,14 +2089,13 @@ fun AgritechMainApp(
                                 invoice = invoice
                             )
                             if (cloudRes != null && cloudRes.isFailure) {
-                                if (!hadTxBefore) {
-                                    AgritechMockDb.transactions.removeAll { it.id == normalizedTx.id }
-                                    if (preSaleCycleSnapshot != null) {
-                                        val cIdx = AgritechMockDb.cycles.indexOfFirst { it.id == preSaleCycleSnapshot.id }
-                                        if (cIdx >= 0) {
-                                            AgritechMockDb.cycles[cIdx] = preSaleCycleSnapshot
-                                        }
-                                    }
+                                if (!hadTxBefore && recordedLocally) {
+                                    AgritechMockDb.rollbackSalesInvoiceDelta(
+                                        cycleId = normalizedTx.cycleId,
+                                        txId = normalizedTx.id,
+                                        soldBirdsDelta = invoice.totalBirdsSold,
+                                        soldWeightDeltaKg = invoice.totalNetKg
+                                    )
                                     LocalFarmPersistence.saveAll(context)
                                 }
                                 val errDetail = cloudRes.exceptionOrNull()?.localizedMessage ?: "تعذر حفظ فاتورة البيع سحابياً"
@@ -1888,16 +2107,24 @@ fun AgritechMainApp(
                             }
                         }
                     } else if (AgritechMockDb.transactions.none { it.id == normalizedTx.id }) {
-                        val preFeedCycleSnapshot = AgritechMockDb.cycles.firstOrNull { it.id == normalizedTx.cycleId }?.copy()
                         if (addedFeedKg > 0.0) {
                             AgritechMockDb.countedFeedTxIds.add(normalizedTx.id)
                             val cycleIdx = AgritechMockDb.cycles.indexOfFirst { it.id == normalizedTx.cycleId }
                             if (cycleIdx >= 0) {
                                 val c = AgritechMockDb.cycles[cycleIdx]
-                                AgritechMockDb.cycles[cycleIdx] = c.copy(feedInventoryKg = c.feedInventoryKg + addedFeedKg)
+                                val (newInv, newDeficit) = AgritechFirestoreRepository.applyFeedDeltaWithDeficit(
+                                    currentInventoryKg = c.feedInventoryKg,
+                                    currentDeficitKg = c.feedDeficitKg,
+                                    consumptionDeltaKg = -addedFeedKg
+                                )
+                                AgritechMockDb.cycles[cycleIdx] = c.copy(
+                                    feedInventoryKg = newInv,
+                                    feedDeficitKg = newDeficit,
+                                    updatedAtMillis = System.currentTimeMillis()
+                                )
                             }
                         }
-                        AgritechMockDb.transactions.add(normalizedTx)
+                        AgritechMockDb.transactions.add(normalizedTx.copy(updatedAtMillis = System.currentTimeMillis()))
                         LocalFarmPersistence.saveAll(context)
                         scope.launch {
                             val cloudRes = if (addedFeedKg > 0.0 && normalizedTx.type == TransactionType.EXPENSE) {
@@ -1913,14 +2140,11 @@ fun AgritechMainApp(
                                 )
                             }
                             if (cloudRes != null && cloudRes.isFailure) {
-                                AgritechMockDb.transactions.removeAll { it.id == normalizedTx.id }
-                                AgritechMockDb.countedFeedTxIds.remove(normalizedTx.id)
-                                if (preFeedCycleSnapshot != null) {
-                                    val cIdx = AgritechMockDb.cycles.indexOfFirst { it.id == preFeedCycleSnapshot.id }
-                                    if (cIdx >= 0) {
-                                        AgritechMockDb.cycles[cIdx] = preFeedCycleSnapshot
-                                    }
-                                }
+                                AgritechMockDb.rollbackFeedPurchaseDelta(
+                                    cycleId = normalizedTx.cycleId,
+                                    txId = normalizedTx.id,
+                                    addedFeedKg = if (normalizedTx.type == TransactionType.EXPENSE) addedFeedKg else 0.0
+                                )
                                 LocalFarmPersistence.saveAll(context)
                                 val errDetail = cloudRes.exceptionOrNull()?.localizedMessage ?: "خطأ في الاتصال"
                                 android.widget.Toast.makeText(
@@ -1933,10 +2157,17 @@ fun AgritechMainApp(
                     }
                 },
                 onSaveOrUpdateDailyReport = { report ->
+                    val prevReport = AgritechMockDb.dailyReports.firstOrNull {
+                        it.id == report.id || (it.farmId == report.farmId && it.cycleId == report.cycleId && it.dayNumber == report.dayNumber)
+                    }?.copy()
                     val savedReport = AgritechMockDb.upsertDailyReportWithAudit(report)
                     LocalFarmPersistence.saveAll(context)
                     scope.launch {
-                        firestoreRepo?.saveDailyReport(savedReport)
+                        val cloudRes = firestoreRepo?.saveDailyReport(savedReport)
+                        if (cloudRes != null && cloudRes.isFailure) {
+                            AgritechMockDb.rollbackDailyReportMutation(prevReport, savedReport)
+                            LocalFarmPersistence.saveAll(context)
+                        }
                     }
                 },
                 onApproveVetInvoice = { txId, vnId ->
@@ -2015,10 +2246,17 @@ fun AgritechMainApp(
                     sessionState.selectedFarmForWorker = it
                 },
                 onSubmitReport = { report ->
+                    val prevReport = AgritechMockDb.dailyReports.firstOrNull {
+                        it.id == report.id || (it.farmId == report.farmId && it.cycleId == report.cycleId && it.dayNumber == report.dayNumber)
+                    }?.copy()
                     val savedReport = AgritechMockDb.upsertDailyReportWithAudit(report)
                     LocalFarmPersistence.saveAll(context)
                     scope.launch {
-                        firestoreRepo?.saveDailyReport(savedReport)
+                        val cloudRes = firestoreRepo?.saveDailyReport(savedReport)
+                        if (cloudRes != null && cloudRes.isFailure) {
+                            AgritechMockDb.rollbackDailyReportMutation(prevReport, savedReport)
+                            LocalFarmPersistence.saveAll(context)
+                        }
                     }
                 },
                 onOpenSettings = onOpenSettings,
@@ -2094,10 +2332,17 @@ fun AgritechMainApp(
                     }
                 },
                 onSubmitWorkerReport = { report ->
+                    val prevReport = AgritechMockDb.dailyReports.firstOrNull {
+                        it.id == report.id || (it.farmId == report.farmId && it.cycleId == report.cycleId && it.dayNumber == report.dayNumber)
+                    }?.copy()
                     val savedReport = AgritechMockDb.upsertDailyReportWithAudit(report)
                     LocalFarmPersistence.saveAll(context)
                     scope.launch {
-                        firestoreRepo?.saveDailyReport(savedReport)
+                        val cloudRes = firestoreRepo?.saveDailyReport(savedReport)
+                        if (cloudRes != null && cloudRes.isFailure) {
+                            AgritechMockDb.rollbackDailyReportMutation(prevReport, savedReport)
+                            LocalFarmPersistence.saveAll(context)
+                        }
                     }
                 },
                 onOpenSettings = onOpenSettings,
@@ -3425,10 +3670,21 @@ fun AgritechOwnerDashboard(
                         lang = lang,
                         firestoreRepo = firestoreRepo,
                         onContactPublisher = { post ->
+                            val currentBuyerUid = AgritechAuthHelper.currentUserUid()
+                                ?: sessionState.currentUserUid.orEmpty()
+                            val resolvedDirectChannelId = if (currentBuyerUid.isNotBlank() && post.publisherId.isNotBlank() && currentBuyerUid != post.publisherId) {
+                                AgritechFirestoreRepository.buildMarketDirectChannelId(
+                                    postId = post.id,
+                                    uid1 = currentBuyerUid,
+                                    uid2 = post.publisherId
+                                )
+                            } else {
+                                post.chatChannelId
+                            }
                             val matchedConv = AgritechMockDb.chatConversations.firstOrNull {
-                                it.id == post.chatChannelId
+                                it.id == resolvedDirectChannelId
                             } ?: ChatConversationModel(
-                                id = post.chatChannelId,
+                                id = resolvedDirectChannelId,
                                 userName = post.publisherName,
                                 roleLabel = post.publisherLocation,
                                 avatarEmoji = "🛒",
@@ -7238,7 +7494,8 @@ fun AddMarketPostDialog(
                             null
                         }
                         val ownerUid = currentUser?.uid?.takeIf { it.isNotBlank() }.orEmpty()
-                        val resolvedChatChannel = if (ownerUid.isNotBlank()) "market_$ownerUid" else "general_admin"
+                        val newPostId = "post_${System.currentTimeMillis()}"
+                        val resolvedChatChannel = if (ownerUid.isNotBlank()) "market_${newPostId}_$ownerUid" else "general_admin"
                         val activeFarm = AgritechMockDb.farms.firstOrNull()
                         val resolvedPublisherName = currentUser?.displayName?.takeIf { it.isNotBlank() }
                             ?: activeFarm?.name?.takeIf { it.isNotBlank() }
@@ -7247,7 +7504,7 @@ fun AddMarketPostDialog(
                             ?: Translations.tr("farms_title", lang)
                         onPublishPost(
                             MarketPostModel(
-                                id = "post_${System.currentTimeMillis()}",
+                                id = newPostId,
                                 title = cleanTitle,
                                 description = descInput.trim().ifEmpty { cleanTitle },
                                 priceDzd = parsedPrice,
@@ -15997,13 +16254,23 @@ fun TeamChatTab(
                                 } ?: preferredFarm?.name?.takeIf { it.isNotBlank() }
                                     ?: resolvedSenderRole
                                 val strippedCycleId = channelId.removeSuffix("_worker").removeSuffix("_vet")
-                                val channelFarmHint = AgritechMockDb.cycles.firstOrNull {
-                                    it.id == channelId || it.id == strippedCycleId
-                                }?.farmId ?: sessionState.activeFarmId.takeIf {
-                                    it.isNotBlank() && !AgritechFirestoreRepository.isUnassignedFarm(it)
+                                val isDirectOrMarket = AgritechFirestoreRepository.isMarketOrPrivateDirectChannelId(channelId)
+                                val channelFarmHint = if (isDirectOrMarket) {
+                                    null
+                                } else {
+                                    AgritechMockDb.cycles.firstOrNull {
+                                        it.id == channelId || it.id == strippedCycleId
+                                    }?.farmId ?: sessionState.activeFarmId.takeIf {
+                                        it.isNotBlank() && !AgritechFirestoreRepository.isUnassignedFarm(it)
+                                    }
                                 }
                                 val marketTargetUid = if (channelId.startsWith("market_")) {
-                                    channelId.removePrefix("market_").takeIf { it.isNotBlank() }
+                                    AgritechMockDb.marketPosts.firstOrNull {
+                                        (it.chatChannelId == channelId || channelId.startsWith("market_${it.id}_")) &&
+                                            it.publisherId.isNotBlank()
+                                    }?.publisherId ?: channelId.removePrefix("market_").substringAfterLast("_").takeIf {
+                                        it.isNotBlank() && it != currentUserId
+                                    } ?: channelId.removePrefix("market_").takeIf { it.isNotBlank() }
                                 } else {
                                     AgritechMockDb.marketPosts.firstOrNull {
                                         it.chatChannelId == channelId && it.publisherId.isNotBlank()

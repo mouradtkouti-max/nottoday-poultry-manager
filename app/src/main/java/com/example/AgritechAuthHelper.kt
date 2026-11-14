@@ -129,25 +129,38 @@ object AgritechAuthHelper {
         return if (isSignedIn()) AuthSessionMode.AUTHENTICATED else AuthSessionMode.LOCAL_GUEST
     }
 
+    fun extractRawUidFromIdentityKey(rawInput: String): String {
+        val sanitized = rawInput.trim().replace(Regex("[^a-zA-Z0-9_-]"), "_")
+        return sanitized
+            .removePrefix("auth_uid_")
+            .removePrefix("local_user_")
+    }
+
     /**
      * Resolves a deterministic, isolated local storage namespace key so authenticated accounts
-     * (`auth_uid_<firebaseUid>`) and local guest sessions (`local_guest_default` or `local_user_<id>`)
-     * never share or leak local state.
+     * (`auth_uid_<firebaseUid>`) and local guest sessions (`local_guest_default`)
+     * never share or leak local state, and never split the same UID across `local_user_` and `auth_uid_`.
      */
     fun resolveActiveStorageIdentityKey(explicitSessionUid: String? = null): String {
         val cleanedExplicit = explicitSessionUid?.trim().orEmpty()
-        if (cleanedExplicit.isNotBlank() && cleanedExplicit != "local_guest_default") {
-            val sanitized = cleanedExplicit.replace(Regex("[^a-zA-Z0-9_-]"), "_")
-            return if (sanitized.startsWith("auth_uid_") || sanitized.startsWith("local_")) {
-                sanitized
-            } else {
-                "local_user_$sanitized"
+        if (cleanedExplicit == "local_guest_default") {
+            val firebaseUid = currentUserUid()?.trim().orEmpty()
+            if (firebaseUid.isNotBlank() && firebaseUid != "local_guest_default") {
+                val baseUid = extractRawUidFromIdentityKey(firebaseUid)
+                if (baseUid.isNotBlank()) return "auth_uid_$baseUid"
             }
+            return "local_guest_default"
         }
-        val firebaseUid = currentUserUid()
-        if (!firebaseUid.isNullOrBlank()) {
-            val sanitized = firebaseUid.replace(Regex("[^a-zA-Z0-9_-]"), "_")
-            return "auth_uid_$sanitized"
+        val candidateUid = if (cleanedExplicit.isNotBlank()) {
+            cleanedExplicit
+        } else {
+            currentUserUid()?.trim().orEmpty()
+        }
+        if (candidateUid.isNotBlank() && candidateUid != "local_guest_default") {
+            val baseUid = extractRawUidFromIdentityKey(candidateUid)
+            if (baseUid.isNotBlank() && baseUid != "local_guest_default") {
+                return "auth_uid_$baseUid"
+            }
         }
         return "local_guest_default"
     }

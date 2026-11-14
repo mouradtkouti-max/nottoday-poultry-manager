@@ -1928,4 +1928,107 @@ class ExampleRobolectricTest {
             }
         }
     }
+
+    @Test
+    fun audit8f04be5_storageIdentityMigration_and_uidSwitchIsolation_preserveTombstonesAndWorkerLedger() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val uidA = "uid_alpha_101"
+        val uidB = "uid_beta_202"
+
+        LocalFarmPersistence.clearAllForDeletedIdentity(context, uidA)
+        LocalFarmPersistence.clearAllForDeletedIdentity(context, uidB)
+
+        // 1. Seed legacy v2 prefs under local_user_uid_alpha_101 and verify transparent migration to auth_uid_uid_alpha_101
+        val legacyLocalPrefs = context.getSharedPreferences(
+            "agritech_local_state_v2_local_user_$uidA",
+            Context.MODE_PRIVATE
+        )
+        legacyLocalPrefs.edit()
+            .putBoolean("has_saved_state", true)
+            .putString("deleted_farm_ids_json", "[\"farm_deleted_by_a\"]")
+            .putString("worker_personal_entries_json", "[]")
+            .putBoolean("worker_entries_initialized", true)
+            .commit()
+
+        LocalFarmPersistence.setActiveIdentity(uidA)
+        assertEquals("auth_uid_$uidA", LocalFarmPersistence.getActiveIdentity())
+        assertEquals("agritech_local_state_v2_auth_uid_$uidA", LocalFarmPersistence.resolvePrefNameForIdentity(uidA))
+        assertEquals("agritech_local_state_v2_auth_uid_$uidA", LocalFarmPersistence.resolvePrefNameForIdentity("local_user_$uidA"))
+
+        LocalFarmPersistence.loadIntoMockDb(context, uidA)
+        assertTrue("Deleted farm tombstone from local_user_ must migrate to auth_uid_", "farm_deleted_by_a" in AgritechMockDb.deletedFarmIds)
+        assertTrue("Empty workerPersonalEntries after deletion must stay empty after reload", AgritechMockDb.workerPersonalEntries.isEmpty())
+
+        // Add a farm for UID A and save
+        AgritechMockDb.farms.clear()
+        AgritechMockDb.farms.add(
+            FarmModel(
+                id = "farm_alpha_only",
+                name = "عنبر ألفا",
+                location = "المدية",
+                capacity = 6000,
+                assignedWorkerId = "removed_worker_x",
+                members = mapOf(uidA to "OWNER")
+            )
+        )
+        LocalFarmPersistence.saveAll(context, uidA)
+
+        // 2. Switch to UID B via AgritechAppSessionState.markAuthenticated
+        val sessionState = AgritechAppSessionState(
+            initialOnboardingCompleted = true,
+            initialTheme = AppThemeOption.LIGHT_BEIGE,
+            initialLanguage = AppLanguage.AR,
+            initialCountryCode = "DZ",
+            initialCurrencyCode = "DZD",
+            initialIsLoggedIn = true,
+            initialRole = AppRole.OWNER,
+            initialHasLinkedBarns = true,
+            initialActiveFarmId = "farm_alpha_only",
+            initialUserUid = uidA,
+            initialProfessionSelected = true
+        )
+        sessionState.markAuthenticated(
+            context = context,
+            role = AppRole.OWNER,
+            linkedBarns = true,
+            farmId = "",
+            uid = uidB
+        )
+        assertEquals(uidB, sessionState.currentUserUid)
+        assertEquals("auth_uid_$uidB", LocalFarmPersistence.getActiveIdentity())
+        assertTrue("UID A farms must not leak into UID B", AgritechMockDb.farms.none { it.id == "farm_alpha_only" })
+        assertTrue("UID A tombstones must not leak into UID B", "farm_deleted_by_a" !in AgritechMockDb.deletedFarmIds)
+
+        // Add a farm for UID B and save
+        AgritechMockDb.farms.add(
+            FarmModel(
+                id = "farm_beta_only",
+                name = "عنبر بيتا",
+                location = "سطيف",
+                capacity = 8000,
+                members = mapOf(uidB to "OWNER")
+            )
+        )
+        LocalFarmPersistence.saveAll(context, uidB)
+
+        // 3. Switch back to UID A -> UID A's farm, normalized assignedWorkerId (""), tombstone, and empty worker ledger are restored
+        sessionState.markAuthenticated(
+            context = context,
+            role = AppRole.OWNER,
+            linkedBarns = true,
+            farmId = "farm_alpha_only",
+            uid = uidA
+        )
+        assertEquals(uidA, sessionState.currentUserUid)
+        assertTrue("UID A farm must be restored on re-login", AgritechMockDb.farms.any { it.id == "farm_alpha_only" })
+        assertEquals(
+            "assignedWorkerId not in members must be normalized to empty string",
+            "",
+            AgritechMockDb.farms.first { it.id == "farm_alpha_only" }.assignedWorkerId
+        )
+        assertTrue("UID B farm must not leak into UID A", AgritechMockDb.farms.none { it.id == "farm_beta_only" })
+        assertTrue("UID A deletedFarmIds tombstone must remain intact", "farm_deleted_by_a" in AgritechMockDb.deletedFarmIds)
+        assertTrue("UID A empty workerPersonalEntries must remain empty", AgritechMockDb.workerPersonalEntries.isEmpty())
+    }
 }
+

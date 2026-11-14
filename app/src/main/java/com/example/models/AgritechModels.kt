@@ -188,6 +188,9 @@ data class CycleModel(
     val startDate: String = "2026-03-01",
     val chickPrice: Double = 120.0,
     val feedInventoryKg: Double = 0.0,
+    val feedDeficitKg: Double = 0.0,
+    val cumulativeFeedConsumedKg: Double = 0.0,
+    val lastDailyReportId: String = "",
     val cumulativeBirdsSold: Int = 0,
     val cumulativeSoldWeightKg: Double = 0.0,
     val cumulativeMortality: Int = 0,
@@ -195,7 +198,8 @@ data class CycleModel(
     val schemaVersion: Int = 2,
     val sectorId: String = "AGRICULTURE",
     val branchId: String = "BROILER",
-    val customMetrics: Map<String, String> = emptyMap()
+    val customMetrics: Map<String, String> = emptyMap(),
+    val updatedAtMillis: Long = 0L
 )
 
 typealias ProductionCycle = CycleModel
@@ -368,7 +372,9 @@ data class TransactionModel(
     val notes: String = "",
     val quantityQuintals: Double = 0.0,
     val approvedBySignature: String = "",
-    val invoiceNumber: Int? = null
+    val invoiceNumber: Int? = null,
+    val updatedAtMillis: Long = 0L,
+    val deliveryState: String = "SYNCED"
 )
 
 data class WeighingRecord(

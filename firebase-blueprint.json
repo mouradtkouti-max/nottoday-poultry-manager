@@ -53,6 +53,10 @@
         "cumulativeBirdsSold": { "type": "integer", "description": "Total birds sold across all invoices in this cycle." },
         "cumulativeSoldWeightKg": { "type": "number", "description": "Total net weight in kg of birds sold across all partial/full sales in this cycle." },
         "feedInventoryKg": { "type": "number", "description": "Current feed stock in kilograms." },
+        "feedDeficitKg": { "type": "number", "description": "Accumulated feed deficit in kilograms when consumption exceeds inventory." },
+        "cumulativeFeedConsumedKg": { "type": "number", "description": "Cumulative feed consumed in kilograms across daily reports." },
+        "lastDailyReportId": { "type": "string", "description": "ID of the daily report atomically linked to the latest cycle totals update." },
+        "cumulativeMortality": { "type": "integer", "description": "Cumulative mortality count across the cycle." },
         "schemaVersion": { "type": "integer", "description": "Optional schema version." },
         "sectorId": { "type": "string", "description": "Optional business sector identifier." },
         "branchId": { "type": "string", "description": "Optional agricultural branch identifier." },
@@ -74,7 +78,7 @@
         "feedIntakeKg": { "type": "number", "description": "Daily feed consumed in kg." },
         "waterIntakeLiters": { "type": "number", "description": "Daily water consumed in liters." },
         "mortalityCount": { "type": "integer", "description": "Daily bird mortality count." },
-        "temperature": { "type": "number", "description": "Barn temperature in Celsius." },
+        "temperature": { "type": ["number", "null"], "description": "Barn temperature in Celsius (nullable when not recorded)." },
         "gasUnits": { "type": "number", "description": "Gas consumption units." },
         "ventilationStatus": { "type": "string", "description": "Ventilation quality status." },
         "litterCondition": { "type": "string", "description": "Litter condition description." },
@@ -85,7 +89,7 @@
         "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp of creation." },
         "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp of last update." }
       },
-      "required": ["userId", "farmId", "cycleId", "dayNumber", "feedIntakeKg", "waterIntakeLiters", "mortalityCount", "temperature", "gasUnits", "ventilationStatus", "litterCondition", "createdAt", "updatedAt"]
+      "required": ["userId", "farmId", "cycleId", "dayNumber", "feedIntakeKg", "waterIntakeLiters", "mortalityCount", "gasUnits", "ventilationStatus", "litterCondition", "createdAt", "updatedAt"]
     },
     "VetNote": {
       "title": "VetNote",

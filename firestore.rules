@@ -11,9 +11,6 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
-    }
 
     function isUser(userId) {
       return isSignedIn() && request.auth.uid == userId;
@@ -41,8 +38,10 @@ service cloud.firestore {
 
     function getMemberRole(farmId, uid) {
       return !farmExists(farmId) ? '' : (
-        ('members' in getFarmData(farmId) && uid in getFarmData(farmId).members)
-          ? getFarmData(farmId).members[uid]
+        ('members' in getFarmData(farmId) && getFarmData(farmId).members is map)
+          ? ((uid in getFarmData(farmId).members)
+              ? getFarmData(farmId).members[uid]
+              : (getFarmData(farmId).get('assignedOwnerId', '') == uid ? 'OWNER' : ''))
           : (getFarmData(farmId).get('assignedOwnerId', '') == uid
               ? 'OWNER'
               : (getFarmData(farmId).get('assignedWorkerId', '') == uid
@@ -181,19 +180,15 @@ service cloud.firestore {
         && getAfter(invitePath).data.expiresAtMillis > request.time.toMillis();
     }
 
-    function isValidMemberSelfRemoval() {
-      return isSignedIn()
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members', 'updatedAt'])
-        && request.resource.data.members is map
-        && resource.data.members is map
-        && (request.auth.uid in resource.data.members)
-        && !(request.auth.uid in request.resource.data.members)
-        && resource.data.members.diff(request.resource.data.members).affectedKeys().hasOnly([request.auth.uid]);
-    }
 
     function isValidMemberSelfLeave(farmId) {
+      let changedKeys = request.resource.data.diff(resource.data).affectedKeys();
+      let workerFieldValid = !('assignedWorkerId' in changedKeys)
+        || (resource.data.get('assignedWorkerId', '') == request.auth.uid
+            && request.resource.data.get('assignedWorkerId', '') == '');
       return isSignedIn()
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members', 'updatedAt'])
+        && changedKeys.hasOnly(['members', 'assignedWorkerId', 'updatedAt'])
+        && workerFieldValid
         && request.resource.data.members is map
         && resource.data.members is map
         && (request.auth.uid in resource.data.members)
@@ -207,10 +202,11 @@ service cloud.firestore {
       let targetW = ('targetWeight' in data) ? data.targetWeight : data.get('targetWeightKg', 2.3);
       return data.keys().hasOnly([
           'id', 'farmId', 'userId', 'totalBirdsPlaced', 'targetWeight', 'targetWeightKg',
-          'status', 'startDate', 'chickPrice', 'feedInventoryKg',
+          'status', 'startDate', 'chickPrice', 'feedInventoryKg', 'feedDeficitKg',
+          'cumulativeFeedConsumedKg', 'lastDailyReportId',
           'cumulativeBirdsSold', 'cumulativeSoldWeightKg', 'cumulativeMortality', 'currencyCode',
           'schemaVersion', 'sectorId', 'branchId', 'customMetrics',
-          'createdAt', 'updatedAt'
+          'updatedAtMillis', 'createdAt', 'updatedAt'
         ])
         && data.farmId == farmId
         && data.totalBirdsPlaced is int && data.totalBirdsPlaced >= 0 && data.totalBirdsPlaced <= 1000000
@@ -219,10 +215,119 @@ service cloud.firestore {
         && (!('startDate' in data) || (data.startDate is string && data.startDate.size() >= 8 && data.startDate.size() <= 30))
         && (!('chickPrice' in data) || (data.chickPrice is number && data.chickPrice >= 0))
         && data.feedInventoryKg is number && data.feedInventoryKg >= 0
+        && (!('feedDeficitKg' in data) || (data.feedDeficitKg is number && data.feedDeficitKg >= 0))
+        && (!('cumulativeFeedConsumedKg' in data) || (data.cumulativeFeedConsumedKg is number && data.cumulativeFeedConsumedKg >= 0))
+        && (!('lastDailyReportId' in data) || (data.lastDailyReportId is string && data.lastDailyReportId.size() <= 160))
         && (!('cumulativeBirdsSold' in data) || (data.cumulativeBirdsSold is int && data.cumulativeBirdsSold >= 0 && data.cumulativeBirdsSold <= data.totalBirdsPlaced))
         && (!('cumulativeSoldWeightKg' in data) || (data.cumulativeSoldWeightKg is number && data.cumulativeSoldWeightKg >= 0))
         && (!('cumulativeMortality' in data) || (data.cumulativeMortality is int && data.cumulativeMortality >= 0 && data.cumulativeMortality <= data.totalBirdsPlaced))
         && (data.get('cumulativeBirdsSold', 0) + data.get('cumulativeMortality', 0) <= data.totalBirdsPlaced);
+    }
+
+    function verifyWorkerReportDeltaWhenExistsBefore(farmId, cycleId, repPath) {
+      let data = request.resource.data;
+      let prev = resource.data;
+      let repAfter = getAfter(repPath).data;
+      let repBefore = get(repPath).data;
+      let feedDelta = repAfter.get('feedIntakeKg', 0) - repBefore.get('feedIntakeKg', 0);
+      let mortDelta = repAfter.get('mortalityCount', 0) - repBefore.get('mortalityCount', 0);
+      let newNetFeed = data.get('feedInventoryKg', 0) - data.get('feedDeficitKg', 0);
+      let expectedNewNetFeed = (prev.get('feedInventoryKg', 0) - prev.get('feedDeficitKg', 0)) - feedDelta;
+      return repAfter != repBefore
+        && repAfter.get('farmId', '') == farmId
+        && repAfter.get('cycleId', '') == cycleId
+        && repAfter.get('userId', '') == request.auth.uid
+        && repBefore.get('userId', '') == request.auth.uid
+        && repBefore.get('isLocked', true) == false
+        && data.get('feedInventoryKg', 0) >= 0 && data.get('feedDeficitKg', 0) >= 0
+        && (data.get('feedInventoryKg', 0) == 0 || data.get('feedDeficitKg', 0) == 0)
+        && (newNetFeed - expectedNewNetFeed <= 0.001)
+        && (expectedNewNetFeed - newNetFeed <= 0.001)
+        && data.get('cumulativeMortality', 0) >= 0
+        && data.get('cumulativeMortality', 0) == prev.get('cumulativeMortality', 0) + mortDelta;
+    }
+
+    function verifyWorkerReportDeltaWhenCreated(farmId, cycleId, repPath) {
+      let data = request.resource.data;
+      let prev = resource.data;
+      let repAfter = getAfter(repPath).data;
+      let feedDelta = repAfter.get('feedIntakeKg', 0);
+      let mortDelta = repAfter.get('mortalityCount', 0);
+      let newNetFeed = data.get('feedInventoryKg', 0) - data.get('feedDeficitKg', 0);
+      let expectedNewNetFeed = (prev.get('feedInventoryKg', 0) - prev.get('feedDeficitKg', 0)) - feedDelta;
+      return repAfter.get('farmId', '') == farmId
+        && repAfter.get('cycleId', '') == cycleId
+        && repAfter.get('userId', '') == request.auth.uid
+        && data.get('feedInventoryKg', 0) >= 0 && data.get('feedDeficitKg', 0) >= 0
+        && (data.get('feedInventoryKg', 0) == 0 || data.get('feedDeficitKg', 0) == 0)
+        && (newNetFeed - expectedNewNetFeed <= 0.001)
+        && (expectedNewNetFeed - newNetFeed <= 0.001)
+        && data.get('cumulativeMortality', 0) >= 0
+        && data.get('cumulativeMortality', 0) == prev.get('cumulativeMortality', 0) + mortDelta;
+    }
+
+    function isValidWorkerCycleAtomicReportUpdateForPath(farmId, cycleId, repPath) {
+      return existsAfter(repPath) && (
+        exists(repPath)
+          ? verifyWorkerReportDeltaWhenExistsBefore(farmId, cycleId, repPath)
+          : verifyWorkerReportDeltaWhenCreated(farmId, cycleId, repPath)
+      );
+    }
+
+    function isValidWorkerCycleAtomicReportUpdate(farmId, cycleId) {
+      let data = request.resource.data;
+      let prev = resource.data;
+      let rawRepId = data.get('lastDailyReportId', '');
+      let safeRepId = (rawRepId is string && rawRepId.size() > 0) ? rawRepId : '___missing_report___';
+      let primaryRepPath = /databases/$(database)/documents/farms/$(farmId)/dailyReports/$(safeRepId);
+      let altRepPath = /databases/$(database)/documents/farms/$(farmId)/daily_reports/$(safeRepId);
+      return isWorkerRole(farmId)
+        && isValidProductionCycle(farmId)
+        && isImmutableAuthorAndUnit(farmId)
+        && rawRepId is string && rawRepId.size() > 0
+        && data.diff(prev).affectedKeys().hasOnly([
+            'feedInventoryKg', 'feedDeficitKg', 'cumulativeFeedConsumedKg',
+            'cumulativeMortality', 'lastDailyReportId', 'updatedAtMillis', 'updatedAt'
+        ])
+        && (
+          isValidWorkerCycleAtomicReportUpdateForPath(farmId, cycleId, primaryRepPath)
+          || isValidWorkerCycleAtomicReportUpdateForPath(farmId, cycleId, altRepPath)
+        );
+    }
+
+    function verifyCycleUpdatedForReportAtPath(cyclePath, reportId, feedDelta, mortDelta) {
+      let cPrev = get(cyclePath).data;
+      let cNext = getAfter(cyclePath).data;
+      let newInv = cNext.get('feedInventoryKg', 0);
+      let newDef = cNext.get('feedDeficitKg', 0);
+      let newNetFeed = newInv - newDef;
+      let expectedNewNetFeed = (cPrev.get('feedInventoryKg', 0) - cPrev.get('feedDeficitKg', 0)) - feedDelta;
+      let prevMort = cPrev.get('cumulativeMortality', 0);
+      let newMort = cNext.get('cumulativeMortality', 0);
+      return cPrev.get('status', 'active') in ['active', 'ACTIVE']
+        && cNext != cPrev
+        && newInv >= 0 && newDef >= 0 && (newInv == 0 || newDef == 0)
+        && (newNetFeed - expectedNewNetFeed <= 0.001)
+        && (expectedNewNetFeed - newNetFeed <= 0.001)
+        && newMort >= 0
+        && newMort == prevMort + mortDelta
+        && (!('lastDailyReportId' in cNext) || cNext.lastDailyReportId == '' || cNext.lastDailyReportId == reportId);
+    }
+
+    function isCycleAtomicallyUpdatedForReport(farmId, reportId) {
+      let data = request.resource.data;
+      let rawCycleId = data.get('cycleId', '');
+      let safeCycleId = (rawCycleId is string && rawCycleId.size() > 0) ? rawCycleId : '___missing_cycle___';
+      let primaryCyclePath = /databases/$(database)/documents/farms/$(farmId)/cycles/$(safeCycleId);
+      let altCyclePath = /databases/$(database)/documents/farms/$(farmId)/production_cycles/$(safeCycleId);
+      let oldFeed = (resource == null) ? 0 : resource.data.get('feedIntakeKg', 0);
+      let oldMort = (resource == null) ? 0 : resource.data.get('mortalityCount', 0);
+      let feedDelta = data.get('feedIntakeKg', 0) - oldFeed;
+      let mortDelta = data.get('mortalityCount', 0) - oldMort;
+      return (exists(primaryCyclePath) && existsAfter(primaryCyclePath)
+              && verifyCycleUpdatedForReportAtPath(primaryCyclePath, reportId, feedDelta, mortDelta))
+          || (exists(altCyclePath) && existsAfter(altCyclePath)
+              && verifyCycleUpdatedForReportAtPath(altCyclePath, reportId, feedDelta, mortDelta));
     }
 
     function isValidDailyReport(farmId) {
@@ -298,11 +403,39 @@ service cloud.firestore {
     // 3. CHAT CHANNEL & UNIFIED MESSAGE HELPERS
     // =========================================================================
 
+    function hasFarmChannelId(cData) {
+      return cData != null && (
+        (('farmId' in cData) && cData.farmId is string && cData.farmId.size() > 0)
+        || cData.get('channelType', '') == 'FARM_TEAM'
+      );
+    }
+
+    function isFarmChannelMemberUid(farmId, uid) {
+      return uid is string && uid.size() > 0 && getMemberRole(farmId, uid) in ['OWNER', 'WORKER', 'VETERINARIAN'];
+    }
+
+    function areAllParticipantsFarmMembers(farmId, participants) {
+      return participants is list
+        && participants.size() >= 1
+        && participants.size() <= 10
+        && (participants.size() < 1 || isFarmChannelMemberUid(farmId, participants[0]))
+        && (participants.size() < 2 || isFarmChannelMemberUid(farmId, participants[1]))
+        && (participants.size() < 3 || isFarmChannelMemberUid(farmId, participants[2]))
+        && (participants.size() < 4 || isFarmChannelMemberUid(farmId, participants[3]))
+        && (participants.size() < 5 || isFarmChannelMemberUid(farmId, participants[4]))
+        && (participants.size() < 6 || isFarmChannelMemberUid(farmId, participants[5]))
+        && (participants.size() < 7 || isFarmChannelMemberUid(farmId, participants[6]))
+        && (participants.size() < 8 || isFarmChannelMemberUid(farmId, participants[7]))
+        && (participants.size() < 9 || isFarmChannelMemberUid(farmId, participants[8]))
+        && (participants.size() < 10 || isFarmChannelMemberUid(farmId, participants[9]));
+    }
+
     function isAuthorizedForChannelData(cData) {
-      return isSignedIn() && (
-        (('farmId' in cData) && cData.farmId is string && cData.farmId.size() > 0 && isAnyFarmMember(cData.farmId))
-        || (('participants' in cData) && cData.participants is list && request.auth.uid in cData.participants)
-        || (('participants' in cData) && cData.participants is map && request.auth.uid in cData.participants)
+      return isSignedIn() && cData != null && (
+        hasFarmChannelId(cData)
+          ? (('farmId' in cData) && cData.farmId is string && cData.farmId.size() > 0 && isAnyFarmMember(cData.farmId))
+          : ((('participants' in cData) && cData.participants is list && request.auth.uid in cData.participants)
+             || (('participants' in cData) && cData.participants is map && request.auth.uid in cData.participants))
       );
     }
 
@@ -318,26 +451,48 @@ service cloud.firestore {
       let channelPath = /databases/$(database)/documents/chatChannels/$(channelId);
       let cData = get(channelPath).data;
       return isSignedIn() && exists(channelPath) && (
-        (('farmId' in cData) && cData.farmId is string && cData.farmId.size() > 0)
-          ? isOwnerRole(cData.farmId)
+        hasFarmChannelId(cData)
+          ? (('farmId' in cData) && cData.farmId is string && cData.farmId.size() > 0 && isOwnerRole(cData.farmId))
           : (('ownerId' in cData) && cData.ownerId == request.auth.uid)
       );
     }
 
     function isValidChatChannelCreate() {
       let data = request.resource.data;
-      let hasFarm = ('farmId' in data) && data.farmId is string && data.farmId.size() > 0;
+      let hasFarm = hasFarmChannelId(data);
+      let isMarketDirect = data.get('channelType', '') == 'DIRECT_MARKET' || data.get('channelId', '').matches('^market_.*');
       let validOwnerField = !('ownerId' in data)
-        || (hasFarm && getMemberRole(data.farmId, data.ownerId) == 'OWNER')
-        || (!hasFarm && data.ownerId == request.auth.uid);
-      return isAuthorizedForChannelData(data) && validOwnerField;
+        || (hasFarm && ('farmId' in data) && data.farmId is string && data.farmId.size() > 0 && getMemberRole(data.farmId, data.ownerId) == 'OWNER')
+        || (!hasFarm && (data.ownerId == request.auth.uid || (isMarketDirect && data.participants is list && data.ownerId in data.participants)));
+      let validParticipants = hasFarm
+        ? (('farmId' in data) && data.farmId is string && data.farmId.size() > 0
+           && data.participants is list
+           && request.auth.uid in data.participants
+           && areAllParticipantsFarmMembers(data.farmId, data.participants))
+        : (data.get('farmId', '') == ''
+           && data.participants is list
+           && request.auth.uid in data.participants
+           && (isMarketDirect
+               ? (data.participants.size() == 2
+                  && data.participants[0] is string && data.participants[0].size() > 0
+                  && data.participants[1] is string && data.participants[1].size() > 0
+                  && data.participants[0] != data.participants[1])
+               : (data.participants.size() >= 1 && data.participants.size() <= 2)));
+      return isSignedIn()
+        && data.keys().hasOnly([
+            'channelId', 'farmId', 'ownerId', 'channelType', 'marketPostId',
+            'participants', 'createdBy', 'createdAt', 'updatedAt'
+        ])
+        && data.createdBy == request.auth.uid
+        && isAuthorizedForChannelData(data)
+        && validOwnerField
+        && validParticipants;
     }
 
     function isValidChatChannelSelfLeave() {
       let data = request.resource.data;
       let prev = resource.data;
       return isSignedIn()
-        && isAuthorizedForChannelData(prev)
         && data.diff(prev).affectedKeys().hasOnly(['participants', 'updatedAt'])
         && data.get('ownerId', '') == prev.get('ownerId', '')
         && data.get('farmId', '') == prev.get('farmId', '')
@@ -352,17 +507,22 @@ service cloud.firestore {
     function isValidChatChannelUpdate() {
       let data = request.resource.data;
       let prev = resource.data;
-      let immutableOwnerAndFarm = (!('ownerId' in resource.data) || request.resource.data.ownerId == resource.data.ownerId)
-        && (!('farmId' in resource.data) || request.resource.data.farmId == resource.data.farmId)
+      let hasFarm = hasFarmChannelId(prev);
+      let immutableCoreFields = (!('ownerId' in prev) || data.ownerId == prev.ownerId)
+        && (!('farmId' in prev) || data.farmId == prev.farmId)
         && data.get('ownerId', '') == prev.get('ownerId', '')
-        && data.get('farmId', '') == prev.get('farmId', '');
-      let callerIsOwner = (('farmId' in prev) && prev.farmId is string && prev.farmId.size() > 0 && isOwnerRole(prev.farmId))
-        || (('ownerId' in prev) && prev.ownerId == request.auth.uid);
-      let participantsUnchangedOrOwner = (data.get('participants', []) == prev.get('participants', [])) || callerIsOwner;
+        && data.get('farmId', '') == prev.get('farmId', '')
+        && data.get('channelType', '') == prev.get('channelType', '')
+        && data.get('marketPostId', '') == prev.get('marketPostId', '')
+        && data.get('createdBy', '') == prev.get('createdBy', '');
+      let validParticipantsOnUpdate = hasFarm
+        ? ((data.get('participants', []) == prev.get('participants', []))
+           || (isOwnerRole(prev.farmId) && areAllParticipantsFarmMembers(prev.farmId, data.participants)))
+        : (data.get('participants', []) == prev.get('participants', []));
       return isAuthorizedForChannelData(prev)
         && isAuthorizedForChannelData(data)
-        && immutableOwnerAndFarm
-        && participantsUnchangedOrOwner;
+        && immutableCoreFields
+        && validParticipantsOnUpdate;
     }
 
     function isValidChatMessageCreate() {
@@ -462,12 +622,14 @@ service cloud.firestore {
       allow get: if isSignedIn() && (
         resource == null ||
         isAnyFarmMember(farmId) ||
-        (('members' in resource.data) && (request.auth.uid in resource.data.members)) ||
-        (('members' in resource.data) && (resource.data.members[request.auth.uid] in ['OWNER', 'VETERINARIAN', 'WORKER']))
+        (('members' in resource.data) && resource.data.members is map
+          && (request.auth.uid in resource.data.members)
+          && (resource.data.members[request.auth.uid] in ['OWNER', 'VETERINARIAN', 'WORKER']))
       );
       allow list: if isSignedIn() && (
-        (('members' in resource.data) && (request.auth.uid in resource.data.members)) ||
-        (('members' in resource.data) && (resource.data.members[request.auth.uid] in ['OWNER', 'VETERINARIAN', 'WORKER']))
+        (('members' in resource.data) && resource.data.members is map
+          && (request.auth.uid in resource.data.members)
+          && (resource.data.members[request.auth.uid] in ['OWNER', 'VETERINARIAN', 'WORKER']))
       );
       allow create: if isSignedIn()
                     && isValidOperationalUnit()
@@ -504,14 +666,7 @@ service cloud.firestore {
         allow update: if (isOwnerRole(farmId)
                           && isValidProductionCycle(farmId)
                           && isImmutableAuthorAndUnit(farmId))
-                      || (isWorkerRole(farmId)
-                          && isValidProductionCycle(farmId)
-                          && isImmutableAuthorAndUnit(farmId)
-                          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['feedInventoryKg', 'cumulativeMortality', 'updatedAt'])
-                          && request.resource.data.feedInventoryKg <= resource.data.feedInventoryKg
-                          && request.resource.data.feedInventoryKg >= 0
-                          && request.resource.data.get('cumulativeMortality', 0) >= resource.data.get('cumulativeMortality', 0)
-                          && (request.resource.data.get('cumulativeMortality', 0) - resource.data.get('cumulativeMortality', 0)) <= 5000);
+                      || isValidWorkerCycleAtomicReportUpdate(farmId, cycleId);
         allow delete: if isOwnerRole(farmId);
       }
 
@@ -520,12 +675,14 @@ service cloud.firestore {
         allow create: if (isOwnerRole(farmId) || isWorkerRole(farmId))
                       && isValidDailyReport(farmId)
                       && isAuthor()
-                      && isCycleActive(farmId, request.resource.data.cycleId);
+                      && isCycleActive(farmId, request.resource.data.cycleId)
+                      && isCycleAtomicallyUpdatedForReport(farmId, reportId);
         allow update: if isValidDailyReport(farmId)
                       && isImmutableAuthorAndUnit(farmId)
                       && request.resource.data.cycleId == resource.data.cycleId
                       && request.resource.data.dayNumber == resource.data.dayNumber
                       && isCycleActive(farmId, resource.data.cycleId)
+                      && isCycleAtomicallyUpdatedForReport(farmId, reportId)
                       && (isOwnerRole(farmId)
                           || (isWorkerRole(farmId)
                               && resource.data.userId == request.auth.uid
@@ -545,12 +702,14 @@ service cloud.firestore {
         allow create: if (isOwnerRole(farmId) || isWorkerRole(farmId))
                       && isValidDailyReport(farmId)
                       && isAuthor()
-                      && isCycleActive(farmId, request.resource.data.cycleId);
+                      && isCycleActive(farmId, request.resource.data.cycleId)
+                      && isCycleAtomicallyUpdatedForReport(farmId, reportId);
         allow update: if isValidDailyReport(farmId)
                       && isImmutableAuthorAndUnit(farmId)
                       && request.resource.data.cycleId == resource.data.cycleId
                       && request.resource.data.dayNumber == resource.data.dayNumber
                       && isCycleActive(farmId, resource.data.cycleId)
+                      && isCycleAtomicallyUpdatedForReport(farmId, reportId)
                       && (isOwnerRole(farmId)
                           || ((isWorkerRole(farmId) || isVetRole(farmId))
                               && resource.data.userId == request.auth.uid
@@ -573,14 +732,7 @@ service cloud.firestore {
         allow update: if (isOwnerRole(farmId)
                           && isValidProductionCycle(farmId)
                           && isImmutableAuthorAndUnit(farmId))
-                      || (isWorkerRole(farmId)
-                          && isValidProductionCycle(farmId)
-                          && isImmutableAuthorAndUnit(farmId)
-                          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['feedInventoryKg', 'cumulativeMortality', 'updatedAt'])
-                          && request.resource.data.feedInventoryKg <= resource.data.feedInventoryKg
-                          && request.resource.data.feedInventoryKg >= 0
-                          && request.resource.data.get('cumulativeMortality', 0) >= resource.data.get('cumulativeMortality', 0)
-                          && (request.resource.data.get('cumulativeMortality', 0) - resource.data.get('cumulativeMortality', 0)) <= 5000);
+                      || isValidWorkerCycleAtomicReportUpdate(farmId, cycleId);
         allow delete: if isOwnerRole(farmId);
       }
 
@@ -657,7 +809,13 @@ service cloud.firestore {
       allow list: if isSignedIn() && isAuthorizedForChannelData(resource.data);
       allow create: if isValidChatChannelCreate();
       allow update: if isValidChatChannelUpdate() || isValidChatChannelSelfLeave();
-      allow delete: if isChannelOwner(channelId);
+      allow delete: if isChannelOwner(channelId)
+                    || (isSignedIn()
+                        && !hasFarmChannelId(resource.data)
+                        && resource.data.get('ownerId', '') == ''
+                        && resource.data.participants is list
+                        && resource.data.participants.size() <= 1
+                        && request.auth.uid in resource.data.participants);
 
       match /messages/{messageId} {
         allow get, list: if isChannelParticipant(channelId);
@@ -666,7 +824,7 @@ service cloud.firestore {
         allow update: if isChannelParticipant(channelId)
                       && isValidChatMessageStatusUpdate(channelId);
         allow delete: if isChannelOwner(channelId)
-                      || (isChannelParticipant(channelId)
+                      || (isSignedIn()
                           && resource.data.get('senderId', resource.data.get('userId', '')) == request.auth.uid);
       }
     }

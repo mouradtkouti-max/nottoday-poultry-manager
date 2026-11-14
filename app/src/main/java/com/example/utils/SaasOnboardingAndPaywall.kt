@@ -272,10 +272,19 @@ object SaasPreferencesManager {
 
     fun getEnabledRolesForUser(context: Context, userUid: String? = null): Set<AppRole> {
         return try {
-            val key = KEY_ENABLED_ROLES_PREFIX + resolveUidKey(context, userUid)
-            val csv = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-                .getString(key, "")
-                .orEmpty()
+            val resolvedKey = resolveUidKey(context, userUid)
+            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            val key = KEY_ENABLED_ROLES_PREFIX + resolvedKey
+            var csv = prefs.getString(key, "").orEmpty()
+            if (csv.isBlank() && resolvedKey.startsWith("auth_uid_")) {
+                val baseUid = resolvedKey.removePrefix("auth_uid_")
+                val legacyKey = "${KEY_ENABLED_ROLES_PREFIX}local_user_$baseUid"
+                val legacyCsv = prefs.getString(legacyKey, "").orEmpty()
+                if (legacyCsv.isNotBlank()) {
+                    csv = legacyCsv
+                    prefs.edit().putString(key, legacyCsv).apply()
+                }
+            }
             if (csv.isBlank()) return emptySet()
             csv.split(',')
                 .mapNotNull { token ->
@@ -310,9 +319,21 @@ object SaasPreferencesManager {
 
     fun hasAdditionalRoleEntitlement(context: Context, userUid: String? = null): Boolean {
         return try {
-            val key = KEY_ADDITIONAL_ROLE_ENTITLEMENT_PREFIX + resolveUidKey(context, userUid)
-            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-                .getBoolean(key, false)
+            val resolvedKey = resolveUidKey(context, userUid)
+            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            val key = KEY_ADDITIONAL_ROLE_ENTITLEMENT_PREFIX + resolvedKey
+            if (prefs.contains(key)) {
+                return prefs.getBoolean(key, false)
+            }
+            if (resolvedKey.startsWith("auth_uid_")) {
+                val baseUid = resolvedKey.removePrefix("auth_uid_")
+                val legacyKey = "${KEY_ADDITIONAL_ROLE_ENTITLEMENT_PREFIX}local_user_$baseUid"
+                if (prefs.getBoolean(legacyKey, false)) {
+                    prefs.edit().putBoolean(key, true).apply()
+                    return true
+                }
+            }
+            false
         } catch (_: Exception) {
             false
         }
@@ -2779,25 +2800,61 @@ fun PremiumSettingsModal(
                             ?: ""
                         showDeleteAccountConfirmDialog = false
                         deleteAccountScope.launch {
-                            val deletionOutcome = runCatching {
+                            val deletionOutcome = try {
                                 com.example.AgritechFirestoreRepository(context)
                                     .deleteUserAccountAndDataWithOutcome(uidToDelete)
-                            }.getOrNull()
-                            com.example.AgritechMockDb.clearAllDataForDeletedAccount(uidToDelete, context)
-                            sessionState.performExplicitLogout(context, persistBeforeLogout = false)
-                            val feedbackMsg = when (deletionOutcome?.status) {
-                                com.example.AccountDeletionStatus.REAUTH_REQUIRED_DATA_WIPED ->
-                                    Translations.tr("account_delete_reauth_required_msg", selectedLang)
-                                else ->
-                                    Translations.tr("account_delete_success_msg", selectedLang)
+                            } catch (e: Exception) {
+                                com.example.AccountDeletionOutcome(
+                                    status = com.example.AccountDeletionStatus.FAILURE,
+                                    error = e,
+                                    failedSteps = listOf("unhandled_exception"),
+                                    retryable = true
+                                )
                             }
-                            com.example.AgritechMockDb.accountDeletionConfirmationMessage = feedbackMsg
-                            android.widget.Toast.makeText(
-                                context,
-                                feedbackMsg,
-                                android.widget.Toast.LENGTH_LONG
-                            ).show()
-                            onDismiss()
+                            when (deletionOutcome.status) {
+                                com.example.AccountDeletionStatus.FULL_SUCCESS,
+                                com.example.AccountDeletionStatus.GUEST_LOCAL_ONLY -> {
+                                    com.example.AgritechMockDb.clearAllDataForDeletedAccount(uidToDelete, context)
+                                    sessionState.performExplicitLogout(context, persistBeforeLogout = false)
+                                    val feedbackMsg = Translations.tr("account_delete_success_msg", selectedLang)
+                                    com.example.AgritechMockDb.accountDeletionConfirmationMessage = feedbackMsg
+                                    android.widget.Toast.makeText(
+                                        context,
+                                        feedbackMsg,
+                                        android.widget.Toast.LENGTH_LONG
+                                    ).show()
+                                    onDismiss()
+                                }
+                                com.example.AccountDeletionStatus.REAUTH_REQUIRED_DATA_WIPED -> {
+                                    com.example.AgritechMockDb.clearAllDataForDeletedAccount(uidToDelete, context)
+                                    sessionState.performExplicitLogout(context, persistBeforeLogout = false)
+                                    val feedbackMsg = Translations.tr("account_delete_reauth_required_msg", selectedLang)
+                                    com.example.AgritechMockDb.accountDeletionConfirmationMessage = feedbackMsg
+                                    android.widget.Toast.makeText(
+                                        context,
+                                        feedbackMsg,
+                                        android.widget.Toast.LENGTH_LONG
+                                    ).show()
+                                    onDismiss()
+                                }
+                                com.example.AccountDeletionStatus.REAUTH_REQUIRED -> {
+                                    val feedbackMsg = Translations.tr("account_delete_reauth_required_msg", selectedLang)
+                                    android.widget.Toast.makeText(
+                                        context,
+                                        feedbackMsg,
+                                        android.widget.Toast.LENGTH_LONG
+                                    ).show()
+                                }
+                                com.example.AccountDeletionStatus.PARTIAL_FAILURE,
+                                com.example.AccountDeletionStatus.FAILURE -> {
+                                    val errMsg = Translations.tr("msg_cloud_sync_failed", selectedLang)
+                                    android.widget.Toast.makeText(
+                                        context,
+                                        errMsg,
+                                        android.widget.Toast.LENGTH_LONG
+                                    ).show()
+                                }
+                            }
                         }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE11D48)),
@@ -6183,21 +6240,19 @@ object LocalFarmPersistence {
 
     fun resolveActiveStorageIdentityKey(explicitUid: String? = null): String {
         val cleanedExplicit = explicitUid?.trim().orEmpty()
-        if (cleanedExplicit.isNotBlank() && cleanedExplicit != "local_guest_default") {
-            val sanitized = cleanedExplicit.replace(Regex("[^a-zA-Z0-9_-]"), "_")
-            return if (sanitized.startsWith("auth_uid_") || sanitized.startsWith("local_")) {
-                sanitized
-            } else {
-                "local_user_$sanitized"
-            }
+        if (cleanedExplicit.isNotBlank()) {
+            return com.example.AgritechAuthHelper.resolveActiveStorageIdentityKey(cleanedExplicit)
         }
-        return com.example.AgritechAuthHelper.resolveActiveStorageIdentityKey(explicitUid)
+        if (activeIdentityKey.isNotBlank() && activeIdentityKey != "local_guest_default") {
+            return com.example.AgritechAuthHelper.resolveActiveStorageIdentityKey(activeIdentityKey)
+        }
+        return com.example.AgritechAuthHelper.resolveActiveStorageIdentityKey(null)
     }
 
     fun setActiveIdentity(identityKey: String?) {
         val cleaned = identityKey?.trim().orEmpty()
         activeIdentityKey = if (cleaned.isNotBlank()) {
-            cleaned.replace(Regex("[^a-zA-Z0-9_-]"), "_")
+            com.example.AgritechAuthHelper.resolveActiveStorageIdentityKey(cleaned)
         } else {
             com.example.AgritechAuthHelper.resolveActiveStorageIdentityKey(null)
         }
@@ -6206,10 +6261,11 @@ object LocalFarmPersistence {
     fun getActiveIdentity(): String = activeIdentityKey
 
     fun resolvePrefNameForIdentity(explicitIdentityKey: String? = null): String {
-        val key = explicitIdentityKey?.trim()?.takeIf { it.isNotBlank() }
+        val rawKey = explicitIdentityKey?.trim()?.takeIf { it.isNotBlank() }
             ?: activeIdentityKey.takeIf { it.isNotBlank() }
             ?: com.example.AgritechAuthHelper.resolveActiveStorageIdentityKey(null)
-        val sanitized = key.replace(Regex("[^a-zA-Z0-9_-]"), "_")
+        val canonicalKey = com.example.AgritechAuthHelper.resolveActiveStorageIdentityKey(rawKey)
+        val sanitized = canonicalKey.replace(Regex("[^a-zA-Z0-9_-]"), "_")
         return "$PREF_PREFIX_V2$sanitized"
     }
 
@@ -6273,15 +6329,46 @@ object LocalFarmPersistence {
     }
 
     /**
-     * Non-destructive one-time legacy migration from `agritech_local_state_v1`:
-     * 1. Backs up `agritech_local_state_v1` to `agritech_legacy_backup_v1` without deleting `v1`.
-     * 2. Migrates into the target v2 identity ONLY if provably owned by that identity (matching UID in `members`,
+     * Non-destructive one-time legacy migration from `agritech_local_state_v2_local_user_<uid>`
+     * and `agritech_local_state_v1`:
+     * 1. If `agritech_local_state_v2_local_user_<uid>` exists for the same UID, migrates its saved state
+     *    and tombstones into `agritech_local_state_v2_auth_uid_<uid>`.
+     * 2. Backs up `agritech_local_state_v1` to `agritech_legacy_backup_v1` without deleting `v1`.
+     * 3. Migrates into the target v2 identity ONLY if provably owned by that identity (matching UID in `members`,
      *    or unclaimed legacy state with no explicit other UID) and not already claimed by another identity.
      */
     fun migrateLegacySharedStateIfNeeded(context: Context, resolvedIdentityKey: String): Boolean {
         try {
-            val sanitizedKey = resolvedIdentityKey.trim().replace(Regex("[^a-zA-Z0-9_-]"), "_")
+            val canonicalKey = com.example.AgritechAuthHelper.resolveActiveStorageIdentityKey(resolvedIdentityKey)
+            val sanitizedKey = canonicalKey.trim().replace(Regex("[^a-zA-Z0-9_-]"), "_")
             val targetPrefs = context.getSharedPreferences("$PREF_PREFIX_V2$sanitizedKey", Context.MODE_PRIVATE)
+
+            val baseUid = com.example.AgritechAuthHelper.extractRawUidFromIdentityKey(sanitizedKey)
+            if (baseUid.isNotBlank()) {
+                val legacyLocalUserPrefs = context.getSharedPreferences("${PREF_PREFIX_V2}local_user_$baseUid", Context.MODE_PRIVATE)
+                if (legacyLocalUserPrefs.getBoolean(KEY_SAVED, false) && !targetPrefs.getBoolean(KEY_SAVED, false)) {
+                    val editor = targetPrefs.edit()
+                    for ((k, v) in legacyLocalUserPrefs.all) {
+                        when (v) {
+                            is Boolean -> editor.putBoolean(k, v)
+                            is String -> editor.putString(k, v)
+                            is Int -> editor.putInt(k, v)
+                            is Long -> editor.putLong(k, v)
+                            is Float -> editor.putFloat(k, v)
+                        }
+                    }
+                    editor.commit()
+                    return true
+                } else if (legacyLocalUserPrefs.contains(KEY_DELETED_FARM_IDS)) {
+                    val mergedDeleted = jsonToStringSet(targetPrefs.getString(KEY_DELETED_FARM_IDS, null)).toMutableSet()
+                    val legacyDeleted = jsonToStringSet(legacyLocalUserPrefs.getString(KEY_DELETED_FARM_IDS, null))
+                    if (!mergedDeleted.containsAll(legacyDeleted)) {
+                        mergedDeleted.addAll(legacyDeleted)
+                        targetPrefs.edit().putString(KEY_DELETED_FARM_IDS, stringSetToJson(mergedDeleted).toString()).commit()
+                    }
+                }
+            }
+
             if (targetPrefs.getBoolean(KEY_SAVED, false)) return false
 
             val legacyPrefs = context.getSharedPreferences(LEGACY_PREF_NAME, Context.MODE_PRIVATE)
@@ -6306,7 +6393,8 @@ object LocalFarmPersistence {
             }
 
             val claimedBy = backupPrefs.getString(KEY_LEGACY_CLAIMED_BY, null)
-            if (!claimedBy.isNullOrBlank() && claimedBy != sanitizedKey) {
+            val claimedByCanonical = claimedBy?.let { com.example.AgritechAuthHelper.resolveActiveStorageIdentityKey(it) }
+            if (!claimedByCanonical.isNullOrBlank() && claimedByCanonical != sanitizedKey) {
                 return false
             }
 
@@ -6322,7 +6410,7 @@ object LocalFarmPersistence {
                     allMemberKeys.addAll(membersMap.keys)
                 }
                 val nonPlaceholderMembers = allMemberKeys - defaultPlaceholderIds
-                val rawUid = sanitizedKey.removePrefix("auth_uid_").removePrefix("local_user_")
+                val rawUid = com.example.AgritechAuthHelper.extractRawUidFromIdentityKey(sanitizedKey)
                 matchesIdentity = when {
                     nonPlaceholderMembers.isEmpty() -> true
                     rawUid in nonPlaceholderMembers || sanitizedKey in nonPlaceholderMembers -> true
@@ -6356,7 +6444,12 @@ object LocalFarmPersistence {
     }
 
     fun hasSavedData(context: Context, explicitIdentityKey: String? = null): Boolean {
-        val prefName = resolvePrefNameForIdentity(explicitIdentityKey)
+        val rawKey = explicitIdentityKey?.trim()?.takeIf { it.isNotBlank() }
+            ?: activeIdentityKey.takeIf { it.isNotBlank() }
+            ?: com.example.AgritechAuthHelper.resolveActiveStorageIdentityKey(null)
+        val canonicalKey = com.example.AgritechAuthHelper.resolveActiveStorageIdentityKey(rawKey)
+        migrateLegacySharedStateIfNeeded(context, canonicalKey)
+        val prefName = resolvePrefNameForIdentity(canonicalKey)
         val prefs = context.getSharedPreferences(prefName, Context.MODE_PRIVATE)
         return prefs.getBoolean(KEY_SAVED, false)
     }
@@ -6366,16 +6459,22 @@ object LocalFarmPersistence {
     }
 
     fun restoreFromReloginArchiveIfNeeded(context: Context, explicitIdentityKey: String? = null) {
-        val resolvedKey = explicitIdentityKey?.trim()?.takeIf { it.isNotBlank() }
+        val rawKey = explicitIdentityKey?.trim()?.takeIf { it.isNotBlank() }
             ?: activeIdentityKey.takeIf { it.isNotBlank() }
             ?: com.example.AgritechAuthHelper.resolveActiveStorageIdentityKey(null)
-        migrateLegacySharedStateIfNeeded(context, resolvedKey.replace(Regex("[^a-zA-Z0-9_-]"), "_"))
+        val canonicalKey = com.example.AgritechAuthHelper.resolveActiveStorageIdentityKey(rawKey)
+        migrateLegacySharedStateIfNeeded(context, canonicalKey)
     }
 
     fun clear(context: Context, explicitIdentityKey: String? = null) {
         val prefName = resolvePrefNameForIdentity(explicitIdentityKey)
         val prefs = context.getSharedPreferences(prefName, Context.MODE_PRIVATE)
         prefs.edit().clear().apply()
+        val baseUid = com.example.AgritechAuthHelper.extractRawUidFromIdentityKey(explicitIdentityKey ?: activeIdentityKey)
+        if (baseUid.isNotBlank()) {
+            context.getSharedPreferences("${PREF_PREFIX_V2}local_user_$baseUid", Context.MODE_PRIVATE)
+                .edit().clear().apply()
+        }
     }
 
     fun clearAllOnExplicitLogout(context: Context, explicitIdentityKey: String? = null) {
@@ -6386,9 +6485,12 @@ object LocalFarmPersistence {
         val identityKey = resolveActiveStorageIdentityKey(uid)
         clear(context, identityKey)
         if (!uid.isNullOrBlank()) {
-            val sanitizedUid = uid.trim().replace(Regex("[^a-zA-Z0-9_-]"), "_")
-            clear(context, "auth_uid_$sanitizedUid")
-            clear(context, "local_user_$sanitizedUid")
+            val baseUid = com.example.AgritechAuthHelper.extractRawUidFromIdentityKey(uid)
+            if (baseUid.isNotBlank()) {
+                clear(context, "auth_uid_$baseUid")
+                context.getSharedPreferences("${PREF_PREFIX_V2}local_user_$baseUid", Context.MODE_PRIVATE)
+                    .edit().clear().apply()
+            }
         }
         clear(context, "local_guest_default")
         SaasPreferencesManager.clearAuthSession(context)
@@ -6401,12 +6503,17 @@ object LocalFarmPersistence {
             val farmsArr = org.json.JSONArray()
             for (f in AgritechMockDb.farms) {
                 if (f.id in AgritechMockDb.deletedFarmIds) continue
+                val normalizedAssignedWorkerId = if (f.members.isNotEmpty() && f.members[f.assignedWorkerId] != "WORKER") {
+                    f.members.entries.firstOrNull { it.value == "WORKER" }?.key ?: ""
+                } else {
+                    f.assignedWorkerId
+                }
                 val obj = org.json.JSONObject()
                 obj.put("id", f.id)
                 obj.put("name", f.name)
                 obj.put("location", f.location)
                 obj.put("capacity", f.capacity)
-                obj.put("assignedWorkerId", f.assignedWorkerId)
+                obj.put("assignedWorkerId", normalizedAssignedWorkerId)
                 obj.put("currencyCode", f.currencyCode)
                 obj.put("schemaVersion", f.schemaVersion)
                 obj.put("sectorId", f.sectorId)
@@ -6428,6 +6535,10 @@ object LocalFarmPersistence {
                 obj.put("startDate", c.startDate)
                 obj.put("chickPrice", c.chickPrice)
                 obj.put("feedInventoryKg", c.feedInventoryKg)
+                obj.put("feedDeficitKg", c.feedDeficitKg)
+                obj.put("cumulativeFeedConsumedKg", c.cumulativeFeedConsumedKg)
+                obj.put("lastDailyReportId", c.lastDailyReportId)
+                obj.put("updatedAtMillis", c.updatedAtMillis)
                 obj.put("cumulativeBirdsSold", c.cumulativeBirdsSold)
                 obj.put("cumulativeSoldWeightKg", c.cumulativeSoldWeightKg)
                 obj.put("cumulativeMortality", c.cumulativeMortality)
@@ -6482,6 +6593,8 @@ object LocalFarmPersistence {
                 obj.put("notes", t.notes)
                 obj.put("quantityQuintals", t.quantityQuintals)
                 obj.put("approvedBySignature", t.approvedBySignature)
+                obj.put("updatedAtMillis", t.updatedAtMillis)
+                obj.put("deliveryState", t.deliveryState)
                 obj.put("invoiceNumber", t.invoiceNumber ?: org.json.JSONObject.NULL)
                 t.invoiceData?.let { inv ->
                     val invObj = org.json.JSONObject()
@@ -6615,9 +6728,10 @@ object LocalFarmPersistence {
 
     fun loadIntoMockDb(context: Context, explicitIdentityKey: String? = null) {
         try {
-            val resolvedKey = (explicitIdentityKey?.trim()?.takeIf { it.isNotBlank() }
+            val rawKey = explicitIdentityKey?.trim()?.takeIf { it.isNotBlank() }
                 ?: activeIdentityKey.takeIf { it.isNotBlank() }
-                ?: com.example.AgritechAuthHelper.resolveActiveStorageIdentityKey(null))
+                ?: com.example.AgritechAuthHelper.resolveActiveStorageIdentityKey(null)
+            val resolvedKey = com.example.AgritechAuthHelper.resolveActiveStorageIdentityKey(rawKey)
                 .replace(Regex("[^a-zA-Z0-9_-]"), "_")
 
             activeIdentityKey = resolvedKey
@@ -6649,13 +6763,20 @@ object LocalFarmPersistence {
                         val arr = org.json.JSONArray(farmsStr)
                         for (i in 0 until arr.length()) {
                             val obj = arr.getJSONObject(i)
+                            val parsedMembers = jsonToMap(obj.optJSONObject("members"))
+                            val rawAssignedWorker = obj.optString("assignedWorkerId", "worker_1")
+                            val normalizedAssignedWorker = if (parsedMembers.isNotEmpty() && parsedMembers[rawAssignedWorker] != "WORKER") {
+                                parsedMembers.entries.firstOrNull { it.value == "WORKER" }?.key ?: ""
+                            } else {
+                                rawAssignedWorker
+                            }
                             val farm = FarmModel(
                                 id = obj.optString("id"),
                                 name = obj.optString("name"),
                                 location = obj.optString("location"),
                                 capacity = obj.optInt("capacity", 5000),
-                                assignedWorkerId = obj.optString("assignedWorkerId", "worker_1"),
-                                members = jsonToMap(obj.optJSONObject("members")),
+                                assignedWorkerId = normalizedAssignedWorker,
+                                members = parsedMembers,
                                 currencyCode = obj.optString("currencyCode", "DZD"),
                                 schemaVersion = obj.optInt("schemaVersion", 2),
                                 sectorId = obj.optString("sectorId", "AGRICULTURE").ifBlank { "AGRICULTURE" },
@@ -6689,6 +6810,10 @@ object LocalFarmPersistence {
                                 startDate = obj.optString("startDate", "2026-03-01"),
                                 chickPrice = obj.optDouble("chickPrice", 120.0),
                                 feedInventoryKg = obj.optDouble("feedInventoryKg", 0.0),
+                                feedDeficitKg = obj.optDouble("feedDeficitKg", 0.0),
+                                cumulativeFeedConsumedKg = obj.optDouble("cumulativeFeedConsumedKg", 0.0),
+                                lastDailyReportId = obj.optString("lastDailyReportId", ""),
+                                updatedAtMillis = obj.optLong("updatedAtMillis", 0L),
                                 cumulativeBirdsSold = obj.optInt("cumulativeBirdsSold", 0),
                                 cumulativeSoldWeightKg = obj.optDouble("cumulativeSoldWeightKg", 0.0),
                                 cumulativeMortality = obj.optInt("cumulativeMortality", 0),
@@ -6803,7 +6928,9 @@ object LocalFarmPersistence {
                                 notes = obj.optString("notes", ""),
                                 quantityQuintals = obj.optDouble("quantityQuintals", 0.0),
                                 approvedBySignature = obj.optString("approvedBySignature", ""),
-                                invoiceNumber = if (obj.has("invoiceNumber") && !obj.isNull("invoiceNumber")) obj.optInt("invoiceNumber").takeIf { it > 0 } else null
+                                invoiceNumber = if (obj.has("invoiceNumber") && !obj.isNull("invoiceNumber")) obj.optInt("invoiceNumber").takeIf { it > 0 } else null,
+                                updatedAtMillis = obj.optLong("updatedAtMillis", 0L),
+                                deliveryState = obj.optString("deliveryState", "SYNCED")
                             )
                             if (tx.id.isNotBlank()) {
                                 loadedTx.add(tx)

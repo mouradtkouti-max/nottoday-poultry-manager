@@ -1653,4 +1653,102 @@ class ExampleUnitTest {
         assertTrue(base.hasActualValueChangesFrom(withTemp))
         assertEquals(31.0, IndoorReadingState.fromManualReport("farm_1", withTemp).temperatureC ?: 0.0, 0.001)
     }
+
+    @Test
+    fun audit8f04be5_feedDeficit_cycleScopedReportIds_deltaRollbacks_and_storageIdentityUnification() {
+        // 1. Storage identity unification: raw UID, local_user_<uid>, and auth_uid_<uid> all resolve to auth_uid_<uid>
+        assertEquals("auth_uid_user_abc_123", AgritechAuthHelper.resolveActiveStorageIdentityKey("user_abc_123"))
+        assertEquals("auth_uid_user_abc_123", AgritechAuthHelper.resolveActiveStorageIdentityKey("local_user_user_abc_123"))
+        assertEquals("auth_uid_user_abc_123", AgritechAuthHelper.resolveActiveStorageIdentityKey("auth_uid_user_abc_123"))
+        assertEquals("auth_uid_user_abc_123", LocalFarmPersistence.resolveActiveStorageIdentityKey("user_abc_123"))
+        assertEquals("auth_uid_user_abc_123", LocalFarmPersistence.resolveActiveStorageIdentityKey("local_user_user_abc_123"))
+        assertEquals("auth_uid_user_abc_123", LocalFarmPersistence.resolveActiveStorageIdentityKey("auth_uid_user_abc_123"))
+
+        // 2. Market 2-party direct channel ID determinism and farm isolation
+        val chanAB = AgritechFirestoreRepository.buildMarketDirectChannelId("post_55", "buyer_1", "seller_9")
+        val chanBA = AgritechFirestoreRepository.buildMarketDirectChannelId("post_55", "seller_9", "buyer_1")
+        assertEquals(chanAB, chanBA)
+        assertEquals("market_post_55_buyer_1_seller_9", chanAB)
+        assertTrue(AgritechFirestoreRepository.isMarketOrPrivateDirectChannelId(chanAB))
+        assertFalse(AgritechFirestoreRepository.isMarketOrPrivateDirectChannelId("farm_1_cycle_1_worker"))
+
+        // 3. Cycle-scoped report IDs & Feed Deficit without phantom inventory
+        val farmId = "farm_audit_unit"
+        AgritechMockDb.cycles.removeAll { it.farmId == farmId }
+        AgritechMockDb.dailyReports.removeAll { it.farmId == farmId }
+        AgritechMockDb.cycles.add(
+            CycleModel(
+                id = "cycle_u1",
+                farmId = farmId,
+                status = "active",
+                totalBirdsPlaced = 5000,
+                feedInventoryKg = 0.0,
+                feedDeficitKg = 0.0
+            )
+        )
+        AgritechMockDb.cycles.add(
+            CycleModel(
+                id = "cycle_u2",
+                farmId = farmId,
+                status = "active",
+                totalBirdsPlaced = 5000,
+                feedInventoryKg = 600.0,
+                feedDeficitKg = 0.0
+            )
+        )
+
+        // Day 1 in cycle_u1 consumes 250 kg when inventory is 0 -> inventory = 0.0, deficit = 250.0
+        val repC1D1 = AgritechMockDb.upsertDailyReportWithAudit(
+            DailyReportModel(
+                id = "rep_temp",
+                farmId = farmId,
+                cycleId = "cycle_u1",
+                dayNumber = 1,
+                feedIntakeKg = 250.0,
+                waterIntakeLiters = 500.0,
+                mortalityCount = 5,
+                temperature = 33.0
+            )
+        )
+        assertEquals("rep_farm_audit_unit_cycle_u1_day_1", repC1D1.id)
+        val c1AfterCreate = AgritechMockDb.cycles.first { it.id == "cycle_u1" }
+        assertEquals(0.0, c1AfterCreate.feedInventoryKg, 0.001)
+        assertEquals(250.0, c1AfterCreate.feedDeficitKg, 0.001)
+        assertEquals(250.0, c1AfterCreate.cumulativeFeedConsumedKg, 0.001)
+        assertEquals(5, c1AfterCreate.cumulativeMortality)
+
+        // Edit Day 1 in cycle_u1 from 250 kg -> 200 kg and mortality 5 -> 2 -> inventory stays 0.0 (no +50 kg phantom!), deficit becomes 200.0
+        val repC1D1Edited = AgritechMockDb.upsertDailyReportWithAudit(
+            repC1D1.copy(feedIntakeKg = 200.0, mortalityCount = 2)
+        )
+        val c1AfterEdit = AgritechMockDb.cycles.first { it.id == "cycle_u1" }
+        assertEquals(0.0, c1AfterEdit.feedInventoryKg, 0.001)
+        assertEquals(200.0, c1AfterEdit.feedDeficitKg, 0.001)
+        assertEquals(200.0, c1AfterEdit.cumulativeFeedConsumedKg, 0.001)
+        assertEquals(2, c1AfterEdit.cumulativeMortality)
+
+        // Day 1 in cycle_u2 does NOT collide with Day 1 in cycle_u1
+        val repC2D1 = AgritechMockDb.upsertDailyReportWithAudit(
+            DailyReportModel(
+                id = "rep_temp",
+                farmId = farmId,
+                cycleId = "cycle_u2",
+                dayNumber = 1,
+                feedIntakeKg = 150.0,
+                waterIntakeLiters = 300.0,
+                mortalityCount = 1,
+                temperature = 32.0
+            )
+        )
+        assertEquals("rep_farm_audit_unit_cycle_u2_day_1", repC2D1.id)
+        assertNotEquals(repC1D1Edited.id, repC2D1.id)
+        assertEquals(2, AgritechMockDb.dailyReports.count { it.farmId == farmId && it.dayNumber == 1 })
+
+        // 4. Operation-specific delta rollback preserves concurrent updates
+        AgritechMockDb.rollbackDailyReportMutation(repC1D1, repC1D1Edited)
+        val c1AfterRollback = AgritechMockDb.cycles.first { it.id == "cycle_u1" }
+        assertEquals(250.0, c1AfterRollback.feedDeficitKg, 0.001)
+        assertEquals(5, c1AfterRollback.cumulativeMortality)
+    }
 }
+

@@ -460,10 +460,332 @@ class AgritechRepositoryRuleTest : FirestoreEmulatorTestBase() {
             val blockRes = repo.saveBlockedUserToCloud(setOf("conv_feed_trader"))
             assertTrue("Saving blockedUserIds to cloud profile must succeed", blockRes.isSuccess)
 
-            // Delete user account and all cloud data completely
-            val deleteRes = repo.deleteUserAccountAndDataCompletely(userUid)
-            assertTrue("Deleting account and cloud data must succeed: ${deleteRes.exceptionOrNull()?.message}", deleteRes.isSuccess)
+            // Seed cycle, report, vetNote, transaction, invite, and owned farm chat channel + message to verify full ordered deletion
+            repo.saveCycleRecord(
+                CycleModel(
+                    id = "cycle_gp_1",
+                    farmId = farmId,
+                    status = "active",
+                    totalBirdsPlaced = 6000,
+                    targetWeight = 2.3,
+                    feedInventoryKg = 1000.0
+                )
+            ).getOrThrow()
+            repo.saveDailyReport(
+                DailyReportModel(
+                    id = "rep_gp_1",
+                    farmId = farmId,
+                    cycleId = "cycle_gp_1",
+                    dayNumber = 1,
+                    feedIntakeKg = 100.0,
+                    waterIntakeLiters = 200.0,
+                    mortalityCount = 2,
+                    temperature = 32.0,
+                    gasUnits = 1.0,
+                    ventilationStatus = "جيدة",
+                    generalStatus = "طبيعية",
+                    isLocked = false
+                )
+            ).getOrThrow()
+            repo.createFarmInvite(farmId, AppRole.WORKER, "inv_gp_1").getOrThrow()
+            repo.sendChatMessage(
+                ChatMessageModel(
+                    id = "msg_gp_1",
+                    cycleId = "${farmId}_cycle_gp_1_worker",
+                    senderId = userUid,
+                    senderName = "GP Owner",
+                    senderRole = "OWNER",
+                    text = "اختبار حذف القناة",
+                    timestamp = "10:00"
+                ),
+                farmIdHint = farmId
+            )
+
+            // Delete user account and all cloud data completely with detailed outcome verification
+            val outcomeRes = repo.deleteUserAccountAndDataWithOutcome(userUid)
+            assertTrue("Deleting account and cloud data must succeed: ${outcomeRes.exceptionOrNull()?.message}", outcomeRes.isSuccess)
+            val outcome = outcomeRes.getOrThrow()
+            assertTrue(
+                "Outcome must be FULL_SUCCESS or REAUTH_REQUIRED_DATA_WIPED, got ${outcome.status} with failedSteps=${outcome.failedSteps}",
+                outcome.isSuccess && outcome.failedSteps.isEmpty()
+            )
         }
     }
+
+    @Test
+    fun auditSections3And4_workerRevocation_and_marketDirectChatIsolation() = runBlocking {
+        val farmId = "farm_rev_${UUID.randomUUID().toString().take(8)}"
+        val ownerUid = signInTestUser("owner_rev_${UUID.randomUUID()}@farm.com")
+        val repo = AgritechFirestoreRepository(firestore)
+
+        val workerInvite: FarmInviteModel
+        withTimeout(5000L) {
+            repo.setUserRoleAndFarm(AppRole.OWNER, farmId, "Owner").getOrThrow()
+            repo.saveFarmRecord(
+                FarmModel(
+                    id = farmId,
+                    name = "عنبر اختبار الصلاحيات",
+                    location = "المدية",
+                    capacity = 5000,
+                    assignedWorkerId = "",
+                    members = mapOf(ownerUid to "OWNER")
+                ),
+                AppRole.OWNER
+            ).getOrThrow()
+            repo.saveCycleRecord(
+                CycleModel(
+                    id = "cycle_rev_1",
+                    farmId = farmId,
+                    status = "active",
+                    totalBirdsPlaced = 5000,
+                    targetWeight = 2.3,
+                    feedInventoryKg = 1000.0
+                )
+            ).getOrThrow()
+            workerInvite = repo.createFarmInvite(farmId, AppRole.WORKER, "inv_rev_w1").getOrThrow()
+        }
+
+        // Worker joins via invite and sends a team chat message
+        val workerUid = signInTestUser("worker_rev_${UUID.randomUUID()}@farm.com")
+        val teamChannelId = "${farmId}_cycle_rev_1_worker"
+        withTimeout(5000L) {
+            repo.setUserRoleAndFarm(AppRole.WORKER, farmId, "Worker 1").getOrThrow()
+            repo.acceptFarmInvite(farmId, workerInvite.inviteId, AppRole.WORKER).getOrThrow()
+            repo.sendChatMessage(
+                ChatMessageModel(
+                    id = "msg_w_before_revoke",
+                    cycleId = teamChannelId,
+                    senderId = workerUid,
+                    senderName = "Worker 1",
+                    senderRole = "WORKER",
+                    text = "رسالة قبل الإزالة",
+                    timestamp = "09:00"
+                ),
+                farmIdHint = farmId
+            )
+            val preRevokeReport = repo.saveDailyReport(
+                DailyReportModel(
+                    id = "rep_pre_revoke",
+                    farmId = farmId,
+                    cycleId = "cycle_rev_1",
+                    dayNumber = 1,
+                    feedIntakeKg = 100.0,
+                    waterIntakeLiters = 200.0,
+                    mortalityCount = 1,
+                    temperature = 32.0,
+                    gasUnits = 1.0,
+                    ventilationStatus = "جيدة",
+                    generalStatus = "طبيعية",
+                    isLocked = false
+                )
+            )
+            assertTrue("Worker report before revocation must succeed", preRevokeReport.isSuccess)
+        }
+
+        // Owner removes Worker from farm
+        signInTestUserWithCustomUidOrReSignIn(ownerUid)
+        withTimeout(5000L) {
+            val removeRes = repo.removeFarmMember(farmId, workerUid)
+            assertTrue("Owner removing worker must succeed: ${removeRes.exceptionOrNull()?.message}", removeRes.isSuccess)
+        }
+
+        // Switch back to removed Worker: saving report and reading farm chat MUST fail
+        signInTestUserWithCustomUidOrReSignIn(workerUid)
+        withTimeout(5000L) {
+            val postRevokeReport = repo.saveDailyReport(
+                DailyReportModel(
+                    id = "rep_post_revoke",
+                    farmId = farmId,
+                    cycleId = "cycle_rev_1",
+                    dayNumber = 2,
+                    feedIntakeKg = 100.0,
+                    waterIntakeLiters = 200.0,
+                    mortalityCount = 1,
+                    temperature = 32.0,
+                    gasUnits = 1.0,
+                    ventilationStatus = "جيدة",
+                    generalStatus = "طبيعية",
+                    isLocked = false
+                )
+            )
+            assertTrue("Removed worker must NOT be able to save daily report", postRevokeReport.isFailure)
+        }
+
+        // Section 4: Market 2-party direct channel isolation
+        val buyerAUid = signInTestUser("buyer_a_${UUID.randomUUID()}@farm.com")
+        val marketChanId = AgritechFirestoreRepository.buildMarketDirectChannelId("post_77", buyerAUid, ownerUid)
+        withTimeout(5000L) {
+            // Even if farmIdHint is accidentally passed, sendChatMessage strips farmId for market/direct channels
+            repo.sendChatMessage(
+                ChatMessageModel(
+                    id = "msg_market_a",
+                    cycleId = marketChanId,
+                    senderId = buyerAUid,
+                    senderName = "Buyer A",
+                    senderRole = "OWNER",
+                    text = "استفسار خاص عن العرض",
+                    timestamp = "11:00"
+                ),
+                farmIdHint = farmId,
+                targetUid = ownerUid
+            )
+            val msgsForBuyerA = repo.observeChatMessages(marketChanId).first { it.isNotEmpty() }
+            assertEquals("استفسار خاص عن العرض", msgsForBuyerA.first().text)
+        }
+
+        // Buyer B cannot read Buyer A's market channel
+        signInTestUser("buyer_b_${UUID.randomUUID()}@farm.com")
+        var buyerBBlocked = false
+        try {
+            withTimeout(3000L) {
+                repo.observeChatMessages(marketChanId).first()
+            }
+        } catch (_: Throwable) {
+            buyerBBlocked = true
+        }
+        assertTrue("Buyer B must be blocked from reading Buyer A's 2-party market channel", buyerBBlocked)
+    }
+
+    @Test
+    fun auditSections6And7_cycleScopedReportIds_and_feedDeficitWithoutPhantomInventory() = runBlocking {
+        val farmId = "farm_def_${UUID.randomUUID().toString().take(8)}"
+        val ownerUid = signInTestUser("owner_def_${UUID.randomUUID()}@farm.com")
+        val repo = AgritechFirestoreRepository(firestore)
+
+        withTimeout(5000L) {
+            repo.setUserRoleAndFarm(AppRole.OWNER, farmId, "Owner").getOrThrow()
+            repo.saveFarmRecord(
+                FarmModel(
+                    id = farmId,
+                    name = "عنبر اختبار العلف",
+                    location = "المدية",
+                    capacity = 5000,
+                    members = mapOf(ownerUid to "OWNER")
+                ),
+                AppRole.OWNER
+            ).getOrThrow()
+
+            // Create cycle_1 with 0 feedInventoryKg and cycle_2 with 500 feedInventoryKg
+            repo.saveCycleRecord(
+                CycleModel(
+                    id = "cycle_1",
+                    farmId = farmId,
+                    status = "active",
+                    totalBirdsPlaced = 5000,
+                    targetWeight = 2.3,
+                    feedInventoryKg = 0.0
+                )
+            ).getOrThrow()
+            repo.saveCycleRecord(
+                CycleModel(
+                    id = "cycle_2",
+                    farmId = farmId,
+                    status = "active",
+                    totalBirdsPlaced = 5000,
+                    targetWeight = 2.3,
+                    feedInventoryKg = 500.0
+                )
+            ).getOrThrow()
+
+            // 1. Save Day 1 report in cycle_1 with 250 kg feed when inventory is 0 -> deficit = 250, inventory = 0
+            repo.saveDailyReport(
+                DailyReportModel(
+                    id = "legacy_same_id",
+                    farmId = farmId,
+                    cycleId = "cycle_1",
+                    dayNumber = 1,
+                    feedIntakeKg = 250.0,
+                    waterIntakeLiters = 500.0,
+                    mortalityCount = 4,
+                    temperature = 33.0,
+                    gasUnits = 2.0,
+                    ventilationStatus = "جيدة",
+                    generalStatus = "طبيعية",
+                    isLocked = false
+                )
+            ).getOrThrow()
+
+            val cycle1AfterCreate = repo.observeCycles(farmId).first { list ->
+                list.any { it.id == "cycle_1" && it.cumulativeMortality == 4 }
+            }.first { it.id == "cycle_1" }
+            assertEquals(0.0, cycle1AfterCreate.feedInventoryKg, 0.001)
+            assertEquals(250.0, cycle1AfterCreate.feedDeficitKg, 0.001)
+            assertEquals(250.0, cycle1AfterCreate.cumulativeFeedConsumedKg, 0.001)
+
+            // 2. Edit Day 1 report in cycle_1 from 250 kg -> 200 kg and mortality 4 -> 2 -> deficit = 200, inventory = 0 (NO +50 kg phantom feed!)
+            repo.saveDailyReport(
+                DailyReportModel(
+                    id = "legacy_same_id",
+                    farmId = farmId,
+                    cycleId = "cycle_1",
+                    dayNumber = 1,
+                    feedIntakeKg = 200.0,
+                    waterIntakeLiters = 500.0,
+                    mortalityCount = 2,
+                    temperature = 33.0,
+                    gasUnits = 2.0,
+                    ventilationStatus = "جيدة",
+                    generalStatus = "طبيعية",
+                    isLocked = false,
+                    isEdited = true,
+                    previousSummary = "250kg"
+                )
+            ).getOrThrow()
+
+            val cycle1AfterEdit = repo.observeCycles(farmId).first { list ->
+                list.any { it.id == "cycle_1" && it.cumulativeMortality == 2 }
+            }.first { it.id == "cycle_1" }
+            assertEquals("Feed inventory must stay 0.0 without phantom +50kg", 0.0, cycle1AfterEdit.feedInventoryKg, 0.001)
+            assertEquals("Feed deficit must reduce to 200.0", 200.0, cycle1AfterEdit.feedDeficitKg, 0.001)
+            assertEquals(200.0, cycle1AfterEdit.cumulativeFeedConsumedKg, 0.001)
+
+            // 3. Save Day 1 report in cycle_2 -> must NOT overwrite cycle_1's Day 1 report!
+            repo.saveDailyReport(
+                DailyReportModel(
+                    id = "legacy_same_id",
+                    farmId = farmId,
+                    cycleId = "cycle_2",
+                    dayNumber = 1,
+                    feedIntakeKg = 150.0,
+                    waterIntakeLiters = 300.0,
+                    mortalityCount = 1,
+                    temperature = 32.0,
+                    gasUnits = 1.5,
+                    ventilationStatus = "جيدة",
+                    generalStatus = "طبيعية",
+                    isLocked = false
+                )
+            ).getOrThrow()
+
+            val allReports = repo.observeDailyReports(farmId).first { it.size >= 2 }
+            assertTrue(allReports.any { it.cycleId == "cycle_1" && it.dayNumber == 1 && it.feedIntakeKg == 200.0 })
+            assertTrue(allReports.any { it.cycleId == "cycle_2" && it.dayNumber == 1 && it.feedIntakeKg == 150.0 })
+        }
+    }
+
+    private val emailByUid = mutableMapOf<String, String>()
+
+    override suspend fun signInTestUser(email: String, password: String): String {
+        val uid = super.signInTestUser(email, password)
+        emailByUid[uid] = email
+        return uid
+    }
+
+    private suspend fun signInTestUserWithCustomUidOrReSignIn(targetUid: String) {
+        val email = emailByUid[targetUid] ?: error("Unknown test user UID: $targetUid")
+        auth.signInWithEmailAndPassword(email, "password123").awaitUnit()
+    }
+
+    private suspend fun <T> com.google.android.gms.tasks.Task<T>.awaitUnit(): T =
+        kotlinx.coroutines.suspendCancellableCoroutine { cont ->
+            addOnCompleteListener { task ->
+                if (task.isSuccessful) {
+                    cont.resume(task.result, null)
+                } else {
+                    cont.resumeWith(Result.failure(task.exception ?: RuntimeException("Task failed")))
+                }
+            }
+        }
 }
+
 

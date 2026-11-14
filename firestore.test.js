@@ -134,31 +134,32 @@ test("Shared Farm Collaboration: Owner, Vet, and Worker collaborate on /farms/{f
     })
   );
 
-  // 2. Worker writes a daily report to /farms/farm_1/dailyReports/rep_w1 AND updates feedInventoryKg on the shared cycle
-  await assertSucceeds(
-    workerDb.collection("farms").doc(FARM_ID).collection("dailyReports").doc("rep_w1").set({
-      userId: WORKER_UID,
-      farmId: FARM_ID,
-      cycleId: "cycle_2026_01",
-      dayNumber: 2,
-      feedIntakeKg: 300.0,
-      waterIntakeLiters: 600.0,
-      mortalityCount: 1,
-      temperature: 32.0,
-      gasUnits: 3.5,
-      ventilationStatus: "جيدة",
-      litterCondition: "طبيعية",
-      createdAt: now,
-      updatedAt: now,
-    })
-  );
-
-  await assertSucceeds(
-    workerDb.collection("farms").doc(FARM_ID).collection("cycles").doc("cycle_2026_01").update({
-      feedInventoryKg: 700.0,
-      updatedAt: now,
-    })
-  );
+  // 2. Worker atomically writes a daily report to /farms/farm_1/dailyReports/rep_w1 AND updates feedInventoryKg/cumulativeMortality on the shared cycle
+  const workerReportBatch = workerDb.batch();
+  workerReportBatch.set(workerDb.collection("farms").doc(FARM_ID).collection("dailyReports").doc("rep_w1"), {
+    userId: WORKER_UID,
+    farmId: FARM_ID,
+    cycleId: "cycle_2026_01",
+    dayNumber: 2,
+    feedIntakeKg: 300.0,
+    waterIntakeLiters: 600.0,
+    mortalityCount: 1,
+    temperature: 32.0,
+    gasUnits: 3.5,
+    ventilationStatus: "جيدة",
+    litterCondition: "طبيعية",
+    createdAt: now,
+    updatedAt: now,
+  });
+  workerReportBatch.update(workerDb.collection("farms").doc(FARM_ID).collection("cycles").doc("cycle_2026_01"), {
+    feedInventoryKg: 700.0,
+    feedDeficitKg: 0.0,
+    cumulativeFeedConsumedKg: 300.0,
+    cumulativeMortality: 1,
+    lastDailyReportId: "rep_w1",
+    updatedAt: now,
+  });
+  await assertSucceeds(workerReportBatch.commit());
 
   // 3. Vet reads Worker's daily report and writes a vetNote on the same shared farm
   await assertSucceeds(
@@ -633,9 +634,11 @@ test("DailyReport Locking & Active Cycle Guard: Worker cannot update a locked da
       status: "active",
       totalBirdsPlaced: 10000,
       targetWeightKg: 2.3,
-      cumulativeMortality: 0,
+      cumulativeMortality: 2,
       cumulativeBirdsSold: 0,
-      feedInventoryKg: 2000.0,
+      feedInventoryKg: 1750.0,
+      feedDeficitKg: 0.0,
+      cumulativeFeedConsumedKg: 250.0,
       createdAt: now,
       updatedAt: now,
     })
@@ -661,25 +664,37 @@ test("DailyReport Locking & Active Cycle Guard: Worker cannot update a locked da
     });
   });
 
-  // Worker CANNOT update a locked daily report
-  await assertFails(
-    workerDb.collection("farms").doc(FARM_ID).collection("dailyReports").doc("rep_locked_1").update({
-      feedIntakeKg: 999.0,
-      isEdited: true,
-      previousSummary: "العلف: 2.5 ق",
-      updatedAt: now,
-    })
-  );
+  // Worker CANNOT update a locked daily report even in an atomic batch
+  const workerLockedBatch = workerDb.batch();
+  workerLockedBatch.update(workerDb.collection("farms").doc(FARM_ID).collection("dailyReports").doc("rep_locked_1"), {
+    feedIntakeKg: 999.0,
+    isEdited: true,
+    previousSummary: "العلف: 2.5 ق",
+    updatedAt: now,
+  });
+  workerLockedBatch.update(workerDb.collection("farms").doc(FARM_ID).collection("cycles").doc("cycle_active_1"), {
+    feedInventoryKg: 1001.0,
+    lastDailyReportId: "rep_locked_1",
+    updatedAt: now,
+  });
+  await assertFails(workerLockedBatch.commit());
 
-  // Owner CAN update a locked daily report
-  await assertSucceeds(
-    ownerDb.collection("farms").doc(FARM_ID).collection("dailyReports").doc("rep_locked_1").update({
-      feedIntakeKg: 260.0,
-      isEdited: true,
-      previousSummary: "العلف: 2.5 ق",
-      updatedAt: now,
-    })
-  );
+  // Owner CAN update a locked daily report when atomically updating the cycle
+  const ownerLockedBatch = ownerDb.batch();
+  ownerLockedBatch.update(ownerDb.collection("farms").doc(FARM_ID).collection("dailyReports").doc("rep_locked_1"), {
+    feedIntakeKg: 260.0,
+    isEdited: true,
+    previousSummary: "العلف: 2.5 ق",
+    updatedAt: now,
+  });
+  ownerLockedBatch.update(ownerDb.collection("farms").doc(FARM_ID).collection("cycles").doc("cycle_active_1"), {
+    feedInventoryKg: 1740.0,
+    feedDeficitKg: 0.0,
+    cumulativeFeedConsumedKg: 260.0,
+    lastDailyReportId: "rep_locked_1",
+    updatedAt: now,
+  });
+  await assertSucceeds(ownerLockedBatch.commit());
 });
 
 test("Schema v2 & Audit Fields: farms, cycles, dailyReports, vetNotes, transactions, and chatChannels allow new optional fields", async () => {
@@ -726,6 +741,8 @@ test("Schema v2 & Audit Fields: farms, cycles, dailyReports, vetNotes, transacti
       cumulativeBirdsSold: 0,
       cumulativeSoldWeightKg: 0.0,
       feedInventoryKg: 4000.0,
+      feedDeficitKg: 0.0,
+      cumulativeFeedConsumedKg: 0.0,
       currencyCode: "DZD",
       schemaVersion: 2,
       sectorId: "AGRICULTURE",
@@ -736,59 +753,76 @@ test("Schema v2 & Audit Fields: farms, cycles, dailyReports, vetNotes, transacti
     })
   );
 
-  // 3. Create dailyReport with medicineGiven, medicineSummary, withdrawalDays, updatedAtMillis, isLocked
-  await assertSucceeds(
-    workerDb.collection("farms").doc(FARM_ID).collection("dailyReports").doc("rep_v2").set({
-      userId: WORKER_UID,
-      farmId: FARM_ID,
-      cycleId: "cycle_v2",
-      dayNumber: 5,
-      feedIntakeKg: 320.0,
-      waterIntakeLiters: 640.0,
-      mortalityCount: 2,
-      temperature: 31.0,
-      gasUnits: 2.5,
-      ventilationStatus: "جيدة",
-      litterCondition: "طبيعية",
-      isEdited: false,
-      isLocked: false,
-      previousSummary: "",
-      actualAvgWeightKg: 0.18,
-      medicineGiven: true,
-      medicineSummary: "فيتامين AD3E",
-      withdrawalDays: 0,
-      updatedAtMillis: Date.now(),
-      createdAt: now,
-      updatedAt: now,
-    })
-  );
+  // 3. Create dailyReport with medicineGiven, medicineSummary, withdrawalDays, updatedAtMillis, isLocked atomically with cycle_v2
+  const repV2Batch = workerDb.batch();
+  repV2Batch.set(workerDb.collection("farms").doc(FARM_ID).collection("dailyReports").doc("rep_v2"), {
+    userId: WORKER_UID,
+    farmId: FARM_ID,
+    cycleId: "cycle_v2",
+    dayNumber: 5,
+    feedIntakeKg: 320.0,
+    waterIntakeLiters: 640.0,
+    mortalityCount: 2,
+    temperature: 31.0,
+    gasUnits: 2.5,
+    ventilationStatus: "جيدة",
+    litterCondition: "طبيعية",
+    isEdited: false,
+    isLocked: false,
+    previousSummary: "",
+    actualAvgWeightKg: 0.18,
+    medicineGiven: true,
+    medicineSummary: "فيتامين AD3E",
+    withdrawalDays: 0,
+    updatedAtMillis: Date.now(),
+    createdAt: now,
+    updatedAt: now,
+  });
+  repV2Batch.update(workerDb.collection("farms").doc(FARM_ID).collection("cycles").doc("cycle_v2"), {
+    feedInventoryKg: 3680.0,
+    feedDeficitKg: 0.0,
+    cumulativeFeedConsumedKg: 320.0,
+    cumulativeMortality: 2,
+    lastDailyReportId: "rep_v2",
+    updatedAt: now,
+  });
+  await assertSucceeds(repV2Batch.commit());
 
   // 3b. Nullable temperature (omitted climate telemetry) must succeed, out-of-range temperature must fail
-  await assertSucceeds(
-    workerDb.collection("farms").doc(FARM_ID).collection("dailyReports").doc("rep_null_temp").set({
-      userId: WORKER_UID,
-      farmId: FARM_ID,
-      cycleId: "cycle_v2",
-      dayNumber: 6,
-      feedIntakeKg: 350.0,
-      waterIntakeLiters: 680.0,
-      mortalityCount: 1,
-      temperature: null,
-      gasUnits: 0.0,
-      ventilationStatus: "جيدة",
-      litterCondition: "طبيعية",
-      isEdited: false,
-      isLocked: true,
-      previousSummary: "",
-      actualAvgWeightKg: 0.21,
-      medicineGiven: false,
-      medicineSummary: "",
-      withdrawalDays: 0,
-      updatedAtMillis: Date.now(),
-      createdAt: now,
-      updatedAt: now,
-    })
-  );
+  const nullTempBatch = workerDb.batch();
+  nullTempBatch.set(workerDb.collection("farms").doc(FARM_ID).collection("dailyReports").doc("rep_null_temp"), {
+    userId: WORKER_UID,
+    farmId: FARM_ID,
+    cycleId: "cycle_v2",
+    dayNumber: 6,
+    feedIntakeKg: 350.0,
+    waterIntakeLiters: 680.0,
+    mortalityCount: 1,
+    temperature: null,
+    gasUnits: 0.0,
+    ventilationStatus: "جيدة",
+    litterCondition: "طبيعية",
+    isEdited: false,
+    isLocked: true,
+    previousSummary: "",
+    actualAvgWeightKg: 0.21,
+    medicineGiven: false,
+    medicineSummary: "",
+    withdrawalDays: 0,
+    updatedAtMillis: Date.now(),
+    createdAt: now,
+    updatedAt: now,
+  });
+  nullTempBatch.update(workerDb.collection("farms").doc(FARM_ID).collection("cycles").doc("cycle_v2"), {
+    feedInventoryKg: 3330.0,
+    feedDeficitKg: 0.0,
+    cumulativeFeedConsumedKg: 670.0,
+    cumulativeMortality: 3,
+    lastDailyReportId: "rep_null_temp",
+    updatedAt: now,
+  });
+  await assertSucceeds(nullTempBatch.commit());
+
   await assertFails(
     workerDb.collection("farms").doc(FARM_ID).collection("dailyReports").doc("rep_bad_temp").set({
       userId: WORKER_UID,
@@ -953,6 +987,8 @@ test("IQ Audit S01, S02, S03, S04, C01: Stranger farm read blocked, Worker chann
       totalBirdsPlaced: 10000,
       targetWeightKg: 2.5,
       feedInventoryKg: 2000.0,
+      feedDeficitKg: 0.0,
+      cumulativeFeedConsumedKg: 0.0,
       cumulativeMortality: 50,
       cumulativeBirdsSold: 0,
       createdAt: now,
@@ -968,7 +1004,7 @@ test("IQ Audit S01, S02, S03, S04, C01: Stranger farm read blocked, Worker chann
     })
   );
 
-  // Worker decreasing cumulativeMortality (0 < 50) -> MUST FAIL
+  // Worker decreasing cumulativeMortality standalone (0 < 50) -> MUST FAIL
   await assertFails(
     workerDb.collection("farms").doc(FARM_ID).collection("cycles").doc("cycle_s04").update({
       cumulativeMortality: 0,
@@ -976,14 +1012,42 @@ test("IQ Audit S01, S02, S03, S04, C01: Stranger farm read blocked, Worker chann
     })
   );
 
-  // Legitimate Worker deduction of feedInventoryKg (1800 <= 2000) and mortality increase (55 >= 50) -> SUCCEEDS
-  await assertSucceeds(
+  // Standalone worker deduction of feedInventoryKg without a dailyReport -> MUST FAIL
+  await assertFails(
     workerDb.collection("farms").doc(FARM_ID).collection("cycles").doc("cycle_s04").update({
       feedInventoryKg: 1800.0,
       cumulativeMortality: 55,
       updatedAt: now,
     })
   );
+
+  // Legitimate Worker deduction of feedInventoryKg (1800 <= 2000) and mortality increase (55 >= 50) coupled with dailyReport -> SUCCEEDS
+  const s04Batch = workerDb.batch();
+  s04Batch.set(workerDb.collection("farms").doc(FARM_ID).collection("dailyReports").doc("rep_s04_day_1"), {
+    userId: WORKER_UID,
+    farmId: FARM_ID,
+    cycleId: "cycle_s04",
+    dayNumber: 1,
+    feedIntakeKg: 200.0,
+    waterIntakeLiters: 400.0,
+    mortalityCount: 5,
+    temperature: 32.0,
+    gasUnits: 2.0,
+    ventilationStatus: "جيدة",
+    litterCondition: "طبيعية",
+    isLocked: false,
+    createdAt: now,
+    updatedAt: now,
+  });
+  s04Batch.update(workerDb.collection("farms").doc(FARM_ID).collection("cycles").doc("cycle_s04"), {
+    feedInventoryKg: 1800.0,
+    feedDeficitKg: 0.0,
+    cumulativeFeedConsumedKg: 200.0,
+    cumulativeMortality: 55,
+    lastDailyReportId: "rep_s04_day_1",
+    updatedAt: now,
+  });
+  await assertSucceeds(s04Batch.commit());
 });
 
 test("Google Play Compliance: Account Deletion self-leave, user_entitlements delete-only, and ugc_reports creation", async () => {
@@ -1023,13 +1087,14 @@ test("Google Play Compliance: Account Deletion self-leave, user_entitlements del
     })
   );
 
-  // 2. Worker can remove ONLY their own UID from shared farm's members when deleting their account
+  // 2. Worker can remove ONLY their own UID from shared farm's members AND clear assignedWorkerId when deleting their account
   await assertSucceeds(
     workerDb.collection("farms").doc(FARM_ID).update({
       members: {
         [OWNER_UID]: "OWNER",
         [VET_UID]: "VETERINARIAN",
       },
+      assignedWorkerId: "",
       updatedAt: now,
     })
   );
@@ -1112,5 +1177,332 @@ test("Google Play Compliance: Account Deletion self-leave, user_entitlements del
     ownerDb.collection("farms").doc(FARM_ID).delete()
   );
 });
+
+test("Audit Section 3: Removing worker from members immediately revokes all farm, cycle, report, transaction, and farm-chat access even if assignedWorkerId or chat participants remain stale", async () => {
+  await seedSharedFarmWithMembers(FARM_ID, {
+    [OWNER_UID]: "OWNER",
+    [VET_UID]: "VETERINARIAN",
+    [WORKER_UID]: "WORKER",
+  });
+  const now = new Date();
+  const ownerDb = testEnv.authenticatedContext(OWNER_UID).firestore();
+  const workerDb = testEnv.authenticatedContext(WORKER_UID).firestore();
+  const teamChannelId = `${FARM_ID}_cycle_2026_01_worker`;
+
+  // Seed cycle, report, and farm team chat channel where WORKER_UID is a participant
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    const adminDb = context.firestore();
+    await adminDb.collection("farms").doc(FARM_ID).collection("cycles").doc("cycle_2026_01").set({
+      userId: OWNER_UID,
+      farmId: FARM_ID,
+      status: "active",
+      totalBirdsPlaced: 5000,
+      targetWeightKg: 2.3,
+      feedInventoryKg: 1000.0,
+      feedDeficitKg: 0.0,
+      cumulativeFeedConsumedKg: 0.0,
+      cumulativeMortality: 0,
+      cumulativeBirdsSold: 0,
+      createdAt: now,
+      updatedAt: now,
+    });
+    await adminDb.collection("farms").doc(FARM_ID).collection("dailyReports").doc("rep_existing").set({
+      userId: WORKER_UID,
+      farmId: FARM_ID,
+      cycleId: "cycle_2026_01",
+      dayNumber: 1,
+      feedIntakeKg: 100.0,
+      waterIntakeLiters: 200.0,
+      mortalityCount: 1,
+      temperature: 32.0,
+      gasUnits: 1.0,
+      ventilationStatus: "جيدة",
+      litterCondition: "طبيعية",
+      createdAt: now,
+      updatedAt: now,
+    });
+    await adminDb.collection("chatChannels").doc(teamChannelId).set({
+      channelId: teamChannelId,
+      farmId: FARM_ID,
+      ownerId: OWNER_UID,
+      createdBy: OWNER_UID,
+      participants: [OWNER_UID, WORKER_UID],
+      createdAt: now,
+      updatedAt: now,
+    });
+    await adminDb.collection("chatChannels").doc(teamChannelId).collection("messages").doc("msg_1").set({
+      id: "msg_1",
+      userId: OWNER_UID,
+      senderId: OWNER_UID,
+      senderName: "المالك",
+      senderRole: "OWNER",
+      cycleId: teamChannelId,
+      farmId: FARM_ID,
+      text: "مرحبا",
+      timestamp: "09:00",
+      createdAt: now,
+      updatedAt: now,
+    });
+  });
+
+  // Before removal, worker CAN read farm, cycle, report, and team chat
+  await assertSucceeds(workerDb.collection("farms").doc(FARM_ID).get());
+  await assertSucceeds(workerDb.collection("farms").doc(FARM_ID).collection("cycles").doc("cycle_2026_01").get());
+  await assertSucceeds(workerDb.collection("chatChannels").doc(teamChannelId).collection("messages").doc("msg_1").get());
+
+  // Simulate worst-case stale assignedWorkerId: Owner removes WORKER_UID from members even if assignedWorkerId was left as WORKER_UID
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await context.firestore().collection("farms").doc(FARM_ID).update({
+      members: {
+        [OWNER_UID]: "OWNER",
+        [VET_UID]: "VETERINARIAN",
+      },
+      assignedWorkerId: WORKER_UID,
+      updatedAt: now,
+    });
+  });
+
+  // Removed worker MUST fail all farm, cycle, report, transaction, and farm-chat reads/writes immediately
+  await assertFails(workerDb.collection("farms").doc(FARM_ID).get());
+  await assertFails(workerDb.collection("farms").doc(FARM_ID).collection("cycles").doc("cycle_2026_01").get());
+  await assertFails(workerDb.collection("farms").doc(FARM_ID).collection("dailyReports").doc("rep_existing").get());
+  await assertFails(
+    workerDb.collection("farms").doc(FARM_ID).collection("transactions").doc("tx_after_revoke").set({
+      userId: WORKER_UID,
+      farmId: FARM_ID,
+      cycleId: "cycle_2026_01",
+      type: "EXPENSE",
+      category: "GAS",
+      amount: 5000.0,
+      currency: "DZD",
+      date: "اليوم 2",
+      idempotencyKey: "tx_after_revoke",
+      status: "PENDING",
+      createdAt: now,
+      updatedAt: now,
+    })
+  );
+  await assertFails(workerDb.collection("chatChannels").doc(teamChannelId).get());
+  await assertFails(workerDb.collection("chatChannels").doc(teamChannelId).collection("messages").doc("msg_1").get());
+  await assertFails(
+    workerDb.collection("chatChannels").doc(teamChannelId).collection("messages").doc("msg_after_revoke").set({
+      id: "msg_after_revoke",
+      userId: WORKER_UID,
+      senderId: WORKER_UID,
+      senderName: "عامل سابق",
+      senderRole: "WORKER",
+      cycleId: teamChannelId,
+      farmId: FARM_ID,
+      text: "محاولة دخول بعد الإزالة",
+      timestamp: "10:00",
+      createdAt: now,
+      updatedAt: now,
+    })
+  );
+});
+
+test("Audit Section 4: Farm chat vs 2-party Market Direct chat strict isolation", async () => {
+  await seedSharedFarmWithMembers(FARM_ID, {
+    [OWNER_UID]: "OWNER",
+    [VET_UID]: "VETERINARIAN",
+    [WORKER_UID]: "WORKER",
+  });
+  const now = new Date();
+  const ownerDb = testEnv.authenticatedContext(OWNER_UID).firestore();
+  const workerDb = testEnv.authenticatedContext(WORKER_UID).firestore();
+  const vetDb = testEnv.authenticatedContext(VET_UID).firestore();
+  const buyerADb = testEnv.authenticatedContext("buyer_a").firestore();
+  const buyerBDb = testEnv.authenticatedContext("buyer_b").firestore();
+
+  // 1. Cannot create a farm channel that includes a non-member (buyer_a) in participants
+  await assertFails(
+    ownerDb.collection("chatChannels").doc(`${FARM_ID}_bad_channel`).set({
+      channelId: `${FARM_ID}_bad_channel`,
+      farmId: FARM_ID,
+      ownerId: OWNER_UID,
+      createdBy: OWNER_UID,
+      participants: [OWNER_UID, "buyer_a"],
+      createdAt: now,
+      updatedAt: now,
+    })
+  );
+
+  // 2. Buyer A creates a 2-party market direct channel with OWNER_UID (seller) with farmId == ""
+  const marketChanA = "market_post_100_buyer_a_owner_user_1";
+  await assertSucceeds(
+    buyerADb.collection("chatChannels").doc(marketChanA).set({
+      channelId: marketChanA,
+      farmId: "",
+      channelType: "DIRECT_MARKET",
+      ownerId: OWNER_UID,
+      createdBy: "buyer_a",
+      participants: ["buyer_a", OWNER_UID],
+      createdAt: now,
+      updatedAt: now,
+    })
+  );
+
+  await assertSucceeds(
+    buyerADb.collection("chatChannels").doc(marketChanA).collection("messages").doc("m_buyer_a_1").set({
+      id: "m_buyer_a_1",
+      userId: "buyer_a",
+      senderId: "buyer_a",
+      senderName: "المشتري أ",
+      senderRole: "BUYER",
+      cycleId: marketChanA,
+      farmId: "",
+      text: "هل الدجاج متوفر؟",
+      timestamp: "11:00",
+      createdAt: now,
+      updatedAt: now,
+    })
+  );
+
+  // 3. Seller (OWNER_UID) can read Buyer A's market message, but Worker, Vet, and Buyer B CANNOT read or write it!
+  await assertSucceeds(
+    ownerDb.collection("chatChannels").doc(marketChanA).collection("messages").doc("m_buyer_a_1").get()
+  );
+  await assertFails(
+    workerDb.collection("chatChannels").doc(marketChanA).collection("messages").doc("m_buyer_a_1").get()
+  );
+  await assertFails(
+    vetDb.collection("chatChannels").doc(marketChanA).collection("messages").doc("m_buyer_a_1").get()
+  );
+  await assertFails(
+    buyerBDb.collection("chatChannels").doc(marketChanA).collection("messages").doc("m_buyer_a_1").get()
+  );
+
+  // 4. Buyer B cannot add themselves to Buyer A's 2-party market channel
+  await assertFails(
+    buyerBDb.collection("chatChannels").doc(marketChanA).update({
+      participants: ["buyer_a", OWNER_UID, "buyer_b"],
+      updatedAt: now,
+    })
+  );
+});
+
+test("Audit Section 6 & 7: Atomic DailyReport + Cycle Totals, Feed Deficit tracking without phantom inventory, and Cycle-Scoped Day 1 reports", async () => {
+  await seedSharedFarmWithMembers(FARM_ID, {
+    [OWNER_UID]: "OWNER",
+    [WORKER_UID]: "WORKER",
+  });
+  const now = new Date();
+  const ownerDb = testEnv.authenticatedContext(OWNER_UID).firestore();
+  const workerDb = testEnv.authenticatedContext(WORKER_UID).firestore();
+
+  // Seed Cycle 1 with 0 feed inventory and Cycle 2 with 1000 kg feed inventory
+  await assertSucceeds(
+    ownerDb.collection("farms").doc(FARM_ID).collection("cycles").doc("cycle_1").set({
+      userId: OWNER_UID,
+      farmId: FARM_ID,
+      status: "active",
+      totalBirdsPlaced: 5000,
+      targetWeightKg: 2.3,
+      feedInventoryKg: 0.0,
+      feedDeficitKg: 0.0,
+      cumulativeFeedConsumedKg: 0.0,
+      cumulativeMortality: 0,
+      cumulativeBirdsSold: 0,
+      createdAt: now,
+      updatedAt: now,
+    })
+  );
+
+  // 1. Standalone report creation without updating cycle_1 MUST FAIL
+  await assertFails(
+    workerDb.collection("farms").doc(FARM_ID).collection("dailyReports").doc("rep_farm_1_cycle_1_day_1").set({
+      userId: WORKER_UID,
+      farmId: FARM_ID,
+      cycleId: "cycle_1",
+      dayNumber: 1,
+      feedIntakeKg: 250.0,
+      waterIntakeLiters: 500.0,
+      mortalityCount: 4,
+      temperature: 33.0,
+      gasUnits: 2.0,
+      ventilationStatus: "جيدة",
+      litterCondition: "طبيعية",
+      isLocked: false,
+      createdAt: now,
+      updatedAt: now,
+    })
+  );
+
+  // 2. Atomic batch creating Day 1 report (250 kg feed when inventory is 0) sets feedInventoryKg = 0, feedDeficitKg = 250
+  const createBatch = workerDb.batch();
+  createBatch.set(
+    workerDb.collection("farms").doc(FARM_ID).collection("dailyReports").doc("rep_farm_1_cycle_1_day_1"),
+    {
+      userId: WORKER_UID,
+      farmId: FARM_ID,
+      cycleId: "cycle_1",
+      dayNumber: 1,
+      feedIntakeKg: 250.0,
+      waterIntakeLiters: 500.0,
+      mortalityCount: 4,
+      temperature: 33.0,
+      gasUnits: 2.0,
+      ventilationStatus: "جيدة",
+      litterCondition: "طبيعية",
+      isLocked: false,
+      createdAt: now,
+      updatedAt: now,
+    }
+  );
+  createBatch.update(workerDb.collection("farms").doc(FARM_ID).collection("cycles").doc("cycle_1"), {
+    feedInventoryKg: 0.0,
+    feedDeficitKg: 250.0,
+    cumulativeFeedConsumedKg: 250.0,
+    cumulativeMortality: 4,
+    lastDailyReportId: "rep_farm_1_cycle_1_day_1",
+    updatedAt: now,
+  });
+  await assertSucceeds(createBatch.commit());
+
+  // 3. Attempting to edit unlocked report from 250 kg -> 200 kg while claiming +50 kg phantom feedInventoryKg MUST FAIL
+  const phantomBatch = workerDb.batch();
+  phantomBatch.update(
+    workerDb.collection("farms").doc(FARM_ID).collection("dailyReports").doc("rep_farm_1_cycle_1_day_1"),
+    {
+      feedIntakeKg: 200.0,
+      mortalityCount: 2,
+      isEdited: true,
+      previousSummary: "250kg",
+      updatedAt: now,
+    }
+  );
+  phantomBatch.update(workerDb.collection("farms").doc(FARM_ID).collection("cycles").doc("cycle_1"), {
+    feedInventoryKg: 50.0,
+    feedDeficitKg: 250.0,
+    cumulativeFeedConsumedKg: 200.0,
+    cumulativeMortality: 2,
+    lastDailyReportId: "rep_farm_1_cycle_1_day_1",
+    updatedAt: now,
+  });
+  await assertFails(phantomBatch.commit());
+
+  // 4. Correct atomic edit from 250 kg -> 200 kg and mortality 4 -> 2 reduces feedDeficitKg to 200.0 and keeps feedInventoryKg = 0.0
+  const validEditBatch = workerDb.batch();
+  validEditBatch.update(
+    workerDb.collection("farms").doc(FARM_ID).collection("dailyReports").doc("rep_farm_1_cycle_1_day_1"),
+    {
+      feedIntakeKg: 200.0,
+      mortalityCount: 2,
+      isEdited: true,
+      previousSummary: "250kg",
+      updatedAt: now,
+    }
+  );
+  validEditBatch.update(workerDb.collection("farms").doc(FARM_ID).collection("cycles").doc("cycle_1"), {
+    feedInventoryKg: 0.0,
+    feedDeficitKg: 200.0,
+    cumulativeFeedConsumedKg: 200.0,
+    cumulativeMortality: 2,
+    lastDailyReportId: "rep_farm_1_cycle_1_day_1",
+    updatedAt: now,
+  });
+  await assertSucceeds(validEditBatch.commit());
+});
+
 
 
