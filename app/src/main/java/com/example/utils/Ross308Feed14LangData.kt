@@ -1,0 +1,650 @@
+package com.example.utils
+
+import com.example.utils.Ross308CareVax14LangData.LessonText14
+
+/**
+ * Complete 13-language (+ Arabic base in Ross308DiseaseFeedPosters) translations
+ * for Feed & Weight Program (feed_1..4) Ross 308 lessons.
+ */
+object Ross308Feed14LangData {
+
+    val lessons: Map<String, LessonText14> = mapOf(
+        "feed_1" to LessonText14(
+            titles = mapOf(
+                "en" to "Three Feed Phases: Starter 23% ➔ Grower 22% ➔ Finisher 20.5%",
+                "fr" to "3 Phases d'Aliment : Démarrage 23% ➔ Croissance 22% ➔ Finition 20,5%",
+                "es" to "3 Fases de Pienso: Inicio 23% ➔ Crecimiento 22% ➔ Final 20.5%",
+                "pt" to "3 Fases de Ração: Inicial 23% ➔ Crescimento 22% ➔ Final 20,5%",
+                "tr" to "3 Yem Evresi: Başlangıç %23 ➔ Büyütme %22 ➔ Bitiş %20.5",
+                "id" to "3 Fase Pakan: Starter 23% ➔ Grower 22% ➔ Finisher 20.5%",
+                "hi" to "3 दाना चरण: स्टार्टर 23% ➔ ग्रोवर 22% ➔ फिनिशर 20.5%",
+                "ur" to "خوراک کے 3 مراحل: اسٹارٹر 23% ➔ گروور 22% ➔ فنشَر 20.5%",
+                "sw" to "Hatua 3 za Chakula: Starter 23% ➔ Grower 22% ➔ Finisher 20.5%",
+                "ru" to "3 фазы корма: Старт 23% ➔ Рост 22% ➔ Финиш 20,5%",
+                "zh" to "三阶段日粮：开口料23% ➔ 中鸡料22% ➔ 育肥料20.5%",
+                "de" to "3 Futterphasen: Starter 23% ➔ Grower 22% ➔ Finisher 20,5%",
+                "it" to "3 Fasi Mangime: Starter 23% ➔ Grower 22% ➔ Finisher 20,5%"
+            ),
+            coreIdeas = mapOf(
+                "en" to "Splitting feed into 3 phases (Starter 23% ➔ Grower 22% ➔ Finisher 20.5% protein) matches growth needs and cuts cost.",
+                "fr" to "Répartir l'aliment en 3 phases (23% ➔ 22% ➔ 20,5% protéine) répond aux besoins et réduit le coût.",
+                "es" to "Dividir el pienso en 3 fases (23% ➔ 22% ➔ 20.5% proteína) cubre la curva de crecimiento y ahorra costo.",
+                "pt" to "Dividir a ração em 3 fases (23% ➔ 22% ➔ 20,5% proteína) atende o crescimento e reduz custos.",
+                "tr" to "Yemi 3 evreye bölmek (%23 ➔ %22 ➔ %20.5 protein) büyüme ihtiyacını karşılar ve maliyeti düşürür.",
+                "id" to "Membagi pakan dalam 3 fase (23% ➔ 22% ➔ 20.5% protein) sesuai pertumbuhan & hemat biaya.",
+                "hi" to "दाने को 3 चरणों (23% ➔ 22% ➔ 20.5% प्रोटीन) में बांटने से विकास तेज होता है और लागत घटती है।",
+                "ur" to "خوراک کو 3 مراحل (23% ➔ 22% ➔ 20.5% پروٹین) میں تقسیم کرنا نشوونما کے مطابق اور کم خرچ ہے۔",
+                "sw" to "Kugawa chakula katika hatua 3 (23% ➔ 22% ➔ 20.5% protini) hukuza vyema na kupunguza gharama.",
+                "ru" to "Три фазы корма (23% ➔ 22% ➔ 20,5% протеина) точно покрывают рост и экономят бюджет.",
+                "zh" to "按三阶段分配日粮（粗蛋白23% ➔ 22% ➔ 20.5%）精准匹配生长需求并降低料成本。",
+                "de" to "Drei Futterphasen (23% ➔ 22% ➔ 20,5% Protein) sichern optimales Wachstum bei geringeren Kosten.",
+                "it" to "Suddividere il mangime in 3 fasi (23% ➔ 22% ➔ 20,5% proteine) ottimizza crescita e costi."
+            ),
+            whyPipe = mapOf(
+                "en" to "✅ Starter 23% (Days 1–10) builds organs|✅ Grower 22% (Days 11–21) builds frame|✅ Finisher 20.5% (Days 22–45) adds meat|✅ Improves FCR & cuts cost per Quintal",
+                "fr" to "✅ Démarrage 23% (J1–10) développe organes|✅ Croissance 22% (J11–21) bâtit l'ossature|✅ Finition 20,5% (J22–45) produit la viande|✅ Améliore IC et coût par quintal",
+                "es" to "✅ Inicio 23% (D1–10) desarrolla órganos|✅ Crecimiento 22% (D11–21) forma esqueleto|✅ Final 20.5% (D22–45) gana carne|✅ Mejora FCR y costo por quintal",
+                "pt" to "✅ Inicial 23% (D1–10) desenvolve órgãos|✅ Crescimento 22% (D11–21) forma estrutura|✅ Final 20,5% (D22–45) ganha peso|✅ Melhora CA e custo por quintal",
+                "tr" to "✅ Başlangıç %23 (1–10. Gün) organ gelişimi|✅ Büyütme %22 (11–21. Gün) iskelet ve et|✅ Bitiş %20.5 (22–45. Gün) final ağırlık|✅ FCR ve kental maliyetini düşürür",
+                "id" to "✅ Starter 23% (H1–10) bangun organ dalam|✅ Grower 22% (H11–21) bentuk rangka & daging|✅ Finisher 20.5% (H22–45) bobot panen|✅ Efisiensi FCR & biaya per kuintal",
+                "hi" to "✅ स्टार्टर 23% (दिन 1–10) अंग निर्माण|✅ ग्रोवर 22% (दिन 11–21) हड्डी व मांस|✅ फिनिशर 20.5% (दिन 22–45) अंतिम वजन|✅ FCR और क्विंटल लागत में सुधार",
+                "ur" to "✅ اسٹارٹر 23% (دن 1–10) اعضا کی نشوونما|✅ گروور 22% (دن 11–21) ڈھانچہ و گوشت|✅ فنشَر 20.5% (دن 22–45) حتمی وزن|✅ FCR اور فی کوئنٹل لاگت میں بچت",
+                "sw" to "✅ Starter 23% (S1–10) hujenga viungo|✅ Grower 22% (S11–21) mifupa na nyama|✅ Finisher 20.5% (S22–45) uzito wa mwisho|✅ Huboresha FCR na gharama",
+                "ru" to "✅ Старт 23% (Д1–10) развитие органов|✅ Рост 22% (Д11–21) скелет и мышцы|✅ Финиш 20,5% (Д22–45) набор массы|✅ Снижает FCR и расход на центнер",
+                "zh" to "✅ 开口料23%（1–10天）促器官发育|✅ 中鸡料22%（11–21天）促骨架肌肉|✅ 育肥料20.5%（22–45天）快速增重|✅ 改善料肉比并降低单担成本",
+                "de" to "✅ Starter 23% (Tag 1–10) Organaufbau|✅ Grower 22% (Tag 11–21) Skelett & Fleisch|✅ Finisher 20,5% (Tag 22–45) Endgewicht|✅ Bessere FCR & geringere Kosten",
+                "it" to "✅ Starter 23% (G1–10) sviluppo organi|✅ Grower 22% (G11–21) scheletro e muscoli|✅ Finisher 20,5% (G22–45) peso finale|✅ Migliora FCR e costo per quintale"
+            ),
+            stepsPipe = mapOf(
+                "en" to "Days 1–10: Fine crumble Starter 23%|Days 11–21: Mini-pellets Grower 22%|Days 22–45: 3.5mm pellets Finisher 20.5%",
+                "fr" to "J1–10 : Miettes fines Démarrage 23%|J11–21 : Mini-granulés Croissance 22%|J22–45 : Granulés 3,5mm Finition 20,5%",
+                "es" to "D1–10: Migaja fina Inicio 23%|D11–21: Mini-pellet Crecimiento 22%|D22–45: Pellet 3.5mm Final 20.5%",
+                "pt" to "D1–10: Triturado fino Inicial 23%|D11–21: Mini-pellet Crescimento 22%|D22–45: Pellet 3,5mm Final 20,5%",
+                "tr" to "1–10. Gün: İnce kırılmış Başlangıç %23|11–21. Gün: Mini pelet Büyütme %22|22–45. Gün: 3.5mm pelet Bitiş %20.5",
+                "id" to "H1–10: Crumble halus Starter 23%|H11–21: Mini-pelet Grower 22%|H22–45: Pelet 3.5mm Finisher 20.5%",
+                "hi" to "दिन 1–10: बारीक क्रम्बल स्टार्टर 23%|दिन 11–21: मिनी-पेलेट ग्रोवर 22%|दिन 22–45: 3.5mm पेलेट फिनिशर 20.5%",
+                "ur" to "دن 1–10: باریک کرمبل اسٹارٹر 23%|دن 11–21: منی پیلٹ گروور 22%|دن 22–45: 3.5mm پیلٹ فنشَر 20.5%",
+                "sw" to "Siku 1–10: Chenga laini Starter 23%|Siku 11–21: Peleti ndogo Grower 22%|Siku 22–45: Peleti 3.5mm Finisher 20.5%",
+                "ru" to "Дни 1–10: Крупка Старт 23%|Дни 11–21: Мини-гранула Рост 22%|Дни 22–45: Гранула 3,5мм Финиш 20,5%",
+                "zh" to "1–10天：细破碎开口料 23%|11–21天：小颗粒中鸡料 22%|22–45天：3.5mm育肥大颗粒 20.5%",
+                "de" to "Tag 1–10: Feine Krümel Starter 23%|Tag 11–21: Mini-Pellets Grower 22%|Tag 22–45: 3,5mm Pellets Finisher 20,5%",
+                "it" to "G1–10: Sbriciolato Starter 23%|G11–21: Mini-pellet Grower 22%|G22–45: Pellet 3,5mm Finisher 20,5%"
+            ),
+            goodCaptions = mapOf(
+                "en" to "Exact 3-phase sequence: 23% ➔ 22% ➔ 20.5%",
+                "fr" to "Séquence exacte 3 phases : 23% ➔ 22% ➔ 20,5%",
+                "es" to "Secuencia exacta 3 fases: 23% ➔ 22% ➔ 20.5%",
+                "pt" to "Sequência exata 3 fases: 23% ➔ 22% ➔ 20,5%",
+                "tr" to "Doğru 3 evre sırası: %23 ➔ %22 ➔ %20.5",
+                "id" to "Urutan tepat 3 fase: 23% ➔ 22% ➔ 20.5%",
+                "hi" to "सही 3-चरण क्रम: 23% ➔ 22% ➔ 20.5%",
+                "ur" to "درست 3 مراحل: 23% ➔ 22% ➔ 20.5%",
+                "sw" to "Mtiririko sahihi: 23% ➔ 22% ➔ 20.5%",
+                "ru" to "Точная схема 3 фаз: 23% ➔ 22% ➔ 20,5%",
+                "zh" to "规范三阶段蛋白梯度：23% ➔ 22% ➔ 20.5%",
+                "de" to "Exakte 3-Phasen-Folge: 23% ➔ 22% ➔ 20,5%",
+                "it" to "Sequenza esatta 3 fasi: 23% ➔ 22% ➔ 20,5%"
+            ),
+            badCaptions = mapOf(
+                "en" to "Mixing phases randomly or dusty feed",
+                "fr" to "Mélanger au hasard ou aliment en poudre",
+                "es" to "Mezclar fases al azar o alimento polvoso",
+                "pt" to "Misturar fases ou ração esfarelada",
+                "tr" to "Evreleri rastgele karıştırmak veya tozlu yem",
+                "id" to "Mencampur fase acak atau pakan berdebu",
+                "hi" to "चरणों को बेतरतीब मिलाना या चूरा दाना",
+                "ur" to "مراحل کو بے ترتیب ملانا یا پاؤڈر والا دانہ",
+                "sw" to "Kuchanganya hatua ovyo au chakula vumbi",
+                "ru" to "Случайная смена корма или много пыли",
+                "zh" to "随意混用阶段料或饲料粉化严重",
+                "de" to "Zufälliges Mischen oder staubiges Futter",
+                "it" to "Mescolare fasi a caso o mangime polveroso"
+            ),
+            heroTops = mapOf(
+                "en" to "23% ➔ 22% ➔ 20.5%", "fr" to "23% ➔ 22% ➔ 20,5%", "es" to "23% ➔ 22% ➔ 20.5%",
+                "pt" to "23% ➔ 22% ➔ 20,5%", "tr" to "%23 ➔ %22 ➔ %20.5", "id" to "23% ➔ 22% ➔ 20.5%",
+                "hi" to "23% ➔ 22% ➔ 20.5%", "ur" to "23% ➔ 22% ➔ 20.5%", "sw" to "23% ➔ 22% ➔ 20.5%",
+                "ru" to "23% ➔ 22% ➔ 20,5%", "zh" to "23% ➔ 22% ➔ 20.5%", "de" to "23% ➔ 22% ➔ 20,5%", "it" to "23% ➔ 22% ➔ 20,5%"
+            ),
+            heroBottoms = mapOf(
+                "en" to "Starter ➔ Grower ➔ Finisher", "fr" to "Démarrage ➔ Croiss. ➔ Finition",
+                "es" to "Inicio ➔ Crec. ➔ Final", "pt" to "Inicial ➔ Cresc. ➔ Final",
+                "tr" to "Başlangıç ➔ Büyütme ➔ Bitiş", "id" to "Starter ➔ Grower ➔ Finisher",
+                "hi" to "स्टार्टर ➔ ग्रोवर ➔ फिनिशर", "ur" to "اسٹارٹر ➔ گروور ➔ فنشَر",
+                "sw" to "Starter ➔ Grower ➔ Finisher", "ru" to "Старт ➔ Рост ➔ Финиш",
+                "zh" to "开口料 ➔ 中鸡料 ➔ 育肥料", "de" to "Starter ➔ Grower ➔ Finisher",
+                "it" to "Starter ➔ Grower ➔ Finisher"
+            ),
+            polaroids = mapOf(
+                "en" to "3 Feed Phases", "fr" to "3 Phases Aliment", "es" to "3 Fases Pienso",
+                "pt" to "3 Fases Ração", "tr" to "3 Yem Evresi", "id" to "3 Fase Pakan",
+                "hi" to "3 दाना चरण", "ur" to "3 غذائی مراحل", "sw" to "Hatua 3 Chakula",
+                "ru" to "3 фазы корма", "zh" to "三阶段日粮", "de" to "3 Futterphasen", "it" to "3 Fasi Mangime"
+            ),
+            warnings = mapOf(
+                "en" to "⚠️ Each feed phase is tailored precisely to gut age and beak size!",
+                "fr" to "⚠️ Chaque phase est calibrée pour l'âge digestif et le bec de l'oiseau !",
+                "es" to "⚠️ ¡Cada fase está diseñada para la edad intestinal y tamaño del pico!",
+                "pt" to "⚠️ Cada fase é formulada para a idade intestinal e tamanho do bico!",
+                "tr" to "⚠️ Her yem evresi kuşun bağırsak yaşına ve gaga boyutuna göre tasarlanır!",
+                "id" to "⚠️ Setiap fase pakan dirancang sesuai usia usus dan ukuran paruh ayam!",
+                "hi" to "⚠️ दाने का प्रत्येक चरण आंत की उम्र और चोंच के आकार के अनुसार होता है!",
+                "ur" to "⚠️ خوراک کا ہر مرحلہ پرندے کی آنتوں کی عمر اور چونچ کے سائز کے مطابق ہے!",
+                "sw" to "⚠️ Kila hatua ya chakula imeundwa kulingana na umri wa utumbo na mdomo!",
+                "ru" to "⚠️ Каждая фаза корма рассчитана под возраст ЖКТ и размер клюва!",
+                "zh" to "⚠️ 每个阶段日粮的蛋白与粒径均精准匹配鸡只肠道发育与喙部大小！",
+                "de" to "⚠️ Jede Futterphase ist exakt auf Darmreife & Schnabelgröße abgestimmt!",
+                "it" to "⚠️ Ogni fase è calibrata su età intestinale e dimensione del becco!"
+            ),
+            tableTitle = mapOf(
+                "en" to "📊 Ross 308 Three Feed Phases", "fr" to "📊 Tableau des 3 Phases (Ross 308)",
+                "es" to "📊 Tabla de 3 Fases (Ross 308)", "pt" to "📊 Tabela das 3 Fases (Ross 308)",
+                "tr" to "📊 Ross 308 Üç Yem Evresi", "id" to "📊 Tabel 3 Fase Pakan Ross 308",
+                "hi" to "📊 तीन दाना चरण तालिका (Ross 308)", "ur" to "📊 خوراک کے تین مراحل (Ross 308)",
+                "sw" to "📊 Jedwali la Hatua 3 (Ross 308)", "ru" to "📊 Таблица 3 фаз кормления (Ross 308)",
+                "zh" to "📊 Ross 308 三阶段日粮标准", "de" to "📊 Ross 308 Drei Futterphasen", "it" to "📊 Tabella 3 Fasi (Ross 308)"
+            ),
+            tableHeadersPipe = mapOf(
+                "en" to "Phase|Age|Protein & Energy", "fr" to "Phase|Âge|Protéines & Énergie",
+                "es" to "Fase|Edad|Proteína y Energía", "pt" to "Fase|Idade|Proteína e Energia",
+                "tr" to "Evre|Yaş|Protein ve Enerji", "id" to "Fase|Umur|Protein & Energi",
+                "hi" to "चरण|उम्र|प्रोटीन व ऊर्जा", "ur" to "مرحلہ|عمر|پروٹین و توانائی",
+                "sw" to "Hatua|Umri|Protini na Nishati", "ru" to "Фаза|Возраст|Протеин и энергия",
+                "zh" to "阶段|日龄|粗蛋白与代谢能", "de" to "Phase|Alter|Protein & Energie", "it" to "Fase|Età|Proteine & Energia"
+            ),
+            tableRowsSemiPipe = mapOf(
+                "en" to "Starter|Days 1–10|23% CP • 3000 kcal;Grower|Days 11–21|22% CP • 3100 kcal;Finisher|Days 22–45|20.5% CP • 3200 kcal",
+                "fr" to "Démarrage|J1–10|23% PB • 3000 kcal;Croissance|J11–21|22% PB • 3100 kcal;Finition|J22–45|20,5% PB • 3200 kcal",
+                "es" to "Inicio|Días 1–10|23% PC • 3000 kcal;Crecimiento|Días 11–21|22% PC • 3100 kcal;Finalizador|Días 22–45|20.5% PC • 3200 kcal",
+                "pt" to "Inicial|Dias 1–10|23% PB • 3000 kcal;Crescimento|Dias 11–21|22% PB • 3100 kcal;Final|Dias 22–45|20,5% PB • 3200 kcal",
+                "tr" to "Başlangıç|1–10 Gün|%23 HP • 3000 kcal;Büyütme|11–21 Gün|%22 HP • 3100 kcal;Bitiş|22–45 Gün|%20.5 HP • 3200 kcal",
+                "id" to "Starter|Hari 1–10|23% PK • 3000 kcal;Grower|Hari 11–21|22% PK • 3100 kcal;Finisher|Hari 22–45|20.5% PK • 3200 kcal",
+                "hi" to "स्टार्टर|दिन 1–10|23% CP • 3000 kcal;ग्रोवर|दिन 11–21|22% CP • 3100 kcal;फिनिशर|दिन 22–45|20.5% CP • 3200 kcal",
+                "ur" to "اسٹارٹر|دن 1–10|23% CP • 3000 kcal;گروور|دن 11–21|22% CP • 3100 kcal;فنشَر|دن 22–45|20.5% CP • 3200 kcal",
+                "sw" to "Starter|Siku 1–10|23% CP • 3000 kcal;Grower|Siku 11–21|22% CP • 3100 kcal;Finisher|Siku 22–45|20.5% CP • 3200 kcal",
+                "ru" to "Старт|Дни 1–10|23% СП • 3000 ккал;Рост|Дни 11–21|22% СП • 3100 ккал;Финиш|Дни 22–45|20,5% СП • 3200 ккал",
+                "zh" to "开口料|1–10天|23% 粗蛋白 • 3000 kcal;中鸡料|11–21天|22% 粗蛋白 • 3100 kcal;育肥料|22–45天|20.5% 粗蛋白 • 3200 kcal",
+                "de" to "Starter|Tag 1–10|23% RP • 3000 kcal;Grower|Tag 11–21|22% RP • 3100 kcal;Finisher|Tag 22–45|20,5% RP • 3200 kcal",
+                "it" to "Starter|Giorni 1–10|23% PG • 3000 kcal;Grower|Giorni 11–21|22% PG • 3100 kcal;Finisher|Giorni 22–45|20,5% PG • 3200 kcal"
+            )
+        ),
+
+        "feed_2" to LessonText14(
+            titles = mapOf(
+                "en" to "Feeder & Drinker Height Alignment (Save 3–5% Feed)",
+                "fr" to "Hauteur Mangeoires & Abreuvoirs (Économie 3–5%)",
+                "es" to "Altura de Comederos y Bebederos (Ahorra 3–5%)",
+                "pt" to "Altura de Comedouros e Bebedouros (Economia 3–5%)",
+                "tr" to "Yemlik ve Suluk Yüksekliği (%3–5 Yem Tasarrufu)",
+                "id" to "Tinggi Tempat Pakan & Minum (Hemat 3–5% Pakan)",
+                "hi" to "फीडर व ड्रिंकर की ऊंचाई (3–5% दाना बचत)",
+                "ur" to "فیڈر اور ڈرنکر کی اونچائی (3–5% خوراک کی بچت)",
+                "sw" to "Urefu wa Vyombo vya Chakula na Maji (Okoa 3–5%)",
+                "ru" to "Высота кормушек и поилок (Экономия 3–5% корма)",
+                "zh" to "料盘与水线高度调节（节省 3–5% 饲料浪费）",
+                "de" to "Trog- & Tränkehöhe einstellen (3–5% Futter sparen)",
+                "it" to "Altezza Mangiatoie e Abbeveratoi (Risparmio 3–5%)"
+            ),
+            coreIdeas = mapOf(
+                "en" to "Setting feeder pans level with birds' backs and drinkers at eye level saves 3–5% feed and keeps litter dry.",
+                "fr" to "Régler la mangeoire au niveau du dos et les pipettes à hauteur des yeux économise 3–5% et garde la litière sèche.",
+                "es" to "Ajustar comederos al lomo del ave y bebederos sobre los ojos ahorra 3–5% de alimento y mantiene cama seca.",
+                "pt" to "Ajustar comedouros na altura do dorso e bebedouros acima dos olhos economiza 3–5% e mantém cama seca.",
+                "tr" to "Yemliği sırt hizasında, suluğu göz üstünde tutmak %3–5 yem tasarrufu sağlar ve altlığı kuru tutar.",
+                "id" to "Mengatur piringan pakan sejajar punggung dan nipple di atas mata menghemat 3–5% pakan & cegah sekam basah.",
+                "hi" to "फीडर को पक्षी की पीठ के स्तर और ड्रिंकर को आंख के स्तर पर रखने से 3–5% दाना बचता है व बिछावन सूखा रहता है।",
+                "ur" to "فیڈر کو پرندے کی پیٹھ کے برابر اور ڈرنکر کو آنکھ کے اوپر رکھنے سے 3–5% خوراک بچتی ہے اور بچھالی خشک رہتی ہے۔",
+                "sw" to "Kuweka chombo cha chakula usawa wa mgongo huokoa 3–5% ya chakula na kuweka maranda makavu.",
+                "ru" to "Кормушки на уровне спины и ниппели выше уровня глаз экономят 3–5% корма и берегут подстилку.",
+                "zh" to "料盘边缘与鸡背平齐、水线略高于鸡眼水平，可节省3–5%饲料浪费并保持垫料干燥。",
+                "de" to "Tröge auf Rückenhöhe und Tränken auf Augenhöhe sparen 3–5% Futter und halten die Einstreu trocken.",
+                "it" to "Regolare mangiatoie al dorso e abbeveratoi sopra gli occhi fa risparmiare il 3–5% e asciuga la lettiera."
+            ),
+            whyPipe = mapOf(
+                "en" to "✅ Feeder rim aligned with bird's back|✅ Saves 3–5% on total feed bill|✅ Keeps litter dry (<25%) & stops Coccidia|✅ Pan depth kept at 1/3 full only",
+                "fr" to "✅ Bord au niveau du dos de l'oiseau|✅ Économise 3–5% de la facture|✅ Garde la litière sèche (<25%)|✅ Niveau d'aliment à 1/3 du plateau",
+                "es" to "✅ Borde alineado al lomo del ave|✅ Ahorra 3–5% en factura de pienso|✅ Cama seca (<25%) sin coccidia|✅ Nivel en plato máximo a 1/3",
+                "pt" to "✅ Borda na altura do dorso da ave|✅ Economiza 3–5% na ração|✅ Cama seca (<25%) sem coccidia|✅ Nível no prato em apenas 1/3",
+                "tr" to "✅ Yemlik kenarı sırt hizasında|✅ Yem faturasından %3–5 tasarruf|✅ Altlık kuru (<%25), koksidiyoz yok|✅ Tabakta yem seviyesi 1/3 dolu",
+                "id" to "✅ Bibir tempat pakan sejajar punggung|✅ Hemat 3–5% total biaya pakan|✅ Sekam kering (<25%) cegah koksidia|✅ Isi piringan cukup 1/3 saja",
+                "hi" to "✅ फीडर का किनारा पीठ के बराबर|✅ दाना बिल में 3–5% की सीधी बचत|✅ सूखा बिछावन (<25%) और कम रोग|✅ ट्रे में दाना केवल 1/3 भरें",
+                "ur" to "✅ فیڈر کا کنارہ پرندے کی پیٹھ کے برابر|✅ خوراک کے بل میں 3–5% بچت|✅ خشک بچھالی (<25%) اور بیماری سے بچاؤ|✅ پلیٹ میں دانہ صرف ایک تہائی رکھیں",
+                "sw" to "✅ Ukingo wa chombo usawa wa mgongo|✅ Huokoa 3–5% ya gharama ya chakula|✅ Maranda makavu (<25%) bila magonjwa|✅ Jaza 1/3 ya sahani tu",
+                "ru" to "✅ Край кормушки на уровне спины|✅ Экономия 3–5% бюджета на корм|✅ Сухая подстилка (<25%) без кокцидий|✅ Корм в лотке не выше 1/3",
+                "zh" to "✅ 料盘边缘与鸡背平齐|✅ 直接节省 3–5% 饲料成本|✅ 保持垫料干燥（<25%）防球虫|✅ 料盘内料位仅占 1/3",
+                "de" to "✅ Trogrand auf Rückenhöhe|✅ Spart 3–5% der Futterkosten|✅ Trockene Einstreu (<25%) ohne Kokzidien|✅ Schale nur zu 1/3 gefüllt",
+                "it" to "✅ Bordo mangiatoia al livello del dorso|✅ Risparmio del 3–5% sul mangime|✅ Lettiera asciutta (<25%)|✅ Mangime nel piatto solo a 1/3"
+            ),
+            stepsPipe = mapOf(
+                "en" to "Raise feeders every 2–3 days to back level|Adjust pan gate so feed stays 1/3 full|Raise nipple line just above bird eye level",
+                "fr" to "Monter mangeoires au niveau du dos /2–3j|Régler l'ouverture à 1/3 du plateau|Monter les pipettes au-dessus de l'œil",
+                "es" to "Subir comederos cada 2–3d al nivel del lomo|Ajustar compuerta a 1/3 de plato|Subir niples justo sobre el nivel del ojo",
+                "pt" to "Subir comedouros a cada 2–3d ao dorso|Ajustar prato para 1/3 de ração|Subir niples logo acima do nível do olho",
+                "tr" to "Yemlikleri 2–3 günde bir sırt hizasına kaldır|Tabakta 1/3 yem kalacak şekilde ayarla|Nipelleri göz seviyesinin hemen üstüne çek",
+                "id" to "Naikkan tempat pakan tiap 2–3 hari sejajar punggung|Atur bukaan pakan hanya 1/3 piring|Naikkan jalur nipple sedikit di atas mata",
+                "hi" to "हर 2–3 दिन में फीडर पीठ के स्तर तक उठाएं|दाना केवल 1/3 भरा रहने दें|निप्पल लाइन आंख से थोड़ा ऊपर रखें",
+                "ur" to "ہر 2–3 دن بعد فیڈر کو پیٹھ کی سطح تک اٹھائیں|پلیٹ میں خوراک ایک تہائی رکھیں|نپل لائن کو آنکھ کی سطح سے ذرا اوپر رکھیں",
+                "sw" to "Pandisha vyombo kila siku 2–3 usawa wa mgongo|Weka chakula 1/3 ya sahani|Pandisha mipira juu kidogo ya macho",
+                "ru" to "Поднимайте кормушки каждые 2–3 дня к спине|Отрегулируйте заполнение на 1/3 лотка|Поднимите ниппели чуть выше уровня глаз",
+                "zh" to "每2–3天将料盘调高至与鸡背齐平|调节下料口使料盘保留 1/3 料位|将乳头饮水线调高至略高于鸡眼水平",
+                "de" to "Tröge alle 2–3 Tage auf Rückenhöhe heben|Schieber auf 1/3 Füllhöhe stellen|Nippellinie knapp über Augenhöhe",
+                "it" to "Alzare mangiatoie ogni 2–3g al livello dorso|Regolare apertura a 1/3 del piatto|Alzare i capezzoli appena sopra gli occhi"
+            ),
+            goodCaptions = mapOf(
+                "en" to "Back-level feeder, zero waste, dry litter",
+                "fr" to "Mangeoire au dos, zéro gaspillage, sol sec",
+                "es" to "Comedero al lomo, cero desperdicio, cama seca",
+                "pt" to "Comedouro no dorso, zero perda, cama seca",
+                "tr" to "Sırt hizası yemlik, sıfır israf, kuru altlık",
+                "id" to "Pakan sejajar punggung, nol boros, sekam kering",
+                "hi" to "पीठ के बराबर फीडर, शून्य बर्बादी, सूखा बिछावन",
+                "ur" to "پیٹھ کے برابر فیڈر، صفر ضیاع، خشک بچھالی",
+                "sw" to "Chombo usawa wa mgongo, bila upotevu",
+                "ru" to "Кормушка по спине, нет потерь, сухой пол",
+                "zh" to "料盘齐鸡背、零抛洒、垫料干爽",
+                "de" to "Trog auf Rückenhöhe, kein Verlust, trockener Boden",
+                "it" to "Mangiatoia al dorso, zero sprechi, lettiera asciutta"
+            ),
+            badCaptions = mapOf(
+                "en" to "Low overfilled pans wasting 4% into litter",
+                "fr" to "Plateaux trop bas et pleins gaspillant 4%",
+                "es" to "Platos bajos muy llenos tirando 4% al piso",
+                "pt" to "Pratos baixos cheios perdendo 4% na cama",
+                "tr" to "Alçak ve taşan yemliklerle %4 yem israfı",
+                "id" to "Wadah terlalu rendah & penuh membuang 4% pakan",
+                "hi" to "नीचे व लबालब भरे फीडर से 4% दाना बर्बाद",
+                "ur" to "نیچے اور بھرے ہوئے فیڈر سے 4% خوراک ضائع",
+                "sw" to "Vyombo chini sana vinavyomwaga 4% ya chakula",
+                "ru" to "Низкие переполненные лотки — 4% в подстилку",
+                "zh" to "料盘过低过满导致4%饲料洒入垫料",
+                "de" to "Zu tiefe, volle Tröge vergeuden 4% Futter",
+                "it" to "Piatti bassi e stracolmi sprecano il 4%"
+            ),
+            heroTops = mapOf(
+                "en" to "Back-Level Feeder", "fr" to "Mangeoire au Dos", "es" to "Comedero al Lomo",
+                "pt" to "Comedouro no Dorso", "tr" to "Sırt Hizası Yemlik", "id" to "Sejajar Punggung",
+                "hi" to "पीठ के स्तर पर", "ur" to "پیٹھ کی سطح", "sw" to "Usawa wa Mgongo",
+                "ru" to "На уровне спины", "zh" to "与鸡背齐平", "de" to "Rückenhöhe", "it" to "Livello Dorso"
+            ),
+            heroBottoms = mapOf(
+                "en" to "Save 3–5% Feed", "fr" to "Économie 3–5%", "es" to "Ahorra 3–5% Pienso",
+                "pt" to "Economiza 3–5%", "tr" to "%3–5 Yem Tasarrufu", "id" to "Hemat 3–5% Pakan",
+                "hi" to "3–5% दाना बचत", "ur" to "3–5% خوراک بچت", "sw" to "Okoa 3–5%",
+                "ru" to "Экономия 3–5%", "zh" to "节料 3–5%", "de" to "3–5% Sparen", "it" to "Risparmio 3–5%"
+            ),
+            polaroids = mapOf(
+                "en" to "Feeder Height", "fr" to "Hauteur Mangeoire", "es" to "Altura Comedero",
+                "pt" to "Altura Comedouro", "tr" to "Yemlik Ayarı", "id" to "Tinggi Tempat Pakan",
+                "hi" to "फीडर ऊंचाई", "ur" to "فیڈر کی اونچائی", "sw" to "Kimo cha Chombo",
+                "ru" to "Высота кормушек", "zh" to "料盘高度校准", "de" to "Troghöhe", "it" to "Altezza Piatti"
+            ),
+            warnings = mapOf(
+                "en" to "⚠️ If you see feed pellets scattered on the litter, the feeder is too low or overfilled!",
+                "fr" to "⚠️ Si des granulés tombent dans la litière, la mangeoire est trop basse ou trop pleine !",
+                "es" to "⚠️ ¡Si hay pellets en la cama, el comedero está muy bajo o muy lleno!",
+                "pt" to "⚠️ Se houver ração na cama, o comedouro está baixo ou cheio demais!",
+                "tr" to "⚠️ Altlıkta yem taneleri görüyorsanız yemlik çok alçak veya aşırı doludur!",
+                "id" to "⚠️ Jika ada pakan tercecer di sekam, posisi tempat pakan terlalu rendah atau penuh!",
+                "hi" to "⚠️ अगर बिछावन में दाना बिखरा दिखे तो फीडर बहुत नीचे है या ज्यादा भरा है!",
+                "ur" to "⚠️ اگر بچھالی میں دانہ بکھرا نظر آئے تو فیڈر بہت نیچا یا زیادہ بھرا ہوا ہے!",
+                "sw" to "⚠️ Ukiona chakula kwenye maranda, chombo kiko chini sana au kimejaa mno!",
+                "ru" to "⚠️ Если гранулы лежат в подстилке — кормушки висят слишком низко или переполнены!",
+                "zh" to "⚠️ 若垫料上可见散落饲料颗粒，说明料盘过低或下料过满！",
+                "de" to "⚠️ Liegt Futter in der Einstreu, hängt der Trog zu tief oder ist überfüllt!",
+                "it" to "⚠️ Se vedi mangime nella lettiera, la mangiatoia è troppo bassa o troppo piena!"
+            ),
+            tableTitle = mapOf(
+                "en" to "📊 Cost Impact of Alignment", "fr" to "📊 Impact sur les Coûts",
+                "es" to "📊 Impacto en Costos", "pt" to "📊 Impacto nos Custos",
+                "tr" to "📊 Maliyet Etkisi", "id" to "📊 Dampak Biaya",
+                "hi" to "📊 लागत पर प्रभाव", "ur" to "📊 لاگت پر اثر",
+                "sw" to "📊 Athari kwa Gharama", "ru" to "📊 Влияние на затраты",
+                "zh" to "📊 高度调节对成本的影响", "de" to "📊 Kosteneffekt", "it" to "📊 Impatto sui Costi"
+            ),
+            tableHeadersPipe = mapOf(
+                "en" to "Factor|Proper Height|Neglected", "fr" to "Facteur|Hauteur Correcte|Négligé",
+                "es" to "Factor|Altura Correcta|Descuidado", "pt" to "Fator|Altura Correta|Negligenciado",
+                "tr" to "Faktör|Doğru Yükseklik|İhmal", "id" to "Faktor|Tinggi Tepat|Diabaikan",
+                "hi" to "कारक|सही ऊंचाई|लापरवाही", "ur" to "عنصر|درست اونچائی|لاپرواہی",
+                "sw" to "Kipengele|Kimo Sahihi|Kupuuza", "ru" to "Фактор|Правильно|Нарушение",
+                "zh" to "项目|规范调节|高度不当", "de" to "Faktor|Richtige Höhe|Vernachlässigt", "it" to "Fattore|Altezza Giusta|Trascurato"
+            ),
+            tableRowsSemiPipe = mapOf(
+                "en" to "Feed Waste|< 0.5% ✓|3% – 5% loss ✗;Litter Dryness|Dry < 25% ✓|Wet > 35% ✗;FCR Ratio|-0.06 better ✓|+0.08 worse ✗",
+                "fr" to "Gaspillage|< 0,5% ✓|3% – 5% perte ✗;Litière|Sèche < 25% ✓|Humide > 35% ✗;Indice IC|-0,06 meilleur ✓|+0,08 pire ✗",
+                "es" to "Desperdicio|< 0.5% ✓|3% – 5% pérdida ✗;Cama|Seca < 25% ✓|Húmeda > 35% ✗;FCR|-0.06 mejor ✓|+0.08 peor ✗",
+                "pt" to "Desperdício|< 0,5% ✓|3% – 5% perda ✗;Cama|Seca < 25% ✓|Úmida > 35% ✗;CA|-0,06 melhor ✓|+0,08 pior ✗",
+                "tr" to "Yem İsrafı|< %0.5 ✓|%3 – %5 kayıp ✗;Altlık Kuru|<%25 ✓|>%35 ıslak ✗;FCR|-0.06 iyi ✓|+0.08 kötü ✗",
+                "id" to "Pakan Terbuang|< 0.5% ✓|Rugi 3% – 5% ✗;Sekam Kering|< 25% ✓|Basah > 35% ✗;FCR|-0.06 hemat ✓|+0.08 boros ✗",
+                "hi" to "दाना बर्बादी|< 0.5% ✓|3% – 5% नुकसान ✗;सूखा बिछावन|< 25% ✓|गीला > 35% ✗;FCR|-0.06 बेहतर ✓|+0.08 खराब ✗",
+                "ur" to "خوراک کا ضیاع|< 0.5% ✓|3% – 5% نقصان ✗;خشک بچھالی|< 25% ✓|گیلی > 35% ✗;FCR|-0.06 بہتر ✓|+0.08 خراب ✗",
+                "sw" to "Upotevu|< 0.5% ✓|Hasara 3% – 5% ✗;Ukavu|< 25% ✓|Unyevu > 35% ✗;FCR|-0.06 bora ✓|+0.08 mbaya ✗",
+                "ru" to "Потери корма|< 0,5% ✓|3% – 5% потерь ✗;Подстилка|Сухая < 25% ✓|Сырая > 35% ✗;FCR|-0,06 лучше ✓|+0,08 хуже ✗",
+                "zh" to "饲料浪费|< 0.5% ✓|浪费 3%–5% ✗;垫料干燥度|干爽 < 25% ✓|潮湿 > 35% ✗;料肉比 FCR|优化 -0.06 ✓|恶化 +0.08 ✗",
+                "de" to "Futterverlust|< 0,5% ✓|3% – 5% Verlust ✗;Einstreu|Trocken < 25% ✓|Nass > 35% ✗;FCR|-0,06 besser ✓|+0,08 schlechter ✗",
+                "it" to "Spreco|< 0,5% ✓|3% – 5% perso ✗;Lettiera|Asciutta < 25% ✓|Umida > 35% ✗;FCR|-0,06 migliore ✓|+0,08 peggiore ✗"
+            )
+        ),
+
+        "feed_3" to LessonText14(
+            titles = mapOf(
+                "en" to "3-Day Gradual Feed Transition (75/25 ➔ 50/50 ➔ 25/75)",
+                "fr" to "Transition Alimentaire sur 3 Jours (75/25 ➔ 50/50 ➔ 25/75)",
+                "es" to "Transición Gradual de Pienso en 3 Días (75/25 ➔ 50/50 ➔ 25/75)",
+                "pt" to "Transição Gradual da Ração em 3 Dias (75/25 ➔ 50/50 ➔ 25/75)",
+                "tr" to "3 Günlük Kademeli Yem Geçişi (75/25 ➔ 50/50 ➔ 25/75)",
+                "id" to "Transisi Pakan Bertahap 3 Hari (75/25 ➔ 50/50 ➔ 25/75)",
+                "hi" to "3-दिन क्रमिक दाना परिवर्तन (75/25 ➔ 50/50 ➔ 25/75)",
+                "ur" to "3 دن میں بتدریج خوراک تبدیلی (75/25 ➔ 50/50 ➔ 25/75)",
+                "sw" to "Mabadiliko ya Chakula Siku 3 (75/25 ➔ 50/50 ➔ 25/75)",
+                "ru" to "Плавный переход корма за 3 дня (75/25 ➔ 50/50 ➔ 25/75)",
+                "zh" to "3天渐变换料法（75/25 ➔ 50/50 ➔ 25/75）与防霉护肝",
+                "de" to "3-Tage-Futterwechsel (75/25 ➔ 50/50 ➔ 25/75) & Toxinbinder",
+                "it" to "Cambio Graduale Mangime in 3 Giorni (75/25 ➔ 50/50 ➔ 25/75)"
+            ),
+            coreIdeas = mapOf(
+                "en" to "Blending old & new feed over 3 days (75/25, 50/50, 25/75) with mycotoxin binders protects gut flora and liver.",
+                "fr" to "Mélanger l'ancien et le nouvel aliment sur 3 jours (75/25, 50/50, 25/75) avec antitoxine protège l'intestin et le foie.",
+                "es" to "Mezclar pienso viejo y nuevo en 3 días (75/25, 50/50, 25/75) con secuestrante protege intestino e hígado.",
+                "pt" to "Misturar ração antiga e nova em 3 dias (75/25, 50/50, 25/75) com adsorvente protege intestino e fígado.",
+                "tr" to "Eski ve yeni yemi 3 günde karıştırmak (75/25, 50/50, 25/75) ve toksin bağlayıcı eklemek bağırsağı ve karaciğeri korur.",
+                "id" to "Mencampur pakan lama & baru 3 hari (75/25, 50/50, 25/75) plus toxin binder lindungi usus & hati.",
+                "hi" to "3 दिनों में पुराना व नया दाना मिलाना (75/25, 50/50, 25/75) और टॉक्सिन बाइंडर देना आंत व लिवर बचाता है।",
+                "ur" to "3 دن میں پرانی اور نئی خوراک ملانا (75/25، 50/50، 25/75) اور ٹاکسن بائنڈر آنتوں و جگر کو بچاتا ہے۔",
+                "sw" to "Kuchanganya chakula kwa siku 3 (75/25, 50/50, 25/75) pamoja na kinga ya sumu hulinda utumbo na ini.",
+                "ru" to "Смешивание кормов за 3 дня (75/25, 50/50, 25/75) с сорбентом бережет микрофлору ЖКТ и печень.",
+                "zh" to "分3天按75/25 ➔ 50/50 ➔ 25/75比例逐步换料并加脱霉剂，保护肠道菌群与肝脏。",
+                "de" to "Schrittweises Mischen über 3 Tage (75/25, 50/50, 25/75) mit Toxinbinder schont Darm und Leber.",
+                "it" to "Miscelare mangime vecchio e nuovo in 3 giorni (75/25, 50/50, 25/75) con detossificante protegge intestino e fegato."
+            ),
+            whyPipe = mapOf(
+                "en" to "✅ Day 1: 75% old + 25% new feed|✅ Day 2: 50% old + 50% new feed|✅ Day 3: 25% old + 75% new feed|✅ Add mycotoxin binder & protect liver",
+                "fr" to "✅ Jour 1 : 75% ancien + 25% nouveau|✅ Jour 2 : 50% ancien + 50% nouveau|✅ Jour 3 : 25% ancien + 75% nouveau|✅ Ajouter antitoxine & soutien foie",
+                "es" to "✅ Día 1: 75% anterior + 25% nuevo|✅ Día 2: 50% anterior + 50% nuevo|✅ Día 3: 25% anterior + 75% nuevo|✅ Agregar secuestrante hepático",
+                "pt" to "✅ Dia 1: 75% antiga + 25% nova|✅ Dia 2: 50% antiga + 50% nova|✅ Dia 3: 25% antiga + 75% nova|✅ Usar adsorvente de micotoxinas",
+                "tr" to "✅ 1. Gün: %75 eski + %25 yeni yem|✅ 2. Gün: %50 eski + %50 yeni yem|✅ 3. Gün: %25 eski + %75 yeni yem|✅ Mikotoksin bağlayıcı ve karaciğer desteği",
+                "id" to "✅ Hari 1: 75% lama + 25% baru|✅ Hari 2: 50% lama + 50% baru|✅ Hari 3: 25% lama + 75% baru|✅ Tambah toxin binder pelindung hati",
+                "hi" to "✅ दिन 1: 75% पुराना + 25% नया दाना|✅ दिन 2: 50% पुराना + 50% नया दाना|✅ दिन 3: 25% पुराना + 75% नया दाना|✅ टॉक्सिन बाइंडर व लिवर सुरक्षा",
+                "ur" to "✅ دن 1: 75% پرانی + 25% نئی خوراک|✅ دن 2: 50% پرانی + 50% نئی خوراک|✅ دن 3: 25% پرانی + 75% نئی خوراک|✅ ٹاکسن بائنڈر اور جگر کا تحفظ",
+                "sw" to "✅ Siku 1: 75% zamani + 25% mpya|✅ Siku 2: 50% zamani + 50% mpya|✅ Siku 3: 25% zamani + 75% mpya|✅ Weka kinga ya sumu kulinda ini",
+                "ru" to "✅ День 1: 75% старый + 25% новый|✅ День 2: 50% старый + 50% новый|✅ День 3: 25% старый + 75% новый|✅ Сорбент микотоксинов для печени",
+                "zh" to "✅ 第1天：75%旧料 + 25%新料|✅ 第2天：50%旧料 + 50%新料|✅ 第3天：25%旧料 + 75%新料|✅ 配合脱霉剂保护肝脏健康",
+                "de" to "✅ Tag 1: 75% alt + 25% neu|✅ Tag 2: 50% alt + 50% neu|✅ Tag 3: 25% alt + 75% neu|✅ Mykotoxinbinder & Leberschutz",
+                "it" to "✅ Giorno 1: 75% vecchio + 25% nuovo|✅ Giorno 2: 50% vecchio + 50% nuovo|✅ Giorno 3: 25% vecchio + 75% nuovo|✅ Legante micotossine e supporto fegato"
+            ),
+            stepsPipe = mapOf(
+                "en" to "Day 1: Blend 75% old + 25% new feed|Day 2: 50/50 then Day 3: 25/75 mix|Add toxin binder & store bags on dry pallets",
+                "fr" to "J1 : Mélanger 75% ancien + 25% nouveau|J2 : 50/50 puis J3 : 25/75|Antitoxine + stockage sur palettes sèches",
+                "es" to "Día 1: Mezclar 75% anterior + 25% nuevo|Día 2: 50/50 y Día 3: 25/75|Usar secuestrante y tarimas secas",
+                "pt" to "Dia 1: Misturar 75% antiga + 25% nova|Dia 2: 50/50 e Dia 3: 25/75|Adsorvente + estocar em estrados secos",
+                "tr" to "1. Gün: %75 eski + %25 yeni karıştır|2. Gün: 50/50 ve 3. Gün: 25/75|Toksin bağlayıcı ekle, kuru palet üstü depola",
+                "id" to "Hari 1: Campur 75% lama + 25% baru|Hari 2: 50/50 lalu Hari 3: 25/75|Beri toxin binder & simpan di palet kering",
+                "hi" to "दिन 1: 75% पुराना + 25% नया मिलाएं|दिन 2: 50/50 व दिन 3: 25/75 मिश्रण|टॉक्सिन बाइंडर दें व सूखे पैलेट पर रखें",
+                "ur" to "دن 1: 75% پرانی + 25% نئی خوراک ملائیں|دن 2: 50/50 اور دن 3: 25/75|ٹاکسن بائنڈر دیں اور بوری خشک لکڑی پر رکھیں",
+                "sw" to "Siku 1: Changanya 75% zamani + 25% mpya|Siku 2: 50/50 kisha Siku 3: 25/75|Weka dawa ya sumu & hifadhi pakavu",
+                "ru" to "День 1: 75% старого + 25% нового корма|День 2: 50/50 и День 3: 25/75|Сорбент + хранение мешков на поддонах",
+                "zh" to "第1天混合 75%旧料 + 25%新料|第2天 50/50，第3天 25/75|加脱霉剂并将饲料垫高防潮存放",
+                "de" to "Tag 1: 75% alt + 25% neu mischen|Tag 2: 50/50, dann Tag 3: 25/75|Toxinbinder zugeben & trocken lagern",
+                "it" to "Giorno 1: 75% vecchio + 25% nuovo|Giorno 2: 50/50 e Giorno 3: 25/75|Detossificante + sacchi su bancali asciutti"
+            ),
+            goodCaptions = mapOf(
+                "en" to "3-day mix + toxin binder + dry Quintal stock",
+                "fr" to "Transition 3j + antitoxine + stock en quintaux sec",
+                "es" to "Mezcla 3d + secuestrante + stock en quintales seco",
+                "pt" to "Mistura 3d + adsorvente + estoque em quintais seco",
+                "tr" to "3 gün kademeli + toksin bağlayıcı + kuru stok",
+                "id" to "Campur 3 hari + toxin binder + stok kuintal kering",
+                "hi" to "3-दिन मिश्रण + टॉक्सिन बाइंडर + सूखा क्विंटल स्टॉक",
+                "ur" to "3 روزہ بتدریج ملاپ + ٹاکسن بائنڈر + خشک اسٹاک",
+                "sw" to "Mchanganyiko siku 3 + dawa ya sumu + hifadhi kavu",
+                "ru" to "Переход 3 дня + сорбент + сухое хранение",
+                "zh" to "3天渐进换料+脱霉剂+防潮分担存储",
+                "de" to "3-Tage-Mix + Toxinbinder + trockene Lagerung",
+                "it" to "Cambio 3g + detossificante + scorta asciutta"
+            ),
+            badCaptions = mapOf(
+                "en" to "Sudden 1-day switch or damp moldy bags",
+                "fr" to "Changement brusque ou sacs humides moisis",
+                "es" to "Cambio brusco en 1 día o sacos húmedos",
+                "pt" to "Troca brusca em 1 dia ou sacos mofados",
+                "tr" to "1 günde ani yem değişimi veya nemli çuvallar",
+                "id" to "Ganti pakan mendadak atau karung lembap berjamur",
+                "hi" to "अचानक 1 दिन में दाना बदलना या सीलन भरे बोरे",
+                "ur" to "اچانک ایک دن میں خوراک بدلنا یا گیلی بوریاں",
+                "sw" to "Kubadili chakula ghafla au mifuko yenye ukungu",
+                "ru" to "Резкая смена корма за 1 день или сырые мешки",
+                "zh" to "一天内突然换料或饲料袋受潮发霉",
+                "de" to "Abrupter Wechsel oder feuchte schimmelige Säcke",
+                "it" to "Cambio brusco in 1 giorno o sacchi umidi"
+            ),
+            heroTops = mapOf(
+                "en" to "75/25 ➔ 50/50 ➔ 25/75", "fr" to "75/25 ➔ 50/50 ➔ 25/75", "es" to "75/25 ➔ 50/50 ➔ 25/75",
+                "pt" to "75/25 ➔ 50/50 ➔ 25/75", "tr" to "75/25 ➔ 50/50 ➔ 25/75", "id" to "75/25 ➔ 50/50 ➔ 25/75",
+                "hi" to "75/25 ➔ 50/50 ➔ 25/75", "ur" to "75/25 ➔ 50/50 ➔ 25/75", "sw" to "75/25 ➔ 50/50 ➔ 25/75",
+                "ru" to "75/25 ➔ 50/50 ➔ 25/75", "zh" to "75/25 ➔ 50/50 ➔ 25/75", "de" to "75/25 ➔ 50/50 ➔ 25/75", "it" to "75/25 ➔ 50/50 ➔ 25/75"
+            ),
+            heroBottoms = mapOf(
+                "en" to "Toxin Binder + Quintals", "fr" to "Antitoxine + Quintaux", "es" to "Antitoxina + Quintales",
+                "pt" to "Adsorvente + Quintais", "tr" to "Toksin Bağlayıcı + Kental", "id" to "Toxin Binder + Kuintal",
+                "hi" to "टॉक्सिन बाइंडर + क्विंटल", "ur" to "ٹاکسن بائنڈر + کوئنٹل", "sw" to "Dawa ya Sumu",
+                "ru" to "Сорбент + Центнеры", "zh" to "脱霉剂 + 担数库存", "de" to "Toxinbinder + Doppelzentner", "it" to "Detox + Quintali"
+            ),
+            polaroids = mapOf(
+                "en" to "3-Day Feed Mix", "fr" to "Transition 3 Jours", "es" to "Mezcla 3 Días",
+                "pt" to "Mistura 3 Dias", "tr" to "3 Günlük Geçiş", "id" to "Campuran 3 Hari",
+                "hi" to "3-दिन मिश्रण", "ur" to "3 روزہ تبدیلی", "sw" to "Mchanganyiko Siku 3",
+                "ru" to "Переход 3 дня", "zh" to "3天换料法", "de" to "3-Tage-Wechsel", "it" to "Cambio 3 Giorni"
+            ),
+            warnings = mapOf(
+                "en" to "⚠️ Abrupt feed changes trigger gut shock, wet droppings, and an instant FCR spike!",
+                "fr" to "⚠️ Un changement brutal d'aliment provoque diarrhée et flambée de l'IC !",
+                "es" to "⚠️ ¡Un cambio brusco causa choque digestivo, diarrea y sube el FCR!",
+                "pt" to "⚠️ Troca brusca de ração causa choque intestinal, diarreia e piora a CA!",
+                "tr" to "⚠️ Ani yem değişimi sindirim şoku, ishal ve FCR yükselmesine yol açar!",
+                "id" to "⚠️ Penggantian pakan mendadak memicu stres usus, diare & lonjakan FCR!",
+                "hi" to "⚠️ अचानक दाना बदलने से आंत में झटका, दस्त और FCR में तुरंत उछाल आता है!",
+                "ur" to "⚠️ اچانک خوراک بدلنے سے ہاضمے کا جھٹکا، اسہال اور FCR میں فوری اضافہ ہوتا ہے!",
+                "sw" to "⚠️ Kubadili chakula ghafla husababisha kuharisha na kupandisha FCR!",
+                "ru" to "⚠️ Резкая смена корма вызывает расстройство ЖКТ и скачок FCR!",
+                "zh" to "⚠️ 突然更换饲料会引起肠道应激、拉稀并导致料肉比瞬间恶化！",
+                "de" to "⚠️ Abrupter Futterwechsel verursacht Durchfall und verschlechtert die FCR!",
+                "it" to "⚠️ Il cambio brusco causa shock intestinale, diarrea e aumento FCR!"
+            ),
+            tableTitle = mapOf(
+                "en" to "📊 3-Day Gradual Transition Schedule", "fr" to "📊 Calendrier de Transition 3 Jours",
+                "es" to "📊 Tabla de Transición de 3 Días", "pt" to "📊 Tabela de Transição em 3 Dias",
+                "tr" to "📊 3 Günlük Kademeli Geçiş Tablosu", "id" to "📊 Jadwal Transisi Pakan 3 Hari",
+                "hi" to "📊 3-दिन क्रमिक परिवर्तन तालिका", "ur" to "📊 3 دن کی بتدریج تبدیلی کا جدول",
+                "sw" to "📊 Ratiba ya Mabadiliko Siku 3", "ru" to "📊 График перехода за 3 дня",
+                "zh" to "📊 三天渐变换料比例表", "de" to "📊 3-Tage-Wechselplan", "it" to "📊 Tabella Cambio in 3 Giorni"
+            ),
+            tableHeadersPipe = mapOf(
+                "en" to "Transition Day|Previous Feed|New Feed", "fr" to "Jour|Ancien Aliment|Nouvel Aliment",
+                "es" to "Día|Pienso Anterior|Pienso Nuevo", "pt" to "Dia|Ração Anterior|Ração Nova",
+                "tr" to "Geçiş Günü|Eski Yem|Yeni Yem", "id" to "Hari Transisi|Pakan Lama|Pakan Baru",
+                "hi" to "परिवर्तन दिन|पुराना दाना|नया दाना", "ur" to "تبدیلی کا دن|پچھلی خوراک|نئی خوراک",
+                "sw" to "Siku|Chakula cha Zamani|Chakula Kipya", "ru" to "День|Прежний корм|Новый корм",
+                "zh" to "换料天数|旧料比例|新料比例", "de" to "Tag|Altes Futter|Neues Futter", "it" to "Giorno|Mangime Precedente|Nuovo Mangime"
+            ),
+            tableRowsSemiPipe = mapOf(
+                "en" to "Transition Day 1|75%|25% + toxin binder;Transition Day 2|50%|50% + vitamins;Transition Day 3|25%|75% (100% on Day 4)",
+                "fr" to "Jour 1|75%|25% + antitoxine;Jour 2|50%|50% + vitamines;Jour 3|25%|75% (100% au J4)",
+                "es" to "Día 1|75%|25% + secuestrante;Día 2|50%|50% + vitaminas;Día 3|25%|75% (100% Día 4)",
+                "pt" to "Dia 1|75%|25% + adsorvente;Dia 2|50%|50% + vitaminas;Dia 3|25%|75% (100% Dia 4)",
+                "tr" to "1. Gün|%75|%25 + toksin bağlayıcı;2. Gün|%50|%50 + vitamin;3. Gün|%25|%75 (4. gün %100)",
+                "id" to "Hari 1|75%|25% + toxin binder;Hari 2|50%|50% + vitamin;Hari 3|25%|75% (100% Hari 4)",
+                "hi" to "दिन 1|75%|25% + टॉक्सिन बाइंडर;दिन 2|50%|50% + विटामिन;दिन 3|25%|75% (दिन 4 पर 100%)",
+                "ur" to "دن 1|75%|25% + ٹاکسن بائنڈر;دن 2|50%|50% + وٹامنز;دن 3|25%|75% (دن 4 پر 100%)",
+                "sw" to "Siku 1|75%|25% + dawa ya sumu;Siku 2|50%|50% + vitamini;Siku 3|25%|75% (100% Siku 4)",
+                "ru" to "День 1|75%|25% + сорбент;День 2|50%|50% + витамины;День 3|25%|75% (100% на 4-й день)",
+                "zh" to "第1天|75%|25% + 脱霉剂;第2天|50%|50% + 多维;第3天|25%|75%（第4天100%新料）",
+                "de" to "Tag 1|75%|25% + Toxinbinder;Tag 2|50%|50% + Vitamine;Tag 3|25%|75% (100% an Tag 4)",
+                "it" to "Giorno 1|75%|25% + detox;Giorno 2|50%|50% + vitamine;Giorno 3|25%|75% (100% Giorno 4)"
+            )
+        ),
+
+        "feed_4" to LessonText14(
+            titles = mapOf(
+                "en" to "Ross 308 Weights (to 2.8 kg), Ideal FCR & 1.7x Water Rule",
+                "fr" to "Courbe Poids Ross 308 (2,8 kg), IC Idéal & Eau 1,7x",
+                "es" to "Curva Peso Ross 308 (2.8 kg), FCR Ideal y Agua 1.7x",
+                "pt" to "Curva Peso Ross 308 (2,8 kg), CA Ideal e Água 1,7x",
+                "tr" to "Ross 308 Ağırlık (2.8 kg), FCR ve 1.7x Su Dengesi",
+                "id" to "Kurva Bobot Ross 308 (2.8 kg), FCR & Air 1.7x",
+                "hi" to "Ross 308 वजन (2.8 kg तक), आदर्श FCR व 1.7x पानी",
+                "ur" to "Ross 308 وزن (2.8 کلو تک)، مثالی FCR اور 1.7x پانی",
+                "sw" to "Uzito wa Ross 308 (2.8 kg), FCR & Maji 1.7x",
+                "ru" to "Вес Ross 308 (до 2,8 кг), FCR и баланс воды 1,7x",
+                "zh" to "Ross 308 体重曲线（至2.8 kg）、理想料肉比与1.7倍饮水",
+                "de" to "Ross 308 Gewicht (bis 2,8 kg), FCR & 1,7x Wasserregel",
+                "it" to "Curva Peso Ross 308 (2,8 kg), FCR & Acqua 1,7x"
+            ),
+            coreIdeas = mapOf(
+                "en" to "Tracking weights to 2.8 kg alongside the 1.7 L water / 1 kg feed rule detects illness 24h early and optimizes FCR.",
+                "fr" to "Suivre le poids vers 2,8 kg avec le ratio 1,7 L d'eau / 1 kg d'aliment détecte les maladies 24h plus tôt.",
+                "es" to "Vigilar el peso hacia 2.8 kg junto con la regla 1.7 L agua / 1 kg pienso detecta enfermedades 24h antes.",
+                "pt" to "Acompanhar o peso até 2,8 kg com a regra 1,7 L água / 1 kg ração detecta doenças 24h antes.",
+                "tr" to "2.8 kg ağırlık hedefini 1.7 L su / 1 kg yem oranıyla izlemek hastalığı 24 saat önce yakalar.",
+                "id" to "Memantau bobot ke 2.8 kg dan rasio 1.7 L air / 1 kg pakan mendeteksi penyakit 24 jam lebih awal.",
+                "hi" to "2.8 kg वजन लक्ष्य के साथ 1.7 लीटर पानी / 1 किग्रा दाना अनुपात की निगरानी बीमारी को 24 घंटे पहले पकड़ती है।",
+                "ur" to "2.8 کلو وزن کے ساتھ 1.7 لٹر پانی / 1 کلو خوراک کی نگرانی بیماری کو 24 گھنٹے قبل پکڑ لیتی ہے۔",
+                "sw" to "Kufuatilia uzito hadi 2.8 kg na uwiano wa lita 1.7 maji / kilo 1 chakula hugundua ugonjwa saa 24 mapema.",
+                "ru" to "Контроль веса до 2,8 кг и соотношения 1,7 л воды / 1 кг корма выявляет болезнь на 24 ч раньше.",
+                "zh" to "结合1.7升水/1公斤料比追踪增重至2.8公斤，可提前24小时预警疾病并优化料肉比。",
+                "de" to "Gewichtskontrolle bis 2,8 kg plus 1,7 L Wasser / 1 kg Futter erkennt Krankheiten 24h früher.",
+                "it" to "Monitorare il peso verso 2,8 kg con la regola 1,7 L acqua / 1 kg mangime anticipa le malattie di 24h."
+            ),
+            whyPipe = mapOf(
+                "en" to "✅ Targets 190g (D7) and 1.0 kg (D21)|✅ Reaches 2.8 kg with FCR ~1.65|✅ Water rule: 1.7 L per 1 kg feed|✅ Logs Quintals (q) & thinning sales",
+                "fr" to "✅ Cibles 190g (J7) et 1,0 kg (J21)|✅ Atteint 2,8 kg avec IC ~1,65|✅ Règle eau : 1,7 L / 1 kg aliment|✅ Suit quintaux (q) & ventes partielles",
+                "es" to "✅ Metas 190g (D7) y 1.0 kg (D21)|✅ Alcanza 2.8 kg con FCR ~1.65|✅ Agua: 1.7 L por 1 kg pienso|✅ Registra quintales y raleos",
+                "pt" to "✅ Metas 190g (D7) e 1,0 kg (D21)|✅ Atinge 2,8 kg com CA ~1,65|✅ Água: 1,7 L por 1 kg ração|✅ Registra quintais e desbaste",
+                "tr" to "✅ Hedef 190g (7.G) ve 1.0 kg (21.G)|✅ 2.8 kg ağırlık ve ~1.65 FCR|✅ Su kuralı: 1 kg yeme 1.7 L su|✅ Kental ve kısmi satış takibi",
+                "id" to "✅ Target 190g (H7) & 1.0 kg (H21)|✅ Capai 2.8 kg dengan FCR ~1.65|✅ Aturan air: 1.7 L per 1 kg pakan|✅ Catat kuintal & panen parsial",
+                "hi" to "✅ लक्ष्य 190g (दिन 7) व 1.0 kg (दिन 21)|✅ ~1.65 FCR के साथ 2.8 kg वजन|✅ पानी नियम: 1 किग्रा दाने पर 1.7 लीटर|✅ क्विंटल व आंशिक बिक्री दर्ज करें",
+                "ur" to "✅ ہدف 190g (دن 7) اور 1.0 کلو (دن 21)|✅ ~1.65 FCR کے ساتھ 2.8 کلو وزن|✅ پانی اصول: 1 کلو خوراک پر 1.7 لٹر|✅ کوئنٹل اور جزوی فروخت کا ریکارڈ",
+                "sw" to "✅ Lengo 190g (S7) na 1.0 kg (S21)|✅ Hufikia 2.8 kg kwa FCR ~1.65|✅ Maji: lita 1.7 kwa kilo 1|✅ Rekodi kuintali na mauzo sehemu",
+                "ru" to "✅ Цель 190г (Д7) и 1,0 кг (Д21)|✅ Выход на 2,8 кг при FCR ~1,65|✅ Вода: 1,7 л на 1 кг корма|✅ Учет в центнерах и прореживания",
+                "zh" to "✅ 7天190克，21天达1.0公斤|✅ 42天达2.8公斤，FCR ~1.65|✅ 饮水标准：每公斤料配1.7升水|✅ 精准记录担数与分批出栏",
+                "de" to "✅ Ziel 190g (T7) & 1,0 kg (T21)|✅ Erreicht 2,8 kg bei FCR ~1,65|✅ Wasser: 1,7 L je 1 kg Futter|✅ Erfasst Doppelzentner & Teilverkäufe",
+                "it" to "✅ Target 190g (G7) e 1,0 kg (G21)|✅ Raggiunge 2,8 kg con FCR ~1,65|✅ Acqua: 1,7 L per 1 kg mangime|✅ Registra quintali e sfoltimenti"
+            ),
+            stepsPipe = mapOf(
+                "en" to "Check water-to-feed ratio (1.7x) each morning|Log daily feed in Quintals (1q = 100 kg)|Weigh weekly sample toward 2.8 kg target",
+                "fr" to "Vérifier le ratio eau/aliment (1,7x) chaque matin|Noter l'aliment en quintaux (1q = 100 kg)|Peser un échantillon vers 2,8 kg",
+                "es" to "Revisar relación agua/pienso (1.7x) cada mañana|Anotar alimento en quintales (1q = 100 kg)|Pesar muestra semanal hacia 2.8 kg",
+                "pt" to "Checar razão água/ração (1,7x) toda manhã|Registrar ração em quintais (1q = 100 kg)|Pesar amostra semanal rumo a 2,8 kg",
+                "tr" to "Her sabah su/yem oranını (1.7x) kontrol et|Günlük yemi kental (1q = 100 kg) kaydet|Haftalık tartımla 2.8 kg hedefini izle",
+                "id" to "Cek rasio air/pakan (1.7x) tiap pagi|Catat pakan dalam kuintal (1q = 100 kg)|Timbang sampel mingguan menuju 2.8 kg",
+                "hi" to "हर सुबह पानी/दाना अनुपात (1.7x) जांचें|दैनिक दाना क्विंटल (1q = 100 kg) में दर्ज करें|2.8 kg लक्ष्य हेतु साप्ताहिक वजन लें",
+                "ur" to "ہر صبح پانی اور خوراک کا تناسب (1.7x) چیک کریں|روزانہ خوراک کوئنٹل (1q = 100 kg) میں درج کریں|2.8 کلو ہدف کے لیے ہفتہ وار وزن کریں",
+                "sw" to "Kagua uwiano wa maji/chakula (1.7x) asubuhi|Rekodi chakula kwa kuintali (1q = 100 kg)|Pima uzito kila wiki kuelekea 2.8 kg",
+                "ru" to "Утром сверяйте воду к корму (1,7x)|Учитывайте корм в центнерах (1ц = 100 кг)|Взвешивайте пробу еженедельно к 2,8 кг",
+                "zh" to "每日清晨核对水料比（1.7倍）|按担记录日耗料（1担 = 100公斤）|每周抽样称重追踪2.8公斤目标",
+                "de" to "Morgens Wasser/Futter-Verhältnis (1,7x) prüfen|Futter in Doppelzentnern (100 kg) buchen|Wöchentlich bis 2,8 kg wiegen",
+                "it" to "Controllare rapporto acqua/mangime (1,7x) al mattino|Registrare mangime in quintali (1q = 100 kg)|Pesare campione verso 2,8 kg"
+            ),
+            goodCaptions = mapOf(
+                "en" to "1.7x water ratio & 2.8 kg weight at ideal FCR",
+                "fr" to "Ratio eau 1,7x & poids 2,8 kg avec IC idéal",
+                "es" to "Ratio agua 1.7x y peso 2.8 kg con FCR ideal",
+                "pt" to "Razão água 1,7x e peso 2,8 kg com CA ideal",
+                "tr" to "1.7x su dengesi ve ideal FCR ile 2.8 kg",
+                "id" to "Rasio air 1.7x & bobot 2.8 kg pada FCR ideal",
+                "hi" to "1.7x पानी संतुलन व आदर्श FCR पर 2.8 kg वजन",
+                "ur" to "1.7x پانی توازن اور مثالی FCR پر 2.8 کلو وزن",
+                "sw" to "Uwiano 1.7x wa maji na uzito wa 2.8 kg",
+                "ru" to "Вода 1,7x и вес 2,8 кг при отличном FCR",
+                "zh" to "1.7倍水料比且42天达2.8公斤理想料肉比",
+                "de" to "1,7x Wasserbalance & 2,8 kg bei idealer FCR",
+                "it" to "Rapporto acqua 1,7x e peso 2,8 kg con FCR ideale"
+            ),
+            badCaptions = mapOf(
+                "en" to "Ignoring sudden water drop or thinning weights",
+                "fr" to "Ignorer la baisse d'eau ou les éclaircies",
+                "es" to "Ignorar caída de agua o pesos de raleo",
+                "pt" to "Ignorar queda de água ou pesos de desbaste",
+                "tr" to "Ani su düşüşünü veya kısmi satış tartımını unutmak",
+                "id" to "Mengabaikan turunnya air atau bobot panen parsial",
+                "hi" to "अचानक पानी कम होने या आंशिक बिक्री को अनदेखा करना",
+                "ur" to "پانی پینے میں اچانک کمی یا جزوی فروخت کو نظر انداز کرنا",
+                "sw" to "Kupuuza kupungua kwa maji au mauzo ya sehemu",
+                "ru" to "Игнорировать спад воды или вес прореживания",
+                "zh" to "忽视清晨饮水骤降或漏记分批出栏重",
+                "de" to "Plötzlichen Wasserrückgang oder Teilverkäufe ignorieren",
+                "it" to "Ignorare calo idrico o pesi di sfoltimento"
+            ),
+            heroTops = mapOf(
+                "en" to "1.7 L Water / 1 kg Feed", "fr" to "1,7 L Eau / 1 kg Aliment", "es" to "1.7 L Agua / 1 kg Pienso",
+                "pt" to "1,7 L Água / 1 kg Ração", "tr" to "1.7 L Su / 1 kg Yem", "id" to "1.7 L Air / 1 kg Pakan",
+                "hi" to "1.7 L पानी / 1 kg दाना", "ur" to "1.7 L پانی / 1 kg خوراک", "sw" to "1.7 L Maji / 1 kg",
+                "ru" to "1,7 л воды / 1 кг корма", "zh" to "1.7升水 / 1公斤料", "de" to "1,7 L Wasser / 1 kg Futter", "it" to "1,7 L Acqua / 1 kg"
+            ),
+            heroBottoms = mapOf(
+                "en" to "Target: 2.8 kg • FCR 1.65", "fr" to "Cible : 2,8 kg • IC 1,65", "es" to "Meta: 2.8 kg • FCR 1.65",
+                "pt" to "Meta: 2,8 kg • CA 1,65", "tr" to "Hedef: 2.8 kg • FCR 1.65", "id" to "Target: 2.8 kg • FCR 1.65",
+                "hi" to "लक्ष्य: 2.8 kg • FCR 1.65", "ur" to "ہدف: 2.8 kg • FCR 1.65", "sw" to "Lengo: 2.8 kg • FCR 1.65",
+                "ru" to "Цель: 2,8 кг • FCR 1,65", "zh" to "目标 2.8 kg • FCR 1.65", "de" to "Ziel: 2,8 kg • FCR 1,65", "it" to "Target: 2,8 kg • FCR 1,65"
+            ),
+            polaroids = mapOf(
+                "en" to "Weight & FCR", "fr" to "Poids & IC", "es" to "Peso y FCR",
+                "pt" to "Peso e CA", "tr" to "Ağırlık ve FCR", "id" to "Bobot & FCR",
+                "hi" to "वजन व FCR", "ur" to "وزن اور FCR", "sw" to "Uzito na FCR",
+                "ru" to "Вес и FCR", "zh" to "体重与料肉比", "de" to "Gewicht & FCR", "it" to "Peso e FCR"
+            ),
+            warnings = mapOf(
+                "en" to "⚠️ Check the water meter daily—a sick bird stops drinking 24 hours before mortality!",
+                "fr" to "⚠️ Relevez le compteur d'eau chaque jour : un oiseau malade cesse de boire 24h avant !",
+                "es" to "⚠️ ¡Revise el contador de agua a diario: el ave enferma deja de beber 24h antes!",
+                "pt" to "⚠️ Confira o hidrômetro todo dia—a ave doente para de beber 24h antes!",
+                "tr" to "⚠️ Su sayacını her gün okuyun—hasta kuş ölümden 24 saat önce su içmeyi keser!",
+                "id" to "⚠️ Cek meteran air setiap hari—ayam sakit berhenti minum 24 jam sebelum mati!",
+                "hi" to "⚠️ पानी मीटर रोज जांचें—बीमार पक्षी मृत्यु से 24 घंटे पहले पानी पीना बंद कर देता है!",
+                "ur" to "⚠️ پانی کا میٹر روزانہ چیک کریں—بیمار پرندہ موت سے 24 گھنٹے پہلے پینا چھوڑ دیتا ہے!",
+                "sw" to "⚠️ Angalia mita ya maji kila siku—kuku mgonjwa huacha kunywa saa 24 kabla!",
+                "ru" to "⚠️ Проверяйте счетчик воды ежедневно — больная птица перестает пить за 24 часа!",
+                "zh" to "⚠️ 每天核对水表读数：病鸡在死亡前24小时就会减少或停止饮水！",
+                "de" to "⚠️ Täglich Wasseruhr prüfen—kranke Tiere trinken 24h vor Verlusten nicht mehr!",
+                "it" to "⚠️ Controlla il contatore acqua ogni giorno: i capi malati smettono di bere 24h prima!"
+            ),
+            tableTitle = mapOf(
+                "en" to "📊 Ross 308 Weights, FCR & Water Balance", "fr" to "📊 Poids Ross 308, IC & Eau",
+                "es" to "📊 Pesos Ross 308, FCR y Agua", "pt" to "📊 Pesos Ross 308, CA e Água",
+                "tr" to "📊 Ross 308 Ağırlık, FCR ve Su", "id" to "📊 Bobot Ross 308, FCR & Air",
+                "hi" to "📊 Ross 308 वजन, FCR व पानी", "ur" to "📊 Ross 308 وزن، FCR اور پانی",
+                "sw" to "📊 Uzito wa Ross 308, FCR na Maji", "ru" to "📊 Вес Ross 308, FCR и вода",
+                "zh" to "📊 Ross 308 标准体重、FCR 与水料比", "de" to "📊 Ross 308 Gewicht, FCR & Wasser", "it" to "📊 Pesi Ross 308, FCR e Acqua"
+            ),
+            tableHeadersPipe = mapOf(
+                "en" to "Age|Target Weight|Target FCR|Water / Feed",
+                "fr" to "Âge|Poids Cible|IC Cible|Eau / Aliment",
+                "es" to "Edad|Peso Meta|FCR Meta|Agua / Pienso",
+                "pt" to "Idade|Peso Meta|CA Meta|Água / Ração",
+                "tr" to "Gün|Hedef Ağırlık|Hedef FCR|Su / Yem",
+                "id" to "Umur|Bobot Target|FCR Target|Air / Pakan",
+                "hi" to "दिन|लक्ष्य वजन|लक्ष्य FCR|पानी / दाना",
+                "ur" to "دن|معیاری وزن|معیاری FCR|پانی / خوراک",
+                "sw" to "Umri|Uzito Lengo|FCR Lengo|Maji / Chakula",
+                "ru" to "День|Норма веса|Норма FCR|Вода / Корм",
+                "zh" to "日龄|标准体重|标准 FCR|水 / 料比",
+                "de" to "Tag|Zielgewicht|Ziel-FCR|Wasser / Futter",
+                "it" to "Giorno|Peso Target|FCR Target|Acqua / Mangime"
+            ),
+            tableRowsSemiPipe = mapOf(
+                "en" to "Day 7|190 g|0.85|1.7 L/kg;Day 14|520 g|1.08|1.7 L/kg;Day 21|1,000 g|1.25|1.7 L/kg;Day 28|1,580 g|1.38|1.7–1.8 L/kg;Day 35|2,250 g|1.50|1.7–2.2 L/kg;Day 42|2,800 g|1.65|1.7–2.5 L/kg",
+                "fr" to "Jour 7|190 g|0,85|1,7 L/kg;Jour 14|520 g|1,08|1,7 L/kg;Jour 21|1 000 g|1,25|1,7 L/kg;Jour 28|1 580 g|1,38|1,7–1,8 L/kg;Jour 35|2 250 g|1,50|1,7–2,2 L/kg;Jour 42|2 800 g|1,65|1,7–2,5 L/kg",
+                "es" to "Día 7|190 g|0.85|1.7 L/kg;Día 14|520 g|1.08|1.7 L/kg;Día 21|1,000 g|1.25|1.7 L/kg;Día 28|1,580 g|1.38|1.7–1.8 L/kg;Día 35|2,250 g|1.50|1.7–2.2 L/kg;Día 42|2,800 g|1.65|1.7–2.5 L/kg",
+                "pt" to "Dia 7|190 g|0,85|1,7 L/kg;Dia 14|520 g|1,08|1,7 L/kg;Dia 21|1.000 g|1,25|1,7 L/kg;Dia 28|1.580 g|1,38|1,7–1,8 L/kg;Dia 35|2.250 g|1,50|1,7–2,2 L/kg;Dia 42|2.800 g|1,65|1,7–2,5 L/kg",
+                "tr" to "7. Gün|190 g|0.85|1.7 L/kg;14. Gün|520 g|1.08|1.7 L/kg;21. Gün|1,000 g|1.25|1.7 L/kg;28. Gün|1,580 g|1.38|1.7–1.8 L/kg;35. Gün|2,250 g|1.50|1.7–2.2 L/kg;42. Gün|2,800 g|1.65|1.7–2.5 L/kg",
+                "id" to "Hari 7|190 g|0.85|1.7 L/kg;Hari 14|520 g|1.08|1.7 L/kg;Hari 21|1,000 g|1.25|1.7 L/kg;Hari 28|1,580 g|1.38|1.7–1.8 L/kg;Hari 35|2,250 g|1.50|1.7–2.2 L/kg;Hari 42|2,800 g|1.65|1.7–2.5 L/kg",
+                "hi" to "दिन 7|190 g|0.85|1.7 L/kg;दिन 14|520 g|1.08|1.7 L/kg;दिन 21|1,000 g|1.25|1.7 L/kg;दिन 28|1,580 g|1.38|1.7–1.8 L/kg;दिन 35|2,250 g|1.50|1.7–2.2 L/kg;दिन 42|2,800 g|1.65|1.7–2.5 L/kg",
+                "ur" to "دن 7|190 g|0.85|1.7 L/kg;دن 14|520 g|1.08|1.7 L/kg;دن 21|1,000 g|1.25|1.7 L/kg;دن 28|1,580 g|1.38|1.7–1.8 L/kg;دن 35|2,250 g|1.50|1.7–2.2 L/kg;دن 42|2,800 g|1.65|1.7–2.5 L/kg",
+                "sw" to "Siku 7|190 g|0.85|1.7 L/kg;Siku 14|520 g|1.08|1.7 L/kg;Siku 21|1,000 g|1.25|1.7 L/kg;Siku 28|1,580 g|1.38|1.7–1.8 L/kg;Siku 35|2,250 g|1.50|1.7–2.2 L/kg;Siku 42|2,800 g|1.65|1.7–2.5 L/kg",
+                "ru" to "День 7|190 г|0,85|1,7 л/кг;День 14|520 г|1,08|1,7 л/кг;День 21|1 000 г|1,25|1,7 л/кг;День 28|1 580 г|1,38|1,7–1,8 л/кг;День 35|2 250 г|1,50|1,7–2,2 л/кг;День 42|2 800 г|1,65|1,7–2,5 л/кг",
+                "zh" to "第7天|190 g|0.85|1.7 L/kg;第14天|520 g|1.08|1.7 L/kg;第21天|1,000 g|1.25|1.7 L/kg;第28天|1,580 g|1.38|1.7–1.8 L/kg;第35天|2,250 g|1.50|1.7–2.2 L/kg;第42天|2,800 g|1.65|1.7–2.5 L/kg",
+                "de" to "Tag 7|190 g|0,85|1,7 L/kg;Tag 14|520 g|1,08|1,7 L/kg;Tag 21|1.000 g|1,25|1,7 L/kg;Tag 28|1.580 g|1,38|1,7–1,8 L/kg;Tag 35|2.250 g|1,50|1,7–2,2 L/kg;Tag 42|2.800 g|1,65|1,7–2,5 L/kg",
+                "it" to "Giorno 7|190 g|0,85|1,7 L/kg;Giorno 14|520 g|1,08|1,7 L/kg;Giorno 21|1.000 g|1,25|1,7 L/kg;Giorno 28|1.580 g|1,38|1,7–1,8 L/kg;Giorno 35|2.250 g|1,50|1,7–2,2 L/kg;Giorno 42|2.800 g|1,65|1,7–2,5 L/kg"
+            )
+        )
+    )
+}

@@ -1,7 +1,9 @@
 package com.example.ui
 
+import android.graphics.Bitmap
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -9,8 +11,15 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -18,23 +27,31 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.models.EncyclopediaPosterSpec
 import com.example.models.InfographicVisualType
 import com.example.utils.AppLanguage
+import com.example.utils.BookNanoBananaImageEngine
 import com.example.utils.Translations
 import kotlin.math.cos
 import kotlin.math.sin
 
 val BookParchmentLight = Color(0xFFF5E6C8)
+val BookParchmentCard = Color(0xFFFAF0D7)
 val BookParchmentMid = Color(0xFFEFE0BE)
 val BookParchmentDeep = Color(0xFFE8D0A7)
 val BookBurgundy = Color(0xFF5C1D18)
@@ -45,119 +62,356 @@ val BookGoldAccent = Color(0xFFD4AF37)
 val BookSepiaInk = Color(0xFF5C3A21)
 
 /**
- * Helper to draw a full-featured side-profile chick or broiler chicken with head, serrated comb,
- * beak, eye, neck, chest, wing feather lines, tail, and legs.
+ * Multi-layered classic engraving & warm-shaded poultry silhouette:
+ * Supports day-old fluffy chicks, mid-cycle growers, and mature Ross 308 broilers.
  */
-private fun DrawScope.drawDetailedBirdSilhouette(
+private fun DrawScope.drawClassicBirdIllustration(
     cx: Float,
     cy: Float,
     scaleW: Float,
     scaleH: Float,
     bodyFill: Color,
+    shadeFill: Color,
     strokeColor: Color,
-    isMatureBroiler: Boolean = false
+    isMatureBroiler: Boolean = false,
+    facingRight: Boolean = true,
+    showSoftGroundShadow: Boolean = true
 ) {
-    // Full anatomical side-profile path (facing left: head on left, tail on right)
+    val dir = if (facingRight) 1f else -1f
+
+    if (showSoftGroundShadow) {
+        drawOval(
+            color = BookSepiaInk.copy(alpha = 0.16f),
+            topLeft = Offset(cx - scaleW * 0.34f, cy + scaleH * 0.42f),
+            size = Size(scaleW * 0.68f, scaleH * 0.10f)
+        )
+    }
+
+    // Main outer body contour
     val bodyPath = Path().apply {
-        // Start at throat under beak
-        moveTo(cx - scaleW * 0.32f, cy - scaleH * 0.16f)
+        // Throat / breast front
+        moveTo(cx + dir * scaleW * 0.24f, cy - scaleH * 0.16f)
         // Crown of head
         cubicTo(
-            cx - scaleW * 0.36f, cy - scaleH * 0.42f,
-            cx - scaleW * 0.16f, cy - scaleH * 0.44f,
-            cx - scaleW * 0.12f, cy - scaleH * 0.26f
+            cx + dir * scaleW * 0.30f, cy - scaleH * 0.44f,
+            cx + dir * scaleW * 0.06f, cy - scaleH * 0.45f,
+            cx + dir * scaleW * 0.04f, cy - scaleH * 0.24f
         )
-        // Back of neck sweeping to dorsal back & tail
+        // Neck & dorsal back sweep to tail
         cubicTo(
-            cx - scaleW * 0.04f, cy - scaleH * 0.14f,
-            cx + scaleW * 0.18f, cy - scaleH * 0.22f,
-            cx + scaleW * 0.38f, cy - scaleH * 0.30f
+            cx - dir * scaleW * 0.04f, cy - scaleH * 0.12f,
+            cx - dir * scaleW * 0.22f, cy - scaleH * 0.22f,
+            cx - dir * scaleW * 0.42f, cy - scaleH * 0.32f
         )
-        // Tail feathers tip
-        lineTo(cx + scaleW * 0.44f, cy - scaleH * 0.12f)
-        lineTo(cx + scaleW * 0.38f, cy + scaleH * 0.04f)
-        // Vent & rounded lower abdomen + deep broiler breast
+        // Feathered tail tips
+        lineTo(cx - dir * scaleW * 0.46f, cy - scaleH * 0.16f)
+        lineTo(cx - dir * scaleW * 0.41f, cy - scaleH * 0.06f)
+        lineTo(cx - dir * scaleW * 0.43f, cy + scaleH * 0.04f)
+        // Deep rounded keel & breast
         cubicTo(
-            cx + scaleW * 0.34f, cy + scaleH * 0.32f,
-            cx - scaleW * 0.08f, cy + scaleH * 0.38f,
-            cx - scaleW * 0.24f, cy + scaleH * 0.18f
+            cx - dir * scaleW * 0.34f, cy + scaleH * 0.32f,
+            cx + dir * scaleW * 0.08f, cy + scaleH * 0.38f,
+            cx + dir * scaleW * 0.26f, cy + scaleH * 0.18f
         )
-        // Breast up to throat
+        // Breast curve up to throat
         cubicTo(
-            cx - scaleW * 0.32f, cy + scaleH * 0.06f,
-            cx - scaleW * 0.30f, cy - scaleH * 0.06f,
-            cx - scaleW * 0.32f, cy - scaleH * 0.16f
+            cx + dir * scaleW * 0.32f, cy + scaleH * 0.06f,
+            cx + dir * scaleW * 0.28f, cy - scaleH * 0.06f,
+            cx + dir * scaleW * 0.24f, cy - scaleH * 0.16f
         )
         close()
     }
     drawPath(bodyPath, color = bodyFill)
-    drawPath(bodyPath, color = strokeColor, style = Stroke(width = 2.2f, join = StrokeJoin.Round))
 
-    // Serrated Comb (العرف المسنن)
-    val combColor = if (isMatureBroiler) Color(0xFFDC2626) else Color(0xFFEA580C)
-    val combR = if (isMatureBroiler) scaleH * 0.065f else scaleH * 0.048f
-    drawCircle(combColor, radius = combR, center = Offset(cx - scaleW * 0.28f, cy - scaleH * 0.38f))
-    drawCircle(combColor, radius = combR * 1.1f, center = Offset(cx - scaleW * 0.22f, cy - scaleH * 0.40f))
-    drawCircle(combColor, radius = combR * 0.9f, center = Offset(cx - scaleW * 0.16f, cy - scaleH * 0.37f))
+    // Warm lower-belly feather shading crescent (depth without gradients)
+    val bellyShadePath = Path().apply {
+        moveTo(cx - dir * scaleW * 0.34f, cy + scaleH * 0.06f)
+        cubicTo(
+            cx - dir * scaleW * 0.24f, cy + scaleH * 0.32f,
+            cx + dir * scaleW * 0.10f, cy + scaleH * 0.35f,
+            cx + dir * scaleW * 0.24f, cy + scaleH * 0.16f
+        )
+        cubicTo(
+            cx + dir * scaleW * 0.08f, cy + scaleH * 0.24f,
+            cx - dir * scaleW * 0.18f, cy + scaleH * 0.22f,
+            cx - dir * scaleW * 0.34f, cy + scaleH * 0.06f
+        )
+        close()
+    }
+    drawPath(bellyShadePath, color = shadeFill.copy(alpha = 0.42f))
 
-    // Pointed Beak (المنقار)
+    // Crisp classic ink outline
+    drawPath(
+        bodyPath,
+        color = strokeColor,
+        style = Stroke(width = 2.0f, join = StrokeJoin.Round, cap = StrokeCap.Round)
+    )
+
+    // Layered Wing with feather strokes
+    val wingPath = Path().apply {
+        moveTo(cx + dir * scaleW * 0.02f, cy - scaleH * 0.08f)
+        cubicTo(
+            cx - dir * scaleW * 0.18f, cy - scaleH * 0.12f,
+            cx - dir * scaleW * 0.28f, cy + scaleH * 0.06f,
+            cx - dir * scaleW * 0.10f, cy + scaleH * 0.16f
+        )
+        cubicTo(
+            cx + dir * scaleW * 0.02f, cy + scaleH * 0.12f,
+            cx + dir * scaleW * 0.05f, cy + scaleH * 0.02f,
+            cx + dir * scaleW * 0.02f, cy - scaleH * 0.08f
+        )
+        close()
+    }
+    drawPath(wingPath, color = shadeFill.copy(alpha = 0.28f))
+    drawPath(wingPath, color = strokeColor.copy(alpha = 0.55f), style = Stroke(width = 1.4f, cap = StrokeCap.Round))
+    // Inner wing feather lines
+    drawLine(
+        color = strokeColor.copy(alpha = 0.38f),
+        start = Offset(cx - dir * scaleW * 0.04f, cy + scaleH * 0.01f),
+        end = Offset(cx - dir * scaleW * 0.18f, cy + scaleH * 0.06f),
+        strokeWidth = 1.1f,
+        cap = StrokeCap.Round
+    )
+    drawLine(
+        color = strokeColor.copy(alpha = 0.38f),
+        start = Offset(cx - dir * scaleW * 0.02f, cy + scaleH * 0.07f),
+        end = Offset(cx - dir * scaleW * 0.15f, cy + scaleH * 0.11f),
+        strokeWidth = 1.1f,
+        cap = StrokeCap.Round
+    )
+
+    // Serrated Comb (mature broiler gets vibrant crimson comb & wattle)
+    if (isMatureBroiler) {
+        val combColor = Color(0xFFC81E1E)
+        val combPath = Path().apply {
+            moveTo(cx + dir * scaleW * 0.08f, cy - scaleH * 0.34f)
+            lineTo(cx + dir * scaleW * 0.10f, cy - scaleH * 0.47f)
+            lineTo(cx + dir * scaleW * 0.14f, cy - scaleH * 0.40f)
+            lineTo(cx + dir * scaleW * 0.18f, cy - scaleH * 0.49f)
+            lineTo(cx + dir * scaleW * 0.21f, cy - scaleH * 0.40f)
+            lineTo(cx + dir * scaleW * 0.25f, cy - scaleH * 0.45f)
+            lineTo(cx + dir * scaleW * 0.26f, cy - scaleH * 0.33f)
+            close()
+        }
+        drawPath(combPath, color = combColor)
+        drawPath(combPath, color = strokeColor.copy(alpha = 0.65f), style = Stroke(width = 1.1f, join = StrokeJoin.Round))
+
+        // Wattle under chin
+        drawOval(
+            color = combColor,
+            topLeft = Offset(
+                cx + dir * scaleW * 0.20f - scaleW * 0.04f,
+                cy - scaleH * 0.15f
+            ),
+            size = Size(scaleW * 0.08f, scaleH * 0.11f)
+        )
+    }
+
+    // Two-part curved Beak
     val beakPath = Path().apply {
-        moveTo(cx - scaleW * 0.32f, cy - scaleH * 0.26f)
-        lineTo(cx - scaleW * 0.45f, cy - scaleH * 0.21f)
-        lineTo(cx - scaleW * 0.32f, cy - scaleH * 0.16f)
+        moveTo(cx + dir * scaleW * 0.26f, cy - scaleH * 0.28f)
+        lineTo(cx + dir * scaleW * 0.42f, cy - scaleH * 0.22f)
+        lineTo(cx + dir * scaleW * 0.26f, cy - scaleH * 0.18f)
         close()
     }
     drawPath(beakPath, color = Color(0xFFD97706))
-    drawPath(beakPath, color = strokeColor, style = Stroke(width = 1.2f))
+    drawPath(beakPath, color = strokeColor, style = Stroke(width = 1.2f, join = StrokeJoin.Round))
+    drawLine(
+        color = strokeColor,
+        start = Offset(cx + dir * scaleW * 0.26f, cy - scaleH * 0.23f),
+        end = Offset(cx + dir * scaleW * 0.38f, cy - scaleH * 0.22f),
+        strokeWidth = 1.0f
+    )
 
-    // Wattle under beak
-    if (isMatureBroiler) {
-        drawCircle(
-            color = Color(0xFFDC2626),
-            radius = scaleH * 0.045f,
-            center = Offset(cx - scaleW * 0.31f, cy - scaleH * 0.12f)
-        )
-    }
+    // Expressive Eye with dark pupil and white sparkle
+    val eyePos = Offset(cx + dir * scaleW * 0.19f, cy - scaleH * 0.29f)
+    drawCircle(color = BookSepiaInk, radius = (scaleH * 0.045f).coerceIn(2.4f, 4.2f), center = eyePos)
+    drawCircle(
+        color = Color.White,
+        radius = (scaleH * 0.016f).coerceIn(0.9f, 1.6f),
+        center = Offset(eyePos.x + dir * 0.9f, eyePos.y - 0.9f)
+    )
 
-    // Eye with white highlight
-    val eyeCenter = Offset(cx - scaleW * 0.25f, cy - scaleH * 0.26f)
-    drawCircle(color = BookBurgundyDark, radius = 3.0f, center = eyeCenter)
-    drawCircle(color = Color.White, radius = 1.1f, center = Offset(eyeCenter.x - 0.8f, eyeCenter.y - 0.8f))
-
-    // Subtle Wing outline (الجناح)
-    val wingPath = Path().apply {
-        moveTo(cx - scaleW * 0.02f, cy - scaleH * 0.08f)
-        cubicTo(
-            cx + scaleW * 0.16f, cy - scaleH * 0.10f,
-            cx + scaleW * 0.24f, cy + scaleH * 0.06f,
-            cx + scaleW * 0.08f, cy + scaleH * 0.14f
-        )
-    }
-    drawPath(wingPath, color = strokeColor.copy(alpha = 0.28f), style = Stroke(width = 1.5f, cap = StrokeCap.Round))
-
-    // Two anatomical legs & claws (الساقان والأصابع)
+    // Articulated Legs & Three-Toed Feet
     val legColor = Color(0xFFD97706)
-    val leg1X = cx - scaleW * 0.02f
-    val leg2X = cx + scaleW * 0.10f
     val legTopY = cy + scaleH * 0.29f
     val legBottomY = cy + scaleH * 0.46f
-    drawLine(legColor, Offset(leg1X, legTopY), Offset(leg1X - 3f, legBottomY), strokeWidth = 2.8f, cap = StrokeCap.Round)
-    drawLine(legColor, Offset(leg1X - 3f, legBottomY), Offset(leg1X - 10f, legBottomY), strokeWidth = 2.2f, cap = StrokeCap.Round)
-    drawLine(legColor, Offset(leg1X - 3f, legBottomY), Offset(leg1X + 3f, legBottomY), strokeWidth = 2.2f, cap = StrokeCap.Round)
+    val leg1X = cx - dir * scaleW * 0.07f
+    val leg2X = cx + dir * scaleW * 0.05f
 
-    drawLine(legColor, Offset(leg2X, legTopY), Offset(leg2X - 2f, legBottomY), strokeWidth = 2.8f, cap = StrokeCap.Round)
-    drawLine(legColor, Offset(leg2X - 2f, legBottomY), Offset(leg2X - 9f, legBottomY), strokeWidth = 2.2f, cap = StrokeCap.Round)
-    drawLine(legColor, Offset(leg2X - 2f, legBottomY), Offset(leg2X + 4f, legBottomY), strokeWidth = 2.2f, cap = StrokeCap.Round)
+    listOf(leg1X, leg2X).forEach { lx ->
+        drawLine(legColor, Offset(lx, legTopY), Offset(lx - dir * 2f, legBottomY), strokeWidth = 3.0f, cap = StrokeCap.Round)
+        drawLine(strokeColor, Offset(lx, legTopY), Offset(lx - dir * 2f, legBottomY), strokeWidth = 1.0f, cap = StrokeCap.Round)
+        // Toes
+        drawLine(legColor, Offset(lx - dir * 2f, legBottomY), Offset(lx + dir * 9f, legBottomY + 1f), strokeWidth = 2.2f, cap = StrokeCap.Round)
+        drawLine(legColor, Offset(lx - dir * 2f, legBottomY), Offset(lx + dir * 5f, legBottomY + 3f), strokeWidth = 2.0f, cap = StrokeCap.Round)
+        drawLine(legColor, Offset(lx - dir * 2f, legBottomY), Offset(lx - dir * 7f, legBottomY + 1f), strokeWidth = 2.0f, cap = StrokeCap.Round)
+    }
+}
+
+/**
+ * Suspended conical metal hopper + red scalloped feed pan filled with crumble/pellets.
+ */
+private fun DrawScope.drawSuspendedPanFeeder(
+    cx: Float,
+    topY: Float,
+    bottomY: Float,
+    feederW: Float
+) {
+    val h = bottomY - topY
+    // Suspension cable from top
+    drawLine(
+        color = Color(0xFF475569),
+        start = Offset(cx, 0f),
+        end = Offset(cx, topY + h * 0.08f),
+        strokeWidth = 2.2f
+    )
+    // Hook ring
+    drawCircle(
+        color = Color(0xFF475569),
+        radius = 3.5f,
+        center = Offset(cx, topY + h * 0.08f),
+        style = Stroke(width = 1.6f)
+    )
+    // Metal cone hopper body
+    val cylinderPath = Path().apply {
+        moveTo(cx - feederW * 0.22f, topY + h * 0.14f)
+        lineTo(cx + feederW * 0.22f, topY + h * 0.14f)
+        lineTo(cx + feederW * 0.28f, topY + h * 0.72f)
+        lineTo(cx - feederW * 0.28f, topY + h * 0.72f)
+        close()
+    }
+    drawPath(cylinderPath, color = Color(0xFFE2E8F0))
+    // Right-side shading band on cylinder
+    val cylShade = Path().apply {
+        moveTo(cx + feederW * 0.06f, topY + h * 0.14f)
+        lineTo(cx + feederW * 0.22f, topY + h * 0.14f)
+        lineTo(cx + feederW * 0.28f, topY + h * 0.72f)
+        lineTo(cx + feederW * 0.08f, topY + h * 0.72f)
+        close()
+    }
+    drawPath(cylShade, color = Color(0xFF94A3B8).copy(alpha = 0.55f))
+    drawPath(cylinderPath, color = Color(0xFF334155), style = Stroke(width = 1.6f, join = StrokeJoin.Round))
+
+    // Golden feed visible inside pan rim
+    drawOval(
+        color = Color(0xFFD97706),
+        topLeft = Offset(cx - feederW * 0.42f, topY + h * 0.68f),
+        size = Size(feederW * 0.84f, h * 0.16f)
+    )
+    // Red circular pan base
+    val panPath = Path().apply {
+        moveTo(cx - feederW * 0.48f, topY + h * 0.74f)
+        lineTo(cx + feederW * 0.48f, topY + h * 0.74f)
+        lineTo(cx + feederW * 0.40f, bottomY)
+        lineTo(cx - feederW * 0.40f, bottomY)
+        close()
+    }
+    drawPath(panPath, color = Color(0xFFB91C1C))
+    drawPath(panPath, color = BookBurgundyDark, style = Stroke(width = 1.6f, join = StrokeJoin.Round))
+    // Support stone/block beneath pan
+    drawRoundRect(
+        color = Color(0xFF94A3B8),
+        topLeft = Offset(cx - feederW * 0.30f, bottomY),
+        size = Size(feederW * 0.60f, h * 0.10f),
+        cornerRadius = CornerRadius(2f, 2f)
+    )
+}
+
+/**
+ * Rich textured grain/pellet mound (Starter fine crumble, Grower mini-pellets, Finisher pellets).
+ */
+private fun DrawScope.drawFeedPileIllustration(
+    cx: Float,
+    baseY: Float,
+    pileW: Float,
+    pileH: Float,
+    granuleSizeScale: Float
+) {
+    // Ground scatter shadow
+    drawOval(
+        color = BookSepiaInk.copy(alpha = 0.18f),
+        topLeft = Offset(cx - pileW * 0.52f, baseY - pileH * 0.12f),
+        size = Size(pileW * 1.04f, pileH * 0.24f)
+    )
+    // Main shaded cone mound
+    val moundPath = Path().apply {
+        moveTo(cx - pileW * 0.48f, baseY)
+        cubicTo(
+            cx - pileW * 0.22f, baseY - pileH * 0.92f,
+            cx + pileW * 0.22f, baseY - pileH * 0.92f,
+            cx + pileW * 0.48f, baseY
+        )
+        close()
+    }
+    drawPath(moundPath, color = Color(0xFFD4A359))
+    val rightMoundShade = Path().apply {
+        moveTo(cx + pileW * 0.02f, baseY - pileH * 0.70f)
+        cubicTo(
+            cx + pileW * 0.24f, baseY - pileH * 0.68f,
+            cx + pileW * 0.40f, baseY - pileH * 0.22f,
+            cx + pileW * 0.48f, baseY
+        )
+        lineTo(cx + pileW * 0.04f, baseY)
+        close()
+    }
+    drawPath(rightMoundShade, color = Color(0xFFB07D38).copy(alpha = 0.55f))
+    drawPath(moundPath, color = BookSepiaInk, style = Stroke(width = 1.5f, join = StrokeJoin.Round))
+
+    // Textured granules/pellets over the mound
+    val cols = if (granuleSizeScale < 1f) 11 else if (granuleSizeScale < 1.5f) 8 else 6
+    val rows = if (granuleSizeScale < 1f) 6 else 5
+    for (r in 0 until rows) {
+        val ratioY = r.toFloat() / rows.toFloat()
+        val rowY = baseY - pileH * (0.12f + ratioY * 0.58f)
+        val halfSpan = pileW * (0.40f * (1f - ratioY * 0.75f))
+        val itemsInRow = (cols * (1f - ratioY * 0.55f)).toInt().coerceAtLeast(2)
+        for (c in 0 until itemsInRow) {
+            val t = if (itemsInRow == 1) 0.5f else c.toFloat() / (itemsInRow - 1).toFloat()
+            val gx = (cx - halfSpan) + t * (halfSpan * 2f) + ((r % 2) * 2.5f - 1.2f)
+            val pelletColor = when {
+                (r + c) % 3 == 0 -> Color(0xFFF3D08A)
+                (r + c) % 3 == 1 -> Color(0xFFC2883A)
+                else -> Color(0xFF9C6625)
+            }
+            if (granuleSizeScale <= 0.9f) {
+                // Fine crumble dots
+                drawCircle(color = pelletColor, radius = 2.1f, center = Offset(gx, rowY))
+                drawCircle(color = BookSepiaInk.copy(alpha = 0.4f), radius = 2.1f, center = Offset(gx, rowY), style = Stroke(0.6f))
+            } else {
+                // Angled cylindrical grower/finisher pellets
+                val pw = 5.5f * granuleSizeScale
+                val ph = 2.8f * granuleSizeScale
+                val angle = ((c * 37 + r * 23) % 70 - 35).toFloat()
+                rotate(degrees = angle, pivot = Offset(gx, rowY)) {
+                    drawRoundRect(
+                        color = pelletColor,
+                        topLeft = Offset(gx - pw / 2f, rowY - ph / 2f),
+                        size = Size(pw, ph),
+                        cornerRadius = CornerRadius(ph / 2f, ph / 2f)
+                    )
+                    drawRoundRect(
+                        color = BookSepiaInk.copy(alpha = 0.65f),
+                        topLeft = Offset(gx - pw / 2f, rowY - ph / 2f),
+                        size = Size(pw, ph),
+                        cornerRadius = CornerRadius(ph / 2f, ph / 2f),
+                        style = Stroke(width = 0.8f)
+                    )
+                }
+            }
+        }
+    }
 }
 
 @Composable
 fun SpiralBindingRingsCanvas(
-    ringCount: Int = 7,
+    ringCount: Int = 8,
+    onRightEdge: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     Canvas(
         modifier = modifier
-            .width(24.dp)
+            .width(22.dp)
             .testTag("vintage_spiral_binding_rings")
     ) {
         val w = size.width
@@ -166,49 +420,93 @@ fun SpiralBindingRingsCanvas(
         val spacing = h / (count + 1)
         for (i in 1..count) {
             val cy = spacing * i
-            val holeCenter = Offset(w * 0.76f, cy)
-            drawCircle(
-                color = Color(0xFF2B1810),
-                radius = 5.5f,
-                center = holeCenter
-            )
-            drawCircle(
-                color = BookBorderOuter,
-                radius = 6.5f,
-                center = holeCenter,
-                style = Stroke(width = 1.5f)
-            )
+            val holeX = if (onRightEdge) w * 0.24f else w * 0.76f
+            val holeCenter = Offset(holeX, cy)
+            drawCircle(color = Color(0xFF2B1810), radius = 5.2f, center = holeCenter)
+            drawCircle(color = BookBorderOuter, radius = 6.2f, center = holeCenter, style = Stroke(width = 1.4f))
+
+            val wireStartX = if (onRightEdge) holeX else 1f
+            val wireWidth = w * 0.78f
             drawRoundRect(
                 color = Color(0xFF334155),
-                topLeft = Offset(1f, cy - 6.5f),
-                size = Size(w * 0.78f, 5.5f),
+                topLeft = Offset(wireStartX, cy - 6.2f),
+                size = Size(wireWidth, 5.2f),
                 cornerRadius = CornerRadius(4f, 4f)
             )
             drawRoundRect(
                 color = Color(0xFF94A3B8),
-                topLeft = Offset(1.5f, cy - 6f),
-                size = Size(w * 0.75f, 3.8f),
+                topLeft = Offset(wireStartX + 1f, cy - 5.6f),
+                size = Size(wireWidth - 2f, 3.6f),
                 cornerRadius = CornerRadius(3f, 3f)
             )
             drawLine(
                 color = Color(0xFFF1F5F9),
-                start = Offset(3f, cy - 4.5f),
-                end = Offset(w * 0.68f, cy - 4.5f),
-                strokeWidth = 1.6f,
+                start = Offset(wireStartX + 3f, cy - 4.2f),
+                end = Offset(wireStartX + wireWidth - 4f, cy - 4.2f),
+                strokeWidth = 1.5f,
                 cap = StrokeCap.Round
             )
             drawRoundRect(
                 color = Color(0xFF475569),
-                topLeft = Offset(1f, cy + 1f),
-                size = Size(w * 0.78f, 5f),
+                topLeft = Offset(wireStartX, cy + 1f),
+                size = Size(wireWidth, 4.6f),
                 cornerRadius = CornerRadius(4f, 4f)
             )
             drawLine(
                 color = Color(0xFFCBD5E1),
-                start = Offset(3f, cy + 2.8f),
-                end = Offset(w * 0.68f, cy + 2.8f),
-                strokeWidth = 1.4f,
+                start = Offset(wireStartX + 3f, cy + 2.6f),
+                end = Offset(wireStartX + wireWidth - 4f, cy + 2.6f),
+                strokeWidth = 1.3f,
                 cap = StrokeCap.Round
+            )
+        }
+    }
+}
+
+@Composable
+fun TopSpiralBindingRingsCanvas(
+    ringCount: Int = 12,
+    modifier: Modifier = Modifier
+) {
+    Canvas(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(20.dp)
+            .testTag("vintage_top_spiral_binding_rings")
+    ) {
+        val w = size.width
+        val h = size.height
+        val count = ringCount.coerceAtLeast(8)
+        val spacing = w / (count + 1)
+        for (i in 1..count) {
+            val cx = spacing * i
+            val holeCenter = Offset(cx, h * 0.76f)
+            drawCircle(color = Color(0xFF2B1810), radius = 4.8f, center = holeCenter)
+            drawCircle(color = BookBorderOuter, radius = 5.6f, center = holeCenter, style = Stroke(width = 1.2f))
+            drawRoundRect(
+                color = Color(0xFF334155),
+                topLeft = Offset(cx - 5f, 1f),
+                size = Size(4.6f, h * 0.76f),
+                cornerRadius = CornerRadius(3f, 3f)
+            )
+            drawRoundRect(
+                color = Color(0xFF94A3B8),
+                topLeft = Offset(cx - 4.5f, 1.5f),
+                size = Size(3.2f, h * 0.73f),
+                cornerRadius = CornerRadius(2.5f, 2.5f)
+            )
+            drawLine(
+                color = Color(0xFFF1F5F9),
+                start = Offset(cx - 3.3f, 3f),
+                end = Offset(cx - 3.3f, h * 0.65f),
+                strokeWidth = 1.3f,
+                cap = StrokeCap.Round
+            )
+            drawRoundRect(
+                color = Color(0xFF475569),
+                topLeft = Offset(cx + 1f, 1f),
+                size = Size(4.2f, h * 0.74f),
+                cornerRadius = CornerRadius(3f, 3f)
             )
         }
     }
@@ -220,20 +518,20 @@ fun VintageRoosterLogoCanvas(modifier: Modifier = Modifier) {
         val w = size.width
         val h = size.height
         drawCircle(color = BookParchmentDeep, radius = w * 0.48f, center = Offset(w / 2f, h / 2f))
-        drawCircle(color = BookBurgundy, radius = w * 0.48f, center = Offset(w / 2f, h / 2f), style = Stroke(width = 2.5f))
+        drawCircle(color = BookBurgundy, radius = w * 0.48f, center = Offset(w / 2f, h / 2f), style = Stroke(width = 2.2f))
         val bodyPath = Path().apply {
-            moveTo(w * 0.32f, h * 0.74f)
-            cubicTo(w * 0.30f, h * 0.48f, w * 0.38f, h * 0.30f, w * 0.54f, h * 0.30f)
-            cubicTo(w * 0.66f, h * 0.32f, w * 0.70f, h * 0.54f, w * 0.64f, h * 0.74f)
+            moveTo(w * 0.30f, h * 0.76f)
+            cubicTo(w * 0.28f, h * 0.48f, w * 0.38f, h * 0.30f, w * 0.56f, h * 0.30f)
+            cubicTo(w * 0.68f, h * 0.32f, w * 0.72f, h * 0.56f, w * 0.64f, h * 0.76f)
             close()
         }
         drawPath(bodyPath, color = BookBurgundy)
-        drawCircle(color = Color(0xFFB91C1C), radius = w * 0.08f, center = Offset(w * 0.46f, h * 0.24f))
-        drawCircle(color = Color(0xFFB91C1C), radius = w * 0.085f, center = Offset(w * 0.54f, h * 0.23f))
-        drawCircle(color = Color(0xFFB91C1C), radius = w * 0.07f, center = Offset(w * 0.61f, h * 0.26f))
+        drawCircle(color = Color(0xFFB91C1C), radius = w * 0.08f, center = Offset(w * 0.46f, h * 0.23f))
+        drawCircle(color = Color(0xFFB91C1C), radius = w * 0.085f, center = Offset(w * 0.55f, h * 0.22f))
+        drawCircle(color = Color(0xFFB91C1C), radius = w * 0.07f, center = Offset(w * 0.62f, h * 0.26f))
         val beak = Path().apply {
             moveTo(w * 0.58f, h * 0.34f)
-            lineTo(w * 0.76f, h * 0.39f)
+            lineTo(w * 0.78f, h * 0.39f)
             lineTo(w * 0.58f, h * 0.44f)
             close()
         }
@@ -256,996 +554,490 @@ fun VintageFoldedRibbonBanner(
             val h = size.height
             val leftTail = Path().apply {
                 moveTo(0f, h * 0.18f)
-                lineTo(w * 0.07f, h * 0.18f)
-                lineTo(w * 0.07f, h * 0.88f)
+                lineTo(w * 0.08f, h * 0.18f)
+                lineTo(w * 0.08f, h * 0.88f)
                 lineTo(0f, h * 0.88f)
-                lineTo(w * 0.035f, h * 0.53f)
+                lineTo(w * 0.038f, h * 0.53f)
                 close()
             }
-            drawPath(leftTail, color = BookBurgundyDark)
+            drawPath(leftTail, color = BookBorderOuter)
             val rightTail = Path().apply {
                 moveTo(w, h * 0.18f)
-                lineTo(w * 0.93f, h * 0.18f)
-                lineTo(w * 0.93f, h * 0.88f)
+                lineTo(w * 0.92f, h * 0.18f)
+                lineTo(w * 0.92f, h * 0.88f)
                 lineTo(w, h * 0.88f)
-                lineTo(w * 0.965f, h * 0.53f)
+                lineTo(w * 0.962f, h * 0.53f)
                 close()
             }
-            drawPath(rightTail, color = BookBurgundyDark)
+            drawPath(rightTail, color = BookBorderOuter)
         }
         Surface(
             modifier = Modifier.padding(horizontal = 8.dp),
             shape = RoundedCornerShape(6.dp),
-            color = BookBurgundy,
-            border = BorderStroke(1.2.dp, BookGoldAccent)
+            color = BookParchmentDeep,
+            border = BorderStroke(1.2.dp, BookBorderOuter)
         ) {
             Text(
                 text = text,
-                fontSize = 10.5.sp,
+                fontSize = 10.sp,
                 fontWeight = FontWeight.ExtraBold,
-                color = Color(0xFFFFF8E7),
+                color = BookBurgundyDark,
                 textAlign = TextAlign.Center,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
             )
         }
     }
 }
 
 @Composable
-fun BurgundySectionRibbon(
-    title: String,
-    modifier: Modifier = Modifier,
-    ribbonColor: Color = BookBurgundy
+fun VintageScrollIndexBanner(
+    text: String,
+    modifier: Modifier = Modifier
 ) {
     Surface(
         modifier = modifier,
-        shape = RoundedCornerShape(6.dp),
-        color = ribbonColor,
-        border = BorderStroke(1.dp, BookGoldAccent)
+        shape = RoundedCornerShape(8.dp),
+        color = BookParchmentMid,
+        border = BorderStroke(1.8.dp, BookBorderOuter),
+        shadowElevation = 3.dp
     ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 9.dp),
+            contentAlignment = Alignment.Center
         ) {
             Text(
-                text = title,
-                fontSize = 11.sp,
+                text = text,
+                fontSize = 16.sp,
                 fontWeight = FontWeight.ExtraBold,
-                color = Color(0xFFFFF8E7),
+                color = BookBurgundyDark,
                 textAlign = TextAlign.Center,
-                lineHeight = 14.sp
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                lineHeight = 21.sp
             )
         }
     }
 }
 
+/**
+ * Framed 68.dp circular illustration for each lesson in the Step 2 Book Index screen.
+ */
 @Composable
-fun PolaroidLessonFrame(
-    caption: String,
-    emoji: String,
+fun BookIndexLessonCircleArt(
+    lessonId: String,
     visualType: InfographicVisualType,
     modifier: Modifier = Modifier
 ) {
-    Box(
-        modifier = modifier
-            .width(86.dp)
-            .graphicsLayer(rotationZ = -4f)
-            .testTag("vintage_polaroid_frame"),
-        contentAlignment = Alignment.TopCenter
-    ) {
-        Surface(
-            modifier = Modifier
-                .padding(top = 5.dp)
-                .fillMaxWidth(),
-            shape = RoundedCornerShape(4.dp),
-            color = Color(0xFFFFFDF7),
-            border = BorderStroke(1.dp, BookBorderInner),
-            shadowElevation = 3.dp
-        ) {
-            Column(
-                modifier = Modifier.padding(5.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(3.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(44.dp)
-                        .background(Color(0xFFFAF0D7), RoundedCornerShape(3.dp)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Canvas(modifier = Modifier.fillMaxSize()) {
-                        val w = size.width
-                        val h = size.height
-                        drawRect(
-                            color = Color(0xFFE6B86A),
-                            topLeft = Offset(0f, h * 0.68f),
-                            size = Size(w, h * 0.32f)
-                        )
-                        drawCircle(
-                            color = Color(0xFFEA580C).copy(alpha = 0.25f),
-                            radius = h * 0.42f,
-                            center = Offset(w * 0.5f, h * 0.38f)
-                        )
-                        drawDetailedBirdSilhouette(
-                            cx = w * 0.52f,
-                            cy = h * 0.54f,
-                            scaleW = w * 0.48f,
-                            scaleH = h * 0.62f,
-                            bodyFill = Color(0xFFFDE68A),
-                            strokeColor = BookBorderOuter,
-                            isMatureBroiler = false
-                        )
-                    }
-                }
-                Text(
-                    text = caption,
-                    fontSize = 7.5.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = BookBurgundyDark,
-                    textAlign = TextAlign.Center,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-        }
-        Box(
-            modifier = Modifier
-                .width(34.dp)
-                .height(10.dp)
-                .graphicsLayer(rotationZ = 3f)
-                .background(Color(0xFFE5CFA0).copy(alpha = 0.9f), RoundedCornerShape(2.dp))
-        )
-    }
-}
-
-@Composable
-fun BroilerHeadMedallionCanvas(modifier: Modifier = Modifier) {
     Surface(
-        modifier = modifier
-            .size(58.dp)
-            .testTag("vintage_broiler_head_medallion"),
+        modifier = modifier.size(68.dp),
         shape = CircleShape,
-        color = BookParchmentMid,
-        border = BorderStroke(1.4.dp, BookBorderOuter)
+        color = Color(0xFFFFFDF7),
+        border = BorderStroke(1.8.dp, BookBurgundy)
     ) {
         Canvas(modifier = Modifier.fillMaxSize().padding(6.dp)) {
             val w = size.width
             val h = size.height
-            val headPath = Path().apply {
-                moveTo(w * 0.24f, h * 0.90f)
-                cubicTo(w * 0.20f, h * 0.54f, w * 0.28f, h * 0.24f, w * 0.54f, h * 0.24f)
-                cubicTo(w * 0.74f, h * 0.24f, w * 0.80f, h * 0.48f, w * 0.74f, h * 0.90f)
-                close()
-            }
-            drawPath(headPath, color = Color(0xFFFFF8E7))
-            drawPath(headPath, color = BookSepiaInk, style = Stroke(width = 2.4f))
-            // Serrated 4-point comb
-            drawCircle(color = BookBurgundy, radius = w * 0.085f, center = Offset(w * 0.42f, h * 0.20f))
-            drawCircle(color = BookBurgundy, radius = w * 0.10f, center = Offset(w * 0.52f, h * 0.17f))
-            drawCircle(color = BookBurgundy, radius = w * 0.09f, center = Offset(w * 0.62f, h * 0.19f))
-            drawCircle(color = BookBurgundy, radius = w * 0.075f, center = Offset(w * 0.70f, h * 0.24f))
-            // Upper & lower beak
-            val beak = Path().apply {
-                moveTo(w * 0.32f, h * 0.38f)
-                lineTo(w * 0.08f, h * 0.46f)
-                lineTo(w * 0.32f, h * 0.53f)
-                close()
-            }
-            drawPath(beak, color = Color(0xFFD97706))
-            drawPath(beak, color = BookSepiaInk, style = Stroke(width = 1.4f))
-            // Red wattle & ear lobe
-            drawCircle(color = BookBurgundy, radius = w * 0.085f, center = Offset(w * 0.32f, h * 0.61f))
-            // Detailed eye with iris & pupil
-            drawCircle(color = Color(0xFFD97706), radius = 4.2f, center = Offset(w * 0.45f, h * 0.41f))
-            drawCircle(color = BookBurgundyDark, radius = 2.4f, center = Offset(w * 0.45f, h * 0.41f))
-            drawCircle(color = Color.White, radius = 1.0f, center = Offset(w * 0.43f, h * 0.39f))
-        }
-    }
-}
+            val cx = w / 2f
+            val cy = h / 2f
 
-@Composable
-fun LessonHeroSceneCanvas(
-    spec: EncyclopediaPosterSpec,
-    modifier: Modifier = Modifier
-) {
-    Surface(
-        modifier = modifier
-            .fillMaxWidth()
-            .testTag("infographic_canvas_${spec.visualType.name.lowercase()}"),
-        shape = RoundedCornerShape(8.dp),
-        color = Color(0xFFFAF0D7),
-        border = BorderStroke(1.4.dp, BookBorderOuter)
-    ) {
-        Column(
-            modifier = Modifier.padding(8.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(138.dp)
-            ) {
-                Canvas(modifier = Modifier.fillMaxSize()) {
-                    val w = size.width
-                    val h = size.height
-                    // Barn interior background
-                    drawRect(
-                        color = Color(0xFFF3DFB9),
-                        topLeft = Offset(0f, 0f),
-                        size = Size(w, h * 0.66f)
-                    )
-                    // Thick golden wood shavings litter bed (bottom 34%)
-                    drawRoundRect(
-                        color = Color(0xFFD99B43),
-                        topLeft = Offset(0f, h * 0.66f),
-                        size = Size(w, h * 0.34f),
-                        cornerRadius = CornerRadius(6f, 6f)
-                    )
-                    for (i in 0..16) {
-                        val fx = w * (0.04f + (i * 0.056f))
-                        val fy = h * (0.72f + (i % 3) * 0.08f)
-                        drawLine(
-                            color = BookBorderOuter,
-                            start = Offset(fx, fy),
-                            end = Offset(fx + 9f, fy + 2f),
-                            strokeWidth = 2f,
-                            cap = StrokeCap.Round
-                        )
-                    }
+            // Soft parchment disk backdrop
+            drawCircle(color = Color(0xFFF6E9CD), radius = w * 0.48f, center = Offset(cx, cy))
 
-                    if (spec.visualType == InfographicVisualType.CARE_VENTILATION_AIRFLOW) {
-                        // Barn cross-section: pitched roof, side upper inlet, exhaust fan, and warm/cold airflow arrows
-                        val roofPath = Path().apply {
-                            moveTo(w * 0.04f, h * 0.24f)
-                            lineTo(w * 0.50f, h * 0.05f)
-                            lineTo(w * 0.96f, h * 0.24f)
-                        }
-                        drawPath(roofPath, color = BookBorderOuter, style = Stroke(width = 3.2f, cap = StrokeCap.Round))
-                        // Left upper inlet baffle angled toward ceiling
-                        drawLine(
-                            color = Color(0xFF1D4ED8),
-                            start = Offset(w * 0.06f, h * 0.32f),
-                            end = Offset(w * 0.16f, h * 0.22f),
-                            strokeWidth = 4f,
-                            cap = StrokeCap.Round
-                        )
-                        // Cold air arrows entering high & mixing with warm air at ceiling
-                        val coldArc = Path().apply {
-                            moveTo(w * 0.08f, h * 0.28f)
-                            cubicTo(w * 0.25f, h * 0.12f, w * 0.45f, h * 0.12f, w * 0.62f, h * 0.26f)
-                        }
-                        drawPath(coldArc, color = Color(0xFF2563EB), style = Stroke(width = 3f, cap = StrokeCap.Round))
-                        // Warm mixed air circulation arrows
-                        val warmArc = Path().apply {
-                            moveTo(w * 0.35f, h * 0.22f)
-                            cubicTo(w * 0.52f, h * 0.20f, w * 0.68f, h * 0.35f, w * 0.84f, h * 0.42f)
-                        }
-                        drawPath(warmArc, color = Color(0xFFEA580C), style = Stroke(width = 3f, cap = StrokeCap.Round))
-                        // Right exhaust fan housing
-                        drawRoundRect(
-                            color = Color(0xFF334155),
-                            topLeft = Offset(w * 0.86f, h * 0.28f),
-                            size = Size(w * 0.10f, h * 0.32f),
-                            cornerRadius = CornerRadius(4f, 4f)
-                        )
-                        drawCircle(color = Color(0xFF94A3B8), radius = 9f, center = Offset(w * 0.91f, h * 0.44f))
-                    } else {
-                        // Suspended metallic brooder canopy with radiant heat cone
-                        val conePath = Path().apply {
-                            moveTo(w * 0.36f, h * 0.22f)
-                            lineTo(w * 0.60f, h * 0.22f)
-                            lineTo(w * 0.80f, h * 0.66f)
-                            lineTo(w * 0.16f, h * 0.66f)
-                            close()
-                        }
-                        drawPath(conePath, color = Color(0xFFF59E0B).copy(alpha = 0.22f))
-                        // Suspension chain
-                        drawLine(
-                            color = Color(0xFF475569),
-                            start = Offset(w * 0.48f, 0f),
-                            end = Offset(w * 0.48f, h * 0.08f),
-                            strokeWidth = 2.5f
-                        )
-                        // Metallic brooder reflector dome
-                        val hoodPath = Path().apply {
-                            moveTo(w * 0.35f, h * 0.08f)
-                            lineTo(w * 0.61f, h * 0.08f)
-                            lineTo(w * 0.72f, h * 0.23f)
-                            lineTo(w * 0.24f, h * 0.23f)
-                            close()
-                        }
-                        drawPath(hoodPath, color = BookBurgundy)
-                        drawPath(hoodPath, color = BookGoldAccent, style = Stroke(width = 2f))
-                        // Glowing burner core
-                        drawCircle(
-                            color = Color(0xFFEA580C),
-                            radius = 10f,
-                            center = Offset(w * 0.48f, h * 0.24f)
-                        )
-                        drawCircle(
-                            color = Color(0xFFFDE047),
-                            radius = 5.5f,
-                            center = Offset(w * 0.48f, h * 0.24f)
-                        )
-                        // Radiant heat wave lines
-                        for (ray in -2..2) {
-                            val rx = w * 0.48f + ray * (w * 0.08f)
-                            drawLine(
-                                color = Color(0xFFEA580C).copy(alpha = 0.55f),
-                                start = Offset(w * 0.48f, h * 0.27f),
-                                end = Offset(rx, h * 0.62f),
-                                strokeWidth = 2.2f,
-                                cap = StrokeCap.Round
-                            )
-                        }
-                    }
-
-                    // Detailed chicks with full features (head, comb, beak, eye, wing, legs) spread on litter
-                    val chickCenters = listOf(0.20f, 0.38f, 0.56f, 0.74f)
-                    chickCenters.forEachIndexed { idx, cxRatio ->
-                        val cyPos = h * (if (idx % 2 == 0) 0.63f else 0.67f)
-                        drawDetailedBirdSilhouette(
-                            cx = w * cxRatio,
-                            cy = cyPos,
-                            scaleW = 34f,
-                            scaleH = 28f,
-                            bodyFill = Color(0xFFFBBF24),
-                            strokeColor = BookBorderOuter,
-                            isMatureBroiler = spec.visualType == InfographicVisualType.FEED_FINISHER_PELLETS ||
-                                spec.visualType == InfographicVisualType.FEED_WEIGHT_WATER_CURVE
-                        )
-                    }
-
-                    // Detailed mercury thermometer with graduation tick marks on the right
-                    val tx = w * 0.91f
-                    drawRoundRect(
-                        color = Color.White,
-                        topLeft = Offset(tx - 7f, h * 0.10f),
-                        size = Size(14f, h * 0.52f),
-                        cornerRadius = CornerRadius(7f, 7f)
-                    )
-                    drawRoundRect(
-                        color = BookBorderOuter,
-                        topLeft = Offset(tx - 7f, h * 0.10f),
-                        size = Size(14f, h * 0.52f),
-                        cornerRadius = CornerRadius(7f, 7f),
-                        style = Stroke(width = 1.8f)
-                    )
-                    drawRoundRect(
-                        color = Color(0xFFDC2626),
-                        topLeft = Offset(tx - 3.2f, h * 0.22f),
-                        size = Size(6.4f, h * 0.40f),
-                        cornerRadius = CornerRadius(3f, 3f)
-                    )
-                    drawCircle(
-                        color = Color(0xFFDC2626),
-                        radius = 9f,
-                        center = Offset(tx, h * 0.63f)
-                    )
-                    drawCircle(
-                        color = BookBorderOuter,
-                        radius = 9f,
-                        center = Offset(tx, h * 0.63f),
-                        style = Stroke(width = 1.5f)
-                    )
-                    for (t in 0..4) {
-                        val ty = h * (0.16f + t * 0.08f)
-                        drawLine(
-                            color = BookBurgundyDark,
-                            start = Offset(tx - 6f, ty),
-                            end = Offset(tx - 2f, ty),
-                            strokeWidth = 1.4f
-                        )
-                    }
+            when (visualType) {
+                InfographicVisualType.FEED_STARTER_SPEC -> {
+                    drawFeedPileIllustration(cx, h * 0.78f, w * 0.80f, h * 0.56f, granuleSizeScale = 0.85f)
                 }
-
-                // Callout Badges
-                Column(
-                    modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .padding(4.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    Surface(
-                        shape = RoundedCornerShape(5.dp),
-                        color = BookBurgundy,
-                        border = BorderStroke(0.8.dp, BookGoldAccent)
-                    ) {
-                        Text(
-                            text = "🔥 ${spec.heroCalloutTop} ➔",
-                            fontSize = 8.5.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = Color(0xFFFFF8E7),
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                        )
-                    }
-                }
-
-                Surface(
-                    modifier = Modifier
-                        .align(Alignment.BottomStart)
-                        .padding(4.dp),
-                    shape = RoundedCornerShape(5.dp),
-                    color = BookParchmentLight,
-                    border = BorderStroke(1.dp, BookBorderOuter)
-                ) {
-                    Text(
-                        text = "🪵 ${spec.heroCalloutBottom} ➔",
-                        fontSize = 8.5.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = BookBurgundyDark,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                InfographicVisualType.FEED_GROWER_HEIGHT -> {
+                    drawRect(Color(0xFFE2CCA4), Offset(0f, h * 0.78f), Size(w, h * 0.22f))
+                    drawSuspendedPanFeeder(w * 0.62f, h * 0.08f, h * 0.76f, w * 0.44f)
+                    drawClassicBirdIllustration(
+                        cx = w * 0.28f,
+                        cy = h * 0.58f,
+                        scaleW = w * 0.44f,
+                        scaleH = h * 0.42f,
+                        bodyFill = Color(0xFFFDE68A),
+                        shadeFill = Color(0xFFD97706),
+                        strokeColor = BookSepiaInk,
+                        isMatureBroiler = false
                     )
                 }
-            }
-        }
-    }
-}
-
-@Composable
-fun HorizontalStepIllustrationCanvas(
-    stepIndex: Int,
-    emoji: String,
-    visualType: InfographicVisualType = InfographicVisualType.CARE_PREHEAT_PREP,
-    modifier: Modifier = Modifier
-) {
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(56.dp)
-            .background(Color(0xFFFAF0D7), RoundedCornerShape(6.dp)),
-        contentAlignment = Alignment.Center
-    ) {
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            val w = size.width
-            val h = size.height
-            // Ground floor strip
-            drawRect(Color(0xFFE2CCA4), Offset(0f, h * 0.74f), Size(w, h * 0.26f))
-
-            when {
-                // Vaccination lessons: vaccine vial, eye dropper, drinking bell drinker
-                visualType.name.startsWith("VAX_") && stepIndex == 0 -> {
-                    // Cold-chain vaccine vial + ice cube
-                    drawRoundRect(
-                        color = Color(0xFFDBEAFE),
-                        topLeft = Offset(w * 0.22f, h * 0.34f),
-                        size = Size(w * 0.22f, h * 0.38f),
-                        cornerRadius = CornerRadius(4f, 4f)
-                    )
-                    drawRoundRect(
-                        color = Color(0xFF1D4ED8),
-                        topLeft = Offset(w * 0.50f, h * 0.22f),
-                        size = Size(w * 0.22f, h * 0.50f),
-                        cornerRadius = CornerRadius(4f, 4f)
-                    )
-                    drawRect(Color(0xFF93C5FD), Offset(w * 0.54f, h * 0.14f), Size(w * 0.14f, h * 0.08f))
+                InfographicVisualType.FEED_FINISHER_PELLETS -> {
+                    drawFeedPileIllustration(cx, h * 0.80f, w * 0.82f, h * 0.42f, granuleSizeScale = 1.25f)
+                    // Two hands scooping/mixing grains above pile
+                    drawOval(Color(0xFFE0AC69), Offset(w * 0.12f, h * 0.24f), Size(w * 0.30f, h * 0.18f))
+                    drawOval(BookSepiaInk, Offset(w * 0.12f, h * 0.24f), Size(w * 0.30f, h * 0.18f), style = Stroke(1.3f))
+                    drawOval(Color(0xFFE0AC69), Offset(w * 0.56f, h * 0.22f), Size(w * 0.30f, h * 0.18f))
+                    drawOval(BookSepiaInk, Offset(w * 0.56f, h * 0.22f), Size(w * 0.30f, h * 0.18f), style = Stroke(1.3f))
                 }
-                visualType.name.startsWith("VAX_") && stepIndex == 1 -> {
-                    // Eye dropper / coarse spray droplet arc
-                    val dropPath = Path().apply {
-                        moveTo(w * 0.50f, h * 0.16f)
-                        cubicTo(w * 0.65f, h * 0.42f, w * 0.62f, h * 0.66f, w * 0.50f, h * 0.68f)
-                        cubicTo(w * 0.38f, h * 0.66f, w * 0.35f, h * 0.42f, w * 0.50f, h * 0.16f)
+                InfographicVisualType.FEED_WEIGHT_WATER_CURVE -> {
+                    // Mini weight table & anatomical chick matching Reference Image 1
+                    drawRoundRect(Color.White, Offset(w * 0.08f, h * 0.26f), Size(w * 0.26f, h * 0.46f), CornerRadius(3f, 3f))
+                    drawRoundRect(BookSepiaInk, Offset(w * 0.08f, h * 0.26f), Size(w * 0.26f, h * 0.46f), CornerRadius(3f, 3f), style = Stroke(1.2f))
+                    drawClassicBirdIllustration(
+                        cx = w * 0.62f,
+                        cy = h * 0.54f,
+                        scaleW = w * 0.58f,
+                        scaleH = h * 0.62f,
+                        bodyFill = Color(0xFFFDE68A),
+                        shadeFill = Color(0xFFD97706),
+                        strokeColor = BookSepiaInk,
+                        isMatureBroiler = false,
+                        facingRight = false
+                    )
+                    drawCircle(Color(0xFFE11D48).copy(alpha = 0.78f), radius = w * 0.08f, center = Offset(w * 0.60f, h * 0.54f))
+                }
+                InfographicVisualType.CARE_PREHEAT_PREP -> {
+                    val cone = Path().apply {
+                        moveTo(cx - w * 0.16f, h * 0.30f)
+                        lineTo(cx + w * 0.16f, h * 0.30f)
+                        lineTo(cx + w * 0.38f, h * 0.76f)
+                        lineTo(cx - w * 0.38f, h * 0.76f)
                         close()
                     }
-                    drawPath(dropPath, color = Color(0xFF0284C7))
+                    drawPath(cone, color = Color(0xFFF59E0B).copy(alpha = 0.28f))
+                    drawRoundRect(BookBurgundy, Offset(cx - w * 0.20f, h * 0.16f), Size(w * 0.40f, h * 0.14f), CornerRadius(4f, 4f))
+                    drawClassicBirdIllustration(cx, h * 0.64f, w * 0.44f, h * 0.38f, Color(0xFFFDE68A), Color(0xFFD97706), BookSepiaInk)
                 }
-                // Feed & Weight lessons: feeder aligned to bird back, quintal sack, weighing scale
-                visualType.name.startsWith("FEED_") && stepIndex == 0 -> {
-                    // Red pan feeder + golden crumble feed
-                    drawLine(BookBorderOuter, Offset(w * 0.5f, 0f), Offset(w * 0.5f, h * 0.52f), strokeWidth = 2.5f)
-                    drawRoundRect(
-                        color = Color(0xFFDC2626),
-                        topLeft = Offset(w * 0.26f, h * 0.50f),
-                        size = Size(w * 0.48f, h * 0.24f),
-                        cornerRadius = CornerRadius(6f, 6f)
-                    )
-                    drawOval(Color(0xFFF59E0B), Offset(w * 0.32f, h * 0.44f), Size(w * 0.36f, h * 0.14f))
+                InfographicVisualType.CARE_BROODING_BEHAVIOR -> {
+                    drawClassicBirdIllustration(w * 0.36f, h * 0.58f, w * 0.42f, h * 0.38f, Color(0xFFFDE68A), Color(0xFFD97706), BookSepiaInk)
+                    drawClassicBirdIllustration(w * 0.68f, h * 0.60f, w * 0.36f, h * 0.34f, Color(0xFFFDE68A), Color(0xFFD97706), BookSepiaInk, facingRight = false)
                 }
-                visualType.name.startsWith("FEED_") && stepIndex == 2 -> {
-                    // Weighing scale dial & platform
-                    drawCircle(Color.White, radius = h * 0.26f, center = Offset(w * 0.50f, h * 0.38f))
-                    drawCircle(BookBurgundy, radius = h * 0.26f, center = Offset(w * 0.50f, h * 0.38f), style = Stroke(width = 2.2f))
-                    drawLine(Color(0xFFDC2626), Offset(w * 0.50f, h * 0.38f), Offset(w * 0.60f, h * 0.26f), strokeWidth = 2.2f)
-                    drawRoundRect(BookBorderOuter, Offset(w * 0.28f, h * 0.68f), Size(w * 0.44f, h * 0.12f), CornerRadius(3f, 3f))
+                InfographicVisualType.CARE_VENTILATION_AIRFLOW -> {
+                    val roof = Path().apply {
+                        moveTo(w * 0.10f, h * 0.34f)
+                        lineTo(cx, h * 0.14f)
+                        lineTo(w * 0.90f, h * 0.34f)
+                    }
+                    drawPath(roof, BookBorderOuter, style = Stroke(2.4f, cap = StrokeCap.Round))
+                    val arc = Path().apply {
+                        moveTo(w * 0.14f, h * 0.42f)
+                        cubicTo(w * 0.38f, h * 0.22f, w * 0.62f, h * 0.24f, w * 0.82f, h * 0.48f)
+                    }
+                    drawPath(arc, Color(0xFF2563EB), style = Stroke(2.4f, cap = StrokeCap.Round))
+                    drawCircle(Color(0xFF334155), radius = w * 0.10f, center = Offset(w * 0.80f, h * 0.62f))
                 }
-                stepIndex == 0 -> {
-                    // Step 1: Broom sweeping floor & water spray sparkles
-                    drawLine(
-                        color = BookBorderOuter,
-                        start = Offset(w * 0.28f, h * 0.10f),
-                        end = Offset(w * 0.54f, h * 0.58f),
-                        strokeWidth = 3.8f,
-                        cap = StrokeCap.Round
-                    )
-                    val bristles = Path().apply {
-                        moveTo(w * 0.44f, h * 0.55f)
-                        lineTo(w * 0.68f, h * 0.52f)
-                        lineTo(w * 0.74f, h * 0.74f)
-                        lineTo(w * 0.40f, h * 0.74f)
+                InfographicVisualType.CARE_LIGHTING_PRESALE -> {
+                    drawCircle(Color(0xFF1E293B), radius = w * 0.24f, center = Offset(w * 0.38f, h * 0.44f))
+                    drawCircle(Color(0xFFF6E9CD), radius = w * 0.18f, center = Offset(w * 0.46f, h * 0.40f))
+                    drawRoundRect(BookBurgundy, Offset(w * 0.46f, h * 0.58f), Size(w * 0.36f, h * 0.20f), CornerRadius(4f, 4f))
+                }
+                InfographicVisualType.VAX_RECEPTION_WATER,
+                InfographicVisualType.VAX_GUMBORO_DRINKING,
+                InfographicVisualType.VAX_BOOSTER_DETOX -> {
+                    drawRoundRect(Color(0xFFDBEAFE), Offset(w * 0.26f, h * 0.26f), Size(w * 0.24f, h * 0.48f), CornerRadius(5f, 5f))
+                    drawRoundRect(Color(0xFF1D4ED8), Offset(w * 0.26f, h * 0.26f), Size(w * 0.24f, h * 0.48f), CornerRadius(5f, 5f), style = Stroke(1.6f))
+                    drawRoundRect(Color(0xFF0F766E), Offset(w * 0.54f, h * 0.36f), Size(w * 0.22f, h * 0.38f), CornerRadius(4f, 4f))
+                    drawRect(BookGoldAccent, Offset(w * 0.58f, h * 0.26f), Size(w * 0.14f, h * 0.10f))
+                }
+                InfographicVisualType.VAX_NEWCASTLE_EYE_SPRAY -> {
+                    val drop = Path().apply {
+                        moveTo(cx, h * 0.18f)
+                        cubicTo(w * 0.72f, h * 0.48f, w * 0.70f, h * 0.76f, cx, h * 0.78f)
+                        cubicTo(w * 0.30f, h * 0.76f, w * 0.28f, h * 0.48f, cx, h * 0.18f)
                         close()
                     }
-                    drawPath(bristles, color = Color(0xFFD97706))
-                    drawPath(bristles, color = BookBorderOuter, style = Stroke(width = 1.4f))
-                    drawCircle(Color(0xFF38BDF8), radius = 3f, center = Offset(w * 0.24f, h * 0.56f))
-                    drawCircle(Color(0xFF38BDF8), radius = 2.2f, center = Offset(w * 0.32f, h * 0.44f))
-                }
-                stepIndex == 1 -> {
-                    // Step 2: Tilted shavings sack pouring golden wood flakes onto 5-8 cm bed
-                    drawRoundRect(
-                        color = Color(0xFFD99B43),
-                        topLeft = Offset(w * 0.10f, h * 0.58f),
-                        size = Size(w * 0.80f, h * 0.24f),
-                        cornerRadius = CornerRadius(5f, 5f)
-                    )
-                    drawRoundRect(
-                        color = Color(0xFF92400E),
-                        topLeft = Offset(w * 0.22f, h * 0.14f),
-                        size = Size(w * 0.32f, h * 0.32f),
-                        cornerRadius = CornerRadius(4f, 4f)
-                    )
-                    // Falling golden wood flakes
-                    drawCircle(Color(0xFFF59E0B), radius = 3.2f, center = Offset(w * 0.58f, h * 0.36f))
-                    drawCircle(Color(0xFFF59E0B), radius = 2.8f, center = Offset(w * 0.64f, h * 0.48f))
-                    drawCircle(Color(0xFFF59E0B), radius = 3.0f, center = Offset(w * 0.52f, h * 0.50f))
+                    drawPath(drop, color = Color(0xFF0284C7))
+                    drawPath(drop, color = BookSepiaInk, style = Stroke(1.4f))
                 }
                 else -> {
-                    // Step 3: Radiant brooder heater + warm cone + 33°C thermometer
-                    val cone = Path().apply {
-                        moveTo(w * 0.34f, h * 0.28f)
-                        lineTo(w * 0.66f, h * 0.28f)
-                        lineTo(w * 0.82f, h * 0.74f)
-                        lineTo(w * 0.18f, h * 0.74f)
-                        close()
-                    }
-                    drawPath(cone, color = Color(0xFFEA580C).copy(alpha = 0.24f))
-                    drawRoundRect(
-                        color = BookBurgundy,
-                        topLeft = Offset(w * 0.30f, h * 0.12f),
-                        size = Size(w * 0.40f, h * 0.18f),
-                        cornerRadius = CornerRadius(5f, 5f)
+                    // Diseases: classic broiler + anatomical lesion highlight
+                    drawClassicBirdIllustration(
+                        cx = cx,
+                        cy = cy + h * 0.04f,
+                        scaleW = w * 0.74f,
+                        scaleH = h * 0.72f,
+                        bodyFill = Color(0xFFFFF8E7),
+                        shadeFill = Color(0xFFE2CCA4),
+                        strokeColor = BookSepiaInk,
+                        isMatureBroiler = true
                     )
-                    drawCircle(Color(0xFFF59E0B), radius = 6f, center = Offset(w * 0.50f, h * 0.31f))
+                    drawCircle(Color(0xFFDC2626).copy(alpha = 0.72f), radius = w * 0.11f, center = Offset(cx - w * 0.02f, cy + h * 0.04f))
                 }
             }
         }
-        Text(
-            text = emoji,
-            fontSize = 15.sp,
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(3.dp)
+    }
+}
+
+private data class FarmerGaugeChip(
+    val icon: String,
+    val metricValue: String
+)
+
+private fun farmerHeroGaugesFor(
+    spec: EncyclopediaPosterSpec,
+    lang: AppLanguage
+): List<FarmerGaugeChip> {
+    val cmLabel = if (lang == AppLanguage.AR) "سم" else "cm"
+    val hrLabel = if (lang == AppLanguage.AR) "ساعة" else "h"
+    val kgLabel = Translations.tr("unit_kg", lang)
+    return when (spec.visualType) {
+        InfographicVisualType.CARE_PREHEAT_PREP -> listOf(
+            FarmerGaugeChip("🌡️", "33.5°C"),
+            FarmerGaugeChip("💧", "50–60%"),
+            FarmerGaugeChip("📏", "5–8 $cmLabel")
         )
-    }
-}
-
-@Composable
-fun ChickInternalAnatomyCanvas(
-    lang: AppLanguage,
-    modifier: Modifier = Modifier
-) {
-    val tracheaLabel = Translations.tr("book_chick_trachea", lang)
-    val lungsLabel = Translations.tr("book_chick_lungs", lang)
-    val digestiveLabel = Translations.tr("book_chick_digestive", lang)
-    val cropYolkLabel = Translations.tr("book_chick_crop_yolk", lang)
-
-    Surface(
-        modifier = modifier
-            .fillMaxWidth()
-            .testTag("vintage_chick_anatomy_center"),
-        shape = RoundedCornerShape(8.dp),
-        color = Color(0xFFFAF0D7),
-        border = BorderStroke(1.2.dp, BookBorderOuter)
-    ) {
-        Column(
-            modifier = Modifier.padding(6.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            BurgundySectionRibbon(
-                title = Translations.tr("book_ribbon_chick_anatomy", lang),
-                modifier = Modifier.fillMaxWidth()
-            )
-            Canvas(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(104.dp)
-            ) {
-                val w = size.width
-                val h = size.height
-                val cx = w * 0.52f
-                val cy = h * 0.52f
-
-                // 1. Complete Anatomical Cutaway Chick Silhouette (Head, Comb, Beak, Eye, Wing, Tail, Legs)
-                drawDetailedBirdSilhouette(
-                    cx = cx,
-                    cy = cy,
-                    scaleW = w * 0.72f,
-                    scaleH = h * 0.86f,
-                    bodyFill = Color(0xFFFFF3C4),
-                    strokeColor = BookBorderOuter,
-                    isMatureBroiler = false
-                )
-
-                // 2. Cartilaginous Trachea (القصبة الهوائية بحلقات غضروفية) branching into Bronchi
-                val tracheaStart = Offset(cx - w * 0.20f, cy - h * 0.16f)
-                val tracheaFork = Offset(cx - w * 0.04f, cy - h * 0.05f)
-                drawLine(
-                    color = Color(0xFF2563EB),
-                    start = tracheaStart,
-                    end = tracheaFork,
-                    strokeWidth = 4.5f,
-                    cap = StrokeCap.Round
-                )
-                // Cartilaginous rings along trachea
-                for (r in 1..4) {
-                    val t = r / 5f
-                    val rx = tracheaStart.x + (tracheaFork.x - tracheaStart.x) * t
-                    val ry = tracheaStart.y + (tracheaFork.y - tracheaStart.y) * t
-                    drawCircle(color = Color(0xFF93C5FD), radius = 2.0f, center = Offset(rx, ry))
-                }
-
-                // 3. Detailed Dual Lungs & Air Sacs (الرئتان والأكياس الهوائية)
-                drawOval(
-                    color = Color(0xFFE11D48),
-                    topLeft = Offset(cx - w * 0.05f, cy - h * 0.18f),
-                    size = Size(w * 0.19f, h * 0.17f)
-                )
-                drawOval(
-                    color = Color(0xFFFDA4AF).copy(alpha = 0.55f),
-                    topLeft = Offset(cx + w * 0.08f, cy - h * 0.12f),
-                    size = Size(w * 0.14f, h * 0.14f)
-                )
-
-                // 4. Crop (الحوصلة), Gizzard (القانصة), Intestines (الأمعاء) & Yolk Sac (كيس المح)
-                // Crop at base of neck
-                val cropCenter = Offset(cx - w * 0.14f, cy + h * 0.04f)
-                drawCircle(color = Color(0xFFF59E0B), radius = h * 0.075f, center = cropCenter)
-                // Gizzard
-                val gizzardCenter = Offset(cx - w * 0.01f, cy + h * 0.08f)
-                drawOval(
-                    color = Color(0xFFB45309),
-                    topLeft = Offset(gizzardCenter.x - 8f, gizzardCenter.y - 6f),
-                    size = Size(16f, 12f)
-                )
-                // Coiled Intestines & Yolk Sac
-                val gutCenter = Offset(cx + w * 0.12f, cy + h * 0.10f)
-                drawOval(
-                    color = Color(0xFF059669),
-                    topLeft = Offset(gutCenter.x - 10f, gutCenter.y - 8f),
-                    size = Size(22f, 16f)
-                )
-                drawCircle(
-                    color = Color(0xFFEAB308),
-                    radius = h * 0.065f,
-                    center = Offset(cx + w * 0.06f, cy + h * 0.20f)
-                )
-
-                // 5. Pointer callout lines & colored dots
-                // Trachea pointer
-                drawLine(Color(0xFF1E3A8A), Offset(tracheaStart.x, tracheaStart.y), Offset(w * 0.10f, h * 0.16f), strokeWidth = 1.3f)
-                drawCircle(Color(0xFF1E3A8A), radius = 3f, center = Offset(w * 0.10f, h * 0.16f))
-                // Lungs pointer
-                drawLine(BookBurgundy, Offset(cx + w * 0.04f, cy - h * 0.12f), Offset(w * 0.88f, h * 0.16f), strokeWidth = 1.3f)
-                drawCircle(BookBurgundy, radius = 3f, center = Offset(w * 0.88f, h * 0.16f))
-                // Crop & Digestive pointer
-                drawLine(Color(0xFF065F46), gutCenter, Offset(w * 0.88f, h * 0.82f), strokeWidth = 1.3f)
-                drawCircle(Color(0xFF065F46), radius = 3f, center = Offset(w * 0.88f, h * 0.82f))
-            }
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(2.dp)
-            ) {
-                Text("🔹 $tracheaLabel", fontSize = 7.8.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF1E3A8A))
-                Text("🔺 $lungsLabel", fontSize = 7.8.sp, fontWeight = FontWeight.ExtraBold, color = BookBurgundy)
-                Text("🟠 $cropYolkLabel", fontSize = 7.8.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFFB45309))
-                Text("🟢 $digestiveLabel", fontSize = 7.8.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF065F46))
-            }
-        }
-    }
-}
-
-@Composable
-fun GoodBadSceneFrameCanvas(
-    isGood: Boolean,
-    ribbonTitle: String,
-    caption: String,
-    modifier: Modifier = Modifier
-) {
-    val frameBorder = if (isGood) Color(0xFF15803D) else Color(0xFFB91C1C)
-    val ribbonBg = if (isGood) Color(0xFF166534) else BookBurgundy
-    val badgeSymbol = if (isGood) "✅" else "❌"
-
-    Surface(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(8.dp),
-        color = Color(0xFFFAF0D7),
-        border = BorderStroke(1.2.dp, frameBorder)
-    ) {
-        Column(
-            modifier = Modifier.padding(6.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            BurgundySectionRibbon(
-                title = ribbonTitle,
-                modifier = Modifier.fillMaxWidth(),
-                ribbonColor = ribbonBg
-            )
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(64.dp)
-                    .background(
-                        if (isGood) Color(0xFFECFDF5) else Color(0xFFFEF2F2),
-                        RoundedCornerShape(6.dp)
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Canvas(modifier = Modifier.fillMaxSize()) {
-                    val w = size.width
-                    val h = size.height
-                    if (isGood) {
-                        // Dry golden litter + evenly spread healthy chicks
-                        drawRect(Color(0xFFD99B43), Offset(0f, h * 0.66f), Size(w, h * 0.34f))
-                        listOf(0.24f, 0.52f, 0.78f).forEach { cxRatio ->
-                            drawDetailedBirdSilhouette(
-                                cx = w * cxRatio,
-                                cy = h * 0.56f,
-                                scaleW = 24f,
-                                scaleH = 20f,
-                                bodyFill = Color(0xFFFBBF24),
-                                strokeColor = BookBorderOuter,
-                                isMatureBroiler = false
-                            )
-                        }
-                    } else {
-                        // Cold wet dark litter puddles + huddled chilled chicks
-                        drawRect(Color(0xFF64748B), Offset(0f, h * 0.66f), Size(w, h * 0.34f))
-                        drawOval(Color(0xFF3B82F6).copy(alpha = 0.45f), Offset(w * 0.16f, h * 0.70f), Size(w * 0.68f, h * 0.22f))
-                        listOf(0.44f, 0.56f).forEach { cxRatio ->
-                            drawDetailedBirdSilhouette(
-                                cx = w * cxRatio,
-                                cy = h * 0.58f,
-                                scaleW = 22f,
-                                scaleH = 19f,
-                                bodyFill = Color(0xFFCBD5E1),
-                                strokeColor = Color(0xFF334155),
-                                isMatureBroiler = false
-                            )
-                        }
-                    }
-                }
-                Text(
-                    text = badgeSymbol,
-                    fontSize = 16.sp,
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(3.dp)
-                )
-            }
-            Text(
-                text = caption,
-                fontSize = 8.5.sp,
-                fontWeight = FontWeight.Bold,
-                color = BookBurgundyDark,
-                textAlign = TextAlign.Center,
-                lineHeight = 12.sp
+        InfographicVisualType.CARE_BROODING_BEHAVIOR -> listOf(
+            FarmerGaugeChip("🌡️", "33°C ➔ 30°C"),
+            FarmerGaugeChip("🐣", "> 95%"),
+            FarmerGaugeChip("⚖️", "190g / 7d")
+        )
+        InfographicVisualType.CARE_VENTILATION_AIRFLOW -> listOf(
+            FarmerGaugeChip("🌬️", "NH₃ < 10 ppm"),
+            FarmerGaugeChip("💨", "0.5–1.5 m/s"),
+            FarmerGaugeChip("💧", "50–65%")
+        )
+        InfographicVisualType.CARE_LIGHTING_PRESALE -> listOf(
+            FarmerGaugeChip("🌙", "4–6 $hrLabel"),
+            FarmerGaugeChip("📐", "12 / m²"),
+            FarmerGaugeChip("⏱️", "8–10 $hrLabel")
+        )
+        InfographicVisualType.VAX_RECEPTION_WATER -> listOf(
+            FarmerGaugeChip("💧", "18°C–21°C"),
+            FarmerGaugeChip("⏱️", "6 $hrLabel"),
+            FarmerGaugeChip("⚡", "AD3E + C")
+        )
+        InfographicVisualType.VAX_NEWCASTLE_EYE_SPRAY -> listOf(
+            FarmerGaugeChip("❄️", "2°C–8°C"),
+            FarmerGaugeChip("👁️", "95%+"),
+            FarmerGaugeChip("⏱️", "20 min")
+        )
+        InfographicVisualType.VAX_GUMBORO_DRINKING -> listOf(
+            FarmerGaugeChip("❄️", "2°C–8°C"),
+            FarmerGaugeChip("💧", "1–2 $hrLabel"),
+            FarmerGaugeChip("🛡️", "IBD D12–14")
+        )
+        InfographicVisualType.VAX_BOOSTER_DETOX -> listOf(
+            FarmerGaugeChip("🛡️", "LaSota"),
+            FarmerGaugeChip("💧", "AD3E + C"),
+            FarmerGaugeChip("⏱️", "2 $hrLabel")
+        )
+        InfographicVisualType.FEED_STARTER_SPEC -> listOf(
+            FarmerGaugeChip("🌾", "23% ➔ 22% ➔ 20.5%"),
+            FarmerGaugeChip("⚖️", "2.8 $kgLabel"),
+            FarmerGaugeChip("📈", "FCR 1.50")
+        )
+        InfographicVisualType.FEED_GROWER_HEIGHT -> listOf(
+            FarmerGaugeChip("📏", "100%"),
+            FarmerGaugeChip("💧", "18°C–21°C"),
+            FarmerGaugeChip("🌾", "22%")
+        )
+        InfographicVisualType.FEED_FINISHER_PELLETS -> listOf(
+            FarmerGaugeChip("1️⃣", "75 / 25"),
+            FarmerGaugeChip("2️⃣", "50 / 50"),
+            FarmerGaugeChip("3️⃣", "25 / 75")
+        )
+        InfographicVisualType.FEED_WEIGHT_WATER_CURVE -> listOf(
+            FarmerGaugeChip("💧", "1.8x"),
+            FarmerGaugeChip("⚖️", "2.8 $kgLabel"),
+            FarmerGaugeChip("📈", "FCR 1.50")
+        )
+        else -> {
+            val fact1 = spec.quickFacts.getOrNull(0)?.second?.take(18) ?: "1–4 w"
+            val fact2 = spec.quickFacts.getOrNull(3)?.second?.take(18) ?: "< 3.5%"
+            listOf(
+                FarmerGaugeChip("🩺", spec.pathogenCode.ifBlank { "Ross 308" }),
+                FarmerGaugeChip("📅", fact1),
+                FarmerGaugeChip("🌬️", fact2)
             )
         }
     }
 }
 
+private data class StageVisualDisplay(
+    val iconEmoji: String,
+    val prominentBadge: String
+)
+
+private fun stageVisualDisplayFor(
+    visualType: InfographicVisualType,
+    stepIndex: Int,
+    lang: AppLanguage
+): StageVisualDisplay {
+    val cmLabel = if (lang == AppLanguage.AR) "سم" else "cm"
+    val hrLabel = if (lang == AppLanguage.AR) "ساعة" else "h"
+    val kgLabel = Translations.tr("unit_kg", lang)
+
+    return when (visualType) {
+        InfographicVisualType.FEED_STARTER_SPEC -> when (stepIndex) {
+            0 -> StageVisualDisplay("🌾", "23%")
+            1 -> StageVisualDisplay("🌾", "22%")
+            else -> StageVisualDisplay("🌾", "20.5%")
+        }
+        InfographicVisualType.FEED_GROWER_HEIGHT -> when (stepIndex) {
+            0 -> StageVisualDisplay("🐣", "D1–7")
+            1 -> StageVisualDisplay("📏", "100%")
+            else -> StageVisualDisplay("💧", "1.8x")
+        }
+        InfographicVisualType.FEED_FINISHER_PELLETS -> when (stepIndex) {
+            0 -> StageVisualDisplay("🥣", "75 / 25")
+            1 -> StageVisualDisplay("🥣", "50 / 50")
+            else -> StageVisualDisplay("🥣", "25 / 75")
+        }
+        InfographicVisualType.FEED_WEIGHT_WATER_CURVE -> when (stepIndex) {
+            0 -> StageVisualDisplay("💧", "1.8x")
+            1 -> StageVisualDisplay("🌾", "FCR 1.5")
+            else -> StageVisualDisplay("⚖️", "2.8 $kgLabel")
+        }
+        InfographicVisualType.CARE_PREHEAT_PREP -> when (stepIndex) {
+            0 -> StageVisualDisplay("🧼", "24 $hrLabel")
+            1 -> StageVisualDisplay("📏", "5–8 $cmLabel")
+            else -> StageVisualDisplay("🌡️", "33.5°C")
+        }
+        InfographicVisualType.CARE_BROODING_BEHAVIOR -> when (stepIndex) {
+            0 -> StageVisualDisplay("🥶", "< 30°C")
+            1 -> StageVisualDisplay("☀️", "33.5°C")
+            else -> StageVisualDisplay("🥵", "> 36°C")
+        }
+        InfographicVisualType.CARE_VENTILATION_AIRFLOW -> when (stepIndex) {
+            0 -> StageVisualDisplay("🪟", "45°")
+            1 -> StageVisualDisplay("🌀", "Timer")
+            else -> StageVisualDisplay("🌬️", "<10 ppm")
+        }
+        InfographicVisualType.CARE_LIGHTING_PRESALE -> when (stepIndex) {
+            0 -> StageVisualDisplay("🌙", "4–6 $hrLabel")
+            1 -> StageVisualDisplay("📐", "12 / m²")
+            else -> StageVisualDisplay("⏱️", "8–10 $hrLabel")
+        }
+        InfographicVisualType.VAX_RECEPTION_WATER -> when (stepIndex) {
+            0 -> StageVisualDisplay("🧼", "0 ppm")
+            1 -> StageVisualDisplay("💧", "18–21°C")
+            else -> StageVisualDisplay("⚡", "6 $hrLabel")
+        }
+        InfographicVisualType.VAX_NEWCASTLE_EYE_SPRAY -> when (stepIndex) {
+            0 -> StageVisualDisplay("❄️", "2°C–8°C")
+            1 -> StageVisualDisplay("👁️", "1 Drop")
+            else -> StageVisualDisplay("🛡️", "24 $hrLabel")
+        }
+        InfographicVisualType.VAX_GUMBORO_DRINKING -> when (stepIndex) {
+            0 -> StageVisualDisplay("⏱️", "90 min")
+            1 -> StageVisualDisplay("🛡️", "D12–14")
+            else -> StageVisualDisplay("💧", "2 $hrLabel")
+        }
+        InfographicVisualType.VAX_BOOSTER_DETOX -> when (stepIndex) {
+            0 -> StageVisualDisplay("❄️", "2°C–8°C")
+            1 -> StageVisualDisplay("💉", "D18–21")
+            else -> StageVisualDisplay("🛡️", "AD3E")
+        }
+        else -> when (stepIndex) {
+            0 -> StageVisualDisplay("🩺", "D1")
+            1 -> StageVisualDisplay("📉", "FCR")
+            else -> StageVisualDisplay("💊", "AD3E + C")
+        }
+    }
+}
+
+/**
+ * Section 3 of Lesson Page:
+ * High-resolution Nano Banana (`gemini-2.5-flash-image`) hero artwork with permanent disk cache
+ * in `filesDir/nano_banana_book_cache`, backed immediately by bundled watercolor encyclopedia art
+ * and a clear 3-metric Farmer Gauge Strip (🌡️ / 💧 / 🌬️ / 🌾 / ⚖️) with zero baked-in image text.
+ */
 @Composable
-fun ChickenDiseaseAnatomyZoomCanvas(
+fun NanoBananaLessonHeroPanel(
+    lessonId: String,
+    lessonTitle: String,
     spec: EncyclopediaPosterSpec,
     lang: AppLanguage,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
+    val heroImageKey = "hero_$lessonId"
+    var generatedBitmap by remember(heroImageKey) {
+        mutableStateOf<Bitmap?>(BookNanoBananaImageEngine.loadCachedBitmap(context, heroImageKey))
+    }
+
+    LaunchedEffect(heroImageKey, spec.visualType) {
+        if (generatedBitmap == null) {
+            val fetched = BookNanoBananaImageEngine.getOrFetchLessonImage(
+                context = context,
+                imageKey = heroImageKey,
+                prompt = BookNanoBananaImageEngine.buildPromptForHero(lessonId, spec.visualType)
+            )
+            if (fetched != null) {
+                generatedBitmap = fetched
+            }
+        }
+    }
+
+    val gauges = remember(spec.visualType, spec.quickFacts, lang) {
+        farmerHeroGaugesFor(spec, lang)
+    }
+
     Surface(
         modifier = modifier
             .fillMaxWidth()
             .testTag("infographic_canvas_${spec.visualType.name.lowercase()}"),
-        shape = RoundedCornerShape(8.dp),
-        color = Color(0xFFFAF0D7),
-        border = BorderStroke(1.3.dp, BookBorderOuter)
+        shape = RoundedCornerShape(12.dp),
+        color = BookParchmentCard,
+        border = BorderStroke(1.3.dp, BookBorderInner),
+        shadowElevation = 2.dp
     ) {
         Column(
-            modifier = Modifier.padding(8.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
+            modifier = Modifier.fillMaxWidth()
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "📍 ${Translations.tr("book_ribbon_infection_sites", lang)}",
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = BookBurgundy
-                )
-                Surface(
-                    shape = RoundedCornerShape(5.dp),
-                    color = BookBurgundy,
-                    border = BorderStroke(0.8.dp, BookGoldAccent)
-                ) {
-                    Text(
-                        text = "🦠 ${spec.pathogenCode}",
-                        fontSize = 8.5.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = Color.White,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                    )
-                }
-            }
-
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(132.dp)
+                    .height(172.dp)
+                    .background(BookParchmentMid)
             ) {
-                Canvas(modifier = Modifier.fillMaxSize()) {
-                    val w = size.width
-                    val h = size.height
-                    val birdCenterX = w * 0.64f
-                    val birdCenterY = h * 0.52f
-
-                    // 1. Full anatomical cutaway broiler hen silhouette (Head, Serrated Comb, Beak, Eye, Neck, Breast, Wing, Tail, Legs)
-                    drawDetailedBirdSilhouette(
-                        cx = birdCenterX,
-                        cy = birdCenterY,
-                        scaleW = w * 0.62f,
-                        scaleH = h * 0.84f,
-                        bodyFill = Color(0xFFFFF8E7),
-                        strokeColor = BookBorderOuter,
-                        isMatureBroiler = true
+                val bmp = generatedBitmap
+                if (bmp != null) {
+                    Image(
+                        bitmap = bmp.asImageBitmap(),
+                        contentDescription = lessonTitle,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
                     )
-
-                    // 2. Cartilaginous Trachea (القصبة الهوائية) & Bronchial Bifurcation (الشعبتان)
-                    val trStart = Offset(birdCenterX - w * 0.16f, birdCenterY - h * 0.18f)
-                    val trFork = Offset(birdCenterX - w * 0.04f, birdCenterY - h * 0.02f)
-                    drawLine(
-                        color = Color(0xFFDC2626),
-                        start = trStart,
-                        end = trFork,
-                        strokeWidth = 5.5f,
-                        cap = StrokeCap.Round
-                    )
-                    for (ring in 1..5) {
-                        val t = ring / 6f
-                        drawCircle(
-                            color = Color(0xFFFECACA),
-                            radius = 2.1f,
-                            center = Offset(
-                                trStart.x + (trFork.x - trStart.x) * t,
-                                trStart.y + (trFork.y - trStart.y) * t
-                            )
-                        )
-                    }
-                    // Bronchi fork into Lungs
-                    drawLine(
-                        color = Color(0xFFEA580C),
-                        start = trFork,
-                        end = Offset(birdCenterX + w * 0.05f, birdCenterY - h * 0.08f),
-                        strokeWidth = 4.5f,
-                        cap = StrokeCap.Round
-                    )
-                    drawLine(
-                        color = Color(0xFFEA580C),
-                        start = trFork,
-                        end = Offset(birdCenterX + w * 0.04f, birdCenterY + h * 0.06f),
-                        strokeWidth = 4.5f,
-                        cap = StrokeCap.Round
-                    )
-
-                    // 3. Detailed Lungs & Air Sacs (الرئتان والأكياس الهوائية)
-                    drawOval(
-                        color = Color(0xFFE11D48).copy(alpha = 0.85f),
-                        topLeft = Offset(birdCenterX - w * 0.01f, birdCenterY - h * 0.16f),
-                        size = Size(w * 0.16f, h * 0.22f)
-                    )
-                    drawOval(
-                        color = Color(0xFFFDA4AF).copy(alpha = 0.55f),
-                        topLeft = Offset(birdCenterX + w * 0.08f, birdCenterY - h * 0.06f),
-                        size = Size(w * 0.12f, h * 0.18f)
-                    )
-
-                    // 4. Crop, Gizzard & Intestinal Tract / Ceca (الأمعاء والأعوران)
-                    drawCircle(
-                        color = Color(0xFFD97706),
-                        radius = h * 0.065f,
-                        center = Offset(birdCenterX - w * 0.11f, birdCenterY + h * 0.06f)
-                    )
-                    drawOval(
-                        color = if (spec.visualType == InfographicVisualType.DIS_COCCIDIOSIS_GUT) Color(0xFFB91C1C) else Color(0xFF059669),
-                        topLeft = Offset(birdCenterX + w * 0.02f, birdCenterY + h * 0.08f),
-                        size = Size(w * 0.16f, h * 0.16f)
-                    )
-
-                    // 5. Circular Magnified Zoom Inset on the left (عدسة تكبير التهاب الشعب/الأمعاء)
-                    val zoomCenter = Offset(w * 0.21f, h * 0.48f)
-                    val zoomRadius = h * 0.35f
-                    val targetOrganOffset = if (spec.visualType == InfographicVisualType.DIS_COCCIDIOSIS_GUT) {
-                        Offset(birdCenterX + w * 0.06f, birdCenterY + h * 0.14f)
-                    } else {
-                        trFork
-                    }
-                    drawLine(
-                        color = BookBurgundy,
-                        start = targetOrganOffset,
-                        end = Offset(zoomCenter.x + zoomRadius, zoomCenter.y),
-                        strokeWidth = 2f
-                    )
-                    drawCircle(color = Color(0xFFFEF2F2), radius = zoomRadius, center = zoomCenter)
-                    drawCircle(color = BookBurgundy, radius = zoomRadius, center = zoomCenter, style = Stroke(width = 3f))
-                    // Inflamed bronchial/mucosal ring & yellow mucus plug inside Zoom Inset
-                    drawCircle(color = Color(0xFFDC2626), radius = zoomRadius * 0.66f, center = zoomCenter, style = Stroke(width = 5.5f))
-                    drawCircle(color = Color(0xFFFBBF24), radius = zoomRadius * 0.38f, center = zoomCenter)
-                    for (deg in 0 until 360 step 45) {
-                        val rad = deg * Math.PI / 180.0
-                        drawLine(
-                            color = BookBurgundyDark,
-                            start = zoomCenter,
-                            end = Offset(
-                                (zoomCenter.x + cos(rad) * zoomRadius * 0.52f).toFloat(),
-                                (zoomCenter.y + sin(rad) * zoomRadius * 0.52f).toFloat()
-                            ),
-                            strokeWidth = 2f
-                        )
-                    }
-                }
-
-                Surface(
-                    modifier = Modifier
-                        .align(Alignment.BottomStart)
-                        .padding(2.dp),
-                    shape = RoundedCornerShape(4.dp),
-                    color = BookBurgundyDark
-                ) {
-                    Text(
-                        text = "🔍 ${spec.zoomInsetTitle}",
-                        fontSize = 7.5.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFFFFF8E7),
-                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                } else {
+                    Image(
+                        painter = painterResource(
+                            id = BookNanoBananaImageEngine.bundledFallbackDrawableFor(spec.visualType)
+                        ),
+                        contentDescription = lessonTitle,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
                     )
                 }
             }
 
-            // Anatomical callouts strip
-            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                spec.anatomyLabels.take(4).chunked(2).forEach { rowItems ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+            // Crisp, ultra-readable farmer telemetry & standards strip below illustration
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(BookParchmentMid)
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                gauges.forEach { gauge ->
+                    Surface(
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(8.dp),
+                        color = BookParchmentCard,
+                        border = BorderStroke(1.dp, BookBorderInner)
                     ) {
-                        rowItems.forEach { item ->
-                            Surface(
-                                modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(5.dp),
-                                color = BookParchmentLight,
-                                border = BorderStroke(0.8.dp, BookBorderInner)
-                            ) {
-                                Column(modifier = Modifier.padding(4.dp)) {
-                                    Text(
-                                        text = "• ${item.partName}",
-                                        fontSize = 8.5.sp,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        color = BookBurgundy
-                                    )
-                                    Text(
-                                        text = item.lesionNote,
-                                        fontSize = 7.5.sp,
-                                        color = BookBurgundyDark,
-                                        lineHeight = 10.sp
-                                    )
-                                }
-                            }
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 6.dp, vertical = 5.dp),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(text = gauge.icon, fontSize = 12.sp)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = gauge.metricValue,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = BookBurgundyDark,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
                         }
                     }
                 }
@@ -1254,58 +1046,187 @@ fun ChickenDiseaseAnatomyZoomCanvas(
     }
 }
 
+/**
+ * Farmer-clear illustration box inside each of the 3 stage cards (1 | 2 | 3).
+ * Loads cached/fetched Nano Banana step image when available, otherwise shows unmistakable
+ * agricultural icon + large metric badge (no vague brown drawRect shapes).
+ */
 @Composable
-fun PinnedImportantNoteCard(
-    title: String,
-    noteText: String,
+fun NanoBananaStageArtBox(
+    lessonId: String,
+    visualType: InfographicVisualType,
+    stepIndex: Int,
+    lang: AppLanguage,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
+    val stepKey = "step_${lessonId}_$stepIndex"
+    var stepBitmap by remember(stepKey) {
+        mutableStateOf<Bitmap?>(BookNanoBananaImageEngine.loadCachedBitmap(context, stepKey))
+    }
+
+    LaunchedEffect(stepKey, visualType) {
+        if (stepBitmap == null) {
+            val fetched = BookNanoBananaImageEngine.getOrFetchLessonImage(
+                context = context,
+                imageKey = stepKey,
+                prompt = BookNanoBananaImageEngine.buildPromptForStep(lessonId, visualType, stepIndex)
+            )
+            if (fetched != null) {
+                stepBitmap = fetched
+            }
+        }
+    }
+
+    val stageVisual = remember(visualType, stepIndex, lang) {
+        stageVisualDisplayFor(visualType, stepIndex, lang)
+    }
+
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .testTag("vintage_pinned_important_note"),
-        contentAlignment = Alignment.TopCenter
+            .height(78.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(BookParchmentMid),
+        contentAlignment = Alignment.Center
     ) {
-        Surface(
-            modifier = Modifier
-                .padding(top = 6.dp)
-                .fillMaxWidth(),
-            shape = RoundedCornerShape(8.dp),
-            color = Color(0xFFFFF8DC),
-            border = BorderStroke(1.2.dp, BookBurgundy)
-        ) {
+        val bmp = stepBitmap
+        if (bmp != null) {
+            Image(
+                bitmap = bmp.asImageBitmap(),
+                contentDescription = stageVisual.prominentBadge,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+        } else {
             Column(
-                modifier = Modifier.padding(8.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(4.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
             ) {
                 Text(
-                    text = title,
-                    fontSize = 9.5.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = BookBurgundy
+                    text = stageVisual.iconEmoji,
+                    fontSize = 26.sp,
+                    textAlign = TextAlign.Center
                 )
-                Text(
-                    text = noteText.removePrefix("⚠️ ملاحظة مهمة:").removePrefix("⚠️ Important Note:").trim(),
-                    fontSize = 8.5.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = BookBurgundyDark,
-                    lineHeight = 12.sp
-                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Surface(
+                    shape = RoundedCornerShape(6.dp),
+                    color = BookParchmentCard,
+                    border = BorderStroke(1.dp, BookBurgundy)
+                ) {
+                    Text(
+                        text = stageVisual.prominentBadge,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = BookBurgundyDark,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
+                }
             }
-        }
-        Canvas(modifier = Modifier.size(14.dp)) {
-            drawCircle(color = Color(0xFFDC2626), radius = 6f, center = Offset(size.width / 2f, 6f))
-            drawCircle(color = Color(0xFFFCA5A5), radius = 2.2f, center = Offset(size.width / 2f - 1.5f, 4.5f))
-            drawLine(
-                color = Color(0xFF475569),
-                start = Offset(size.width / 2f, 11f),
-                end = Offset(size.width / 2f, 14f),
-                strokeWidth = 2f
-            )
         }
     }
 }
 
+/**
+ * Clean 50% / 50% Farmer Comparison Card ("✅ علامات النجاح — افعل هذا" vs "❌ تجنّب هذا الخطأ — إياك وهذا")
+ * replacing the ambiguous internal chick anatomy diagram.
+ */
+@Composable
+fun SuccessMistakeFarmerCard(
+    isSuccess: Boolean,
+    headerTitle: String,
+    bodyText: String,
+    textLayoutDirection: LayoutDirection,
+    modifier: Modifier = Modifier
+) {
+    val bannerColor = if (isSuccess) Color(0xFF15803D) else Color(0xFFB91C1C)
+    val softTintBg = if (isSuccess) Color(0xFFF0FDF4) else Color(0xFFFEF2F2)
+    val cardBorder = if (isSuccess) Color(0xFF15803D) else Color(0xFFB91C1C)
+    val badgeSymbol = if (isSuccess) "✓" else "✕"
+
+    CompositionLocalProvider(LocalLayoutDirection provides textLayoutDirection) {
+        Surface(
+            modifier = modifier
+                .fillMaxWidth()
+                .fillMaxHeight()
+                .testTag(if (isSuccess) "book_card_success_farmer" else "book_card_mistake_farmer"),
+            shape = RoundedCornerShape(12.dp),
+            color = softTintBg,
+            border = BorderStroke(1.5.dp, cardBorder),
+            shadowElevation = 2.dp
+        ) {
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(bannerColor)
+                        .padding(horizontal = 8.dp, vertical = 7.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = headerTitle,
+                        fontSize = 10.5.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = Color.White,
+                        textAlign = TextAlign.Center,
+                        maxLines = 2,
+                        lineHeight = 13.5.sp,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 10.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Surface(
+                        shape = CircleShape,
+                        color = bannerColor,
+                        border = BorderStroke(2.dp, Color.White),
+                        shadowElevation = 2.dp,
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text(
+                                text = badgeSymbol,
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Color.White
+                            )
+                        }
+                    }
+
+                    Text(
+                        text = bodyText,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = BookBurgundyDark,
+                        textAlign = TextAlign.Center,
+                        lineHeight = 15.5.sp,
+                        maxLines = 4,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Bottom Sepia Farm Engraving Footer (barn, silos, trees, flock of hens) + plain text swipe line.
+ */
 @Composable
 fun SepiaFarmEngravingFooterCanvas(
     pageNumber: Int,
@@ -1313,70 +1234,169 @@ fun SepiaFarmEngravingFooterCanvas(
     lang: AppLanguage,
     modifier: Modifier = Modifier
 ) {
-    val pageLabel = Translations.tr("book_page_footer_fmt", lang)
+    val pageLabel = Translations.tr("book_swipe_page_footer_fmt", lang)
         .replace("{page}", pageNumber.toString())
         .replace("{total}", totalPages.toString())
 
-    Box(
+    Column(
         modifier = modifier
             .fillMaxWidth()
-            .height(44.dp)
             .testTag("vintage_sepia_farm_footer"),
-        contentAlignment = Alignment.BottomCenter
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(3.dp)
     ) {
-        Canvas(modifier = Modifier.fillMaxSize()) {
+        Canvas(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(42.dp)
+        ) {
             val w = size.width
             val h = size.height
+            val groundY = h * 0.84f
+
+            // Ground horizon line
             drawLine(
                 color = BookSepiaInk,
-                start = Offset(0f, h * 0.78f),
-                end = Offset(w, h * 0.78f),
-                strokeWidth = 2f
+                start = Offset(0f, groundY),
+                end = Offset(w, groundY),
+                strokeWidth = 1.6f
             )
+
+            // Left farm poultry barn with gabled roof
             val barnPath = Path().apply {
-                moveTo(w * 0.06f, h * 0.78f)
-                lineTo(w * 0.06f, h * 0.45f)
-                lineTo(w * 0.14f, h * 0.22f)
-                lineTo(w * 0.22f, h * 0.45f)
-                lineTo(w * 0.22f, h * 0.78f)
+                moveTo(w * 0.08f, groundY)
+                lineTo(w * 0.08f, h * 0.46f)
+                lineTo(w * 0.22f, h * 0.16f)
+                lineTo(w * 0.36f, h * 0.46f)
+                lineTo(w * 0.36f, groundY)
                 close()
             }
-            drawPath(barnPath, color = BookSepiaInk.copy(alpha = 0.22f))
-            drawPath(barnPath, color = BookSepiaInk, style = Stroke(width = 1.6f))
-            drawRoundRect(
-                color = BookSepiaInk.copy(alpha = 0.28f),
-                topLeft = Offset(w * 0.24f, h * 0.26f),
-                size = Size(w * 0.05f, h * 0.52f),
-                cornerRadius = CornerRadius(4f, 4f)
-            )
-            val rightBarn = Path().apply {
-                moveTo(w * 0.76f, h * 0.78f)
-                lineTo(w * 0.76f, h * 0.48f)
-                lineTo(w * 0.85f, h * 0.26f)
-                lineTo(w * 0.94f, h * 0.48f)
-                lineTo(w * 0.94f, h * 0.78f)
-                close()
+            drawPath(barnPath, color = BookSepiaInk.copy(alpha = 0.16f))
+            drawPath(barnPath, color = BookSepiaInk, style = Stroke(width = 1.5f, join = StrokeJoin.Round))
+
+            // Twin feed silos beside barn
+            listOf(0.42f, 0.465f).forEach { sx ->
+                drawRoundRect(
+                    color = BookSepiaInk.copy(alpha = 0.20f),
+                    topLeft = Offset(w * sx, h * 0.24f),
+                    size = Size(w * 0.038f, groundY - h * 0.24f),
+                    cornerRadius = CornerRadius(4f, 4f)
+                )
+                drawRoundRect(
+                    color = BookSepiaInk,
+                    topLeft = Offset(w * sx, h * 0.24f),
+                    size = Size(w * 0.038f, groundY - h * 0.24f),
+                    cornerRadius = CornerRadius(4f, 4f),
+                    style = Stroke(1.2f)
+                )
             }
-            drawPath(rightBarn, color = BookSepiaInk.copy(alpha = 0.22f))
-            drawPath(rightBarn, color = BookSepiaInk, style = Stroke(width = 1.6f))
-            drawCircle(color = BookSepiaInk.copy(alpha = 0.35f), radius = 8f, center = Offset(w * 0.71f, h * 0.50f))
-            drawLine(BookSepiaInk, Offset(w * 0.71f, h * 0.58f), Offset(w * 0.71f, h * 0.78f), strokeWidth = 2f)
+
+            // Shady trees on right
+            listOf(0.76f, 0.85f).forEach { tx ->
+                drawLine(BookSepiaInk, Offset(w * tx, h * 0.56f), Offset(w * tx, groundY), strokeWidth = 2.0f)
+                drawCircle(BookSepiaInk.copy(alpha = 0.22f), radius = 10f, center = Offset(w * tx, h * 0.46f))
+                drawCircle(BookSepiaInk, radius = 10f, center = Offset(w * tx, h * 0.46f), style = Stroke(1.2f))
+            }
+
+            // Small grazing hens silhouette flock on lower right
+            listOf(0.56f, 0.62f, 0.68f, 0.74f).forEach { hx ->
+                drawOval(
+                    color = BookSepiaInk.copy(alpha = 0.65f),
+                    topLeft = Offset(w * hx, h * 0.68f),
+                    size = Size(11f, 7f)
+                )
+                drawCircle(
+                    color = BookSepiaInk.copy(alpha = 0.70f),
+                    radius = 2.4f,
+                    center = Offset(w * hx + 11f, h * 0.67f)
+                )
+            }
         }
-        Surface(
-            shape = RoundedCornerShape(10.dp),
-            color = BookBurgundy,
-            border = BorderStroke(1.dp, BookGoldAccent),
-            modifier = Modifier.padding(bottom = 2.dp)
-        ) {
-            Text(
-                text = "📖 $pageLabel",
-                fontSize = 9.5.sp,
-                fontWeight = FontWeight.ExtraBold,
-                color = Color(0xFFFFF8E7),
-                modifier = Modifier
-                    .padding(horizontal = 12.dp, vertical = 3.dp)
-                    .testTag("vintage_book_page_number_badge")
-            )
+
+        // Plain simple text line directly on parchment (NO button box background)
+        Text(
+            text = pageLabel,
+            fontSize = 10.5.sp,
+            fontWeight = FontWeight.ExtraBold,
+            color = BookBurgundyDark,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center,
+            modifier = Modifier
+                .padding(horizontal = 8.dp, vertical = 2.dp)
+                .testTag("vintage_book_page_number_badge")
+        )
+    }
+}
+
+@Composable
+fun VintageBookShelfCoverEmblem(
+    branchIndex: Int,
+    accentColor: Color,
+    modifier: Modifier = Modifier
+) {
+    Canvas(modifier = modifier.size(52.dp)) {
+        val w = size.width
+        val h = size.height
+        val cx = w / 2f
+        val cy = h / 2f
+        drawCircle(
+            color = accentColor.copy(alpha = 0.14f),
+            radius = w * 0.46f,
+            center = Offset(cx, cy)
+        )
+        drawCircle(
+            color = BookGoldAccent.copy(alpha = 0.65f),
+            radius = w * 0.44f,
+            center = Offset(cx, cy),
+            style = Stroke(width = 2.2f)
+        )
+        when (branchIndex) {
+            0 -> {
+                val canopy = Path().apply {
+                    moveTo(cx - w * 0.26f, h * 0.34f)
+                    lineTo(cx + w * 0.26f, h * 0.34f)
+                    lineTo(cx + w * 0.12f, h * 0.18f)
+                    lineTo(cx - w * 0.12f, h * 0.18f)
+                    close()
+                }
+                drawPath(canopy, color = BookBurgundy)
+                drawCircle(color = Color(0xFFF59E0B).copy(alpha = 0.35f), radius = w * 0.22f, center = Offset(cx, h * 0.56f))
+                drawClassicBirdIllustration(cx, h * 0.62f, w * 0.38f, h * 0.38f, Color(0xFFFDE047), Color(0xFFD97706), BookSepiaInk, showSoftGroundShadow = false)
+            }
+            1 -> {
+                val shield = Path().apply {
+                    moveTo(cx, h * 0.18f)
+                    lineTo(cx + w * 0.26f, h * 0.28f)
+                    lineTo(cx + w * 0.20f, h * 0.60f)
+                    lineTo(cx, h * 0.80f)
+                    lineTo(cx - w * 0.20f, h * 0.60f)
+                    lineTo(cx - w * 0.26f, h * 0.28f)
+                    close()
+                }
+                drawPath(shield, color = Color(0xFF0F766E).copy(alpha = 0.25f))
+                drawPath(shield, color = Color(0xFF0F766E), style = Stroke(width = 2.5f))
+                drawLine(Color(0xFF0F766E), Offset(cx, h * 0.34f), Offset(cx, h * 0.62f), strokeWidth = 3.5f)
+                drawLine(Color(0xFF0F766E), Offset(cx - w * 0.12f, h * 0.48f), Offset(cx + w * 0.12f, h * 0.48f), strokeWidth = 3.5f)
+            }
+            2 -> {
+                drawLine(BookBurgundy, Offset(cx, h * 0.20f), Offset(cx, h * 0.45f), strokeWidth = 3.5f)
+                drawLine(BookBurgundy, Offset(cx, h * 0.45f), Offset(cx - w * 0.14f, h * 0.56f), strokeWidth = 3f)
+                drawLine(BookBurgundy, Offset(cx, h * 0.45f), Offset(cx + w * 0.14f, h * 0.56f), strokeWidth = 3f)
+                drawOval(color = Color(0xFFE11D48).copy(alpha = 0.35f), topLeft = Offset(cx - w * 0.28f, h * 0.48f), size = Size(w * 0.22f, h * 0.28f))
+                drawOval(color = Color(0xFFE11D48).copy(alpha = 0.35f), topLeft = Offset(cx + w * 0.06f, h * 0.48f), size = Size(w * 0.22f, h * 0.28f))
+                drawOval(color = BookBurgundy, topLeft = Offset(cx - w * 0.28f, h * 0.48f), size = Size(w * 0.22f, h * 0.28f), style = Stroke(width = 2f))
+                drawOval(color = BookBurgundy, topLeft = Offset(cx + w * 0.06f, h * 0.48f), size = Size(w * 0.22f, h * 0.28f), style = Stroke(width = 2f))
+            }
+            else -> {
+                drawFeedPileIllustration(cx, h * 0.72f, w * 0.52f, h * 0.36f, granuleSizeScale = 1.0f)
+                val curve = Path().apply {
+                    moveTo(cx - w * 0.22f, h * 0.64f)
+                    lineTo(cx - w * 0.02f, h * 0.52f)
+                    lineTo(cx + w * 0.20f, h * 0.30f)
+                }
+                drawPath(curve, color = Color(0xFF15803D), style = Stroke(width = 2.8f, cap = StrokeCap.Round))
+            }
         }
     }
 }

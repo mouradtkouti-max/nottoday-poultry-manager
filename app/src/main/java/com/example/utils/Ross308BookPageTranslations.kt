@@ -666,6 +666,470 @@ object Ross308BookPageTranslations {
             "zh" to "• 存栏活鸡：{live} / {placed}（第 {day} 天）\n• 成活率：{livPct}% | 累计死淘：{mort}（{mortPct}% — 安全线 < 3.5%）\n• 当前舍温：{temp}",
             "de" to "• Lebende Tiere: {live} von {placed} (Tag {day})\n• Vitalität: {livPct}% | Gesamtmortalität: {mort} ({mortPct}% — Sicher < 3.5%)\n• Aktuelle Stalltemperatur: {temp}",
             "it" to "• Capi vivi: {live} su {placed} (Giorno {day})\n• Vitalità: {livPct}% | Mortalità cumulativa: {mort} ({mortPct}% — Sicuro < 3.5%)\n• Temperatura attuale: {temp}"
+        ),
+        "book_btn_back_to_4_books" to mapOf(
+            "ar" to "⬅ العودة إلى الكتب الأربعة",
+            "en" to "⬅ Back to 4 Books",
+            "fr" to "⬅ Retour aux 4 Livres",
+            "es" to "⬅ Volver a los 4 Libros",
+            "pt" to "⬅ Voltar aos 4 Livros",
+            "tr" to "⬅ 4 Kitaba Dön",
+            "id" to "⬅ Kembali ke 4 Buku",
+            "hi" to "⬅ 4 पुस्तकों पर लौटें",
+            "ur" to "⬅ چار کتابوں پر واپس جائیں",
+            "sw" to "⬅ Rudi kwa Vitabu 4",
+            "ru" to "⬅ Назад к 4 книгам",
+            "zh" to "⬅ 返回四本专著",
+            "de" to "⬅ Zurück zu den 4 Büchern",
+            "it" to "⬅ Torna ai 4 Libri"
+        ),
+        "book_btn_back_to_index" to mapOf(
+            "ar" to "⬅ الفهرس",
+            "en" to "⬅ Index",
+            "fr" to "⬅ Sommaire",
+            "es" to "⬅ Índice",
+            "pt" to "⬅ Índice",
+            "tr" to "⬅ İçindekiler",
+            "id" to "⬅ Daftar Isi",
+            "hi" to "⬅ सूची",
+            "ur" to "⬅ فہرست",
+            "sw" to "⬅ Orodha",
+            "ru" to "⬅ Оглавление",
+            "zh" to "⬅ 目录",
+            "de" to "⬅ Inhalt",
+            "it" to "⬅ Indice"
+        ),
+        "book_index_header_fmt" to mapOf(
+            "ar" to "فهرس: {book} ({count} دروس)",
+            "en" to "Index: {book} ({count} Lessons)",
+            "fr" to "Sommaire : {book} ({count} Leçons)",
+            "es" to "Índice: {book} ({count} Lecciones)",
+            "pt" to "Índice: {book} ({count} Lições)",
+            "tr" to "İçindekiler: {book} ({count} Ders)",
+            "id" to "Daftar Isi: {book} ({count} Pelajaran)",
+            "hi" to "अनुक्रमणिका: {book} ({count} पाठ)",
+            "ur" to "فہرست: {book} ({count} اسباق)",
+            "sw" to "Orodha: {book} (Masomo {count})",
+            "ru" to "Оглавление: {book} ({count} урока)",
+            "zh" to "目录：{book}（共 {count} 课）",
+            "de" to "Inhalt: {book} ({count} Lektionen)",
+            "it" to "Indice: {book} ({count} Lezioni)"
+        ),
+        "book_index_short_0" to mapOf(
+            "ar" to "برنامج الرعاية",
+            "en" to "Care & Brooding",
+            "fr" to "Soins & Démarrage",
+            "es" to "Cuidado y Cría",
+            "pt" to "Manejo e Cria",
+            "tr" to "Bakım ve Büyütme",
+            "id" to "Perawatan & Brooding",
+            "hi" to "देखभाल और ब्रूडिंग",
+            "ur" to "نگہداشت اور بروڈنگ",
+            "sw" to "Utunzaji na Malezi",
+            "ru" to "Уход и содержание",
+            "zh" to "育雏与环境管理",
+            "de" to "Pflege & Aufzucht",
+            "it" to "Cura e Allevamento"
+        ),
+        "book_index_short_1" to mapOf(
+            "ar" to "برنامج التحصينات",
+            "en" to "Vaccination Program",
+            "fr" to "Programme de Vaccination",
+            "es" to "Programa de Vacunación",
+            "pt" to "Programa de Vacinação",
+            "tr" to "Aşılama Programı",
+            "id" to "Program Vaksinasi",
+            "hi" to "टीकाकरण कार्यक्रम",
+            "ur" to "ویکسینیشن پروگرام",
+            "sw" to "Mpango wa Chanjo",
+            "ru" to "Программа вакцинации",
+            "zh" to "免疫接种程序",
+            "de" to "Impfprogramm",
+            "it" to "Piano Vaccinale"
+        ),
+        "book_index_short_2" to mapOf(
+            "ar" to "الأمراض والوقاية",
+            "en" to "Diseases & Prevention",
+            "fr" to "Maladies & Prévention",
+            "es" to "Enfermedades y Prevención",
+            "pt" to "Doenças e Prevenção",
+            "tr" to "Hastalıklar ve Korunma",
+            "id" to "Penyakit & Pencegahan",
+            "hi" to "रोग और रोकथाम",
+            "ur" to "بیماریاں اور احتیاط",
+            "sw" to "Magonjwa na Kinga",
+            "ru" to "Болезни и профилактика",
+            "zh" to "常见疾病与防控",
+            "de" to "Krankheiten & Schutz",
+            "it" to "Malattie e Prevenzione"
+        ),
+        "book_index_short_3" to mapOf(
+            "ar" to "التغذية والأوزان",
+            "en" to "Nutrition & Weights",
+            "fr" to "Nutrition & Poids",
+            "es" to "Nutrición y Pesos",
+            "pt" to "Nutrição e Pesos",
+            "tr" to "Besleme ve Ağırlıklar",
+            "id" to "Nutrisi & Bobot",
+            "hi" to "पोषण और वजन",
+            "ur" to "غذائیت اور وزن",
+            "sw" to "Lishe na Uzito",
+            "ru" to "Кормление и вес",
+            "zh" to "营养与体重管理",
+            "de" to "Fütterung & Gewicht",
+            "it" to "Nutrizione e Pesi"
+        ),
+        "book_ribbon_success_signs" to mapOf(
+            "ar" to "علامات النجاح:",
+            "en" to "Signs of Success:",
+            "fr" to "Signes de réussite :",
+            "es" to "Señales de éxito:",
+            "pt" to "Sinais de sucesso:",
+            "tr" to "Başarı İşaretleri:",
+            "id" to "Tanda Keberhasilan:",
+            "hi" to "सफलता के संकेत:",
+            "ur" to "کامیابی کی علامات:",
+            "sw" to "Dalili za Mafanikio:",
+            "ru" to "Признаки успеха:",
+            "zh" to "达标成功标志：",
+            "de" to "Erfolgszeichen:",
+            "it" to "Segni di successo:"
+        ),
+        "book_card_success_do_this" to mapOf(
+            "ar" to "✅ علامات النجاح — افعل هذا",
+            "en" to "✅ Signs of Success — Do This",
+            "fr" to "✅ Signes de réussite — À faire",
+            "es" to "✅ Señales de éxito — Haz esto",
+            "pt" to "✅ Sinais de sucesso — Faça isto",
+            "tr" to "✅ Başarı İşaretleri — Bunu Yap",
+            "id" to "✅ Tanda Berhasil — Lakukan Ini",
+            "hi" to "✅ सफलता के संकेत — ऐसा करें",
+            "ur" to "✅ کامیابی کی علامات — یہ کریں",
+            "sw" to "✅ Dalili za Mafanikio — Fanya Hivi",
+            "ru" to "✅ Признаки успеха — Делай так",
+            "zh" to "✅ 成功标志 — 正确做法",
+            "de" to "✅ Erfolgszeichen — So machen",
+            "it" to "✅ Segni di successo — Fai così"
+        ),
+        "book_card_avoid_dont" to mapOf(
+            "ar" to "❌ تجنّب هذا الخطأ — إياك وهذا",
+            "en" to "❌ Avoid This Mistake — Don't Do This",
+            "fr" to "❌ Erreur à éviter — À ne pas faire",
+            "es" to "❌ Evita este error — No hagas esto",
+            "pt" to "❌ Evite este erro — Não faça isso",
+            "tr" to "❌ Bu Hatadan Kaçın — Bunu Yapma",
+            "id" to "❌ Hindari Kesalahan — Jangan Ini",
+            "hi" to "❌ इस गलती से बचें — ऐसा न करें",
+            "ur" to "❌ اس غلطی سے بچیں — ہرگز نہ کریں",
+            "sw" to "❌ Epuka Kosa Hili — Usifanye Hivi",
+            "ru" to "❌ Избегай ошибки — Так нельзя",
+            "zh" to "❌ 避免此错误 — 切勿这样做",
+            "de" to "❌ Fehler vermeiden — Nicht so",
+            "it" to "❌ Evita l'errore — Non fare così"
+        ),
+        "book_badge_stopped_here" to mapOf(
+            "ar" to "🔖 توقفت هنا",
+            "en" to "🔖 Stopped here",
+            "fr" to "🔖 Reprendre ici",
+            "es" to "🔖 Detenido aquí",
+            "pt" to "🔖 Parou aqui",
+            "tr" to "🔖 Burada kaldın",
+            "id" to "🔖 Terakhir dibaca",
+            "hi" to "🔖 यहाँ रुके थे",
+            "ur" to "🔖 آپ یہاں رکے تھے",
+            "sw" to "🔖 Uliishia hapa",
+            "ru" to "🔖 Вы остановились здесь",
+            "zh" to "🔖 上次读到这里",
+            "de" to "🔖 Hier gestoppt",
+            "it" to "🔖 Riprendi qui"
+        ),
+        "book_btn_start_reading" to mapOf(
+            "ar" to "إبدأ القراءة 📖",
+            "en" to "Start Reading 📖",
+            "fr" to "Lire la leçon 📖",
+            "es" to "Empezar a leer 📖",
+            "pt" to "Começar a ler 📖",
+            "tr" to "Okumaya Başla 📖",
+            "id" to "Mulai Membaca 📖",
+            "hi" to "पढ़ना शुरू करें 📖",
+            "ur" to "پڑھنا شروع کریں 📖",
+            "sw" to "Anza Kusoma 📖",
+            "ru" to "Начать чтение 📖",
+            "zh" to "开始阅读 📖",
+            "de" to "Lesen starten 📖",
+            "it" to "Inizia a leggere 📖"
+        ),
+        "book_swipe_page_footer_fmt" to mapOf(
+            "ar" to "اسحب يميناً أو يساراً لتقليب الصفحة ({page} / {total})",
+            "en" to "Swipe left or right to flip page ({page} / {total})",
+            "fr" to "Glissez pour tourner la page ({page} / {total})",
+            "es" to "Desliza para pasar la página ({page} / {total})",
+            "pt" to "Deslize para virar a página ({page} / {total})",
+            "tr" to "Sayfayı çevirmek için kaydırın ({page} / {total})",
+            "id" to "Geser kiri/kanan untuk balik halaman ({page} / {total})",
+            "hi" to "पृष्ठ पलटने के लिए बाएँ/दाएँ स्वाइप करें ({page} / {total})",
+            "ur" to "صفحہ پلٹنے کے لیے دائیں یا بائیں سوائپ کریں ({page} / {total})",
+            "sw" to "Telezesha kugeuza ukurasa ({page} / {total})",
+            "ru" to "Проведите влево/вправо, чтобы перевернуть ({page} / {total})",
+            "zh" to "左右滑动翻页（第 {page} / {total} 页）",
+            "de" to "Zum Umblättern wischen ({page} / {total})",
+            "it" to "Scorri per voltare pagina ({page} / {total})"
+        ),
+        "book_barn_selector_label" to mapOf(
+            "ar" to "🏠 العنبر:",
+            "en" to "🏠 Barn:",
+            "fr" to "🏠 Bâtiment :",
+            "es" to "🏠 Galpón:",
+            "pt" to "🏠 Galpão:",
+            "tr" to "🏠 Kümes:",
+            "id" to "🏠 Kandang:",
+            "hi" to "🏠 शेड:",
+            "ur" to "🏠 شیڈ:",
+            "sw" to "🏠 Banda:",
+            "ru" to "🏠 Птичник:",
+            "zh" to "🏠 鸡舍：",
+            "de" to "🏠 Stall:",
+            "it" to "🏠 Capannone:"
+        ),
+        "book_4_lessons_badge_fmt" to mapOf(
+            "ar" to "4 دروس",
+            "en" to "4 Lessons",
+            "fr" to "4 Leçons",
+            "es" to "4 Lecciones",
+            "pt" to "4 Lições",
+            "tr" to "4 Ders",
+            "id" to "4 Pelajaran",
+            "hi" to "4 पाठ",
+            "ur" to "4 اسباق",
+            "sw" to "Masomo 4",
+            "ru" to "4 урока",
+            "zh" to "4 课",
+            "de" to "4 Lektionen",
+            "it" to "4 Lezioni"
+        ),
+        "book_branch_3_title_display" to mapOf(
+            "ar" to "4. برنامج التغذية والأوزان 🌾",
+            "en" to "4. Feeding & Weight Program 🌾",
+            "fr" to "4. Programme Alimentation & Poids 🌾",
+            "es" to "4. Programa de Alimentación y Peso 🌾",
+            "pt" to "4. Programa de Nutrição e Peso 🌾",
+            "tr" to "4. Besleme ve Ağırlık Programı 🌾",
+            "id" to "4. Program Pakan & Bobot 🌾",
+            "hi" to "4. पोषण और वजन कार्यक्रम 🌾",
+            "ur" to "4. غذائی پروگرام اور وزن 🌾",
+            "sw" to "4. Mpango wa Lishe na Uzito 🌾",
+            "ru" to "4. Программа кормления и веса 🌾",
+            "zh" to "4. 饲喂与体重管理 🌾",
+            "de" to "4. Fütterungs- & Gewichtsprogramm 🌾",
+            "it" to "4. Programma Alimentazione e Peso 🌾"
+        ),
+        "book_branch_0_shelf_desc" to mapOf(
+            "ar" to "التطهير، التحضين، التهوية، والإظلام",
+            "en" to "Pre-heat, brooding, ventilation & light",
+            "fr" to "Désinfection, chauffage, ventilation et lumière",
+            "es" to "Precalentamiento, cría, ventilación y luz",
+            "pt" to "Pré-aquecimento, manejo, ventilação e luz",
+            "tr" to "Isıtma, civciv bakımı, havalandırma ve ışık",
+            "id" to "Pemanasan, brooding, ventilasi & cahaya",
+            "hi" to "हीटिंग, ब्रूडिंग, वेंटिलेशन और प्रकाश",
+            "ur" to "صفائی، بروڈنگ، ہوا داری اور روشنی",
+            "sw" to "Joto, malezi, hewa na mwanga",
+            "ru" to "Прогрев, брудер, вентиляция и свет",
+            "zh" to "消毒预温、育雏、通风与光照",
+            "de" to "Vorheizen, Aufzucht, Lüftung & Licht",
+            "it" to "Preriscaldo, svezzamento, ventilazione e luce"
+        ),
+        "book_branch_1_shelf_desc" to mapOf(
+            "ar" to "الاستقبال، التقطير، الجمبورو، والمنشط",
+            "en" to "Reception, eye-drop, Gumboro & booster",
+            "fr" to "Accueil, goutte oculaire, Gumboro et rappel",
+            "es" to "Recepción, gota ocular, Gumboro y refuerzo",
+            "pt" to "Recepção, gota ocular, Gumboro e reforço",
+            "tr" to "Karşılama, göz damlası, Gumboro ve rapel",
+            "id" to "Penerimaan, tetes mata, Gumboro & booster",
+            "hi" to "रिसेप्शन, आई-ड्रॉप, गम्बोरो और बूस्टर",
+            "ur" to "استقبال، آئی ڈراپ، گمبورو اور بوسٹر",
+            "sw" to "Mapokezi, matone, Gumboro na nyongeza",
+            "ru" to "Приемка, закапывание, Гамборо и бустер",
+            "zh" to "接雏饮水、点眼、法氏囊与加强免疫",
+            "de" to "Empfang, Augentropfen, Gumboro & Booster",
+            "it" to "Accoglienza, goccia oculare, Gumboro e richiamo"
+        ),
+        "book_branch_2_shelf_desc" to mapOf(
+            "ar" to "البرونشيت، الميكوبلازما، الكوكسيديا، والطوارئ",
+            "en" to "IB, Mycoplasma CRD, Coccidiosis & heat",
+            "fr" to "Bronchite IB, CRD, Coccidiose et urgences",
+            "es" to "Bronquitis IB, CRD, Coccidiosis y emergencias",
+            "pt" to "Bronquite IB, CRD, Coccidiose e emergências",
+            "tr" to "Bronşit IB, CRD, Koksidiyoz ve acil durum",
+            "id" to "IB, CRD Mycoplasma, Koksidiosis & stres panas",
+            "hi" to "IB, माइकोप्लाज्मा CRD, कॉक्सिडियोसिस",
+            "ur" to "برونکائٹس، مائیکوپلازما، کوکسیڈیوسس",
+            "sw" to "IB, CRD, Coccidiosis na dharura",
+            "ru" to "ИБК, микоплазмоз CRD, кокцидиоз и стресс",
+            "zh" to "传支、慢呼、球虫病与热应激急救",
+            "de" to "IB, Mykoplasmose, Kokzidiose & Notfälle",
+            "it" to "Bronchite IB, CRD, Coccidiosi ed emergenze"
+        ),
+        "book_branch_3_shelf_desc" to mapOf(
+            "ar" to "3 مراحل علف، المعالف، الخلط التدريجي، والأوزان",
+            "en" to "3 feed phases, feeders, 3-day mix & weights",
+            "fr" to "3 phases, mangeoires, transition 3j et poids",
+            "es" to "3 fases, comederos, mezcla 3d y pesos",
+            "pt" to "3 fases, comedouros, mistura 3d e pesos",
+            "tr" to "3 yem evresi, yemlik, 3 günlük geçiş ve ağırlık",
+            "id" to "3 fase pakan, tempat pakan, campur 3h & bobot",
+            "hi" to "3 दाना चरण, फीडर, 3-दिन मिश्रण और वजन",
+            "ur" to "3 غذائی مراحل، فیڈر، بتدریج تبدیلی اور وزن",
+            "sw" to "Hatua 3 za chakula, mchanganyiko na uzito",
+            "ru" to "3 фазы корма, кормушки, переход и вес",
+            "zh" to "三阶段料、料盘高度、三天换料与体重",
+            "de" to "3 Futterphasen, Tröge, 3-Tage-Mix & Gewicht",
+            "it" to "3 fasi mangime, mangiatoie, cambio 3g e pesi"
+        ),
+        "no_active_cycle" to mapOf(
+            "ar" to "لا يوجد عنبر نشط",
+            "en" to "No Active Barn",
+            "fr" to "Aucun bâtiment actif",
+            "es" to "Sin galpón activo",
+            "pt" to "Sem galpão ativo",
+            "tr" to "Aktif Kümes Yok",
+            "id" to "Tidak Ada Kandang Aktif",
+            "hi" to "कोई सक्रिय शेड नहीं",
+            "ur" to "کوئی فعال شیڈ نہیں",
+            "sw" to "Hakuna Banda Hai",
+            "ru" to "Нет активного птичника",
+            "zh" to "暂无活跃鸡舍",
+            "de" to "Kein aktiver Stall",
+            "it" to "Nessun capannone attivo"
+        ),
+        "dialog_owner_daily_report_title" to mapOf(
+            "ar" to "تسجيل البيانات اليومية للعنبر 📋",
+            "en" to "Log Barn Daily Data 📋",
+            "fr" to "Saisie des données quotidiennes 📋",
+            "es" to "Registrar datos diarios del galpón 📋",
+            "pt" to "Registrar dados diários do galpão 📋",
+            "tr" to "Günlük Kümes Verilerini Kaydet 📋",
+            "id" to "Catat Data Harian Kandang 📋",
+            "hi" to "शेड दैनिक डेटा दर्ज करें 📋",
+            "ur" to "شیڈ کا روزانہ ڈیٹا درج کریں 📋",
+            "sw" to "Rekodi Data ya Kila Siku ya Banda 📋",
+            "ru" to "Ежедневные данные птичника 📋",
+            "zh" to "记录鸡舍每日生产数据 📋",
+            "de" to "Tägliche Stalldaten erfassen 📋",
+            "it" to "Registra dati giornalieri capannone 📋"
+        ),
+        "dialog_edit_daily_report_title" to mapOf(
+            "ar" to "تعديل السجل اليومي (مع أثر التدقيق ⚠️)",
+            "en" to "Edit Daily Report (Audit Trail ⚠️)",
+            "fr" to "Modifier le rapport quotidien (Audit ⚠️)",
+            "es" to "Editar registro diario (Auditoría ⚠️)",
+            "pt" to "Editar registro diário (Auditoria ⚠️)",
+            "tr" to "Günlük Kaydı Düzenle (Denetim İzi ⚠️)",
+            "id" to "Edit Laporan Harian (Jejak Audit ⚠️)",
+            "hi" to "दैनिक रिपोर्ट संपादित करें (ऑडिट ⚠️)",
+            "ur" to "روزانہ رپورٹ میں ترمیم (آڈٹ ٹریل ⚠️)",
+            "sw" to "Hariri Ripoti ya Kila Siku (Ukaguzi ⚠️)",
+            "ru" to "Редактировать запись дня (Аудит ⚠️)",
+            "zh" to "修改日报记录（含审计留痕 ⚠️）",
+            "de" to "Tagesbericht bearbeiten (Audit-Protokoll ⚠️)",
+            "it" to "Modifica report giornaliero (Audit ⚠️)"
+        ),
+        "field_day_number_mid_cycle" to mapOf(
+            "ar" to "📅 رقم اليوم في الدورة",
+            "en" to "📅 Cycle Day Number",
+            "fr" to "📅 Numéro du jour du lot",
+            "es" to "📅 Número de día del lote",
+            "pt" to "📅 Número do dia do lote",
+            "tr" to "📅 Dönem Günü Numarası",
+            "id" to "📅 Hari Pemeliharaan Ke-",
+            "hi" to "📅 बैच दिवस संख्या",
+            "ur" to "📅 دورانیے کا دن نمبر",
+            "sw" to "📅 Namba ya Siku ya Mzunguko",
+            "ru" to "📅 День цикла выращивания",
+            "zh" to "📅 饲养日龄（第几天）",
+            "de" to "📅 Durchgangstag",
+            "it" to "📅 Giorno del ciclo"
+        ),
+        "field_day_number_mid_cycle_hint" to mapOf(
+            "ar" to "يُكتشف تلقائياً، أو اكتب رقم يوم سابق مثل 20 أو 30 لتعديله",
+            "en" to "Auto-detected, or type a previous day (e.g., 20 or 30) to edit",
+            "fr" to "Détecté auto, ou entrez un jour précédent (ex: 20 ou 30) à modifier",
+            "es" to "Auto-detectado, o escriba un día anterior (ej: 20 o 30) para editar",
+            "pt" to "Detectado auto, ou digite um dia anterior (ex: 20 ou 30) para editar",
+            "tr" to "Otomatik algılanır veya geçmiş bir günü (örn. 20) yazabilirsiniz",
+            "id" to "Terdeteksi otomatis, atau ketik hari sebelumnya (mis. 20)",
+            "hi" to "स्वतः पहचाना गया, या संपादन हेतु पिछला दिन (जैसे 20) लिखें",
+            "ur" to "خودکار شناخت، یا ترمیم کے لیے پچھلا دن (مثلاً 20) لکھیں",
+            "sw" to "Hutambuliwa kiotomatiki, au andika siku iliyopita (mf. 20)",
+            "ru" to "Автоопределение или введите прошлый день (напр. 20) для правки",
+            "zh" to "自动识别日龄，也可输入历史日龄（如 20）进行补录",
+            "de" to "Automatisch erkannt oder früheren Tag (z. B. 20) eingeben",
+            "it" to "Rilevato in auto, o inserisci un giorno precedente (es. 20)"
+        ),
+        "confirm_medicine_water_today_label" to mapOf(
+            "ar" to "💊 تأكيد إعطاء الدواء في الماء اليوم (شرب الدواء ✓)",
+            "en" to "💊 Confirm giving medicine in water today (Medicine Given ✓)",
+            "fr" to "💊 Confirmer l'administration du médicament dans l'eau aujourd'hui (✓)",
+            "es" to "💊 Confirmar medicina en el agua hoy (Medicina dada ✓)",
+            "pt" to "💊 Confirmar medicamento na água hoje (Medicamento dado ✓)",
+            "tr" to "💊 Bugün suya ilaç verildiğini onayla (İlaç Verildi ✓)",
+            "id" to "💊 Konfirmasi pemberian obat via air minum hari ini (✓)",
+            "hi" to "💊 आज पानी में दवा देने की पुष्टि करें (दवा दी गई ✓)",
+            "ur" to "💊 آج پانی میں دوا دینے کی تصدیق کریں (دوا دی گئی ✓)",
+            "sw" to "💊 Thibitisha kuweka dawa majini leo (Dawa Imetolewa ✓)",
+            "ru" to "💊 Подтвердить дачу лекарства с водой сегодня (✓)",
+            "zh" to "💊 确认今日已饮水给药（已给药 ✓）",
+            "de" to "💊 Heutige Medikamentengabe im Trinkwasser bestätigen (✓)",
+            "it" to "💊 Conferma somministrazione farmaco in acqua oggi (✓)"
+        ),
+        "medicine_water_name_input_label" to mapOf(
+            "ar" to "اسم الدواء / الوصفة المُعطاة في الماء 💊",
+            "en" to "Medicine / Prescription given in water 💊",
+            "fr" to "Nom du médicament / prescription dans l'eau 💊",
+            "es" to "Nombre del medicamento / receta en el agua 💊",
+            "pt" to "Nome do medicamento / receita na água 💊",
+            "tr" to "Suya eklenen ilaç / reçete adı 💊",
+            "id" to "Nama obat / vitamin yang diberikan di air 💊",
+            "hi" to "पानी में दी गई दवा / नुस्खे का नाम 💊",
+            "ur" to "پانی میں دی جانے والی دوا کا نام 💊",
+            "sw" to "Jina la dawa iliyowekwa kwenye maji 💊",
+            "ru" to "Название препарата / лекарства в воде 💊",
+            "zh" to "饮水中添加的药物 / 配方名称 💊",
+            "de" to "Name des Medikaments im Trinkwasser 💊",
+            "it" to "Nome del farmaco / trattamento in acqua 💊"
+        ),
+        "field_actual_bird_weight_grams_optional" to mapOf(
+            "ar" to "⚖️ متوسط وزن الطائر الفعلي (غرام - اختياري)",
+            "en" to "⚖️ Actual Average Bird Weight (grams - optional)",
+            "fr" to "⚖️ Poids moyen réel de l'oiseau (grammes - optionnel)",
+            "es" to "⚖️ Peso promedio real del ave (gramos - opcional)",
+            "pt" to "⚖️ Peso médio real da ave (gramas - opcional)",
+            "tr" to "⚖️ Gerçek Ortalama Piliç Ağırlığı (gram - isteğe bağlı)",
+            "id" to "⚖️ Bobot Rata-rata Aktual (gram - opsional)",
+            "hi" to "⚖️ पक्षी का वास्तविक औसत वजन (ग्राम - वैकल्पिक)",
+            "ur" to "⚖️ پرندے کا حقیقی اوسط وزن (گرام - اختیاری)",
+            "sw" to "⚖️ Uzito Halisi wa Wastani wa Kuku (gramu - hiari)",
+            "ru" to "⚖️ Фактический средний вес птицы (граммы - необяз.)",
+            "zh" to "⚖️ 鸡只实际平均体重（克 - 选填）",
+            "de" to "⚖️ Tatsächliches Durchschnittsgewicht (Gramm - optional)",
+            "it" to "⚖️ Peso medio reale del capo (grammi - opzionale)"
+        ),
+        "book_analytics_section_title" to mapOf(
+            "ar" to "📊 التحليلات المالية والبيولوجية الحية للعنبر (Ross 308 Analytics)",
+            "en" to "📊 Live Barn Financial & Biological Analytics (Ross 308)",
+            "fr" to "📊 Analyses Financières et Biologiques en Direct (Ross 308)",
+            "es" to "📊 Análisis Financiero y Biológico en Vivo del Galpón (Ross 308)",
+            "pt" to "📊 Análises Financeiras e Biológicas ao Vivo do Galpão (Ross 308)",
+            "tr" to "📊 Canlı Kümes Finansal ve Biyolojik Analizi (Ross 308)",
+            "id" to "📊 Analitik Keuangan & Biologis Kandang Langsung (Ross 308)",
+            "hi" to "📊 शेड का लाइव वित्तीय और जैविक विश्लेषण (Ross 308)",
+            "ur" to "📊 شیڈ کا براہ راست مالیاتی و حیاتیاتی تجزیہ (Ross 308)",
+            "sw" to "📊 Uchambuzi wa Kifedha na Kibiolojia wa Banda (Ross 308)",
+            "ru" to "📊 Живая финансовая и биологическая аналитика (Ross 308)",
+            "zh" to "📊 鸡舍实时财务与生物指标分析 (Ross 308)",
+            "de" to "📊 Live-Stallanalyse: Finanzen & Biologie (Ross 308)",
+            "it" to "📊 Analisi Finanziaria e Biologica Live (Ross 308)"
         )
     )
 
@@ -687,42 +1151,194 @@ object Ross308BookPageTranslations {
         lang: AppLanguage
     ): Pair<BookSubCardModel, EncyclopediaPosterSpec> {
         if (lang == AppLanguage.AR) return subCard to spec
+        val code = lang.code
         val localizedBadge = localizeSpecialtyBadge(spec.specialtyBadge, lang)
-        val localizedTitle = localizeLessonTitle(subCard.id, subCard.title, lang)
-        val localizedCoreIdea = localizeCoreIdea(subCard.id, spec.coreIdea, lang)
-        val localizedWhy = localizeWhyImportant(subCard.id, spec.whyImportantPoints, lang)
-        val localizedStepsTitle = localizeStepsTitle(subCard.id, spec.timelineStepsTitle, lang)
-        val localizedSteps = localizeTimelineSteps(subCard.id, spec.timelineSteps, lang)
-        val localizedGoodCaption = localizeGoodCaption(subCard.id, spec.comparisonPair?.goodSummaryCaption ?: "", lang)
-        val localizedBadCaption = localizeBadCaption(subCard.id, spec.comparisonPair?.badSummaryCaption ?: "", lang)
-        val localizedHeroTop = localizeHeroCalloutTop(subCard.id, spec.heroCalloutTop, lang)
-        val localizedHeroBottom = localizeHeroCalloutBottom(subCard.id, spec.heroCalloutBottom, lang)
-        val localizedPolaroid = localizePolaroidCaption(subCard.id, spec.polaroidCaption, lang)
+
+        if (spec.isMedicalSixSectionLayout) {
+            val medData = Ross308Disease14LangData.lessons[subCard.id]
+            val localizedTitle = medData?.titles?.get(code)
+                ?: medData?.titles?.get("en")
+                ?: subCard.title
+            val localizedPolaroid = medData?.polaroids?.get(code)
+                ?: medData?.polaroids?.get("en")
+                ?: spec.polaroidCaption
+            val localizedDef = medData?.definitions?.get(code)
+                ?: medData?.definitions?.get("en")
+                ?: spec.sec1Definition
+            val localizedQuickFacts = medData?.quickFactsSemiPipe?.get(code)
+                ?.split(";")
+                ?.mapNotNull { entry ->
+                    val parts = entry.split("|")
+                    if (parts.size >= 2) parts[0].trim() to parts[1].trim() else null
+                }
+                ?.ifEmpty { null }
+                ?: spec.quickFacts
+            val localizedAnatomy = medData?.anatomySemiPipe?.get(code)
+                ?.split(";")
+                ?.mapNotNull { entry ->
+                    val parts = entry.split("|")
+                    if (parts.size >= 2) InfographicAnatomyLabel(parts[0].trim(), parts[1].trim()) else null
+                }
+                ?.ifEmpty { null }
+                ?: spec.anatomyLabels
+            val localizedZoomTitle = medData?.zoomInsetTitles?.get(code)
+                ?: medData?.zoomInsetTitles?.get("en")
+                ?: spec.zoomInsetTitle
+            val localizedSymptoms = medData?.symptomsSemiPipe?.get(code)
+                ?.split(";")
+                ?.mapNotNull { entry ->
+                    val parts = entry.split("|")
+                    if (parts.size >= 3) {
+                        InfographicSymptomCard(parts[0].trim(), parts[1].trim(), parts[2].trim())
+                    } else null
+                }
+                ?.ifEmpty { null }
+                ?: spec.sec2SymptomCards
+            val localizedTreatments = medData?.treatmentPipe?.get(code)
+                ?.split("|")
+                ?.map { it.trim() }
+                ?.filter { it.isNotEmpty() }
+                ?.ifEmpty { null }
+                ?: spec.sec3TreatmentSteps
+            val localizedPerfTable = medData?.perfTableSemiPipe?.get(code)
+                ?.split(";")
+                ?.mapNotNull { entry ->
+                    val parts = entry.split("|")
+                    if (parts.size >= 2) {
+                        InfographicPerformanceMetric(parts[0].trim(), parts[1].trim(), isNegativeImpact = true)
+                    } else null
+                }
+                ?.ifEmpty { null }
+                ?: spec.sec4PerformanceTable
+            val localizedDiagnosis = medData?.diagnosisPipe?.get(code)
+                ?.split("|")
+                ?.map { it.trim() }
+                ?.filter { it.isNotEmpty() }
+                ?.ifEmpty { null }
+                ?: spec.sec5DiagnosisPoints
+            val localizedPrevention = medData?.preventionPipe?.get(code)
+                ?.split("|")
+                ?.mapIndexedNotNull { idx, item ->
+                    val trimmed = item.trim()
+                    if (trimmed.isEmpty()) null else {
+                        val sp = trimmed.indexOf(' ')
+                        if (sp > 0) {
+                            trimmed.substring(0, sp) to trimmed.substring(sp + 1).trim()
+                        } else {
+                            (spec.sec6PreventionIcons.getOrNull(idx)?.first ?: "🛡️") to trimmed
+                        }
+                    }
+                }
+                ?.ifEmpty { null }
+                ?: spec.sec6PreventionIcons
+            val localizedImportantNote = medData?.importantNotes?.get(code)
+                ?: medData?.importantNotes?.get("en")
+                ?: spec.sec6ImportantNote
+
+            val updatedMedicalSpec = spec.copy(
+                specialtyBadge = localizedBadge,
+                coreIdea = localizedDef,
+                polaroidCaption = localizedPolaroid,
+                sec1Definition = localizedDef,
+                quickFacts = localizedQuickFacts,
+                anatomyLabels = localizedAnatomy,
+                zoomInsetTitle = localizedZoomTitle,
+                sec2SymptomCards = localizedSymptoms,
+                sec3TreatmentSteps = localizedTreatments,
+                sec4PerformanceTable = localizedPerfTable,
+                sec5DiagnosisPoints = localizedDiagnosis,
+                sec6PreventionIcons = localizedPrevention,
+                sec6ImportantNote = localizedImportantNote
+            )
+            return subCard.copy(title = localizedTitle, posterSpec = updatedMedicalSpec) to updatedMedicalSpec
+        }
+
+        val lessonData = Ross308CareVax14LangData.lessons[subCard.id]
+            ?: Ross308Feed14LangData.lessons[subCard.id]
+
+        val localizedTitle = lessonData?.titles?.get(code)
+            ?: lessonData?.titles?.get("en")
+            ?: subCard.title
+        val localizedCoreIdea = lessonData?.coreIdeas?.get(code)
+            ?: lessonData?.coreIdeas?.get("en")
+            ?: spec.coreIdea
+        val localizedWhy = lessonData?.whyPipe?.get(code)
+            ?.split("|")
+            ?.map { it.trim() }
+            ?.filter { it.isNotEmpty() }
+            ?.ifEmpty { null }
+            ?: spec.whyImportantPoints
+        val localizedStepTitles = lessonData?.stepsPipe?.get(code)
+            ?.split("|")
+            ?.map { it.trim() }
+            ?.filter { it.isNotEmpty() }
+            ?: emptyList()
+        val localizedSteps = spec.timelineSteps.mapIndexed { idx, step ->
+            step.copy(
+                title = localizedStepTitles.getOrElse(idx) { step.title },
+                subtitle = ""
+            )
+        }
+        val localizedGoodCaption = lessonData?.goodCaptions?.get(code)
+            ?: lessonData?.goodCaptions?.get("en")
+            ?: spec.comparisonPair?.goodSummaryCaption
+            ?: ""
+        val localizedBadCaption = lessonData?.badCaptions?.get(code)
+            ?: lessonData?.badCaptions?.get("en")
+            ?: spec.comparisonPair?.badSummaryCaption
+            ?: ""
+        val localizedHeroTop = lessonData?.heroTops?.get(code)
+            ?: lessonData?.heroTops?.get("en")
+            ?: spec.heroCalloutTop
+        val localizedHeroBottom = lessonData?.heroBottoms?.get(code)
+            ?: lessonData?.heroBottoms?.get("en")
+            ?: spec.heroCalloutBottom
+        val localizedPolaroid = lessonData?.polaroids?.get(code)
+            ?: lessonData?.polaroids?.get("en")
+            ?: spec.polaroidCaption
+        val localizedWarning = lessonData?.warnings?.get(code)
+            ?: lessonData?.warnings?.get("en")
+            ?: spec.warningNote
+        val localizedTableTitle = lessonData?.tableTitle?.get(code)
+            ?: lessonData?.tableTitle?.get("en")
+            ?: spec.tableTitle
+        val localizedTableHeaders = lessonData?.tableHeadersPipe?.get(code)
+            ?.split("|")
+            ?.map { it.trim() }
+            ?.filter { it.isNotEmpty() }
+            ?.ifEmpty { null }
+            ?: spec.tableHeaders
+        val localizedTableRows = lessonData?.tableRowsSemiPipe?.get(code)
+            ?.split(";")
+            ?.map { row -> row.split("|").map { it.trim() } }
+            ?.filter { it.isNotEmpty() }
+            ?.ifEmpty { null }
+            ?: spec.tableRows
 
         val updatedCmp = spec.comparisonPair?.copy(
             goodTitle = Translations.tr("book_ribbon_readiness_signs", lang),
             badTitle = Translations.tr("book_ribbon_avoid_mistake", lang),
-            goodPoints = listOf(localizedGoodCaption) + spec.comparisonPair.goodPoints.drop(1),
-            badPoints = listOf(localizedBadCaption) + spec.comparisonPair.badPoints.drop(1),
+            goodPoints = listOf(localizedGoodCaption) + localizedWhy.take(2).map { it.removePrefix("✅ ").trim() },
+            badPoints = listOf(localizedBadCaption),
             goodSummaryCaption = localizedGoodCaption,
             badSummaryCaption = localizedBadCaption
         )
 
-        val updatedSpec = if (spec.isMedicalSixSectionLayout) {
-            localizeMedicalSpec(subCard.id, spec, localizedBadge, localizedPolaroid, lang)
-        } else {
-            spec.copy(
-                specialtyBadge = localizedBadge,
-                coreIdea = localizedCoreIdea,
-                whyImportantPoints = localizedWhy,
-                heroCalloutTop = localizedHeroTop,
-                heroCalloutBottom = localizedHeroBottom,
-                polaroidCaption = localizedPolaroid,
-                timelineStepsTitle = localizedStepsTitle,
-                timelineSteps = localizedSteps,
-                comparisonPair = updatedCmp
-            )
-        }
+        val updatedSpec = spec.copy(
+            specialtyBadge = localizedBadge,
+            coreIdea = localizedCoreIdea,
+            whyImportantPoints = localizedWhy,
+            heroCalloutTop = localizedHeroTop,
+            heroCalloutBottom = localizedHeroBottom,
+            polaroidCaption = localizedPolaroid,
+            timelineStepsTitle = Translations.tr("book_ribbon_how_to_prepare", lang),
+            timelineSteps = localizedSteps,
+            comparisonPair = updatedCmp,
+            tableTitle = localizedTableTitle,
+            tableHeaders = localizedTableHeaders,
+            tableRows = localizedTableRows,
+            warningNote = localizedWarning
+        )
 
         return subCard.copy(title = localizedTitle, posterSpec = updatedSpec) to updatedSpec
     }
@@ -762,386 +1378,5 @@ object Ross308BookPageTranslations {
             )[code] ?: "Feeding Program"
         }
     }
-
-    private fun localizeLessonTitle(id: String, fallback: String, lang: AppLanguage): String {
-        val c = lang.code
-        return when (id) {
-            "care_1" -> mapOf(
-                "en" to "Pre-heat the Barn & Litter Before Chick Arrival",
-                "fr" to "Préchauffer le bâtiment et la litière avant l'arrivée des poussins",
-                "es" to "Precalentar el galpón y la cama antes de llegar los pollitos",
-                "pt" to "Pré-aqueça o galpão e a cama antes da chegada dos pintinhos",
-                "tr" to "Civcivler Gelmeden Önce Kümesi ve Altlığı Isıtın",
-                "id" to "Panaskan Kandang & Sekam Sebelum DOC Tiba",
-                "hi" to "चूजों के आने से पहले शेड और बिछावन को गर्म करें",
-                "ur" to "چوزوں کی آمد سے قبل شیڈ اور بچھالی کو گرم کریں",
-                "sw" to "Pasha Joto Banda na Maranda Kabla Vifaranga Kufika",
-                "ru" to "Прогрейте птичник и подстилку до прибытия цыплят",
-                "zh" to "雏鸡到达前预热鸡舍与垫料",
-                "de" to "Stall und Einstreu vor Kükenankunft vorheizen",
-                "it" to "Preriscaldare capannone e lettiera prima dell'arrivo dei pulcini"
-            )[c] ?: "Pre-heat the Barn & Litter Before Chick Arrival"
-            "care_2" -> mapOf(
-                "en" to "Monitor Chick Brooding Behavior & Thermal Comfort",
-                "fr" to "Surveiller le comportement des poussins au démarrage",
-                "es" to "Monitorear el comportamiento de los pollitos en cría",
-                "pt" to "Monitorar o comportamento dos pintinhos no aquecimento",
-                "tr" to "Civcivlerin Brooding Davranışını Gözlemleyin",
-                "id" to "Pantau Perilaku & Sebaran Anak Ayam di Brooder",
-                "hi" to "ब्रूडिंग में चूजों के व्यवहार की निगरानी करें",
-                "ur" to "بروڈنگ میں چوزوں کے رویے اور پھیلاؤ کی نگرانی",
-                "sw" to "Fuatilia Tabia na Mtawanyiko wa Vifaranga",
-                "ru" to "Контроль поведения цыплят в зоне обогрева",
-                "zh" to "观察育雏期雏鸡分布与热舒适行为",
-                "de" to "Kükenverhalten und Wärmekomfort überwachen",
-                "it" to "Monitorare il comportamento dei pulcini in svezzamento"
-            )[c] ?: fallback
-            "care_3" -> mapOf(
-                "en" to "Barn Minimum Ventilation & Fresh Air Flow",
-                "fr" to "Ventilation minimale et qualité de l'air du bâtiment",
-                "es" to "Ventilación mínima y calidad del aire del galpón",
-                "pt" to "Ventilação mínima e qualidade do ar do galpão",
-                "tr" to "Kümes Havalandırması ve Hava Kalitesi",
-                "id" to "Ventilasi Minimum & Kualitas Udara Kandang",
-                "hi" to "शेड वेंटिलेशन और ताजी हवा का संतुलन",
-                "ur" to "شیڈ کی ہوا داری اور تازہ ہوا کا معیار",
-                "sw" to "Uingizaji Hewa Bora na Ubora wa Hewa Bandani",
-                "ru" to "Минимальная вентиляция и качество воздуха",
-                "zh" to "鸡舍最小通风与空气质量管理",
-                "de" to "Mindestlüftung und Luftqualität im Stall",
-                "it" to "Ventilazione minima e qualità dell'aria"
-            )[c] ?: fallback
-            "care_4" -> mapOf(
-                "en" to "Lighting Darkness Program, Density & Pre-Sale Prep",
-                "fr" to "Programme lumineux, densité et préparation avant vente",
-                "es" to "Programa de oscuridad, densidad y preparación pre-venta",
-                "pt" to "Programa de escuro, densidade e preparo pré-venda",
-                "tr" to "Karanlık Programı, Sıklık ve Satış Öncesi Hazırlık",
-                "id" to "Program Gelap, Kepadatan & Persiapan Panen",
-                "hi" to "अंधकार कार्यक्रम, घनत्व और बिक्री पूर्व तैयारी",
-                "ur" to "روشنی کا شیڈول، گنجائش اور فروخت سے قبل تیاری",
-                "sw" to "Mpango wa Giza, Msongamano na Maandalizi ya Mauzo",
-                "ru" to "Световой режим, плотность посадки и подготовка к сдаче",
-                "zh" to "黑暗程序、饲养密度与出栏前停料管理",
-                "de" to "Dunkelprogramm, Besatzdichte & Verkaufsvorbereitung",
-                "it" to "Programma luce/buio, densità e preparazione pre-vendita"
-            )[c] ?: fallback
-            "vax_1" -> "Chick Reception (Days 1–3): Electrolytes & AD3E Protocol"
-            "vax_2" -> "First Respiratory Vaccine (Days 6–7): Newcastle B1 + IB"
-            "vax_3" -> "Gumboro (IBD) Drinking Water Vaccination (Days 12–14)"
-            "vax_4" -> "Newcastle Booster (Days 18–20) & Liver Mycotoxin Detox"
-            "dis_1" -> mapOf(
-                "en" to "Infectious Bronchitis (IB) — Avian Coronavirus",
-                "fr" to "Bronchite Infectieuse (IB) — Coronavirus Aviaire",
-                "es" to "Bronquitis Infecciosa (IB) — Coronavirus Aviar",
-                "pt" to "Bronquite Infecciosa (IB) — Coronavírus Aviário",
-                "tr" to "Enfeksiyöz Bronşit (IB) — Solunum Hastalığı",
-                "id" to "Infectious Bronchitis (IB) — Bronkitis Menular",
-                "hi" to "संक्रामक ब्रोंकाइटिस (IB) — श्वसन रोग",
-                "ur" to "معدی برونکائٹس (IB) — تنفسی مرض",
-                "sw" to "Bronchitis ya Kuambukiza (IB)",
-                "ru" to "Инфекционный бронхит кур (ИБК / IB)",
-                "zh" to "鸡传染性支气管炎 (IB)",
-                "de" to "Infektiöse Bronchitis (IB)",
-                "it" to "Bronchite Infettiva (IB)"
-            )[c] ?: "Infectious Bronchitis (IB)"
-            "dis_2" -> "Chronic Respiratory Disease (CRD / Mycoplasma)"
-            "dis_3" -> "Coccidiosis, Mycotoxins & Gut Integrity"
-            "dis_4" -> "Newcastle (ND), Gumboro (IBD) & Acute Heat Stress"
-            "feed_1" -> "Starter Feed Phase (Days 1–10): 23% Protein Crumble"
-            "feed_2" -> "Grower Feed (Days 11–21) & Back-Level Feeder Height"
-            "feed_3" -> "Finisher Pellets (Days 22–45) & Quintal Stock Control"
-            "feed_4" -> "Ross 308 Weight Curve & 1.7x Water-to-Feed Balance"
-            else -> fallback
-        }
-    }
-
-    private fun localizeCoreIdea(id: String, fallback: String, lang: AppLanguage): String {
-        val c = lang.code
-        if (id == "care_1") {
-            return mapOf(
-                "en" to "Pre-heating the barn floor and litter before chick arrival keeps body temperature stable and prevents cold-feet digestive shock.",
-                "fr" to "Préchauffer le sol et la litière avant l'arrivée des poussins stabilise leur température et évite le choc thermique.",
-                "es" to "Precalentar el galpón y la cama antes de la llegada mantiene estable la temperatura corporal del pollito.",
-                "pt" to "Pré-aquecer o piso e a cama antes da chegada mantém a temperatura corporal estável e evita estresse.",
-                "tr" to "Civcivler gelmeden önce kümes tabanını ve altlığı ısıtmak vücut ısısını korur ve sindirim şokunu önler.",
-                "id" to "Memanaskan lantai kandang dan sekam sebelum DOC tiba menjaga suhu tubuh stabil dan mencegah stres dingin.",
-                "hi" to "चूजों के आने से पहले शेड के फर्श और बिछावन को गर्म करने से शरीर का तापमान स्थिर रहता है।",
-                "ur" to "چوزوں کی آمد سے پہلے شیڈ کے فرش اور بچھالی کو گرم کرنا جسمانی درجہ حرارت کو مستحکم رکھتا ہے۔",
-                "sw" to "Kupasha joto sakafu na maranda kabla ya vifaranga kufika huweka joto la mwili sawa.",
-                "ru" to "Предварительный прогрев пола и подстилки до посадки цыплят сохраняет температуру тела и защищает ЖКТ.",
-                "zh" to "在雏鸡到达前预热鸡舍地面和垫料，可保持雏鸡体温稳定并防止脚冷引起的消化不良。",
-                "de" to "Das Vorheizen von Stallboden und Einstreu hält die Körpertemperatur stabil und verhindert Kälteschock.",
-                "it" to "Preriscaldare pavimento e lettiera prima dell'arrivo mantiene stabile la temperatura corporea dei pulcini."
-            )[c] ?: fallback
-        }
-        return when (id) {
-            "care_2" -> "Chick distribution around the brooder is the most accurate living thermometer for warmth, heat, or drafts."
-            "care_3" -> "Minimum ventilation removes ammonia and moisture by mixing fresh cold air with warm air at the ceiling first."
-            "care_4" -> "Providing 4–6 hours of darkness after Day 7 strengthens bones and heart, while 8–10h feed withdrawal protects carcass quality."
-            "vax_1" -> "Lukewarm water (18–21°C) with electrolytes and AD3E+C in the first 6 hours relieves transport stress and primes immunity."
-            "vax_2" -> "Eye-drop or coarse spray vaccination on Days 6–7 builds strong local respiratory immunity against Newcastle and IB."
-            "vax_3" -> "Gumboro drinking-water vaccine protects the Bursa of Fabricius and requires chlorine-free water with skim milk stabilizer."
-            "vax_4" -> "Booster vaccination on Days 18–20 secures immunity until market age, paired with mycotoxin binders and liver support."
-            "feed_1" -> "High-protein (23%) fine crumble starter feed in Days 1–10 builds the digestive villi and skeletal frame for the whole cycle."
-            "feed_2" -> "Adjusting feeder pans to bird back level and drinkers to eye level saves 3–5% wasted feed and keeps litter dry."
-            "feed_3" -> "Finisher pellets represent 65%+ of total feed cost; durable 3.5mm pellets and Quintal inventory tracking maximize net profit."
-            "feed_4" -> "Broilers drink 1.6–1.8 L of water per 1 kg of feed; any sudden drop in water intake is the earliest 24h warning of disease."
-            else -> fallback
-        }
-    }
-
-    private fun localizeWhyImportant(id: String, fallback: List<String>, lang: AppLanguage): List<String> {
-        val c = lang.code
-        if (id == "care_1") {
-            return when (c) {
-                "en" -> listOf(
-                    "✅ Maintains stable temperature (33°C air, 29–30°C litter)",
-                    "✅ Prevents body heat loss through chicks' feet",
-                    "✅ Reduces early stress and weakness",
-                    "✅ Lowers disease risk in the first critical days"
-                )
-                "fr" -> listOf(
-                    "✅ Maintient une température stable (33°C air, 29–30°C litière)",
-                    "✅ Empêche la perte de chaleur corporelle par les pattes",
-                    "✅ Réduit le stress et la faiblesse au démarrage",
-                    "✅ Diminue le risque de maladies dès les premiers jours"
-                )
-                "es" -> listOf(
-                    "✅ Mantiene una temperatura estable (33°C aire, 29–30°C cama)",
-                    "✅ Evita la pérdida de calor corporal por las patas",
-                    "✅ Reduce el estrés y la debilidad inicial",
-                    "✅ Disminuye el riesgo de enfermedades en los primeros días"
-                )
-                "pt" -> listOf(
-                    "✅ Mantém temperatura estável (33°C ar, 29–30°C cama)",
-                    "✅ Evita perda de calor corporal pelas patas",
-                    "✅ Reduz o estresse e a fraqueza inicial",
-                    "✅ Reduz o risco de doenças nos primeiros dias"
-                )
-                else -> listOf(
-                    "✅ Maintains stable temperature (33°C air / 29–30°C litter)",
-                    "✅ Prevents body heat loss from cold floor",
-                    "✅ Reduces early brooding stress & weakness",
-                    "✅ Lowers disease risk in the first days"
-                )
-            }
-        }
-        return listOf(
-            "✅ Protects flock livability & early immunity",
-            "✅ Optimizes feed conversion ratio (FCR)",
-            "✅ Prevents respiratory & digestive stress",
-            "✅ Matches Ross 308 target growth curve"
-        )
-    }
-
-    private fun localizeStepsTitle(id: String, fallback: String, lang: AppLanguage): String {
-        return Translations.tr("book_ribbon_how_to_prepare", lang)
-    }
-
-    private fun localizeTimelineSteps(
-        id: String,
-        fallback: List<InfographicTimelineStep>,
-        lang: AppLanguage
-    ): List<InfographicTimelineStep> {
-        val c = lang.code
-        if (id == "care_1") {
-            val titles = when (c) {
-                "en" -> listOf(
-                    "Clean the barn and remove dust & waste",
-                    "Spread clean dry litter 5 - 8 cm deep",
-                    "Turn on heating 12 - 24 hours before arrival"
-                )
-                "fr" -> listOf(
-                    "Nettoyer le bâtiment et éliminer la poussière",
-                    "Étaler une litière propre et sèche (5 - 8 cm)",
-                    "Allumer le chauffage 12 - 24 h avant l'arrivée"
-                )
-                "es" -> listOf(
-                    "Limpiar el galpón y retirar polvo y residuos",
-                    "Colocar cama limpia y seca de 5 - 8 cm",
-                    "Encender la calefacción 12 - 24 h antes"
-                )
-                "pt" -> listOf(
-                    "Limpar o galpão e remover poeira e resíduos",
-                    "Colocar cama limpa e seca de 5 - 8 cm",
-                    "Ligar o aquecimento 12 - 24 h antes da chegada"
-                )
-                else -> listOf(
-                    "Clean the barn and remove dust & debris",
-                    "Place clean dry litter 5 - 8 cm thick",
-                    "Run heaters 12 - 24h before chick arrival"
-                )
-            }
-            return fallback.mapIndexed { idx, step ->
-                step.copy(title = titles.getOrElse(idx) { step.title }, subtitle = "")
-            }
-        }
-        val genericEn = listOf(
-            "1. Inspect & prepare barn equipment",
-            "2. Apply Ross 308 standard setting",
-            "3. Verify flock comfort & record daily"
-        )
-        return fallback.mapIndexed { idx, step ->
-            step.copy(title = genericEn.getOrElse(idx) { step.title }, subtitle = "")
-        }
-    }
-
-    private fun localizeGoodCaption(id: String, fallback: String, lang: AppLanguage): String {
-        val c = lang.code
-        return mapOf(
-            "en" to "Warm barn, dry litter, and chicks spread calmly",
-            "fr" to "Bâtiment chaud, litière sèche et poussins bien répartis",
-            "es" to "Galpón cálido, cama seca y pollitos bien distribuidos",
-            "pt" to "Galpão aquecido, cama seca e pintinhos bem distribuídos",
-            "tr" to "Sıcak kümes, kuru altlık ve sakin dağılmış civcivler",
-            "id" to "Kandang hangat, sekam kering, dan DOC menyebar tenang",
-            "hi" to "गर्म शेड, सूखा बिछावन और आराम से फैले चूजे",
-            "ur" to "گرم شیڈ، خشک بچھالی اور پرسکون پھیلے ہوئے چوزے",
-            "sw" to "Banda lenye joto, maranda makavu na vifaranga waliotulia",
-            "ru" to "Теплый птичник, сухая подстилка и спокойные цыплята",
-            "zh" to "鸡舍温暖、垫料干燥、雏鸡均匀安静分布",
-            "de" to "Warmer Stall, trockene Einstreu und ruhig verteilte Küken",
-            "it" to "Capannone caldo, lettiera asciutta e pulcini ben distribuiti"
-        )[c] ?: fallback
-    }
-
-    private fun localizeBadCaption(id: String, fallback: String, lang: AppLanguage): String {
-        val c = lang.code
-        return mapOf(
-            "en" to "Never receive chicks in a cold barn or wet, dirty litter",
-            "fr" to "Ne jamais recevoir les poussins sur une litière froide ou humide",
-            "es" to "No reciba pollitos en un galpón frío o con cama húmeda",
-            "pt" to "Não receba pintinhos em galpão frio ou cama úmida e suja",
-            "tr" to "Civcivleri soğuk kümeste veya ıslak altlıkta karşılamayın",
-            "id" to "Jangan terima DOC di kandang dingin atau sekam basah",
-            "hi" to "ठंडे शेड या गीले-गंदे बिछावन में चूजों को कभी न रखें",
-            "ur" to "ٹھنڈے شیڈ یا گیلی اور گندی بچھالی میں چوزے ہرگز نہ رکھیں",
-            "sw" to "Usipokee vifaranga kwenye banda baridi au maranda لويا",
-            "ru" to "Не принимайте цыплят в холодный птичник или сырую подстилку",
-            "zh" to "切勿在寒冷鸡舍或潮湿脏污的垫料上接雏",
-            "de" to "Küken niemals im kalten Stall oder auf nasser Einstreu empfangen",
-            "it" to "Non accogliere i pulcini in capannone freddo o lettiera umida"
-        )[c] ?: fallback
-    }
-
-    private fun localizeHeroCalloutTop(id: String, fallback: String, lang: AppLanguage): String {
-        return mapOf(
-            "en" to "Pre-heat Barn Early",
-            "fr" to "Préchauffer le bâtiment",
-            "es" to "Precalentar el galpón",
-            "pt" to "Pré-aquecer o galpão",
-            "tr" to "Kümesi Önceden Isıtın",
-            "id" to "Panaskan Kandang",
-            "hi" to "शेड पहले गर्म करें",
-            "ur" to "شیڈ پہلے سے گرم کریں",
-            "sw" to "Pasha Joto Mapema",
-            "ru" to "Прогрейте заранее",
-            "zh" to "提前预热鸡舍",
-            "de" to "Stall vorheizen",
-            "it" to "Preriscaldare"
-        )[lang.code] ?: fallback
-    }
-
-    private fun localizeHeroCalloutBottom(id: String, fallback: String, lang: AppLanguage): String {
-        return mapOf(
-            "en" to "Clean & Dry Litter",
-            "fr" to "Litière propre et sèche",
-            "es" to "Cama limpia y seca",
-            "pt" to "Cama limpa e seca",
-            "tr" to "Temiz ve Kuru Altlık",
-            "id" to "Sekam Bersih & Kering",
-            "hi" to "साफ और सूखा बिछावन",
-            "ur" to "صاف اور خشک بچھالی",
-            "sw" to "Maranda Safi na Makavu",
-            "ru" to "Чистая сухая подстилка",
-            "zh" to "干净干燥的垫料",
-            "de" to "Saubere Einstreu",
-            "it" to "Lettiera pulita e asciutta"
-        )[lang.code] ?: fallback
-    }
-
-    private fun localizePolaroidCaption(id: String, fallback: String, lang: AppLanguage): String {
-        return mapOf(
-            "en" to "Ross 308 Field Guide",
-            "fr" to "Guide Ross 308",
-            "es" to "Guía Ross 308",
-            "pt" to "Guia Ross 308",
-            "tr" to "Ross 308 Rehberi",
-            "id" to "Panduan Ross 308",
-            "hi" to "Ross 308 गाइड",
-            "ur" to "Ross 308 گائیڈ",
-            "sw" to "Mwongozo wa Ross 308",
-            "ru" to "Справочник Ross 308",
-            "zh" to "Ross 308 图鉴",
-            "de" to "Ross 308 Leitfaden",
-            "it" to "Guida Ross 308"
-        )[lang.code] ?: fallback
-    }
-
-    private fun localizeMedicalSpec(
-        id: String,
-        spec: EncyclopediaPosterSpec,
-        localizedBadge: String,
-        localizedPolaroid: String,
-        lang: AppLanguage
-    ): EncyclopediaPosterSpec {
-        return spec.copy(
-            specialtyBadge = localizedBadge,
-            polaroidCaption = localizedPolaroid,
-            sec1Definition = when (id) {
-                "dis_1" -> "Acute, highly contagious viral respiratory disease (IBV) causing tracheal rales, bronchial mucus plugs, and reduced weight gain."
-                "dis_2" -> "Chronic respiratory infection (Mycoplasma gallisepticum) triggered by high ammonia (>10 ppm), causing airsacculitis and E.coli complications."
-                "dis_3" -> "Intestinal parasitic disease (Eimeria spp.) thriving in wet litter (>30% moisture), causing bloody droppings and severe FCR loss."
-                else -> "Critical emergency triad: Newcastle (neurological/respiratory), Gumboro (immunosuppression), and acute Heat Stress (>30°C)."
-            },
-            quickFacts = listOf(
-                "📅 Susceptible Age" to "1 – 4 Weeks",
-                "⏳ Duration" to "5 – 7 Days",
-                "✥ Contagion" to "Very High",
-                "📊 Mortality" to "1% – 10% (up to 30%)"
-            ),
-            anatomyLabels = listOf(
-                InfographicAnatomyLabel("Nasal Sinuses", "Swelling & serous discharge"),
-                InfographicAnatomyLabel("Trachea", "Inflammation & congestion"),
-                InfographicAnatomyLabel("Bronchi", "Mucus accumulation & plugs"),
-                InfographicAnatomyLabel("Lungs", "Labored breathing & hypoxia")
-            ),
-            zoomInsetTitle = "Bronchial Inflammation & Mucus Plugs",
-            sec2SymptomCards = listOf(
-                InfographicSymptomCard("🥀", "Lethargy & Low Appetite", "Drop in feed intake"),
-                InfographicSymptomCard("📉", "Uneven Growth", "Poor flock uniformity"),
-                InfographicSymptomCard("🪶", "Ruffled Feathers", "Huddling near heaters"),
-                InfographicSymptomCard("💧", "Nasal & Eye Discharge", "Watery eyes & sinuses"),
-                InfographicSymptomCard("😮‍💨", "Sneezing & Gasping", "Coughing & tracheal rales")
-            ),
-            sec3TreatmentSteps = listOf(
-                "✅ Raise barn temperature +1–2°C to ease cold stress.",
-                "✅ Improve minimum ventilation and purge ammonia.",
-                "✅ Provide vitamins AD3E + C and bronchodilators.",
-                "✅ Administer vet-prescribed antibiotic for secondary E.coli.",
-                "✅ Support kidneys with electrolytes and respect withdrawal days."
-            ),
-            sec4PerformanceTable = listOf(
-                InfographicPerformanceMetric("Mortality Rate", "↑ 1% – 10%", true),
-                InfographicPerformanceMetric("Final Weight", "↓ 3% – 10%", true),
-                InfographicPerformanceMetric("Feed Conversion (FCR)", "↑ +0.10 – 0.30", true),
-                InfographicPerformanceMetric("Feed Intake", "↓ 5% – 20%", true),
-                InfographicPerformanceMetric("Cycle Duration", "↑ +2 – 3 Days", true)
-            ),
-            sec5DiagnosisPoints = listOf(
-                "✅ Rapidly spreading respiratory rales & sneezing.",
-                "✅ Necropsy showing tracheal congestion & bronchial plugs.",
-                "✅ Laboratory confirmation via PCR & ELISA."
-            ),
-            sec6PreventionIcons = listOf(
-                "🐣" to "Source chicks from certified hatchery",
-                "🛡️" to "Enforce strict farm biosecurity",
-                "🧼" to "Thorough cleaning & disinfection",
-                "💨" to "Optimize ventilation & air quality",
-                "💉" to "Vaccinate per flock schedule"
-            ),
-            sec6ImportantNote = "⚠️ Important Note: Consult your veterinarian to align vaccine strains with local field challenges and maintain dry litter (<25% moisture)."
-        )
-    }
 }
+

@@ -1,19 +1,36 @@
 package com.example
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.util.Base64
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.test.core.app.ApplicationProvider
 import com.example.models.*
+import com.example.ui.VintageBookShelfCoverEmblem
+import com.example.ui.VintageSpiralBookPageContainer
 import com.example.utils.*
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import java.io.ByteArrayOutputStream
+import java.io.File
+import java.io.IOException
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
 class ExampleRobolectricTest {
+
+    @get:Rule
+    val composeTestRule = createComposeRule()
 
     @Test
     fun `read string from context`() {
@@ -326,8 +343,8 @@ class ExampleRobolectricTest {
             temperature = 28.0,
             gasUnits = 1.4
         )
-        AgritechMockDb.upsertDailyReportWithAudit(midCycleReport)
-        val createdReport = AgritechMockDb.dailyReports.first { it.id == "rep_audit_test_d25" }
+        val savedMidCycleReport = AgritechMockDb.upsertDailyReportWithAudit(midCycleReport)
+        val createdReport = AgritechMockDb.dailyReports.first { it.id == savedMidCycleReport.id }
         assertEquals(false, createdReport.isEdited)
 
         // Now modify the Day 25 report -> must set isEdited = true and record previousSummary
@@ -336,7 +353,7 @@ class ExampleRobolectricTest {
             mortalityCount = 4
         )
         AgritechMockDb.upsertDailyReportWithAudit(modifiedReport)
-        val auditedReport = AgritechMockDb.dailyReports.first { it.id == "rep_audit_test_d25" }
+        val auditedReport = AgritechMockDb.dailyReports.first { it.id == savedMidCycleReport.id }
         assertEquals(true, auditedReport.isEdited)
         assertTrue(auditedReport.previousSummary.isNotBlank())
         assertEquals(250.0, auditedReport.feedIntakeKg, 0.001)
@@ -1976,7 +1993,7 @@ class ExampleRobolectricTest {
         // 2. Switch to UID B via AgritechAppSessionState.markAuthenticated
         val sessionState = AgritechAppSessionState(
             initialOnboardingCompleted = true,
-            initialTheme = AppThemeOption.LIGHT_BEIGE,
+            initialTheme = AppThemeOption.CRISP_WHITE,
             initialLanguage = AppLanguage.AR,
             initialCountryCode = "DZ",
             initialCurrencyCode = "DZD",
@@ -2030,5 +2047,149 @@ class ExampleRobolectricTest {
         assertTrue("UID A deletedFarmIds tombstone must remain intact", "farm_deleted_by_a" in AgritechMockDb.deletedFarmIds)
         assertTrue("UID A empty workerPersonalEntries must remain empty", AgritechMockDb.workerPersonalEntries.isEmpty())
     }
+
+    @Test
+    fun `book last read lesson bookmark persists per branch and per user uid`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val uid1 = "book_reader_uid_1"
+        val uid2 = "book_reader_uid_2"
+
+        SaasPreferencesManager.saveLastReadLessonId(context, branchIndex = 0, lessonId = "care_3", userUid = uid1)
+        SaasPreferencesManager.saveLastReadLessonId(context, branchIndex = 3, lessonId = "feed_2", userUid = uid1)
+        SaasPreferencesManager.saveLastReadLessonId(context, branchIndex = 0, lessonId = "care_1", userUid = uid2)
+
+        assertEquals("care_3", SaasPreferencesManager.getLastReadLessonId(context, branchIndex = 0, userUid = uid1))
+        assertEquals("feed_2", SaasPreferencesManager.getLastReadLessonId(context, branchIndex = 3, userUid = uid1))
+        assertEquals("care_1", SaasPreferencesManager.getLastReadLessonId(context, branchIndex = 0, userUid = uid2))
+        assertEquals(null, SaasPreferencesManager.getLastReadLessonId(context, branchIndex = 1, userUid = uid1))
+    }
+
+    @Test
+    fun `nanoBananaImageEngine caches PNG to filesDir and handles offline failures safely`() {
+        runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val offlineKey = "test_offline_missing_key"
+        BookNanoBananaImageEngine.cacheFileForKey(context, offlineKey).delete()
+
+        // 1. Missing API key returns null safely without crashing
+        val missingKeyResult = BookNanoBananaImageEngine.getOrFetchLessonImage(
+            context = context,
+            imageKey = offlineKey,
+            prompt = "Test chick prompt",
+            apiKeyProvider = { "" }
+        )
+        assertNull(missingKeyResult)
+
+        // 2. Network IOException returns null safely via runCatching
+        val exceptionResult = BookNanoBananaImageEngine.getOrFetchLessonImage(
+            context = context,
+            imageKey = "test_network_error",
+            prompt = "Test chick prompt",
+            apiKeyProvider = { "dummy-test-key" },
+            remoteFetcher = { _, _ -> throw IOException("No internet connection") }
+        )
+        assertNull(exceptionResult)
+
+        // 3. Valid PNG response from Gemini Nano Banana Base64 JSON decodes & persists permanently to filesDir
+        val sampleBmp = Bitmap.createBitmap(32, 32, Bitmap.Config.ARGB_8888)
+        val baos = ByteArrayOutputStream()
+        sampleBmp.compress(Bitmap.CompressFormat.PNG, 100, baos)
+        val pngBytes = baos.toByteArray()
+        val encodedB64 = Base64.encodeToString(pngBytes, Base64.NO_WRAP)
+        val mockGeminiJson = """
+            {
+              "candidates": [{
+                "content": {
+                  "parts": [{
+                    "inlineData": {
+                      "mimeType": "image/png",
+                      "data": "$encodedB64"
+                    }
+                  }]
+                }
+              }]
+            }
+        """.trimIndent()
+        val parsedBytes = BookNanoBananaImageEngine.parseImageBytesFromResponse(mockGeminiJson)
+        assertTrue(parsedBytes != null && parsedBytes.isNotEmpty())
+
+        val reqJson = BookNanoBananaImageEngine.buildRequestJson("Warm parchment chicks illustration")
+        assertTrue(reqJson.contains("responseModalities"))
+        assertTrue(reqJson.contains("IMAGE"))
+
+        val cachedKey = "hero_test_feed_1_cached"
+        BookNanoBananaImageEngine.cacheFileForKey(context, cachedKey).delete()
+
+        var remoteCalls = 0
+        val fetchedBmp = BookNanoBananaImageEngine.getOrFetchLessonImage(
+            context = context,
+            imageKey = cachedKey,
+            prompt = "Warm parchment chicks illustration",
+            apiKeyProvider = { "dummy-key" },
+            remoteFetcher = { _, _ ->
+                remoteCalls++
+                parsedBytes
+            }
+        )
+        assertTrue("Fetched bitmap must decode cleanly", fetchedBmp != null)
+        assertEquals(1, remoteCalls)
+
+        val expectedFile = File(context.filesDir, "nano_banana_book_cache/$cachedKey.png")
+        assertTrue("Cached PNG must be persisted in filesDir/nano_banana_book_cache", expectedFile.exists() && expectedFile.length() > 0L)
+
+        // 4. Subsequent call loads in 0ms from cache without hitting remoteFetcher even offline
+        val cachedReadBmp = BookNanoBananaImageEngine.getOrFetchLessonImage(
+            context = context,
+            imageKey = cachedKey,
+            prompt = "Warm parchment chicks illustration",
+            apiKeyProvider = { "" },
+            remoteFetcher = { _, _ -> throw IOException("Offline") }
+        )
+        assertTrue("Cached bitmap must load offline from disk cache", cachedReadBmp != null)
+        assertEquals("Remote fetcher must NOT be called again once cached", 1, remoteCalls)
+        }
+    }
+
+    @Test
+    fun `lesson page removes ambiguous chick anatomy and displays 50_50 success vs mistake comparison cards`() {
+        val branches = Ross308BroilerHandbook.buildFourBranchesForBarn(
+            barnName = "عنبر 1",
+            ageDays = 10,
+            placedBirds = 5000,
+            liveBirds = 4920,
+            recordedTempC = 28.0,
+            totalFeedQuintals = 12.0,
+            remainingFeedQuintals = 6.0,
+            latestDailyFeedKg = 240.0,
+            latestDailyWaterLiters = 430.0,
+            currentWeightKg = 0.30,
+            actualFcr = 1.15
+        )
+        val feedCard = branches[3].subCards.first { it.id == "feed_1" }
+
+        composeTestRule.setContent {
+            VintageSpiralBookPageContainer(
+                detailCard = feedCard,
+                spec = feedCard.posterSpec!!,
+                pageNumber = 1,
+                totalPages = 4,
+                lang = AppLanguage.AR
+            )
+        }
+
+        // Ambiguous chick anatomy must be completely removed
+        assertEquals(
+            0,
+            composeTestRule.onAllNodesWithTag("vintage_chick_anatomy_center").fetchSemanticsNodes().size
+        )
+
+        // Clear 50/50 farmer comparison cards & Nano Banana Hero + 3 stage cards must be rendered
+        composeTestRule.onNodeWithTag("book_card_success_farmer").assertExists()
+        composeTestRule.onNodeWithTag("book_card_mistake_farmer").assertExists()
+        composeTestRule.onNodeWithTag("vintage_book_bottom_comparison_row").assertExists()
+        composeTestRule.onNodeWithTag("vintage_book_three_stage_cards_row").assertExists()
+        composeTestRule.onNodeWithTag("infographic_canvas_feed_starter_spec", useUnmergedTree = true).assertExists()
+    }
 }
+
 

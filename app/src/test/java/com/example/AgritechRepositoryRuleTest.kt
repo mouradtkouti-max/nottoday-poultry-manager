@@ -487,7 +487,7 @@ class AgritechRepositoryRuleTest : FirestoreEmulatorTestBase() {
                     isLocked = false
                 )
             ).getOrThrow()
-            repo.createFarmInvite(farmId, AppRole.WORKER, "inv_gp_1").getOrThrow()
+            repo.createFarmInvite(farmId, AppRole.WORKER, customInviteId = "inv_gp_1").getOrThrow()
             repo.sendChatMessage(
                 ChatMessageModel(
                     id = "msg_gp_1",
@@ -502,9 +502,8 @@ class AgritechRepositoryRuleTest : FirestoreEmulatorTestBase() {
             )
 
             // Delete user account and all cloud data completely with detailed outcome verification
-            val outcomeRes = repo.deleteUserAccountAndDataWithOutcome(userUid)
-            assertTrue("Deleting account and cloud data must succeed: ${outcomeRes.exceptionOrNull()?.message}", outcomeRes.isSuccess)
-            val outcome = outcomeRes.getOrThrow()
+            val outcome = repo.deleteUserAccountAndDataWithOutcome(userUid)
+            assertTrue("Deleting account and cloud data must succeed: ${outcome.error?.message}", outcome.isSuccess)
             assertTrue(
                 "Outcome must be FULL_SUCCESS or REAUTH_REQUIRED_DATA_WIPED, got ${outcome.status} with failedSteps=${outcome.failedSteps}",
                 outcome.isSuccess && outcome.failedSteps.isEmpty()
@@ -515,7 +514,7 @@ class AgritechRepositoryRuleTest : FirestoreEmulatorTestBase() {
     @Test
     fun auditSections3And4_workerRevocation_and_marketDirectChatIsolation() = runBlocking {
         val farmId = "farm_rev_${UUID.randomUUID().toString().take(8)}"
-        val ownerUid = signInTestUser("owner_rev_${UUID.randomUUID()}@farm.com")
+        val ownerUid = signInAndTrackUser("owner_rev_${UUID.randomUUID()}@farm.com")
         val repo = AgritechFirestoreRepository(firestore)
 
         val workerInvite: FarmInviteModel
@@ -542,11 +541,11 @@ class AgritechRepositoryRuleTest : FirestoreEmulatorTestBase() {
                     feedInventoryKg = 1000.0
                 )
             ).getOrThrow()
-            workerInvite = repo.createFarmInvite(farmId, AppRole.WORKER, "inv_rev_w1").getOrThrow()
+            workerInvite = repo.createFarmInvite(farmId, AppRole.WORKER, customInviteId = "inv_rev_w1").getOrThrow()
         }
 
         // Worker joins via invite and sends a team chat message
-        val workerUid = signInTestUser("worker_rev_${UUID.randomUUID()}@farm.com")
+        val workerUid = signInAndTrackUser("worker_rev_${UUID.randomUUID()}@farm.com")
         val teamChannelId = "${farmId}_cycle_rev_1_worker"
         withTimeout(5000L) {
             repo.setUserRoleAndFarm(AppRole.WORKER, farmId, "Worker 1").getOrThrow()
@@ -765,8 +764,8 @@ class AgritechRepositoryRuleTest : FirestoreEmulatorTestBase() {
 
     private val emailByUid = mutableMapOf<String, String>()
 
-    override suspend fun signInTestUser(email: String, password: String): String {
-        val uid = super.signInTestUser(email, password)
+    private suspend fun signInAndTrackUser(email: String): String {
+        val uid = super.signInTestUser(email)
         emailByUid[uid] = email
         return uid
     }

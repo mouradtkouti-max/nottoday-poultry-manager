@@ -1219,8 +1219,8 @@ class ExampleUnitTest {
         // 1. D02: Explicit UID takes strict priority in resolveActiveStorageIdentityKey
         val resolvedIdentityA = AgritechAuthHelper.resolveActiveStorageIdentityKey("uid_account_alpha")
         val resolvedIdentityB = LocalFarmPersistence.resolveActiveStorageIdentityKey("uid_account_beta")
-        assertEquals("local_user_uid_account_alpha", resolvedIdentityA)
-        assertEquals("local_user_uid_account_beta", resolvedIdentityB)
+        assertEquals("auth_uid_uid_account_alpha", resolvedIdentityA)
+        assertEquals("auth_uid_uid_account_beta", resolvedIdentityB)
         assertNotEquals(resolvedIdentityA, resolvedIdentityB)
 
         // 2. D01: resetForAccountSwitch clears chatMessages and chatConversations so messages never leak across accounts
@@ -1750,5 +1750,155 @@ class ExampleUnitTest {
         assertEquals(250.0, c1AfterRollback.feedDeficitKg, 0.001)
         assertEquals(5, c1AfterRollback.cumulativeMortality)
     }
+
+    @Test
+    fun ross308_fourteenLanguageBookLessons_and_dailyReportKeys_areComplete() {
+        val branches = Ross308BroilerHandbook.buildFourBranchesForBarn(
+            barnName = "عنبر السلام",
+            ageDays = 22,
+            placedBirds = 5000,
+            liveBirds = 4900,
+            recordedTempC = 24.0,
+            totalFeedQuintals = 45.0,
+            remainingFeedQuintals = 15.0,
+            latestDailyFeedKg = 420.0,
+            latestDailyWaterLiters = 720.0,
+            currentWeightKg = 1.05,
+            actualFcr = 1.28
+        )
+        val feed3Card = branches[3].subCards.first { it.id == "feed_3" }
+        assertTrue(feed3Card.title.contains("75/25"))
+        assertTrue(feed3Card.posterSpec!!.coreIdea.contains("75/25"))
+
+        val care1Card = branches[0].subCards.first { it.id == "care_1" }
+        assertTrue(care1Card.title.contains("33.5"))
+        assertTrue(care1Card.posterSpec!!.coreIdea.contains("33.5"))
+
+        val requiredUiKeys = listOf(
+            "book_btn_back_to_4_books",
+            "book_btn_back_to_index",
+            "book_index_header_fmt",
+            "book_index_short_0",
+            "book_index_short_1",
+            "book_index_short_2",
+            "book_index_short_3",
+            "book_ribbon_success_signs",
+            "book_card_success_do_this",
+            "book_card_avoid_dont",
+            "book_badge_stopped_here",
+            "book_btn_start_reading",
+            "book_swipe_page_footer_fmt",
+            "book_barn_selector_label",
+            "book_4_lessons_badge_fmt",
+            "book_branch_3_title_display",
+            "book_branch_0_shelf_desc",
+            "book_branch_1_shelf_desc",
+            "book_branch_2_shelf_desc",
+            "book_branch_3_shelf_desc",
+            "no_active_cycle",
+            "btn_owner_add_daily_report",
+            "dialog_owner_daily_report_title",
+            "dialog_edit_daily_report_title",
+            "field_day_number_mid_cycle",
+            "field_day_number_mid_cycle_hint",
+            "confirm_medicine_water_today_label",
+            "medicine_water_name_input_label",
+            "field_actual_bird_weight_grams_optional",
+            "book_analytics_section_title"
+        )
+
+        for (lang in AppLanguage.values()) {
+            for (key in requiredUiKeys) {
+                val value = Translations.tr(key, lang)
+                assertTrue("Key $key blank or echoed for $lang", value.isNotBlank() && value != key)
+                if (lang != AppLanguage.EN) {
+                    assertNotEquals(
+                        "Key $key must not fall back identically to English for $lang",
+                        Translations.tr(key, AppLanguage.EN),
+                        value
+                    )
+                }
+            }
+
+            // Verify book_index_header_fmt replaces {book}/{title}/{count} cleanly without raw placeholders
+            for (branchIdx in 0..3) {
+                val shortBook = Translations.tr("book_index_short_$branchIdx", lang)
+                val formattedHeader = Translations.tr("book_index_header_fmt", lang)
+                    .replace("{book}", shortBook)
+                    .replace("{title}", shortBook)
+                    .replace("{count}", "4")
+                assertFalse("Header must not retain {book} for $lang", formattedHeader.contains("{book}"))
+                assertFalse("Header must not retain {title} for $lang", formattedHeader.contains("{title}"))
+                assertFalse("Header must not retain raw braces for $lang", formattedHeader.contains("{") || formattedHeader.contains("}"))
+                assertTrue("Header must contain resolved specialty name for $lang", formattedHeader.contains(shortBook))
+            }
+
+            for (branch in branches) {
+                for (subCard in branch.subCards) {
+                    val (locCard, locSpec) = com.example.utils.Ross308BookPageTranslations.localizeSubCardAndSpec(
+                        subCard = subCard,
+                        spec = subCard.posterSpec!!,
+                        lang = lang
+                    )
+                    assertTrue("Title blank for ${subCard.id} in $lang", locCard.title.isNotBlank())
+                    assertTrue("CoreIdea blank for ${subCard.id} in $lang", locSpec.coreIdea.isNotBlank())
+                    if (locSpec.isMedicalSixSectionLayout) {
+                        assertTrue("sec1Definition blank for ${subCard.id} in $lang", locSpec.sec1Definition.isNotBlank())
+                        assertEquals("quickFacts size for ${subCard.id} in $lang", 4, locSpec.quickFacts.size)
+                        assertEquals("sec2SymptomCards size for ${subCard.id} in $lang", 5, locSpec.sec2SymptomCards.size)
+                        assertEquals("sec4PerformanceTable size for ${subCard.id} in $lang", 5, locSpec.sec4PerformanceTable.size)
+                    } else {
+                        assertEquals("whyImportantPoints size for ${subCard.id} in $lang", 4, locSpec.whyImportantPoints.size)
+                        assertTrue("timelineSteps size for ${subCard.id} in $lang", locSpec.timelineSteps.size >= 3)
+                        assertNotNull("comparisonPair null for ${subCard.id} in $lang", locSpec.comparisonPair)
+                    }
+                    if (lang != AppLanguage.AR && lang != AppLanguage.EN) {
+                        val enSpec = com.example.utils.Ross308BookPageTranslations.localizeSubCardAndSpec(
+                            subCard = subCard,
+                            spec = subCard.posterSpec!!,
+                            lang = AppLanguage.EN
+                        ).second
+                        assertNotEquals(
+                            "coreIdea for ${subCard.id} must not fall back to EN in $lang",
+                            enSpec.coreIdea,
+                            locSpec.coreIdea
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    fun nanoBananaImageEngine_endpointPromptsFallbackAndSanitization_areValid() {
+        assertEquals(
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent",
+            BookNanoBananaImageEngine.NANO_BANANA_ENDPOINT
+        )
+        assertEquals("hero_feed_1", BookNanoBananaImageEngine.sanitizeImageKey("hero feed/1"))
+
+        val heroPrompt = BookNanoBananaImageEngine.buildPromptForHero(
+            lessonId = "feed_1",
+            visualType = InfographicVisualType.FEED_STARTER_SPEC
+        )
+        assertTrue(heroPrompt.contains("ZERO text"))
+        assertTrue(heroPrompt.contains("NO letters"))
+
+        for (stepIdx in 0..2) {
+            val stepPrompt = BookNanoBananaImageEngine.buildPromptForStep(
+                lessonId = "care_1",
+                visualType = InfographicVisualType.CARE_PREHEAT_PREP,
+                stepIndex = stepIdx
+            )
+            assertTrue(stepPrompt.contains("ZERO text"))
+        }
+
+        // All visual types map cleanly to pre-bundled watercolor drawables in res/drawable/
+        for (visualType in InfographicVisualType.values()) {
+            val resId = BookNanoBananaImageEngine.bundledFallbackDrawableFor(visualType)
+            assertTrue("Fallback drawable for $visualType must be non-zero", resId != 0)
+        }
+    }
 }
+
 

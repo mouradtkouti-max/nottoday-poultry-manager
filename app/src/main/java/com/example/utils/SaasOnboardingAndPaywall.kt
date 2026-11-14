@@ -264,10 +264,40 @@ object SaasPreferencesManager {
     private const val KEY_PROFESSION_ONBOARDING_DONE = "profession_onboarding_completed"
     private const val KEY_ENABLED_ROLES_PREFIX = "enabled_roles_for_uid_"
     private const val KEY_ADDITIONAL_ROLE_ENTITLEMENT_PREFIX = "has_additional_role_entitlement_uid_"
+    private const val KEY_BOOK_LAST_READ_PREFIX = "book_last_read_lesson_uid_"
 
     private fun resolveUidKey(context: Context, userUid: String? = null): String {
         val rawUid = userUid ?: getSavedUserUid(context)
         return com.example.AgritechAuthHelper.resolveActiveStorageIdentityKey(rawUid)
+    }
+
+    fun getLastReadLessonId(context: Context, branchIndex: Int, userUid: String? = null): String? {
+        return try {
+            val resolvedUid = resolveUidKey(context, userUid)
+            val key = "${KEY_BOOK_LAST_READ_PREFIX}${resolvedUid}_branch_$branchIndex"
+            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .getString(key, null)
+                ?.takeIf { it.isNotBlank() }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    fun saveLastReadLessonId(
+        context: Context,
+        branchIndex: Int,
+        lessonId: String,
+        userUid: String? = null
+    ) {
+        if (lessonId.isBlank()) return
+        try {
+            val resolvedUid = resolveUidKey(context, userUid)
+            val key = "${KEY_BOOK_LAST_READ_PREFIX}${resolvedUid}_branch_$branchIndex"
+            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .edit()
+                .putString(key, lessonId)
+                .apply()
+        } catch (_: Exception) {}
     }
 
     fun getEnabledRolesForUser(context: Context, userUid: String? = null): Set<AppRole> {

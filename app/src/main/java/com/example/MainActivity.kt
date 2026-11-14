@@ -86,6 +86,7 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.ui.graphics.graphicsLayer
 import com.example.models.*
+import com.example.ui.BookAdviceNavigationFlow
 import com.example.ui.BookBorderInner
 import com.example.ui.BookBorderOuter
 import com.example.ui.BookBurgundy
@@ -861,7 +862,7 @@ object AgritechMockDb {
                 AgritechFirestoreRepository.applyFeedDeltaWithDeficit(
                     currentInventoryKg = totalPurchasedFeedKg,
                     currentDeficitKg = 0.0,
-                    consumptionDeltaKg = totalConsumedFeedKg
+                    feedDeltaToDeduct = totalConsumedFeedKg
                 )
             localCycle.feedInventoryKg > 0.0 && cloudCycle.feedInventoryKg > 0.0 ->
                 Pair(minOf(localCycle.feedInventoryKg, cloudCycle.feedInventoryKg), maxOf(localCycle.feedDeficitKg, cloudCycle.feedDeficitKg))
@@ -984,7 +985,7 @@ object AgritechMockDb {
                             val (newInv, newDeficit) = AgritechFirestoreRepository.applyFeedDeltaWithDeficit(
                                 currentInventoryKg = c.feedInventoryKg,
                                 currentDeficitKg = c.feedDeficitKg,
-                                consumptionDeltaKg = -addedFeedKg
+                                feedDeltaToDeduct = -addedFeedKg
                             )
                             cycles[cycleIdx] = c.copy(
                                 feedInventoryKg = newInv,
@@ -1135,7 +1136,7 @@ object AgritechMockDb {
                 val (restoredInv, restoredDeficit) = AgritechFirestoreRepository.applyFeedDeltaWithDeficit(
                     currentInventoryKg = cur.feedInventoryKg,
                     currentDeficitKg = cur.feedDeficitKg,
-                    consumptionDeltaKg = addedFeedKg
+                    feedDeltaToDeduct = addedFeedKg
                 )
                 cycles[cIdx] = cur.copy(
                     feedInventoryKg = restoredInv,
@@ -1183,7 +1184,7 @@ object AgritechMockDb {
             val (restoredInv, restoredDeficit) = AgritechFirestoreRepository.applyFeedDeltaWithDeficit(
                 currentInventoryKg = cur.feedInventoryKg,
                 currentDeficitKg = cur.feedDeficitKg,
-                consumptionDeltaKg = -feedDeltaToReverse
+                feedDeltaToDeduct = -feedDeltaToReverse
             )
             cycles[cIdx] = cur.copy(
                 feedInventoryKg = restoredInv,
@@ -1372,7 +1373,7 @@ object AgritechMockDb {
                         val (newInv, newDeficit) = AgritechFirestoreRepository.applyFeedDeltaWithDeficit(
                             currentInventoryKg = c.feedInventoryKg,
                             currentDeficitKg = c.feedDeficitKg,
-                            consumptionDeltaKg = feedDeltaKg
+                            feedDeltaToDeduct = feedDeltaKg
                         )
                         cycles[cycleIdx] = c.copy(
                             feedInventoryKg = newInv,
@@ -1402,7 +1403,7 @@ object AgritechMockDb {
                 val (newInv, newDeficit) = AgritechFirestoreRepository.applyFeedDeltaWithDeficit(
                     currentInventoryKg = c.feedInventoryKg,
                     currentDeficitKg = c.feedDeficitKg,
-                    consumptionDeltaKg = stamped.feedIntakeKg
+                    feedDeltaToDeduct = stamped.feedIntakeKg
                 )
                 cycles[cycleIdx] = c.copy(
                     feedInventoryKg = newInv,
@@ -2115,7 +2116,7 @@ fun AgritechMainApp(
                                 val (newInv, newDeficit) = AgritechFirestoreRepository.applyFeedDeltaWithDeficit(
                                     currentInventoryKg = c.feedInventoryKg,
                                     currentDeficitKg = c.feedDeficitKg,
-                                    consumptionDeltaKg = -addedFeedKg
+                                    feedDeltaToDeduct = -addedFeedKg
                                 )
                                 AgritechMockDb.cycles[cycleIdx] = c.copy(
                                     feedInventoryKg = newInv,
@@ -3675,8 +3676,8 @@ fun AgritechOwnerDashboard(
                             val resolvedDirectChannelId = if (currentBuyerUid.isNotBlank() && post.publisherId.isNotBlank() && currentBuyerUid != post.publisherId) {
                                 AgritechFirestoreRepository.buildMarketDirectChannelId(
                                     postId = post.id,
-                                    uid1 = currentBuyerUid,
-                                    uid2 = post.publisherId
+                                    uidA = currentBuyerUid,
+                                    uidB = post.publisherId
                                 )
                             } else {
                                 post.chatChannelId
@@ -7816,18 +7817,18 @@ object Ross308BroilerHandbook {
                 branchIndex = 0,
                 cardNumberInBranch = 1,
                 iconEmoji = "🔥",
-                title = "سخّن العنبر والفرشة قبل وصول الصيصان (اليوم 1-7)",
-                badge1 = "🌡️ 33°C تدفئة مسبقة",
+                title = "تطهير العنبر والتدفئة المسبقة (33.5°C هواء / 30°C فرشة)",
+                badge1 = "🌡️ 33.5°C هواء / 30°C فرشة",
                 badge2 = "🪵 فرشة 5-8 سم",
                 scientificRulePoints = listOf(
-                    "تدفئة العنبر المسبقة قبل 24–48 ساعة حتى تستقر حرارة الفرشة عند 29°C–30°C وحرارة الهواء 33°C ورطوبة 60%–70%.",
+                    "تطهير العنبر والتدفئة المسبقة قبل 24 ساعة حتى تستقر حرارة الهواء عند 33.5°C والفرشة عند 30°C ورطوبة نسبية 50%–60%.",
                     "الأرضية الباردة تسبب برودة أقدام الصوص واضطراب امتصاص كيس المح والجهاز الهضمي.",
                     "فحص الحوصلة بعد 24 ساعة يجب أن يتجاوز 95% (لينة وممتلئة) للوصول لوزن 190–200 غ في اليوم 7."
                 ),
                 practicalStepsWithCheck = listOf(
-                    "✓ نظّف العنبر وطهّر الأرضية والخطوط ثم ضع فرشة نظيفة وجافة بسمك 5–8 سم.",
-                    "✓ شغّل التدفئة قبل الوصول بـ 24–48 ساعة وافرد ورق التحضين وأطباق العلف.",
-                    "✓ قِس حرارة الفرشة وحرارة المجمع (39.4–40.5°C) وافحص امتلاء الحوصلة بعد 8 و24 ساعة."
+                    "✓ نظّف العنبر وطهّر الأرضية والخطوط ثم ضع فرشة نظيفة وجافة بسمك 5–8 سم شتاءً.",
+                    "✓ شغّل التدفئة قبل الوصول بـ 24 ساعة (33.5°C هواء / 30°C فرشة) وافرد ورق التحضين وأطباق العلف.",
+                    "✓ قِس حرارة الفرشة وحرارة المجمع (39.4–40.5°C) وافحص امتلاء الحوصلة (>95%) بعد 24 ساعة."
                 ),
                 liveBarnComparisonText = "🏠 عنبرك الحالي [$barnName] (اليوم $safeAge • الكتاكيت المسكنة: ${String.format(java.util.Locale.US, "%,d", placedBirds)}): " +
                     "حرارة العنبر المسجلة: $tempNowStr (الهدف القياسي لليوم $safeAge: ${String.format(java.util.Locale.US, "%.0f°C", targetTempC)}).",
@@ -8148,18 +8149,18 @@ object Ross308BroilerHandbook {
                 branchIndex = 3,
                 cardNumberInBranch = 3,
                 iconEmoji = "🌽",
-                title = "المرحلة الثالثة (اليوم 22 - 45): العلف الناهي Finisher",
-                badge1 = "🌾 بروتين 20.5%",
-                badge2 = "⚡ طاقة 3200 kcal",
+                title = "تغيير العلف التدريجي (3 أيام: 75/25 ➔ 50/50 ➔ 25/75) ومضاد السموم",
+                badge1 = "🔄 خلط تدريجي 3 أيام",
+                badge2 = "🧪 مضاد سموم + قنطار",
                 scientificRulePoints = listOf(
-                    "مواصفات العلف الناهي (Finisher Day 22–45): بروتين خام 19.5%–20.5% • طاقة ممثلة 3200 kcal/kg • كبسولات Pellets 3.5 ملم.",
-                    "تمثل هذه المرحلة أكثر من 65% من إجمالي استهلاك العلف المالي للدورة؛ لذا فإن خفض الهدر يضاعف صافي الربح.",
-                    "أهداف الأوزان: اليوم 28 (1.58 كغ | FCR 1.38) • اليوم 35 (2.25 كغ | FCR 1.50) • اليوم 42 (2.95 كغ | FCR 1.65)."
+                    "قاعدة الخلط التدريجي عند الانتقال بين مراحل العلف (3 أيام): اليوم 1 (75% قديم + 25% جديد) ➔ اليوم 2 (50% + 50%) ➔ اليوم 3 (25% قديم + 75% جديد).",
+                    "تمثل مرحلة الناهي (20.5% بروتين • 3200 kcal • 3.5mm) أكثر من 65% من إجمالي تكلفة العلف للدورة.",
+                    "إضافة مضاد السموم الفطرية (Mycotoxin Binder) وتخزين الأكياس على طبالي جافة بالقنطار (1 ق = 100 كغ) يحمي الكبد ويضبط FCR."
                 ),
                 practicalStepsWithCheck = listOf(
-                    "✓ تأكد من متانة حبة العلف (Pellets) وعدم تفتتها إلى بودرة لأن الطائر الكبير يرفض العلف الناعم.",
-                    "✓ راقب المخزون المتبقي في العنبر بالقنطار (ق) يومياً لتأمين طلبيات العلف قبل نفادها بـ 3 أيام.",
-                    "✓ استخدم حاسبة المبيعات والفرز لتحديد نقطة البيع المثلى قبل تراجع كفاءة التحويل بعد اليوم 42."
+                    "✓ طبّق الخلط التدريجي 3 أيام (75/25 ثم 50/50 ثم 25/75) دون تبديل مفاجئ يحمي الأمعاء من الإسهال.",
+                    "✓ قدّم كورس مضاد سموم فطرية عند كل نقلة علف وراقب متانة حبة العلف (Pellets) وخلوها من البودرة.",
+                    "✓ راقب المخزون المتبقي في العنبر بالقنطار (ق) يومياً لتأمين طلبيات العلف قبل نفادها بـ 3 أيام."
                 ),
                 liveBarnComparisonText = "🏠 تغذية [$barnName] (اليوم $safeAge): " +
                     "معامل التحويل الحالي ${if (actualFcr > 0.0) String.format(java.util.Locale.US, "%.2f", actualFcr) else "قيد الحساب"} (الهدف: ${String.format(java.util.Locale.US, "%.2f", targetFcr)}) • المخزون المتبقي: ${Translations.formatQuintalNumber(remainingFeedQuintals)} $qUnit.",
@@ -8654,7 +8655,7 @@ fun OwnerGlobalAiVetPlaceholderScreen(
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         Text(
-                            text = if (lang == AppLanguage.AR) "🏠 العنبر:" else "🏠 Barn:",
+                            text = Translations.tr("book_barn_selector_label", lang),
                             fontSize = 11.5.sp,
                             fontWeight = FontWeight.Bold,
                             color = secondaryText
@@ -8666,7 +8667,7 @@ fun OwnerGlobalAiVetPlaceholderScreen(
                                 border = BorderStroke(1.dp, glassBorderColor)
                             ) {
                                 Text(
-                                    text = if (lang == AppLanguage.AR) "لا يوجد عنبر نشط" else Translations.tr("no_active_cycle", lang),
+                                    text = Translations.tr("no_active_cycle", lang),
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = secondaryText,
@@ -8797,10 +8798,6 @@ fun OwnerGlobalAiVetPlaceholderScreen(
             val bookCostPerBird = if (bookLiveBirds > 0) bookTotalExpenses / bookLiveBirds else 0.0
             val bookCostPerKg = if (bookStandingBiomassKg > 0.0) bookTotalExpenses / bookStandingBiomassKg else 0.0
 
-            // متغيرات حالة الفروع الأربعة والانتقال البطاقي المتدرج (4-Branch Drill-Down Card Architecture)
-            var selectedBookBranchIndex by rememberSaveable { mutableIntStateOf(0) }
-            var openedSubCardId by rememberSaveable { mutableStateOf<String?>(null) }
-
             val bookBranches = remember(
                 bookBarnName,
                 bookAgeDays,
@@ -8830,12 +8827,6 @@ fun OwnerGlobalAiVetPlaceholderScreen(
                     qUnit = qUnit,
                     kgUnit = kgUnit
                 )
-            }
-
-            if (selectedAiSubTab == 1 && openedSubCardId != null) {
-                BackHandler {
-                    openedSubCardId = null
-                }
             }
 
             // محتوى القسم النشط (📊 التحليلات | 💡 نصائح | 💬 المحادثة)
@@ -9010,289 +9001,27 @@ fun OwnerGlobalAiVetPlaceholderScreen(
                 }
 
                 1 -> {
-                    // 4 كتب مستقلة (كتاب خاص لكل تخصص من الدرس 01 إلى 04 — صفحة 1 من 4 إلى 4 من 4) + شبكة 2x2 واضحة + تقليب ثلاثي الأبعاد بالسحب
-                    val safeBranchIdx = selectedBookBranchIndex.coerceIn(0, (bookBranches.size - 1).coerceAtLeast(0))
-                    val activeBranch = bookBranches.getOrElse(safeBranchIdx) { bookBranches.first() }
-                    val activeBranchLessons = activeBranch.subCards
-                    val totalBranchPages = activeBranchLessons.size.coerceAtLeast(4)
-
-                    val branchBookPagerState = rememberPagerState(
-                        initialPage = 0,
-                        pageCount = { activeBranchLessons.size.coerceAtLeast(1) }
-                    )
-                    var triggerZoomForActivePage by remember { mutableStateOf(false) }
-
-                    // عند اختيار تخصص جديد من شبكة الـ 2x2، يُفتح كتابه المستقل فوراً على الصفحة الأولى (الدرس 01 — صفحة 1 من 4)
-                    LaunchedEffect(selectedBookBranchIndex) {
-                        branchBookPagerState.scrollToPage(0)
+                    // نظام الخطوات الـ 3 المستقلة لكتب Ross 308 الـ 4 (رف الكتب 2x2 -> فهرس الكتاب -> صفحة الدرس بالسحب فقط)
+                    val bookCtx = LocalContext.current
+                    val activeBookUid = remember(bookCtx) {
+                        AgritechAuthHelper.resolveActiveStorageIdentityKey(
+                            AgritechAuthHelper.currentUserUid() ?: SaasPreferencesManager.getSavedUserUid(bookCtx)
+                        )
                     }
-
-                    val branchTitleKeys = listOf(
-                        "book_branch_0_title",
-                        "book_branch_1_title",
-                        "book_branch_2_title",
-                        "book_branch_3_title"
-                    )
-                    val branchSubtitleKeys = listOf(
-                        "book_branch_0_subtitle",
-                        "book_branch_1_subtitle",
-                        "book_branch_2_subtitle",
-                        "book_branch_3_subtitle"
-                    )
-
-                    Column(
+                    BookAdviceNavigationFlow(
+                        branches = bookBranches,
+                        activeUserUid = activeBookUid,
+                        lang = lang,
+                        currentTheme = currentTheme,
+                        accentColor = aiAccent,
+                        accentPrimaryBtn = aiPrimaryBtn,
+                        accentContainer = aiAccentContainer,
+                        cornerRadiusDp = appearance.cornerRadiusDp,
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxWidth()
-                            .testTag("ai_diagnostics_cards_list"),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        // 1. الشبكة الرباعية الواضحة (2x2 Grid — book_branches_2x2_grid) من 4 بطاقات كبيرة وواضحة بدون قص للكلمات
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("book_branches_2x2_grid"),
-                            verticalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            bookBranches.chunked(2).forEach { rowBranches ->
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(IntrinsicSize.Max),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    rowBranches.forEach { branch ->
-                                        val idx = branch.branchIndex
-                                        val isSelected = safeBranchIdx == idx
-                                        val localizedBranchTitle = Translations.tr(
-                                            branchTitleKeys.getOrElse(idx) { "book_branch_0_title" },
-                                            lang
-                                        )
-                                        val localizedBranchSubtitle = Translations.tr(
-                                            branchSubtitleKeys.getOrElse(idx) { "book_branch_0_subtitle" },
-                                            lang
-                                        )
-                                        val independentBookBadge = Translations.tr("book_branch_badge_4_lessons", lang)
-
-                                        Surface(
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .fillMaxHeight()
-                                                .clip(RoundedCornerShape(12.dp))
-                                                .clickable {
-                                                    selectedBookBranchIndex = idx
-                                                    coroutineScope.launch {
-                                                        branchBookPagerState.scrollToPage(0)
-                                                    }
-                                                }
-                                                .testTag(branch.tag),
-                                            shape = RoundedCornerShape(12.dp),
-                                            color = if (isSelected) BookBurgundy else BookParchmentMid,
-                                            border = BorderStroke(
-                                                width = if (isSelected) 2.dp else 1.2.dp,
-                                                color = if (isSelected) BookGoldAccent else BookBorderOuter
-                                            ),
-                                            shadowElevation = if (isSelected) 5.dp else 2.dp
-                                        ) {
-                                            Column(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .padding(horizontal = 10.dp, vertical = 8.dp),
-                                                verticalArrangement = Arrangement.spacedBy(3.dp)
-                                            ) {
-                                                Text(
-                                                    text = localizedBranchTitle,
-                                                    fontSize = 11.5.sp,
-                                                    fontWeight = FontWeight.ExtraBold,
-                                                    color = if (isSelected) Color(0xFFFFF8E7) else BookBurgundyDark,
-                                                    lineHeight = 15.sp
-                                                )
-                                                Text(
-                                                    text = localizedBranchSubtitle,
-                                                    fontSize = 9.sp,
-                                                    fontWeight = FontWeight.SemiBold,
-                                                    color = if (isSelected) Color(0xFFFDE68A) else BookSepiaInk,
-                                                    lineHeight = 12.sp
-                                                )
-                                                Surface(
-                                                    shape = RoundedCornerShape(6.dp),
-                                                    color = if (isSelected) BookBurgundyDark else BookParchmentLight,
-                                                    border = BorderStroke(
-                                                        0.8.dp,
-                                                        if (isSelected) BookGoldAccent else BookBorderInner
-                                                    ),
-                                                    modifier = Modifier.padding(top = 2.dp)
-                                                ) {
-                                                    Text(
-                                                        text = independentBookBadge,
-                                                        fontSize = 8.sp,
-                                                        fontWeight = FontWeight.ExtraBold,
-                                                        color = if (isSelected) BookGoldAccent else BookBurgundy,
-                                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                                    )
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        // 2. تقليب صفحات الكتاب المستقل للتخصص المختار (HorizontalPager — 4 صفحات فقط لكل كتاب من الدرس 01 إلى 04 مع تأثير طي الصفحة ثلاثي الأبعاد 3D Page Flip)
-                        HorizontalPager(
-                            state = branchBookPagerState,
-                            userScrollEnabled = true,
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxWidth()
-                                .testTag("book_pages_horizontal_pager"),
-                            pageSpacing = 12.dp
-                        ) { pageIdx ->
-                            val pageCard = activeBranchLessons.getOrElse(pageIdx) { activeBranchLessons.first() }
-                            val resolvedSpec = pageCard.posterSpec
-                                ?: Ross308PosterCatalog.forSubCard(pageCard.id)
-                            val pageScrollState = rememberScrollState()
-                            val pageOffset = (branchBookPagerState.currentPage - pageIdx) +
-                                branchBookPagerState.currentPageOffsetFraction
-
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .graphicsLayer {
-                                        cameraDistance = 16f * density
-                                        rotationY = (-pageOffset * 28f).coerceIn(-38f, 38f)
-                                        val absOffset = kotlin.math.abs(pageOffset).coerceIn(0f, 1f)
-                                        val scaleFactor = 1f - (absOffset * 0.06f)
-                                        scaleX = scaleFactor
-                                        scaleY = scaleFactor
-                                        alpha = 1f - (absOffset * 0.22f)
-                                    }
-                                    .verticalScroll(pageScrollState)
-                            ) {
-                                if (resolvedSpec != null) {
-                                    VintageSpiralBookPageContainer(
-                                        detailCard = pageCard,
-                                        spec = resolvedSpec,
-                                        pageNumber = pageIdx + 1,
-                                        totalPages = totalBranchPages,
-                                        branchLessons = activeBranchLessons,
-                                        onSelectPageInBranch = { targetPage ->
-                                            val coerced = targetPage.coerceIn(0, (activeBranchLessons.size - 1).coerceAtLeast(0))
-                                            if (coerced != branchBookPagerState.currentPage) {
-                                                coroutineScope.launch {
-                                                    branchBookPagerState.scrollToPage(coerced)
-                                                }
-                                            }
-                                        },
-                                        lang = lang,
-                                        currentTheme = currentTheme,
-                                        accentColor = aiAccent,
-                                        accentPrimaryBtn = aiPrimaryBtn,
-                                        accentContainer = aiAccentContainer,
-                                        cornerRadiusDp = appearance.cornerRadiusDp,
-                                        externalZoomTrigger = triggerZoomForActivePage && branchBookPagerState.currentPage == pageIdx,
-                                        onDismissExternalZoom = { triggerZoomForActivePage = false }
-                                    )
-                                }
-                            }
-                        }
-
-                        // 3. الشريط السفلي لتقليب دروس الكتاب الحالي وتكبير الصفحة ("⬅ الدرس السابق" | "🔍 تكبير الصفحة" | "الدرس التالي ➔")
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("book_detail_same_branch_nav_bar")
-                                .testTag("book_page_bottom_bar"),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            // زر الدرس السابق في نفس الكتاب (1..4)
-                            Surface(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(44.dp)
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .clickable {
-                                        val count = activeBranchLessons.size.coerceAtLeast(1)
-                                        val prevPage = (branchBookPagerState.currentPage - 1 + count) % count
-                                        coroutineScope.launch {
-                                            branchBookPagerState.animateScrollToPage(prevPage)
-                                        }
-                                    }
-                                    .testTag("btn_prev_book_page")
-                                    .testTag("btn_prev_subcard_same_branch"),
-                                shape = RoundedCornerShape(10.dp),
-                                color = BookParchmentMid,
-                                border = BorderStroke(1.3.dp, BookBorderOuter)
-                            ) {
-                                Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 6.dp)) {
-                                    Text(
-                                        text = Translations.tr("book_btn_prev_lesson", lang),
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        color = BookBurgundyDark,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
-                            }
-
-                            // زر تكبير الصفحة (يدعم التقليب بالسحب داخل وضع التكبير أيضاً)
-                            Surface(
-                                modifier = Modifier
-                                    .weight(1.05f)
-                                    .height(44.dp)
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .clickable { triggerZoomForActivePage = true }
-                                    .testTag("btn_zoom_encyclopedia_poster"),
-                                shape = RoundedCornerShape(10.dp),
-                                color = BookBurgundy,
-                                border = BorderStroke(1.3.dp, BookGoldAccent)
-                            ) {
-                                Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 6.dp)) {
-                                    Text(
-                                        text = Translations.tr("book_btn_zoom_page", lang),
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        color = Color(0xFFFFF8E7),
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
-                            }
-
-                            // زر الدرس التالي في نفس الكتاب (1..4)
-                            Surface(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(44.dp)
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .clickable {
-                                        val count = activeBranchLessons.size.coerceAtLeast(1)
-                                        val nextPage = (branchBookPagerState.currentPage + 1) % count
-                                        coroutineScope.launch {
-                                            branchBookPagerState.animateScrollToPage(nextPage)
-                                        }
-                                    }
-                                    .testTag("btn_next_book_page")
-                                    .testTag("btn_next_subcard_same_branch"),
-                                shape = RoundedCornerShape(10.dp),
-                                color = BookBurgundy,
-                                border = BorderStroke(1.3.dp, BookGoldAccent)
-                            ) {
-                                Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 6.dp)) {
-                                    Text(
-                                        text = Translations.tr("book_btn_next_lesson", lang),
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        color = Color(0xFFFFF8E7),
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
-                            }
-                        }
-                    }
+                            .testTag("ai_diagnostics_cards_list")
+                    )
                 }
 
                 2 -> {
@@ -14997,9 +14726,12 @@ fun OwnerDailyReportDialog(
     val appearance = LocalAppAppearanceState.current
     val isDark = currentTheme.isDark
     val dialogBg = if (isDark) Color(0xFF1E293B) else Color.White
+    val fieldSurfaceBg = if (isDark) Color(0xFF0F172A) else Color(0xFFF8FAFC)
+    val cardBorderColor = if (isDark) Color(0xFF334155) else Color(0xFFE2E8F0)
     val primaryText = if (isDark) Color(0xFFFFFFFF) else Color(0xFF0F172A)
     val secondaryText = if (isDark) Color(0xFFCBD5E1) else Color(0xFF475569)
     val accentEmerald = appearance.accentColor
+    val cornerRadius = appearance.cornerRadiusDp.coerceIn(10, 22).dp
 
     val isEditMode = initialReport != null
     var dayNumberInput by remember(initialReport, suggestedDayNumber) {
@@ -15058,28 +14790,68 @@ fun OwnerDailyReportDialog(
         mutableStateOf(defaultActiveMedName)
     }
 
+    val fieldColors = OutlinedTextFieldDefaults.colors(
+        focusedTextColor = primaryText,
+        unfocusedTextColor = primaryText,
+        focusedBorderColor = accentEmerald,
+        unfocusedBorderColor = cardBorderColor,
+        focusedContainerColor = fieldSurfaceBg,
+        unfocusedContainerColor = fieldSurfaceBg,
+        cursorColor = accentEmerald
+    )
+
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = dialogBg,
-        shape = RoundedCornerShape(appearance.cornerRadiusDp.dp),
+        shape = RoundedCornerShape(cornerRadius),
         modifier = Modifier.testTag("owner_daily_report_dialog"),
         title = {
-            Text(
-                if (isEditMode) Translations.tr("dialog_edit_daily_report_title", lang)
-                else Translations.tr("dialog_owner_daily_report_title", lang),
-                fontWeight = FontWeight.ExtraBold,
-                fontSize = 16.sp,
-                color = primaryText
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = accentEmerald.copy(alpha = 0.14f),
+                    border = BorderStroke(1.dp, accentEmerald.copy(alpha = 0.35f))
+                ) {
+                    Text(
+                        text = "📋",
+                        fontSize = 16.sp,
+                        modifier = Modifier.padding(8.dp)
+                    )
+                }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = if (isEditMode) Translations.tr("dialog_edit_daily_report_title", lang)
+                        else Translations.tr("dialog_owner_daily_report_title", lang),
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 15.sp,
+                        color = primaryText,
+                        lineHeight = 20.sp
+                    )
+                    Text(
+                        text = Translations.getLocalizedFarmName(farm.id, lang, farm.name),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = secondaryText,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
         },
         text = {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .verticalScroll(rememberScrollState())
-                    .padding(top = 8.dp),
+                    .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
+                HorizontalDivider(color = cardBorderColor.copy(alpha = 0.7f))
+
+                // Cycle Day Field (Full Width)
                 OutlinedTextField(
                     value = dayNumberInput,
                     onValueChange = { if (!isEditMode) dayNumberInput = it.filter { ch -> ch.isDigit() } },
@@ -15096,108 +14868,129 @@ fun OwnerDailyReportDialog(
                     supportingText = {
                         Text(
                             Translations.tr("field_day_number_mid_cycle_hint", lang),
-                            fontSize = 11.sp,
+                            fontSize = 10.5.sp,
                             color = secondaryText.copy(alpha = 0.85f)
                         )
                     },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     shape = RoundedCornerShape(12.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = primaryText,
-                        unfocusedTextColor = primaryText,
-                        focusedBorderColor = accentEmerald
-                    ),
+                    colors = fieldColors,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .tactile3DStyle(baseColor = accentEmerald, cornerRadius = 12.dp, elevation = 4.dp)
                         .testTag("input_owner_report_day")
                 )
 
-                OutlinedTextField(
-                    value = feedQuintalsInput,
-                    onValueChange = {
-                        feedQuintalsInput = it.filter { ch -> ch.isDigit() || ch == '.' }
-                        dailyReportValidationError = null
-                    },
-                    label = { Text(Translations.tr("th_feed", lang), fontSize = 11.5.sp, color = secondaryText) },
-                    placeholder = { Text("1.8", fontSize = 11.5.sp, color = secondaryText.copy(alpha = 0.6f)) },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = primaryText,
-                        unfocusedTextColor = primaryText,
-                        focusedBorderColor = accentEmerald
-                    ),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .tactile3DStyle(baseColor = accentEmerald, cornerRadius = 12.dp, elevation = 4.dp)
-                        .testTag("input_owner_report_feed_quintals")
-                )
+                // Row 1: Feed (Quintals) | Water (Liters)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedTextField(
+                        value = feedQuintalsInput,
+                        onValueChange = {
+                            feedQuintalsInput = it.filter { ch -> ch.isDigit() || ch == '.' }
+                            dailyReportValidationError = null
+                        },
+                        label = {
+                            Text(
+                                Translations.tr("th_feed", lang),
+                                fontSize = 11.sp,
+                                color = secondaryText,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        },
+                        placeholder = { Text("1.8", fontSize = 11.sp, color = secondaryText.copy(alpha = 0.55f)) },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = fieldColors,
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag("input_owner_report_feed_quintals")
+                    )
 
-                OutlinedTextField(
-                    value = waterLitersInput,
-                    onValueChange = {
-                        waterLitersInput = it.filter { ch -> ch.isDigit() || ch == '.' }
-                        dailyReportValidationError = null
-                    },
-                    label = { Text(Translations.tr("th_water", lang), fontSize = 11.5.sp, color = secondaryText) },
-                    placeholder = { Text("320", fontSize = 11.5.sp, color = secondaryText.copy(alpha = 0.6f)) },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = primaryText,
-                        unfocusedTextColor = primaryText,
-                        focusedBorderColor = accentEmerald
-                    ),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .tactile3DStyle(baseColor = accentEmerald, cornerRadius = 12.dp, elevation = 4.dp)
-                        .testTag("input_owner_report_water")
-                )
+                    OutlinedTextField(
+                        value = waterLitersInput,
+                        onValueChange = {
+                            waterLitersInput = it.filter { ch -> ch.isDigit() || ch == '.' }
+                            dailyReportValidationError = null
+                        },
+                        label = {
+                            Text(
+                                Translations.tr("th_water", lang),
+                                fontSize = 11.sp,
+                                color = secondaryText,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        },
+                        placeholder = { Text("320", fontSize = 11.sp, color = secondaryText.copy(alpha = 0.55f)) },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = fieldColors,
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag("input_owner_report_water")
+                    )
+                }
 
-                OutlinedTextField(
-                    value = mortalityInput,
-                    onValueChange = {
-                        mortalityInput = it.filter { ch -> ch.isDigit() }
-                        dailyReportValidationError = null
-                    },
-                    label = { Text(Translations.tr("th_mortality", lang), fontSize = 11.5.sp, color = secondaryText) },
-                    placeholder = { Text("0", fontSize = 11.5.sp, color = secondaryText.copy(alpha = 0.6f)) },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = primaryText,
-                        unfocusedTextColor = primaryText,
-                        focusedBorderColor = accentEmerald
-                    ),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .tactile3DStyle(baseColor = accentEmerald, cornerRadius = 12.dp, elevation = 4.dp)
-                        .testTag("input_owner_report_mortality")
-                )
+                // Row 2: Mortality | Avg Bird Weight (Grams, optional)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedTextField(
+                        value = mortalityInput,
+                        onValueChange = {
+                            mortalityInput = it.filter { ch -> ch.isDigit() }
+                            dailyReportValidationError = null
+                        },
+                        label = {
+                            Text(
+                                Translations.tr("th_mortality", lang),
+                                fontSize = 11.sp,
+                                color = secondaryText,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        },
+                        placeholder = { Text("0", fontSize = 11.sp, color = secondaryText.copy(alpha = 0.55f)) },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = fieldColors,
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag("input_owner_report_mortality")
+                    )
 
-                OutlinedTextField(
-                    value = actualWeightGramsInput,
-                    onValueChange = { actualWeightGramsInput = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                    label = { Text(Translations.tr("field_actual_bird_weight_grams_optional", lang), fontSize = 11.5.sp, color = secondaryText) },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = primaryText,
-                        unfocusedTextColor = primaryText,
-                        focusedBorderColor = accentEmerald
-                    ),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .tactile3DStyle(baseColor = accentEmerald, cornerRadius = 12.dp, elevation = 4.dp)
-                        .testTag("input_owner_report_actual_weight_grams")
-                )
+                    OutlinedTextField(
+                        value = actualWeightGramsInput,
+                        onValueChange = { actualWeightGramsInput = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                        label = {
+                            Text(
+                                Translations.tr("field_actual_bird_weight_grams_optional", lang),
+                                fontSize = 11.sp,
+                                color = secondaryText,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        },
+                        placeholder = { Text("450", fontSize = 11.sp, color = secondaryText.copy(alpha = 0.55f)) },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = fieldColors,
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag("input_owner_report_actual_weight_grams")
+                    )
+                }
 
+                // Row 3: Temp (°C) | Gas/Ammonia
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -15205,59 +14998,61 @@ fun OwnerDailyReportDialog(
                     OutlinedTextField(
                         value = tempInput,
                         onValueChange = { tempInput = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                        label = { Text(Translations.tr("th_temp", lang), fontSize = 11.sp, color = secondaryText) },
-                        placeholder = { Text("29.5", fontSize = 11.5.sp, color = secondaryText.copy(alpha = 0.6f)) },
+                        label = {
+                            Text(
+                                Translations.tr("th_temp", lang),
+                                fontSize = 11.sp,
+                                color = secondaryText,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        },
+                        placeholder = { Text("29.5", fontSize = 11.sp, color = secondaryText.copy(alpha = 0.55f)) },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         shape = RoundedCornerShape(12.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = primaryText,
-                            unfocusedTextColor = primaryText,
-                            focusedBorderColor = accentEmerald
-                        ),
+                        colors = fieldColors,
                         modifier = Modifier
                             .weight(1f)
-                            .tactile3DStyle(baseColor = accentEmerald, cornerRadius = 12.dp, elevation = 4.dp)
                             .testTag("input_owner_report_temp")
                     )
 
                     OutlinedTextField(
                         value = gasAmmoniaInput,
                         onValueChange = { gasAmmoniaInput = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                        label = { Text(Translations.tr("th_gas", lang), fontSize = 11.sp, color = secondaryText) },
-                        placeholder = { Text("1.5", fontSize = 11.5.sp, color = secondaryText.copy(alpha = 0.6f)) },
+                        label = {
+                            Text(
+                                Translations.tr("th_gas", lang),
+                                fontSize = 11.sp,
+                                color = secondaryText,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        },
+                        placeholder = { Text("1.5", fontSize = 11.sp, color = secondaryText.copy(alpha = 0.55f)) },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         shape = RoundedCornerShape(12.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = primaryText,
-                            unfocusedTextColor = primaryText,
-                            focusedBorderColor = accentEmerald
-                        ),
+                        colors = fieldColors,
                         modifier = Modifier
                             .weight(1f)
-                            .tactile3DStyle(baseColor = accentEmerald, cornerRadius = 12.dp, elevation = 4.dp)
                             .testTag("input_owner_report_gas")
                     )
                 }
 
-                // Medicine in water confirmation switch row ("💊 تأكيد إعطاء الدواء في الماء اليوم (شرب الدواء ✓)")
+                // Clean Medicine in Water Confirmation Card (No double tactile3D frames)
                 Surface(
                     shape = RoundedCornerShape(12.dp),
-                    color = if (medicineGivenToggle) appearance.accentContainerColor.copy(alpha = 0.65f)
-                    else if (isDark) Color(0xFF0F172A) else Color(0xFFF8FAFC),
+                    color = if (medicineGivenToggle) accentEmerald.copy(alpha = if (isDark) 0.16f else 0.08f) else fieldSurfaceBg,
                     border = BorderStroke(
                         1.dp,
-                        if (medicineGivenToggle) accentEmerald.copy(alpha = 0.55f)
-                        else if (isDark) Color(0xFF334155) else Color(0xFFE2E8F0)
+                        if (medicineGivenToggle) accentEmerald.copy(alpha = 0.55f) else cardBorderColor
                     ),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .tactile3DStyle(baseColor = accentEmerald, cornerRadius = 12.dp, elevation = 4.dp)
+                    modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(
-                        modifier = Modifier.padding(10.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                        modifier = Modifier.padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -15265,19 +15060,24 @@ fun OwnerDailyReportDialog(
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Text(
-                                Translations.tr("confirm_medicine_water_today_label", lang),
+                                text = Translations.tr("confirm_medicine_water_today_label", lang),
                                 fontSize = 11.5.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = if (medicineGivenToggle) accentEmerald else primaryText,
+                                lineHeight = 16.sp,
                                 modifier = Modifier.weight(1f).padding(end = 8.dp)
                             )
                             Switch(
                                 checked = medicineGivenToggle,
                                 onCheckedChange = { medicineGivenToggle = it },
+                                colors = SwitchDefaults.colors(
+                                    checkedThumbColor = Color.White,
+                                    checkedTrackColor = accentEmerald
+                                ),
                                 modifier = Modifier.testTag("switch_owner_report_medicine_given")
                             )
                         }
-                        if (medicineGivenToggle) {
+                        AnimatedVisibility(visible = medicineGivenToggle) {
                             OutlinedTextField(
                                 value = medicineSummaryInput,
                                 onValueChange = { medicineSummaryInput = it },
@@ -15285,16 +15085,14 @@ fun OwnerDailyReportDialog(
                                     Text(
                                         Translations.tr("medicine_water_name_input_label", lang),
                                         fontSize = 11.sp,
-                                        color = secondaryText
+                                        color = secondaryText,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
                                     )
                                 },
                                 singleLine = true,
                                 shape = RoundedCornerShape(10.dp),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedTextColor = primaryText,
-                                    unfocusedTextColor = primaryText,
-                                    focusedBorderColor = accentEmerald
-                                ),
+                                colors = fieldColors,
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .testTag("input_owner_report_medicine_name")
@@ -15302,6 +15100,7 @@ fun OwnerDailyReportDialog(
                         }
                     }
                 }
+
                 dailyReportValidationError?.let { errMsg ->
                     Text(
                         text = errMsg,
@@ -15409,13 +15208,21 @@ fun OwnerDailyReportDialog(
                 },
                 variant = PremiumPillVariant.PRIMARY,
                 modifier = Modifier
-                    .height(44.dp)
+                    .defaultMinSize(minHeight = 48.dp)
+                    .padding(horizontal = 4.dp)
                     .testTag("btn_confirm_owner_daily_report")
             )
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(Translations.tr("btn_cancel", lang), color = secondaryText)
+            TextButton(
+                onClick = onDismiss,
+                modifier = Modifier.defaultMinSize(minHeight = 48.dp)
+            ) {
+                Text(
+                    text = Translations.tr("btn_cancel", lang),
+                    color = secondaryText,
+                    fontWeight = FontWeight.Bold
+                )
             }
         }
     )
