@@ -2,21 +2,13 @@ package com.example.ui.theme
 
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
-import com.example.R
 
-val CairoFontFamily = FontFamily(
-  Font(R.font.cairo, FontWeight.Normal),
-  Font(R.font.cairo, FontWeight.Medium),
-  Font(R.font.cairo, FontWeight.SemiBold),
-  Font(R.font.cairo, FontWeight.Bold),
-  Font(R.font.cairo, FontWeight.ExtraBold),
-)
+val CairoFontFamily = FontFamily.SansSerif
 
-// Complete Material 3 Typography scale using locally bundled Cairo font (supports Arabic + Latin cleanly)
+// Complete Material 3 Typography scale using FontFamily.SansSerif (supports Arabic + Latin cleanly)
 val Typography =
   Typography(
     displaySmall =

@@ -1,6 +1,5 @@
 package com.example
 
-import android.app.Activity
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Bundle
@@ -75,8 +74,6 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Density
@@ -85,11 +82,23 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.credentials.CredentialManager
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.ui.graphics.graphicsLayer
 import com.example.models.*
+import com.example.ui.BookBorderInner
+import com.example.ui.BookBorderOuter
+import com.example.ui.BookBurgundy
+import com.example.ui.BookBurgundyDark
+import com.example.ui.BookGoldAccent
+import com.example.ui.BookParchmentLight
+import com.example.ui.BookParchmentMid
+import com.example.ui.BookSepiaInk
+import com.example.ui.EncyclopediaInfographicPosterCard
+import com.example.ui.VintageSpiralBookPageContainer
 import com.example.ui.theme.PoultryTheme
 import com.example.utils.*
 import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.auth.PhoneAuthProvider
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
@@ -1141,7 +1150,8 @@ object AgritechMockDb {
             } else {
                 val prevSummary = report.previousSummary.ifBlank {
                     old.previousSummary.ifBlank {
-                        "العلف: ${Translations.formatQuintalNumber(old.feedIntakeKg / 100.0)} ق • الماء: ${old.waterIntakeLiters.toInt()} L • النافق: ${old.mortalityCount} • الحرارة: ${String.format(java.util.Locale.US, "%.1f", old.temperature)}°"
+                        val tempStr = old.temperature?.let { "${String.format(java.util.Locale.US, "%.1f", it)}°" } ?: "—"
+                        "العلف: ${Translations.formatQuintalNumber(old.feedIntakeKg / 100.0)} ق • الماء: ${old.waterIntakeLiters.toInt()} L • النافق: ${old.mortalityCount} • الحرارة: $tempStr"
                     }
                 }
                 val updated = report.copy(
@@ -1262,14 +1272,6 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
-
-    override fun onStart() {
-        super.onStart()
-        AgritechAuthHelper.consumePendingOAuthResult(
-            onSuccess = {},
-            onError = {}
-        )
-    }
 }
 
 // ============================================================================
@@ -1292,12 +1294,8 @@ fun AgritechRootApp() {
         val savedAccentColor = SaasPreferencesManager.getSavedAccentColor(context)
         val savedTextScale = SaasPreferencesManager.getSavedTextScale(context)
         val savedCornerStyle = SaasPreferencesManager.getSavedCornerStyle(context)
-        val firebaseSignedIn = AgritechAuthHelper.isSignedIn() && AgritechAuthHelper.isUserFullyVerified()
-        if (firebaseSignedIn) {
-            AgritechAuthHelper.syncMetadataFromFirebaseUser()
-        }
-        val savedLoggedIn = (SaasPreferencesManager.getSavedIsLoggedIn(context) || firebaseSignedIn) &&
-            !AgritechAuthHelper.isEmailVerificationPending()
+        val firebaseSignedIn = AgritechAuthHelper.isSignedIn()
+        val savedLoggedIn = SaasPreferencesManager.getSavedIsLoggedIn(context) || firebaseSignedIn
         val savedRole = SaasPreferencesManager.getSavedUserRole(context)
             ?: if (savedLoggedIn) AppRole.OWNER else null
         val savedLinkedBarns = if (savedLoggedIn) {
@@ -1352,10 +1350,7 @@ fun AgritechRootApp() {
         PoultryTheme(
             isDark = sessionState.currentTheme.isDark,
             accentColor = sessionState.currentAccentColor,
-            cornerStyle = sessionState.currentCornerStyle,
-            themeBgColor = sessionState.currentTheme.bgColor,
-            themeCardColor = sessionState.currentTheme.cardColor,
-            themeHeadingColor = sessionState.currentTheme.headingColor
+            cornerStyle = sessionState.currentCornerStyle
         ) {
             if (!sessionState.hasCompletedOnboarding) {
                 GlobalOnboardingScreen(
@@ -1517,8 +1512,7 @@ fun AgritechMainApp(
             null
         }
         authFlow?.collectLatest { firebaseUser ->
-            if (firebaseUser != null && firestoreRepo != null && !AgritechAuthHelper.isEmailVerificationPending(firebaseUser)) {
-                AgritechAuthHelper.syncMetadataFromFirebaseUser(firebaseUser)
+            if (firebaseUser != null && firestoreRepo != null) {
                 val uid = firebaseUser.uid
                 if (!sessionState.isLoggedIn) {
                     sessionState.markAuthenticated(
@@ -1726,54 +1720,6 @@ fun AgritechMainApp(
         }
     }
 
-    val completeVerifiedAuthSession: (AppRole, Boolean) -> Unit = { role, linkedBarns ->
-        authErrorBanner = null
-        AgritechMockDb.accountDeletionConfirmationMessage = null
-        AgritechAuthHelper.syncMetadataFromFirebaseUser()
-        LocalFarmPersistence.restoreFromReloginArchiveIfNeeded(context)
-        LocalFarmPersistence.loadIntoMockDb(context)
-        val currentActive = sessionState.activeFarmId.takeIf {
-            it.isNotBlank() && it !in AgritechMockDb.deletedFarmIds &&
-                (role != AppRole.OWNER || AgritechMockDb.farms.any { f -> f.id == it })
-        } ?: if (role == AppRole.OWNER) {
-            AgritechMockDb.farms.firstOrNull { it.id !in AgritechMockDb.deletedFarmIds }?.id.orEmpty()
-        } else {
-            ""
-        }
-        sessionState.markAuthenticated(
-            context = context,
-            role = role,
-            linkedBarns = linkedBarns,
-            farmId = currentActive,
-            uid = AgritechAuthHelper.currentUserUid()
-        )
-        if (role == AppRole.WORKER && linkedBarns) {
-            sessionState.selectedFarmForWorker = AgritechMockDb.farms.firstOrNull { it.id == currentActive && it.id !in AgritechMockDb.deletedFarmIds }
-        }
-        scope.launch {
-            val res = firestoreRepo?.setUserRoleAndFarm(role, currentActive)
-            if (res != null && res.isFailure) {
-                authErrorBanner = "تنبيه السحابة: تعذر حفظ الملف الشخصي (${res.exceptionOrNull()?.localizedMessage ?: "خطأ غير معروف"})"
-            }
-            if (role == AppRole.OWNER && currentActive.isNotBlank() && currentActive !in AgritechMockDb.deletedFarmIds) {
-                AgritechMockDb.farms.firstOrNull { it.id == currentActive }?.let { farm ->
-                    firestoreRepo?.saveFarmRecord(farm, AppRole.OWNER)
-                }
-            }
-        }
-    }
-
-    LaunchedEffect(Unit) {
-        AgritechAuthHelper.consumePendingOAuthResult(
-            onSuccess = {
-                completeVerifiedAuthSession(sessionState.currentRole ?: AppRole.OWNER, true)
-            },
-            onError = { err ->
-                authErrorBanner = AgritechAuthHelper.resolveLocalizedAuthError(err, currentLanguage)
-            }
-        )
-    }
-
     val selectedOwnerFarm = sessionState.selectedFarmForOwner
     val selectedVetFarm = sessionState.selectedFarmForVet
     val selectedWorkerFarm = sessionState.selectedFarmForWorker
@@ -1782,38 +1728,94 @@ fun AgritechMainApp(
             AgritechLoginScreen(
                 currentTheme = currentTheme,
                 lang = currentLanguage,
-                countryCode = sessionState.currentCountryCode,
                 authErrorMessage = authErrorBanner ?: AgritechMockDb.accountDeletionConfirmationMessage,
-                onClearAuthError = {
-                    authErrorBanner = null
-                    AgritechMockDb.accountDeletionConfirmationMessage = null
-                },
-                onCompleteVerifiedSession = { role, linkedBarns ->
-                    completeVerifiedAuthSession(role, linkedBarns)
-                },
-                onGoogleSignInRequest = { role, linkedBarns ->
+                onLogin = { role, linkedBarns ->
                     authErrorBanner = null
                     AgritechMockDb.accountDeletionConfirmationMessage = null
                     val cm = credentialManager
-                    if (AgritechAuthHelper.isSignedIn() && AgritechAuthHelper.isUserFullyVerified()) {
-                        completeVerifiedAuthSession(role, linkedBarns)
+                    val isAlreadySignedIn = AgritechAuthHelper.isSignedIn()
+                    if (isAlreadySignedIn) {
+                        LocalFarmPersistence.restoreFromReloginArchiveIfNeeded(context)
+                        LocalFarmPersistence.loadIntoMockDb(context)
+                        // Do not automatically assign the first local farm to a user who doesn't own or belong to it:
+                        // Only retain activeFarmId if it was already selected and valid for this role; otherwise start unassigned ("")
+                        val currentActive = sessionState.activeFarmId.takeIf {
+                            it.isNotBlank() && it !in AgritechMockDb.deletedFarmIds &&
+                                (role != AppRole.OWNER || AgritechMockDb.farms.any { f -> f.id == it })
+                        } ?: if (role == AppRole.OWNER) {
+                            AgritechMockDb.farms.firstOrNull { it.id !in AgritechMockDb.deletedFarmIds }?.id.orEmpty()
+                        } else {
+                            ""
+                        }
+                        sessionState.markAuthenticated(
+                            context = context,
+                            role = role,
+                            linkedBarns = linkedBarns,
+                            farmId = currentActive,
+                            uid = AgritechAuthHelper.currentUserUid()
+                        )
+                        if (role == AppRole.WORKER && linkedBarns) {
+                            sessionState.selectedFarmForWorker = AgritechMockDb.farms.firstOrNull { it.id == currentActive && it.id !in AgritechMockDb.deletedFarmIds }
+                        }
+                        scope.launch {
+                            val res = firestoreRepo?.setUserRoleAndFarm(role, currentActive)
+                            if (res != null && res.isFailure) {
+                                authErrorBanner = "تنبيه السحابة: تعذر حفظ الملف الشخصي (${res.exceptionOrNull()?.localizedMessage ?: "خطأ غير معروف"})"
+                            }
+                            if (role == AppRole.OWNER && currentActive.isNotBlank() && currentActive !in AgritechMockDb.deletedFarmIds) {
+                                AgritechMockDb.farms.firstOrNull { it.id == currentActive }?.let { farm ->
+                                    firestoreRepo?.saveFarmRecord(farm, AppRole.OWNER)
+                                }
+                            }
+                        }
                     } else if (cm != null) {
                         AgritechAuthHelper.onGoogleSignInClicked(
                             context = context,
                             credentialManager = cm,
                             onAuthSuccess = {
-                                completeVerifiedAuthSession(role, linkedBarns)
+                                authErrorBanner = null
+                                LocalFarmPersistence.restoreFromReloginArchiveIfNeeded(context)
+                                LocalFarmPersistence.loadIntoMockDb(context)
+                                val currentActive = sessionState.activeFarmId.takeIf {
+                                    it.isNotBlank() && it !in AgritechMockDb.deletedFarmIds &&
+                                        (role != AppRole.OWNER || AgritechMockDb.farms.any { f -> f.id == it })
+                                } ?: if (role == AppRole.OWNER) {
+                                    AgritechMockDb.farms.firstOrNull { it.id !in AgritechMockDb.deletedFarmIds }?.id.orEmpty()
+                                } else {
+                                    ""
+                                }
+                                sessionState.markAuthenticated(
+                                    context = context,
+                                    role = role,
+                                    linkedBarns = linkedBarns,
+                                    farmId = currentActive,
+                                    uid = AgritechAuthHelper.currentUserUid()
+                                )
+                                if (role == AppRole.WORKER && linkedBarns) {
+                                    sessionState.selectedFarmForWorker = AgritechMockDb.farms.firstOrNull { it.id == currentActive && it.id !in AgritechMockDb.deletedFarmIds }
+                                }
+                                scope.launch {
+                                    val res = firestoreRepo?.setUserRoleAndFarm(role, currentActive)
+                                    if (res != null && res.isFailure) {
+                                        authErrorBanner = "تنبيه السحابة: تعذر حفظ الملف الشخصي (${res.exceptionOrNull()?.localizedMessage ?: "خطأ غير معروف"})"
+                                    }
+                                    if (role == AppRole.OWNER && currentActive.isNotBlank() && currentActive !in AgritechMockDb.deletedFarmIds) {
+                                        AgritechMockDb.farms.firstOrNull { it.id == currentActive }?.let { farm ->
+                                            firestoreRepo?.saveFarmRecord(farm, AppRole.OWNER)
+                                        }
+                                    }
+                                }
                             },
                             onAuthError = { errMsg ->
-                                authErrorBanner = errMsg
+                                authErrorBanner = "تعذر تسجيل الدخول عبر Google ($errMsg). يرجى المصادقة للمتابعة."
                             },
                             scope = scope,
                             onAuthCancelled = {
-                                authErrorBanner = Translations.tr("auth_err_cancelled", currentLanguage)
+                                authErrorBanner = "تم إلغاء تسجيل الدخول. يجب المصادقة بحساب Google للوصول لبيانات المزرعة."
                             }
                         )
                     } else {
-                        authErrorBanner = Translations.tr("auth_err_generic", currentLanguage)
+                        authErrorBanner = "خدمة المصادقة غير متوفرة حالياً. يرجى تسجيل الدخول بحساب Google معتمد."
                     }
                 },
                 onOpenSettings = onOpenSettings
@@ -2604,124 +2606,27 @@ fun NeumorphicRecessedField(
     }
 }
 
-private data class DialCountryOption(
-    val countryCode: String,
-    val flag: String,
-    val dialCode: String,
-    val label: String
-)
-
-private val authDialCountries: List<DialCountryOption> = listOf(
-    DialCountryOption("DZ", "🇩🇿", "+213", "DZ +213"),
-    DialCountryOption("MA", "🇲🇦", "+212", "MA +212"),
-    DialCountryOption("TN", "🇹🇳", "+216", "TN +216"),
-    DialCountryOption("SA", "🇸🇦", "+966", "SA +966"),
-    DialCountryOption("EG", "🇪🇬", "+20", "EG +20"),
-    DialCountryOption("US", "🇺🇸", "+1", "US/CA +1"),
-    DialCountryOption("FR", "🇫🇷", "+33", "FR +33"),
-    DialCountryOption("ES", "🇪🇸", "+34", "ES +34"),
-    DialCountryOption("PT", "🇵🇹", "+351", "PT +351"),
-    DialCountryOption("BR", "🇧🇷", "+55", "BR +55"),
-    DialCountryOption("MX", "🇲🇽", "+52", "MX +52"),
-    DialCountryOption("CO", "🇨🇴", "+57", "CO +57"),
-    DialCountryOption("AR", "🇦🇷", "+54", "AR +54"),
-    DialCountryOption("TR", "🇹🇷", "+90", "TR +90"),
-    DialCountryOption("IN", "🇮🇳", "+91", "IN +91"),
-    DialCountryOption("ID", "🇮🇩", "+62", "ID +62"),
-    DialCountryOption("PK", "🇵🇰", "+92", "PK +92"),
-    DialCountryOption("KE", "🇰🇪", "+254", "KE +254"),
-    DialCountryOption("RU", "🇷🇺", "+7", "RU +7"),
-    DialCountryOption("CN", "🇨🇳", "+86", "CN +86"),
-    DialCountryOption("DE", "🇩🇪", "+49", "DE +49"),
-    DialCountryOption("IT", "🇮🇹", "+39", "IT +39")
-)
-
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AgritechLoginScreen(
     currentTheme: AppThemeOption,
     lang: AppLanguage,
-    countryCode: String = "DZ",
     authErrorMessage: String? = null,
-    onClearAuthError: () -> Unit = {},
-    onCompleteVerifiedSession: (AppRole, Boolean) -> Unit,
-    onGoogleSignInRequest: (AppRole, Boolean) -> Unit,
+    onLogin: (AppRole, Boolean) -> Unit,
     onOpenSettings: () -> Unit
 ) {
-    val context = LocalContext.current
-    val activity = context as? Activity
     val appearance = LocalAppAppearanceState.current
     val isDark = currentTheme.isDark
     val activeAccent = appearance.accentColor
-    val screenBg = if (isDark) Color(0xFF0F172A) else currentTheme.bgColor
-    val cardBg = if (isDark) Color(0xFF1E293B) else currentTheme.cardColor
-    val primaryText = if (isDark) Color.White else currentTheme.headingColor
-    val secondaryText = if (isDark) Color(0xFFCBD5E1) else Color(0xFF475569)
-    val softSurface = if (isDark) Color(0xFF0F172A) else activeAccent.copy(alpha = 0.08f)
-    val subtleBorder = if (isDark) Color.White.copy(alpha = 0.14f) else Color(0xFFD0DCE8)
-    val cardCorner = appearance.cornerRadiusDp.dp.coerceAtLeast(12.dp)
-    val controlCorner = (appearance.cornerRadiusDp * 0.75f).dp.coerceAtLeast(8.dp)
+    val pearlLoginBg = if (isDark) Color(0xFF0F172A) else Color(0xFFEEF2FA)
+    val loginCardShape = RoundedCornerShape(28.dp)
+    val squircleShape = RoundedCornerShape(24.dp)
 
-    var selectedProviderTab by rememberSaveable { mutableStateOf(AuthProviderTab.GOOGLE) }
     var showQrScannerSheet by remember { mutableStateOf(false) }
     var showPrivacyPolicyModal by remember { mutableStateOf(false) }
-    var isBusy by remember { mutableStateOf(false) }
-    var localError by remember { mutableStateOf<String?>(null) }
-    var localInfo by remember { mutableStateOf<String?>(null) }
+    var isLoginMorphing by remember { mutableStateOf(false) }
     var cardEntered by remember { mutableStateOf(false) }
     val loginScope = rememberCoroutineScope()
-
-    // Email + Password state + Verification Gate state
-    var isEmailSignUpMode by rememberSaveable { mutableStateOf(false) }
-    var emailInput by rememberSaveable { mutableStateOf("") }
-    var passwordInput by rememberSaveable { mutableStateOf("") }
-    var confirmPasswordInput by rememberSaveable { mutableStateOf("") }
-    var passwordVisible by remember { mutableStateOf(false) }
-    var pendingVerificationEmail by rememberSaveable {
-        mutableStateOf(
-            if (AgritechAuthHelper.isEmailVerificationPending()) {
-                AgritechAuthHelper.currentUser()?.email.orEmpty()
-            } else {
-                ""
-            }
-        )
-    }
-    var resendCooldownSeconds by remember { mutableStateOf(0) }
-
-    // Phone Number + SMS OTP state
-    var selectedDialCountry by remember {
-        mutableStateOf(
-            authDialCountries.firstOrNull { it.countryCode.equals(countryCode, ignoreCase = true) }
-                ?: authDialCountries.first()
-        )
-    }
-    var dialDropdownExpanded by remember { mutableStateOf(false) }
-    var phoneInput by rememberSaveable { mutableStateOf("") }
-    var otpVerificationId by rememberSaveable { mutableStateOf<String?>(null) }
-    var otpResendToken by remember { mutableStateOf<PhoneAuthProvider.ForceResendingToken?>(null) }
-    var otpTargetE164 by rememberSaveable { mutableStateOf("") }
-    var otpCodeInput by rememberSaveable { mutableStateOf("") }
-    var otpCooldownSeconds by remember { mutableStateOf(0) }
-
-    LaunchedEffect(countryCode) {
-        authDialCountries.firstOrNull { it.countryCode.equals(countryCode, ignoreCase = true) }?.let {
-            selectedDialCountry = it
-        }
-    }
-
-    LaunchedEffect(resendCooldownSeconds) {
-        if (resendCooldownSeconds > 0) {
-            delay(1000L)
-            resendCooldownSeconds -= 1
-        }
-    }
-
-    LaunchedEffect(otpCooldownSeconds) {
-        if (otpCooldownSeconds > 0) {
-            delay(1000L)
-            otpCooldownSeconds -= 1
-        }
-    }
 
     if (showPrivacyPolicyModal) {
         PrivacyPolicyAndTermsModal(
@@ -2736,12 +2641,21 @@ fun AgritechLoginScreen(
     }
 
     val cardSlideOffsetY by animateDpAsState(
-        targetValue = if (cardEntered) 0.dp else 28.dp,
+        targetValue = if (cardEntered) 0.dp else 44.dp,
         animationSpec = spring(
             dampingRatio = Spring.DampingRatioLowBouncy,
             stiffness = Spring.StiffnessLow
         ),
         label = "login_card_spring_slide"
+    )
+
+    val loginBtnWidth by animateDpAsState(
+        targetValue = if (isLoginMorphing) 56.dp else 320.dp,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioLowBouncy,
+            stiffness = Spring.StiffnessMediumLow
+        ),
+        label = "login_btn_morph_width"
     )
 
     if (showQrScannerSheet) {
@@ -2751,1214 +2665,270 @@ fun AgritechLoginScreen(
             onDismiss = { showQrScannerSheet = false },
             onJoinRole = { joinedRole ->
                 showQrScannerSheet = false
-                if (AgritechAuthHelper.isSignedIn() && AgritechAuthHelper.isUserFullyVerified()) {
-                    onCompleteVerifiedSession(joinedRole, true)
-                } else {
-                    onGoogleSignInRequest(joinedRole, true)
-                }
+                onLogin(joinedRole, true)
             }
         )
     }
 
-    val activeErrorBanner = localError ?: authErrorMessage
-
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(screenBg)
-            .windowInsetsPadding(WindowInsets.safeDrawing)
+            .background(pearlLoginBg)
+            .padding(24.dp),
+        contentAlignment = Alignment.Center
     ) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopStart) {
+            IconButton(onClick = onOpenSettings) {
+                Icon(Icons.Default.Settings, contentDescription = "Settings", tint = currentTheme.headingColor)
+            }
+        }
+
         Column(
             modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp, vertical = 16.dp),
+                .fillMaxWidth()
+                .offset(y = cardSlideOffsetY)
+                .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Top bar: Settings button with minimum 48.dp touch target
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .widthIn(max = 520.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Surface(
-                    shape = RoundedCornerShape(50),
-                    color = softSurface,
-                    border = BorderStroke(1.dp, activeAccent.copy(alpha = 0.25f))
-                ) {
-                    Text(
-                        text = "🌾 ${lang.label}",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = if (isDark) Color.White else activeAccent,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
-                    )
-                }
-
-                IconButton(
-                    onClick = onOpenSettings,
-                    modifier = Modifier
-                        .minimumInteractiveComponentSize()
-                        .testTag("btn_login_open_settings")
-                ) {
-                    Icon(
-                        Icons.Default.Settings,
-                        contentDescription = Translations.tr("settings_dialog_title", lang),
-                        tint = primaryText
-                    )
-                }
+            // 3D Neumorphic Squircle Badge for App Logo
+            val squircleBorderBrush = if (isDark) {
+                Brush.linearGradient(listOf(Color.White.copy(alpha = 0.35f), Color(0xFF1E293B)))
+            } else {
+                Brush.linearGradient(listOf(Color.White, Color(0xFFCBD5E1)))
+            }
+            val squircleSurfaceBrush = if (isDark) {
+                Brush.linearGradient(listOf(Color(0xFF1E293B), Color(0xFF0F172A)))
+            } else {
+                Brush.linearGradient(listOf(Color.White, Color(0xFFE6EEF8)))
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // Clean Solid Agricultural Logo Badge (No Gradients)
-            Surface(
+            Box(
                 modifier = Modifier
-                    .size(76.dp)
-                    .offset(y = cardSlideOffsetY),
-                shape = RoundedCornerShape(cardCorner),
-                color = cardBg,
-                border = BorderStroke(1.5.dp, activeAccent.copy(alpha = 0.45f)),
-                shadowElevation = 6.dp
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        Icons.Default.Agriculture,
-                        contentDescription = Translations.tr("app_title", lang),
-                        tint = activeAccent,
-                        modifier = Modifier.size(38.dp)
+                    .size(78.dp)
+                    .shadow(
+                        elevation = 10.dp,
+                        shape = squircleShape,
+                        spotColor = Color(0xFF6B46FF).copy(alpha = 0.45f)
                     )
-                }
+                    .clip(squircleShape)
+                    .background(brush = squircleSurfaceBrush, shape = squircleShape)
+                    .border(width = 1.5.dp, brush = squircleBorderBrush, shape = squircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Default.Agriculture,
+                    contentDescription = null,
+                    tint = activeAccent,
+                    modifier = Modifier.size(40.dp)
+                )
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
             Text(
-                text = Translations.tr("app_title", lang),
-                style = MaterialTheme.typography.headlineSmall,
+                Translations.tr("app_title", lang),
                 fontWeight = FontWeight.ExtraBold,
-                color = primaryText,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(horizontal = 8.dp)
+                fontSize = 22.sp,
+                color = if (isDark) Color.White else currentTheme.headingColor
             )
-
-            Spacer(modifier = Modifier.height(4.dp))
 
             Text(
-                text = "🐣 ${Translations.tr("app_subtitle", lang)}",
-                style = MaterialTheme.typography.bodyMedium,
-                color = secondaryText,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(horizontal = 12.dp)
+                Translations.tr("app_subtitle", lang),
+                fontSize = 13.sp,
+                color = (if (isDark) Color(0xFFCBD5E1) else currentTheme.headingColor).copy(alpha = 0.85f)
             )
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
-            // Main Unified Solid Login & Verification Card
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .widthIn(max = 520.dp)
-                    .offset(y = cardSlideOffsetY)
+                    .shadow(
+                        elevation = 12.dp,
+                        shape = loginCardShape,
+                        spotColor = Color(0xFF64748B).copy(alpha = 0.35f)
+                    )
                     .testTag("login_spring_card"),
-                shape = RoundedCornerShape(cardCorner),
-                colors = CardDefaults.cardColors(containerColor = cardBg),
-                border = BorderStroke(1.dp, subtleBorder),
+                shape = loginCardShape,
+                colors = CardDefaults.cardColors(
+                    containerColor = if (isDark) Color(0xFF1E293B) else Color(0xFFF8FAFF)
+                ),
+                border = BorderStroke(
+                    1.2.dp,
+                    Brush.linearGradient(
+                        colors = if (isDark) {
+                            listOf(Color.White.copy(alpha = 0.22f), Color(0xFF0F172A))
+                        } else {
+                            listOf(Color.White, Color(0xFFD8E2F0))
+                        }
+                    )
+                ),
                 elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
             ) {
                 Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(20.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                    modifier = Modifier.padding(24.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    if (pendingVerificationEmail.isNotBlank()) {
-                        // ====================================================
-                        // MANDATORY EMAIL VERIFICATION CONFIRMATION GATE
-                        // ====================================================
-                        Surface(
-                            shape = CircleShape,
-                            color = activeAccent.copy(alpha = 0.14f),
-                            modifier = Modifier.size(64.dp)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    Icons.Default.MarkEmailUnread,
-                                    contentDescription = Translations.tr("auth_verify_email_title", lang),
-                                    tint = activeAccent,
-                                    modifier = Modifier.size(32.dp)
-                                )
-                            }
-                        }
+                    Text(
+                        Translations.tr("login_title_owner", lang),
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 16.sp,
+                        color = if (isDark) Color.White else currentTheme.headingColor,
+                        modifier = Modifier.fillMaxWidth()
+                    )
 
-                        Text(
-                            text = Translations.tr("auth_verify_email_title", lang),
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = primaryText,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.fillMaxWidth()
-                        )
+                    Text(
+                        Translations.tr("app_subtitle", lang),
+                        fontSize = 13.sp,
+                        color = if (isDark) Color(0xFFCBD5E1) else Color(0xFF64748B),
+                        modifier = Modifier.fillMaxWidth()
+                    )
 
-                        Surface(
-                            shape = RoundedCornerShape(controlCorner),
-                            color = softSurface,
-                            border = BorderStroke(1.dp, activeAccent.copy(alpha = 0.3f)),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text(
-                                text = pendingVerificationEmail,
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = if (isDark) Color.White else activeAccent,
-                                textAlign = TextAlign.Center,
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)
+                    // 3D Luminous Capsule Login Button (Linear Gradient #43C6FF -> #6B46FF)
+                    val loginCapsuleShape = if (isLoginMorphing) CircleShape else RoundedCornerShape(50)
+                    val loginGradientBrush = Brush.linearGradient(
+                        colors = listOf(Color(0xFF43C6FF), Color(0xFF6B46FF))
+                    )
+                    val loginTopHighlight = Brush.verticalGradient(
+                        colors = listOf(Color.White.copy(alpha = 0.5f), Color.Transparent)
+                    )
+
+                    Box(
+                        modifier = Modifier
+                            .then(
+                                if (isLoginMorphing) Modifier.width(loginBtnWidth)
+                                else Modifier.fillMaxWidth()
                             )
-                        }
-
-                        Text(
-                            text = Translations.tr("auth_verify_email_subtitle", lang),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = secondaryText,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-
-                        Button(
-                            onClick = {
-                                if (!isBusy) {
-                                    isBusy = true
-                                    localError = null
-                                    localInfo = null
-                                    onClearAuthError()
-                                    AgritechAuthHelper.checkEmailVerificationStatus(
-                                        lang = lang,
-                                        scope = loginScope,
-                                        onVerified = {
-                                            isBusy = false
-                                            pendingVerificationEmail = ""
-                                            onCompleteVerifiedSession(AppRole.OWNER, true)
-                                        },
-                                        onStillPending = {
-                                            isBusy = false
-                                            localError = Translations.tr("auth_verify_still_pending", lang)
-                                        },
-                                        onError = { err ->
-                                            isBusy = false
-                                            localError = err
-                                        }
-                                    )
+                            .height(52.dp)
+                            .shadow(
+                                elevation = 9.dp,
+                                shape = loginCapsuleShape,
+                                spotColor = Color(0xFF6B46FF),
+                                ambientColor = Color(0xFF43C6FF)
+                            )
+                            .clip(loginCapsuleShape)
+                            .background(brush = loginGradientBrush, shape = loginCapsuleShape)
+                            .border(width = 1.dp, brush = loginTopHighlight, shape = loginCapsuleShape)
+                            .clickable {
+                                if (!isLoginMorphing) {
+                                    isLoginMorphing = true
+                                    onLogin(AppRole.OWNER, true)
+                                    loginScope.launch {
+                                        delay(350)
+                                        isLoginMorphing = false
+                                    }
                                 }
-                            },
-                            enabled = !isBusy,
-                            shape = RoundedCornerShape(controlCorner),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = activeAccent,
-                                contentColor = Color.White
-                            ),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .heightIn(min = 50.dp)
-                                .testTag("btn_auth_check_verified")
-                        ) {
-                            if (isBusy) {
+                            }
+                            .testTag("btn_owner_login_morph"),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        AnimatedContent(
+                            targetState = isLoginMorphing,
+                            label = "login_btn_morph_content"
+                        ) { loading ->
+                            if (loading) {
                                 CircularProgressIndicator(
                                     color = Color.White,
-                                    strokeWidth = 2.dp,
-                                    modifier = Modifier.size(20.dp)
+                                    strokeWidth = 2.5.dp,
+                                    modifier = Modifier.size(22.dp)
                                 )
                             } else {
                                 Text(
-                                    text = Translations.tr("auth_btn_check_verified", lang),
-                                    style = MaterialTheme.typography.labelLarge,
-                                    textAlign = TextAlign.Center
+                                    "${Translations.tr("login_btn", lang)} ➔",
+                                    fontWeight = FontWeight.ExtraBold,
+                                    fontSize = 15.sp,
+                                    color = Color.White,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.padding(horizontal = 16.dp)
                                 )
-                            }
-                        }
-
-                        OutlinedButton(
-                            onClick = {
-                                if (!isBusy && resendCooldownSeconds == 0) {
-                                    isBusy = true
-                                    localError = null
-                                    localInfo = null
-                                    AgritechAuthHelper.resendVerificationEmail(
-                                        lang = lang,
-                                        scope = loginScope,
-                                        onSent = {
-                                            isBusy = false
-                                            resendCooldownSeconds = 60
-                                            localInfo = Translations.tr("auth_verify_sent_success", lang)
-                                        },
-                                        onError = { err ->
-                                            isBusy = false
-                                            localError = err
-                                        }
-                                    )
-                                }
-                            },
-                            enabled = !isBusy && resendCooldownSeconds == 0,
-                            shape = RoundedCornerShape(controlCorner),
-                            border = BorderStroke(1.dp, activeAccent),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .heightIn(min = 48.dp)
-                                .testTag("btn_auth_resend_verification")
-                        ) {
-                            val label = Translations.tr("auth_btn_resend_verification", lang)
-                            Text(
-                                text = if (resendCooldownSeconds > 0) "$label (${resendCooldownSeconds}s)" else label,
-                                style = MaterialTheme.typography.labelLarge,
-                                color = if (isDark) Color.White else activeAccent,
-                                textAlign = TextAlign.Center
-                            )
-                        }
-
-                        TextButton(
-                            onClick = {
-                                FirebaseAuth.getInstance().signOut()
-                                pendingVerificationEmail = ""
-                                localError = null
-                                localInfo = null
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .minimumInteractiveComponentSize()
-                                .testTag("btn_auth_switch_account")
-                        ) {
-                            Text(
-                                text = Translations.tr("auth_btn_switch_account", lang),
-                                style = MaterialTheme.typography.labelMedium,
-                                color = secondaryText
-                            )
-                        }
-                    } else {
-                        // ====================================================
-                        // UNIFIED 4-PROVIDER AUTHENTICATION CARD
-                        // ====================================================
-                        Text(
-                            text = Translations.tr("login_title_owner", lang),
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = primaryText,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-
-                        Text(
-                            text = Translations.tr("auth_method_selector_label", lang),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = secondaryText,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-
-                        // 4 Responsive Provider Tabs (Google/Gmail, Email+Verify, Phone OTP, Social FB/X)
-                        FlowRow(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            val tabs = listOf(
-                                Triple(AuthProviderTab.GOOGLE, "G  ${Translations.tr("auth_tab_google", lang)}", "tab_auth_google"),
-                                Triple(AuthProviderTab.EMAIL, "✉️ ${Translations.tr("auth_tab_email", lang)}", "tab_auth_email"),
-                                Triple(AuthProviderTab.PHONE, "📱 ${Translations.tr("auth_tab_phone", lang)}", "tab_auth_phone"),
-                                Triple(AuthProviderTab.SOCIAL, "🌐 ${Translations.tr("auth_tab_social", lang)}", "tab_auth_social")
-                            )
-                            tabs.forEach { (tab, title, tag) ->
-                                val selected = selectedProviderTab == tab
-                                Surface(
-                                    shape = RoundedCornerShape(controlCorner),
-                                    color = if (selected) activeAccent else softSurface,
-                                    border = BorderStroke(
-                                        width = 1.dp,
-                                        color = if (selected) activeAccent else subtleBorder
-                                    ),
-                                    modifier = Modifier
-                                        .defaultMinSize(minHeight = 48.dp)
-                                        .clip(RoundedCornerShape(controlCorner))
-                                        .clickable {
-                                            selectedProviderTab = tab
-                                            localError = null
-                                            localInfo = null
-                                            onClearAuthError()
-                                        }
-                                        .testTag(tag)
-                                ) {
-                                    Box(
-                                        contentAlignment = Alignment.Center,
-                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)
-                                    ) {
-                                        Text(
-                                            text = title,
-                                            style = MaterialTheme.typography.labelMedium,
-                                            fontWeight = if (selected) FontWeight.ExtraBold else FontWeight.SemiBold,
-                                            color = if (selected) Color.White else primaryText,
-                                            maxLines = 1
-                                        )
-                                    }
-                                }
-                            }
-                        }
-
-                        when (selectedProviderTab) {
-                            AuthProviderTab.GOOGLE -> {
-                                // Primary Solid Button for Google / Gmail Quick Sign-In
-                                Button(
-                                    onClick = {
-                                        if (!isBusy) {
-                                            isBusy = true
-                                            localError = null
-                                            localInfo = null
-                                            onClearAuthError()
-                                            onGoogleSignInRequest(AppRole.OWNER, true)
-                                            loginScope.launch {
-                                                delay(450L)
-                                                isBusy = false
-                                            }
-                                        }
-                                    },
-                                    enabled = !isBusy,
-                                    shape = RoundedCornerShape(controlCorner),
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = activeAccent,
-                                        contentColor = Color.White
-                                    ),
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .heightIn(min = 52.dp)
-                                        .testTag("btn_owner_login_morph")
-                                ) {
-                                    if (isBusy) {
-                                        CircularProgressIndicator(
-                                            color = Color.White,
-                                            strokeWidth = 2.5.dp,
-                                            modifier = Modifier.size(22.dp)
-                                        )
-                                    } else {
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.Center
-                                        ) {
-                                            Icon(
-                                                Icons.Default.AccountCircle,
-                                                contentDescription = null,
-                                                tint = Color.White,
-                                                modifier = Modifier.size(22.dp)
-                                            )
-                                            Spacer(modifier = Modifier.width(8.dp))
-                                            Text(
-                                                text = Translations.tr("auth_btn_google_quick", lang),
-                                                style = MaterialTheme.typography.labelLarge,
-                                                fontWeight = FontWeight.ExtraBold,
-                                                textAlign = TextAlign.Center
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-
-                            AuthProviderTab.EMAIL -> {
-                                // Toggle between Sign In & Create Account
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    listOf(
-                                        Triple(false, Translations.tr("auth_email_mode_signin", lang), "toggle_email_signin"),
-                                        Triple(true, Translations.tr("auth_email_mode_signup", lang), "toggle_email_signup")
-                                    ).forEach { (isSignUpOption, label, tag) ->
-                                        val isCurrent = isEmailSignUpMode == isSignUpOption
-                                        Surface(
-                                            shape = RoundedCornerShape(controlCorner),
-                                            color = if (isCurrent) activeAccent.copy(alpha = 0.16f) else Color.Transparent,
-                                            border = BorderStroke(
-                                                1.dp,
-                                                if (isCurrent) activeAccent else subtleBorder
-                                            ),
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .heightIn(min = 48.dp)
-                                                .clip(RoundedCornerShape(controlCorner))
-                                                .clickable {
-                                                    isEmailSignUpMode = isSignUpOption
-                                                    localError = null
-                                                    localInfo = null
-                                                }
-                                                .testTag(tag)
-                                        ) {
-                                            Box(
-                                                contentAlignment = Alignment.Center,
-                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 10.dp)
-                                            ) {
-                                                Text(
-                                                    text = label,
-                                                    style = MaterialTheme.typography.labelMedium,
-                                                    fontWeight = if (isCurrent) FontWeight.ExtraBold else FontWeight.Medium,
-                                                    color = if (isCurrent) (if (isDark) Color.White else activeAccent) else secondaryText,
-                                                    textAlign = TextAlign.Center
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-
-                                OutlinedTextField(
-                                    value = emailInput,
-                                    onValueChange = {
-                                        emailInput = it
-                                        localError = null
-                                    },
-                                    label = { Text(Translations.tr("auth_email_label", lang)) },
-                                    singleLine = true,
-                                    keyboardOptions = KeyboardOptions(
-                                        keyboardType = KeyboardType.Email,
-                                        imeAction = ImeAction.Next
-                                    ),
-                                    leadingIcon = {
-                                        Icon(Icons.Default.Email, contentDescription = null, tint = activeAccent)
-                                    },
-                                    shape = RoundedCornerShape(controlCorner),
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .testTag("input_auth_email")
-                                )
-
-                                OutlinedTextField(
-                                    value = passwordInput,
-                                    onValueChange = {
-                                        passwordInput = it
-                                        localError = null
-                                    },
-                                    label = { Text(Translations.tr("auth_password_label", lang)) },
-                                    singleLine = true,
-                                    visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                                    keyboardOptions = KeyboardOptions(
-                                        keyboardType = KeyboardType.Password,
-                                        imeAction = if (isEmailSignUpMode) ImeAction.Next else ImeAction.Done
-                                    ),
-                                    leadingIcon = {
-                                        Icon(Icons.Default.Lock, contentDescription = null, tint = activeAccent)
-                                    },
-                                    trailingIcon = {
-                                        IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                                            Icon(
-                                                if (passwordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                                                contentDescription = Translations.tr("auth_password_label", lang),
-                                                tint = secondaryText
-                                            )
-                                        }
-                                    },
-                                    shape = RoundedCornerShape(controlCorner),
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .testTag("input_auth_password")
-                                )
-
-                                if (isEmailSignUpMode) {
-                                    OutlinedTextField(
-                                        value = confirmPasswordInput,
-                                        onValueChange = {
-                                            confirmPasswordInput = it
-                                            localError = null
-                                        },
-                                        label = { Text(Translations.tr("auth_confirm_password_label", lang)) },
-                                        singleLine = true,
-                                        visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                                        keyboardOptions = KeyboardOptions(
-                                            keyboardType = KeyboardType.Password,
-                                            imeAction = ImeAction.Done
-                                        ),
-                                        leadingIcon = {
-                                            Icon(Icons.Default.VerifiedUser, contentDescription = null, tint = activeAccent)
-                                        },
-                                        shape = RoundedCornerShape(controlCorner),
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .testTag("input_auth_confirm_password")
-                                    )
-                                } else {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.End
-                                    ) {
-                                        TextButton(
-                                            onClick = {
-                                                localError = null
-                                                localInfo = null
-                                                if (!AgritechAuthHelper.isValidEmailAddress(emailInput)) {
-                                                    localError = Translations.tr("auth_err_invalid_email", lang)
-                                                } else if (!isBusy) {
-                                                    isBusy = true
-                                                    AgritechAuthHelper.sendPasswordResetEmail(
-                                                        email = emailInput,
-                                                        lang = lang,
-                                                        scope = loginScope,
-                                                        onSent = {
-                                                            isBusy = false
-                                                            localInfo = Translations.tr("auth_reset_email_sent", lang)
-                                                        },
-                                                        onError = { err ->
-                                                            isBusy = false
-                                                            localError = err
-                                                        }
-                                                    )
-                                                }
-                                            },
-                                            modifier = Modifier
-                                                .minimumInteractiveComponentSize()
-                                                .testTag("btn_auth_forgot_password")
-                                        ) {
-                                            Text(
-                                                text = Translations.tr("auth_btn_forgot_password", lang),
-                                                style = MaterialTheme.typography.labelMedium,
-                                                color = activeAccent
-                                            )
-                                        }
-                                    }
-                                }
-
-                                Button(
-                                    onClick = {
-                                        localError = null
-                                        localInfo = null
-                                        onClearAuthError()
-                                        when {
-                                            !AgritechAuthHelper.isValidEmailAddress(emailInput) -> {
-                                                localError = Translations.tr("auth_err_invalid_email", lang)
-                                            }
-                                            passwordInput.length < 6 -> {
-                                                localError = Translations.tr("auth_err_password_short", lang)
-                                            }
-                                            isEmailSignUpMode && passwordInput != confirmPasswordInput -> {
-                                                localError = Translations.tr("auth_err_password_mismatch", lang)
-                                            }
-                                            !isBusy -> {
-                                                isBusy = true
-                                                AgritechAuthHelper.signInWithEmailPassword(
-                                                    email = emailInput,
-                                                    password = passwordInput,
-                                                    isSignUp = isEmailSignUpMode,
-                                                    lang = lang,
-                                                    scope = loginScope,
-                                                    onVerifiedSuccess = {
-                                                        isBusy = false
-                                                        onCompleteVerifiedSession(AppRole.OWNER, true)
-                                                    },
-                                                    onVerificationRequired = { emailAddr ->
-                                                        isBusy = false
-                                                        resendCooldownSeconds = 60
-                                                        pendingVerificationEmail = emailAddr
-                                                        localInfo = Translations.tr("auth_verify_sent_success", lang)
-                                                    },
-                                                    onError = { err ->
-                                                        isBusy = false
-                                                        localError = err
-                                                    }
-                                                )
-                                            }
-                                        }
-                                    },
-                                    enabled = !isBusy,
-                                    shape = RoundedCornerShape(controlCorner),
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = activeAccent,
-                                        contentColor = Color.White
-                                    ),
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .heightIn(min = 52.dp)
-                                        .testTag("btn_auth_email_submit")
-                                ) {
-                                    if (isBusy) {
-                                        CircularProgressIndicator(
-                                            color = Color.White,
-                                            strokeWidth = 2.dp,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                    } else {
-                                        Text(
-                                            text = if (isEmailSignUpMode) {
-                                                Translations.tr("auth_btn_create_email", lang)
-                                            } else {
-                                                Translations.tr("auth_btn_signin_email", lang)
-                                            },
-                                            style = MaterialTheme.typography.labelLarge,
-                                            textAlign = TextAlign.Center
-                                        )
-                                    }
-                                }
-                            }
-
-                            AuthProviderTab.PHONE -> {
-                                if (otpVerificationId == null) {
-                                    // Step 1: Country Dial Code + Phone Number Input
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Box {
-                                            OutlinedButton(
-                                                onClick = { dialDropdownExpanded = true },
-                                                shape = RoundedCornerShape(controlCorner),
-                                                border = BorderStroke(1.dp, subtleBorder),
-                                                modifier = Modifier
-                                                    .heightIn(min = 56.dp)
-                                                    .testTag("btn_auth_country_dial")
-                                            ) {
-                                                Text(
-                                                    text = "${selectedDialCountry.flag} ${selectedDialCountry.dialCode}",
-                                                    style = MaterialTheme.typography.labelLarge,
-                                                    color = primaryText
-                                                )
-                                                Icon(
-                                                    Icons.Default.ArrowDropDown,
-                                                    contentDescription = Translations.tr("auth_phone_country_code_label", lang),
-                                                    tint = primaryText
-                                                )
-                                            }
-                                            DropdownMenu(
-                                                expanded = dialDropdownExpanded,
-                                                onDismissRequest = { dialDropdownExpanded = false }
-                                            ) {
-                                                authDialCountries.forEach { option ->
-                                                    DropdownMenuItem(
-                                                        text = { Text("${option.flag} ${option.label}") },
-                                                        onClick = {
-                                                            selectedDialCountry = option
-                                                            dialDropdownExpanded = false
-                                                        }
-                                                    )
-                                                }
-                                            }
-                                        }
-
-                                        OutlinedTextField(
-                                            value = phoneInput,
-                                            onValueChange = { raw ->
-                                                phoneInput = raw.filter { it.isDigit() || it == '+' || it == ' ' }
-                                                localError = null
-                                            },
-                                            label = { Text(Translations.tr("auth_phone_number_label", lang)) },
-                                            placeholder = { Text("550 12 34 56") },
-                                            singleLine = true,
-                                            keyboardOptions = KeyboardOptions(
-                                                keyboardType = KeyboardType.Phone,
-                                                imeAction = ImeAction.Done
-                                            ),
-                                            shape = RoundedCornerShape(controlCorner),
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .testTag("input_auth_phone")
-                                        )
-                                    }
-
-                                    Button(
-                                        onClick = {
-                                            localError = null
-                                            localInfo = null
-                                            onClearAuthError()
-                                            val normalized = AgritechAuthHelper.formatNormalizedIdentifier(
-                                                phoneInput,
-                                                selectedDialCountry.dialCode
-                                            )
-                                            if (phoneInput.isBlank() || !AgritechAuthHelper.isValidE164PhoneNumber(normalized)) {
-                                                localError = Translations.tr("auth_err_invalid_phone", lang)
-                                            } else if (activity == null) {
-                                                localError = Translations.tr("auth_err_generic", lang)
-                                            } else if (!isBusy) {
-                                                isBusy = true
-                                                otpTargetE164 = normalized
-                                                AgritechAuthHelper.sendPhoneVerificationCode(
-                                                    activity = activity,
-                                                    e164Phone = normalized,
-                                                    resendToken = otpResendToken,
-                                                    lang = lang,
-                                                    scope = loginScope,
-                                                    onCodeSent = { verId, token ->
-                                                        isBusy = false
-                                                        otpVerificationId = verId
-                                                        otpResendToken = token
-                                                        otpCooldownSeconds = 60
-                                                        localInfo = "${Translations.tr("auth_otp_sent_notice", lang)} ($normalized)"
-                                                    },
-                                                    onAutoVerified = {
-                                                        isBusy = false
-                                                        onCompleteVerifiedSession(AppRole.OWNER, true)
-                                                    },
-                                                    onError = { err ->
-                                                        isBusy = false
-                                                        localError = err
-                                                    }
-                                                )
-                                            }
-                                        },
-                                        enabled = !isBusy,
-                                        shape = RoundedCornerShape(controlCorner),
-                                        colors = ButtonDefaults.buttonColors(
-                                            containerColor = activeAccent,
-                                            contentColor = Color.White
-                                        ),
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .heightIn(min = 52.dp)
-                                            .testTag("btn_auth_send_otp")
-                                    ) {
-                                        if (isBusy) {
-                                            CircularProgressIndicator(
-                                                color = Color.White,
-                                                strokeWidth = 2.dp,
-                                                modifier = Modifier.size(20.dp)
-                                            )
-                                        } else {
-                                            Text(
-                                                text = Translations.tr("auth_btn_send_otp", lang),
-                                                style = MaterialTheme.typography.labelLarge,
-                                                textAlign = TextAlign.Center
-                                            )
-                                        }
-                                    }
-                                } else {
-                                    // Step 2: 6-Digit SMS OTP Code Confirmation
-                                    Surface(
-                                        shape = RoundedCornerShape(controlCorner),
-                                        color = softSurface,
-                                        border = BorderStroke(1.dp, activeAccent.copy(alpha = 0.25f)),
-                                        modifier = Modifier.fillMaxWidth()
-                                    ) {
-                                        Text(
-                                            text = "${Translations.tr("auth_otp_sent_notice", lang)}: $otpTargetE164",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            fontWeight = FontWeight.SemiBold,
-                                            color = primaryText,
-                                            textAlign = TextAlign.Center,
-                                            modifier = Modifier.padding(10.dp)
-                                        )
-                                    }
-
-                                    OutlinedTextField(
-                                        value = otpCodeInput,
-                                        onValueChange = { raw ->
-                                            val digits = raw.filter { it.isDigit() }.take(6)
-                                            otpCodeInput = digits
-                                            localError = null
-                                        },
-                                        label = { Text(Translations.tr("auth_otp_code_label", lang)) },
-                                        singleLine = true,
-                                        keyboardOptions = KeyboardOptions(
-                                            keyboardType = KeyboardType.NumberPassword,
-                                            imeAction = ImeAction.Done
-                                        ),
-                                        leadingIcon = {
-                                            Icon(Icons.Default.Sms, contentDescription = null, tint = activeAccent)
-                                        },
-                                        shape = RoundedCornerShape(controlCorner),
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .testTag("input_auth_otp_code")
-                                    )
-
-                                    Button(
-                                        onClick = {
-                                            val verId = otpVerificationId
-                                            localError = null
-                                            if (verId.isNullOrBlank() || otpCodeInput.length != 6) {
-                                                localError = Translations.tr("auth_err_invalid_otp", lang)
-                                            } else if (!isBusy) {
-                                                isBusy = true
-                                                AgritechAuthHelper.verifyPhoneOtpCode(
-                                                    verificationId = verId,
-                                                    smsCode = otpCodeInput,
-                                                    lang = lang,
-                                                    scope = loginScope,
-                                                    onSuccess = {
-                                                        isBusy = false
-                                                        onCompleteVerifiedSession(AppRole.OWNER, true)
-                                                    },
-                                                    onError = { err ->
-                                                        isBusy = false
-                                                        localError = err
-                                                    }
-                                                )
-                                            }
-                                        },
-                                        enabled = !isBusy,
-                                        shape = RoundedCornerShape(controlCorner),
-                                        colors = ButtonDefaults.buttonColors(
-                                            containerColor = activeAccent,
-                                            contentColor = Color.White
-                                        ),
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .heightIn(min = 52.dp)
-                                            .testTag("btn_auth_verify_otp")
-                                    ) {
-                                        if (isBusy) {
-                                            CircularProgressIndicator(
-                                                color = Color.White,
-                                                strokeWidth = 2.dp,
-                                                modifier = Modifier.size(20.dp)
-                                            )
-                                        } else {
-                                            Text(
-                                                text = Translations.tr("auth_btn_verify_otp", lang),
-                                                style = MaterialTheme.typography.labelLarge
-                                            )
-                                        }
-                                    }
-
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        TextButton(
-                                            onClick = {
-                                                otpVerificationId = null
-                                                otpCodeInput = ""
-                                                localError = null
-                                                localInfo = null
-                                            },
-                                            modifier = Modifier.minimumInteractiveComponentSize()
-                                        ) {
-                                            Text(
-                                                text = Translations.tr("auth_btn_change_phone", lang),
-                                                style = MaterialTheme.typography.labelMedium,
-                                                color = secondaryText
-                                            )
-                                        }
-
-                                        TextButton(
-                                            onClick = {
-                                                if (!isBusy && otpCooldownSeconds == 0 && activity != null && otpTargetE164.isNotBlank()) {
-                                                    isBusy = true
-                                                    AgritechAuthHelper.sendPhoneVerificationCode(
-                                                        activity = activity,
-                                                        e164Phone = otpTargetE164,
-                                                        resendToken = otpResendToken,
-                                                        lang = lang,
-                                                        scope = loginScope,
-                                                        onCodeSent = { verId, token ->
-                                                            isBusy = false
-                                                            otpVerificationId = verId
-                                                            otpResendToken = token
-                                                            otpCooldownSeconds = 60
-                                                        },
-                                                        onAutoVerified = {
-                                                            isBusy = false
-                                                            onCompleteVerifiedSession(AppRole.OWNER, true)
-                                                        },
-                                                        onError = { err ->
-                                                            isBusy = false
-                                                            localError = err
-                                                        }
-                                                    )
-                                                }
-                                            },
-                                            enabled = !isBusy && otpCooldownSeconds == 0,
-                                            modifier = Modifier.minimumInteractiveComponentSize()
-                                        ) {
-                                            val resendTxt = Translations.tr("auth_btn_resend_verification", lang)
-                                            Text(
-                                                text = if (otpCooldownSeconds > 0) "$resendTxt (${otpCooldownSeconds}s)" else resendTxt,
-                                                style = MaterialTheme.typography.labelMedium,
-                                                color = activeAccent
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-
-                            AuthProviderTab.SOCIAL -> {
-                                // Social Networks (Facebook + X) dedicated tab
-                                Text(
-                                    text = Translations.tr("auth_social_note", lang),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = secondaryText,
-                                    textAlign = TextAlign.Center,
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-
-                                Button(
-                                    onClick = {
-                                        localError = null
-                                        localInfo = null
-                                        onClearAuthError()
-                                        if (activity == null) {
-                                            localError = Translations.tr("auth_err_generic", lang)
-                                        } else if (!isBusy) {
-                                            isBusy = true
-                                            AgritechAuthHelper.signInWithOAuthProvider(
-                                                activity = activity,
-                                                providerId = "facebook.com",
-                                                lang = lang,
-                                                onSuccess = {
-                                                    isBusy = false
-                                                    onCompleteVerifiedSession(AppRole.OWNER, true)
-                                                },
-                                                onError = { err ->
-                                                    isBusy = false
-                                                    localError = err
-                                                }
-                                            )
-                                        }
-                                    },
-                                    enabled = !isBusy,
-                                    shape = RoundedCornerShape(controlCorner),
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = Color(0xFF1877F2),
-                                        contentColor = Color.White
-                                    ),
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .heightIn(min = 50.dp)
-                                        .testTag("btn_login_facebook_tab")
-                                ) {
-                                    Text(
-                                        text = "f   ${Translations.tr("auth_btn_facebook", lang)}",
-                                        style = MaterialTheme.typography.labelLarge,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-
-                                Button(
-                                    onClick = {
-                                        localError = null
-                                        localInfo = null
-                                        onClearAuthError()
-                                        if (activity == null) {
-                                            localError = Translations.tr("auth_err_generic", lang)
-                                        } else if (!isBusy) {
-                                            isBusy = true
-                                            AgritechAuthHelper.signInWithOAuthProvider(
-                                                activity = activity,
-                                                providerId = "twitter.com",
-                                                lang = lang,
-                                                onSuccess = {
-                                                    isBusy = false
-                                                    onCompleteVerifiedSession(AppRole.OWNER, true)
-                                                },
-                                                onError = { err ->
-                                                    isBusy = false
-                                                    localError = err
-                                                }
-                                            )
-                                        }
-                                    },
-                                    enabled = !isBusy,
-                                    shape = RoundedCornerShape(controlCorner),
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = if (isDark) Color(0xFF0F172A) else Color(0xFF111827),
-                                        contentColor = Color.White
-                                    ),
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .heightIn(min = 50.dp)
-                                        .testTag("btn_login_x_tab")
-                                ) {
-                                    Text(
-                                        text = "𝕏   ${Translations.tr("auth_btn_x", lang)}",
-                                        style = MaterialTheme.typography.labelLarge,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                            }
-                        }
-
-                        // Always-visible Social Quick Row (Facebook + X) on non-Social tabs so all 4 providers are 1-tap discoverable
-                        if (selectedProviderTab != AuthProviderTab.SOCIAL) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(top = 2.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                HorizontalDivider(modifier = Modifier.weight(1f), color = subtleBorder)
-                                Text(
-                                    text = Translations.tr("auth_social_or_divider", lang),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = secondaryText,
-                                    modifier = Modifier.padding(horizontal = 10.dp)
-                                )
-                                HorizontalDivider(modifier = Modifier.weight(1f), color = subtleBorder)
-                            }
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
-                            ) {
-                                Button(
-                                    onClick = {
-                                        localError = null
-                                        localInfo = null
-                                        onClearAuthError()
-                                        if (activity == null) {
-                                            localError = Translations.tr("auth_err_generic", lang)
-                                        } else if (!isBusy) {
-                                            isBusy = true
-                                            AgritechAuthHelper.signInWithOAuthProvider(
-                                                activity = activity,
-                                                providerId = "facebook.com",
-                                                lang = lang,
-                                                onSuccess = {
-                                                    isBusy = false
-                                                    onCompleteVerifiedSession(AppRole.OWNER, true)
-                                                },
-                                                onError = { err ->
-                                                    isBusy = false
-                                                    localError = err
-                                                }
-                                            )
-                                        }
-                                    },
-                                    enabled = !isBusy,
-                                    shape = RoundedCornerShape(controlCorner),
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = Color(0xFF1877F2),
-                                        contentColor = Color.White
-                                    ),
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .heightIn(min = 48.dp)
-                                        .testTag("btn_login_facebook")
-                                ) {
-                                    Text(
-                                        text = "f  Facebook",
-                                        style = MaterialTheme.typography.labelLarge,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
-
-                                Button(
-                                    onClick = {
-                                        localError = null
-                                        localInfo = null
-                                        onClearAuthError()
-                                        if (activity == null) {
-                                            localError = Translations.tr("auth_err_generic", lang)
-                                        } else if (!isBusy) {
-                                            isBusy = true
-                                            AgritechAuthHelper.signInWithOAuthProvider(
-                                                activity = activity,
-                                                providerId = "twitter.com",
-                                                lang = lang,
-                                                onSuccess = {
-                                                    isBusy = false
-                                                    onCompleteVerifiedSession(AppRole.OWNER, true)
-                                                },
-                                                onError = { err ->
-                                                    isBusy = false
-                                                    localError = err
-                                                }
-                                            )
-                                        }
-                                    },
-                                    enabled = !isBusy,
-                                    shape = RoundedCornerShape(controlCorner),
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = if (isDark) Color(0xFF0F172A) else Color(0xFF111827),
-                                        contentColor = Color.White
-                                    ),
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .heightIn(min = 48.dp)
-                                        .testTag("btn_login_x")
-                                ) {
-                                    Text(
-                                        text = "𝕏  X",
-                                        style = MaterialTheme.typography.labelLarge,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
                             }
                         }
                     }
 
-                    // Info & Error Banners
-                    if (!localInfo.isNullOrBlank()) {
+                    if (authErrorMessage != null) {
                         Surface(
-                            shape = RoundedCornerShape(controlCorner),
-                            color = activeAccent.copy(alpha = 0.14f),
-                            border = BorderStroke(1.dp, activeAccent.copy(alpha = 0.45f)),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("login_auth_info_banner")
-                        ) {
-                            Text(
-                                text = localInfo!!,
-                                color = if (isDark) Color.White else activeAccent,
-                                style = MaterialTheme.typography.bodySmall,
-                                fontWeight = FontWeight.SemiBold,
-                                modifier = Modifier.padding(12.dp)
-                            )
-                        }
-                    }
-
-                    if (!activeErrorBanner.isNullOrBlank()) {
-                        Surface(
-                            shape = RoundedCornerShape(controlCorner),
-                            color = if (isDark) Color(0xFF3F1D24) else Color(0xFFFFEBEE),
-                            border = BorderStroke(1.dp, ActionRed.copy(alpha = 0.45f)),
+                            shape = RoundedCornerShape(18.dp),
+                            color = Color(0xFFFFEBEE),
+                            border = BorderStroke(1.dp, ActionRed.copy(alpha = 0.4f)),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .testTag("login_auth_error_banner")
                         ) {
                             Text(
-                                text = activeErrorBanner,
-                                color = if (isDark) Color(0xFFFCA5A5) else ActionRed,
-                                style = MaterialTheme.typography.bodySmall,
+                                text = authErrorMessage,
+                                color = ActionRed,
+                                fontSize = 12.sp,
                                 fontWeight = FontWeight.SemiBold,
-                                modifier = Modifier.padding(12.dp)
+                                modifier = Modifier.padding(10.dp)
                             )
                         }
                     }
 
-                    // QR Scan Join Action (Solid Clean Surface, Minimum 48.dp Touch Target)
-                    OutlinedButton(
-                        onClick = { showQrScannerSheet = true },
-                        shape = RoundedCornerShape(controlCorner),
-                        border = BorderStroke(1.2.dp, subtleBorder),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            containerColor = softSurface,
-                            contentColor = if (isDark) Color.White else activeAccent
-                        ),
+                    // Soft Raised Neumorphic Capsule for QR Scan Join ("📷 مسح رمز الانضمام")
+                    val qrCapsuleShape = RoundedCornerShape(50)
+                    val qrRaisedBrush = if (isDark) {
+                        Brush.verticalGradient(listOf(Color(0xFF26354D), Color(0xFF162032)))
+                    } else {
+                        Brush.verticalGradient(listOf(Color.White, Color(0xFFE6EEF8)))
+                    }
+                    val qrBevelBorder = if (isDark) {
+                        Brush.linearGradient(listOf(Color.White.copy(alpha = 0.25f), Color(0xFF0F172A)))
+                    } else {
+                        Brush.linearGradient(listOf(Color.White, Color(0xFFCBD5E1)))
+                    }
+
+                    Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .heightIn(min = 50.dp)
-                            .testTag("btn_scan_qr_join")
+                            .height(50.dp)
+                            .shadow(
+                                elevation = 5.dp,
+                                shape = qrCapsuleShape,
+                                spotColor = Color(0xFF64748B)
+                            )
+                            .clip(qrCapsuleShape)
+                            .background(brush = qrRaisedBrush, shape = qrCapsuleShape)
+                            .border(width = 1.2.dp, brush = qrBevelBorder, shape = qrCapsuleShape)
+                            .clickable { showQrScannerSheet = true }
+                            .testTag("btn_scan_qr_join"),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            Icons.Default.QrCodeScanner,
-                            contentDescription = Translations.tr("btn_scan_qr_join", lang),
-                            tint = activeAccent,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = Translations.tr("btn_scan_qr_join", lang),
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = if (isDark) Color.White else activeAccent,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center,
+                            modifier = Modifier.padding(horizontal = 16.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.QrCodeScanner,
+                                contentDescription = Translations.tr("btn_scan_qr_join", lang),
+                                tint = activeAccent,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                Translations.tr("btn_scan_qr_join", lang),
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 14.sp,
+                                color = if (isDark) Color.White else activeAccent,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                     }
+
+                    Spacer(modifier = Modifier.height(6.dp))
 
                     TextButton(
                         onClick = { showPrivacyPolicyModal = true },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .minimumInteractiveComponentSize()
                             .testTag("btn_login_privacy_policy")
                     ) {
                         Text(
-                            text = Translations.tr("login_privacy_terms_btn", lang),
-                            style = MaterialTheme.typography.labelMedium,
+                            "🔒 سياسة الخصوصية وشروط الاستخدام",
+                            fontSize = 12.5.sp,
                             fontWeight = FontWeight.Bold,
                             color = activeAccent,
                             textAlign = TextAlign.Center
@@ -4191,17 +3161,15 @@ fun AgritechOwnerDashboard(
     Scaffold(
         containerColor = currentTheme.bgColor,
         topBar = {
-            var showTopBarOverflowMenu by remember { mutableStateOf(false) }
             TopAppBar(
                 title = {
                     Column {
                         Text(
                             Translations.tr("farms_title", lang),
-                            style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
+                            fontSize = 15.5.sp,
                             color = primaryTextColor,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                            maxLines = 1
                         )
                         Text(
                             when (activeRole.normalizedHubRole) {
@@ -4214,19 +3182,38 @@ fun AgritechOwnerDashboard(
                                 AppRole.VET_IMPORTER -> Translations.tr("role_badge_vet_importer", lang)
                                 else -> Translations.tr("role_badge_owner_barn", lang)
                             },
-                            style = MaterialTheme.typography.labelSmall,
+                            fontSize = 11.5.sp,
                             color = secondaryTextColor,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                            maxLines = 1
                         )
                     }
                 },
                 actions = {
+                    if (!hasLinkedBarns) {
+                        IconButton(
+                            onClick = onTapNewBarnOrCycle,
+                            modifier = Modifier.testTag("btn_create_farm_unlock_barns")
+                        ) {
+                            Icon(
+                                Icons.Default.AddHome,
+                                contentDescription = "+ إنشاء مزرعة 🏠",
+                                tint = primaryTextColor
+                            )
+                        }
+                    }
+                    IconButton(
+                        onClick = { showQrJoinSheetFromDashboard = true },
+                        modifier = Modifier.testTag("btn_dashboard_qr_join")
+                    ) {
+                        Icon(
+                            Icons.Default.QrCodeScanner,
+                            contentDescription = Translations.tr("btn_scan_qr_join", lang),
+                            tint = primaryTextColor
+                        )
+                    }
                     IconButton(
                         onClick = { showGeneralChatSheet = true },
-                        modifier = Modifier
-                            .minimumInteractiveComponentSize()
-                            .testTag("btn_general_admin_chat")
+                        modifier = Modifier.testTag("btn_general_admin_chat")
                     ) {
                         Icon(
                             Icons.Default.Chat,
@@ -4234,92 +3221,11 @@ fun AgritechOwnerDashboard(
                             tint = primaryTextColor
                         )
                     }
-                    Box {
-                        IconButton(
-                            onClick = { showTopBarOverflowMenu = true },
-                            modifier = Modifier
-                                .minimumInteractiveComponentSize()
-                                .testTag("btn_dashboard_more_menu")
-                        ) {
-                            Icon(
-                                Icons.Default.MoreVert,
-                                contentDescription = Translations.tr("menu_more_actions", lang),
-                                tint = primaryTextColor
-                            )
-                        }
-                        DropdownMenu(
-                            expanded = showTopBarOverflowMenu,
-                            onDismissRequest = { showTopBarOverflowMenu = false }
-                        ) {
-                            if (!hasLinkedBarns) {
-                                DropdownMenuItem(
-                                    text = { Text(Translations.tr("menu_create_farm", lang)) },
-                                    leadingIcon = {
-                                        Icon(
-                                            Icons.Default.AddHome,
-                                            contentDescription = null,
-                                            tint = accentEmerald
-                                        )
-                                    },
-                                    onClick = {
-                                        showTopBarOverflowMenu = false
-                                        onTapNewBarnOrCycle()
-                                    },
-                                    modifier = Modifier.testTag("btn_create_farm_unlock_barns")
-                                )
-                            }
-                            DropdownMenuItem(
-                                text = { Text(Translations.tr("btn_scan_qr_join", lang)) },
-                                leadingIcon = {
-                                    Icon(
-                                        Icons.Default.QrCodeScanner,
-                                        contentDescription = null,
-                                        tint = accentEmerald
-                                    )
-                                },
-                                onClick = {
-                                    showTopBarOverflowMenu = false
-                                    showQrJoinSheetFromDashboard = true
-                                },
-                                modifier = Modifier.testTag("btn_dashboard_qr_join")
-                            )
-                            DropdownMenuItem(
-                                text = { Text(Translations.tr("settings_dialog_title", lang)) },
-                                leadingIcon = {
-                                    Icon(
-                                        Icons.Default.Settings,
-                                        contentDescription = null,
-                                        tint = primaryTextColor
-                                    )
-                                },
-                                onClick = {
-                                    showTopBarOverflowMenu = false
-                                    onOpenSettings()
-                                },
-                                modifier = Modifier.testTag("btn_dashboard_settings_menu")
-                            )
-                            HorizontalDivider()
-                            DropdownMenuItem(
-                                text = {
-                                    Text(
-                                        Translations.tr("menu_logout", lang),
-                                        color = ActionRed
-                                    )
-                                },
-                                leadingIcon = {
-                                    Icon(
-                                        Icons.Default.Logout,
-                                        contentDescription = null,
-                                        tint = ActionRed
-                                    )
-                                },
-                                onClick = {
-                                    showTopBarOverflowMenu = false
-                                    onLogout()
-                                },
-                                modifier = Modifier.testTag("btn_dashboard_logout_menu")
-                            )
-                        }
+                    IconButton(onClick = onOpenSettings) {
+                        Icon(Icons.Default.Settings, contentDescription = "Settings", tint = primaryTextColor)
+                    }
+                    IconButton(onClick = onLogout) {
+                        Icon(Icons.Default.Logout, contentDescription = "Logout", tint = primaryTextColor)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = currentTheme.bgColor)
@@ -8396,7 +7302,8 @@ data class BookSubCardModel(
     val badge2: String,
     val scientificRulePoints: List<String>,
     val practicalStepsWithCheck: List<String>,
-    val liveBarnComparisonText: String
+    val liveBarnComparisonText: String,
+    val posterSpec: EncyclopediaPosterSpec? = null
 )
 
 data class BookBranchModel(
@@ -8413,16 +7320,12 @@ object Ross308BroilerHandbook {
 
     fun getStandardTempForDay(ageDays: Int): Double {
         return when {
-            ageDays <= 2 -> 30.0
-            ageDays <= 5 -> 28.0
-            ageDays <= 8 -> 27.0
-            ageDays <= 11 -> 26.0
-            ageDays <= 14 -> 25.0
-            ageDays <= 17 -> 24.0
-            ageDays <= 20 -> 23.0
-            ageDays <= 23 -> 22.0
-            ageDays <= 26 -> 21.0
-            else -> 20.0
+            ageDays <= 3 -> 33.0
+            ageDays <= 7 -> 31.0
+            ageDays <= 14 -> 29.0
+            ageDays <= 21 -> 27.0
+            ageDays <= 27 -> 24.0
+            else -> 21.0
         }
     }
 
@@ -8655,85 +7558,89 @@ object Ross308BroilerHandbook {
                 id = "care_1",
                 branchIndex = 0,
                 cardNumberInBranch = 1,
-                iconEmoji = "🐣",
-                title = "الأسبوع الأول (اليوم 1 - 7): التحضين واستقبال الكتكوت",
-                badge1 = "🌡️ 33°C -> 30°C",
-                badge2 = "💧 فحص الحوصلة 95%",
+                iconEmoji = "🔥",
+                title = "سخّن العنبر والفرشة قبل وصول الصيصان (اليوم 1-7)",
+                badge1 = "🌡️ 33°C تدفئة مسبقة",
+                badge2 = "🪵 فرشة 5-8 سم",
                 scientificRulePoints = listOf(
-                    "تدفئة العنبر المسبقة قبل 24 ساعة حتى تستقر حرارة الفرشة عند 28°C–30°C وحرارة الهواء 33°C -> 30°C ورطوبة 60%–70%.",
-                    "المعيار الذهبي لراحة الكتكوت: حرارة المجمع (Vent Temp) بين 39.4°C و40.5°C.",
-                    "فحص الحوصلة بعد 24 ساعة يجب أن يتجاوز 95% (لينة وممتلئة بالماء والعلف) للوصول لوزن 190–200 غ في اليوم 7."
+                    "تدفئة العنبر المسبقة قبل 24–48 ساعة حتى تستقر حرارة الفرشة عند 29°C–30°C وحرارة الهواء 33°C ورطوبة 60%–70%.",
+                    "الأرضية الباردة تسبب برودة أقدام الصوص واضطراب امتصاص كيس المح والجهاز الهضمي.",
+                    "فحص الحوصلة بعد 24 ساعة يجب أن يتجاوز 95% (لينة وممتلئة) للوصول لوزن 190–200 غ في اليوم 7."
                 ),
                 practicalStepsWithCheck = listOf(
-                    "✓ افرد ورق التحضين وأطباق العلف تحت خطوط المساقي مع شدة إضاءة 30–40 Lux.",
-                    "✓ افحص 30–40 كتكوتاً عشوائياً بعد 8 ساعات و24 ساعة للتأكد من امتلاء الحوصلة.",
-                    "✓ شغّل التهوية الدنيا (0.10 m³/ساعة/طائر) لتجديد الأكسجين دون تيارات باردة."
+                    "✓ نظّف العنبر وطهّر الأرضية والخطوط ثم ضع فرشة نظيفة وجافة بسمك 5–8 سم.",
+                    "✓ شغّل التدفئة قبل الوصول بـ 24–48 ساعة وافرد ورق التحضين وأطباق العلف.",
+                    "✓ قِس حرارة الفرشة وحرارة المجمع (39.4–40.5°C) وافحص امتلاء الحوصلة بعد 8 و24 ساعة."
                 ),
                 liveBarnComparisonText = "🏠 عنبرك الحالي [$barnName] (اليوم $safeAge • الكتاكيت المسكنة: ${String.format(java.util.Locale.US, "%,d", placedBirds)}): " +
-                    "حرارة العنبر المسجلة: $tempNowStr (الهدف الحالي لليوم $safeAge: ${String.format(java.util.Locale.US, "%.0f°C", targetTempC)})."
+                    "حرارة العنبر المسجلة: $tempNowStr (الهدف القياسي لليوم $safeAge: ${String.format(java.util.Locale.US, "%.0f°C", targetTempC)}).",
+                posterSpec = Ross308PosterCatalog.forSubCard("care_1")
             ),
             BookSubCardModel(
                 id = "care_2",
                 branchIndex = 0,
                 cardNumberInBranch = 2,
-                iconEmoji = "🪵",
-                title = "الأسبوع الثاني والثالث (اليوم 8 - 21): بناء الهيكل والريش",
-                badge1 = "🌡️ 29°C -> 27°C",
-                badge2 = "🪵 سمك النشارة 5 سم",
+                iconEmoji = "🐣",
+                title = "مراقبة سلوك الصيصان في التحضين",
+                badge1 = "🌡️ توزيع الحضينة",
+                badge2 = "⚠️ راقب السلوك أولاً",
                 scientificRulePoints = listOf(
-                    "تخفيض الحرارة تدريجياً بمعدل 0.5°C يومياً من 29°C في اليوم 8 إلى 27°C–24°C في اليوم 21.",
-                    "الحفاظ على سمك فرشة نشارة الخشب (5 سم) جافة وهشة لمنع التهاب وسادة القدم (Footpad Dermatitis).",
-                    "توسيع مساحة التحضين تدريجياً وتطبيق 4–6 ساعات إظلام يومياً بعد اليوم 7 لتقوية الهيكل العظمي."
+                    "تجمع الصيصان تحت الدفاية يعني برداً، والابتعاد مع اللهاث يعني حرارة زائدة، والتجمع في جهة واحدة يعني تياراً هوائياً.",
+                    "التوزيع المتوازن 100% حول المعالف والمساقي مع زقزقة هادئة وأرجل دافئة هو علامة الراحة المثالية.",
+                    "لا تعتمد على الترمومتر المعلق فقط بل راقب سلوك الصيصان وتوزعها ودرجة دفء أرجلها دائماً."
                 ),
                 practicalStepsWithCheck = listOf(
-                    "✓ ارفع مستوى المعالف والمساقي بحيث تكون حافتها بمستوى ظهر الطائر.",
-                    "✓ قلّب الفرشة حول المساقي يومياً وأضف نشارة خشب جافة بسمك 5 سم.",
-                    "✓ طبّق برنامج الإظلام المنتظم (4–6 ساعات) للوقاية من الاستسقاء والموت المفاجئ."
+                    "✓ تفقد توزيع الصيصان كل 3 ساعات ليلاً ونهاراً وعدّل الدفايات أو الستائر فوراً.",
+                    "✓ أغلق أي شقوق أو فتحات تسبب تياراً هوائياً جانبياً يجمع الصيصان في زاوية واحدة.",
+                    "✓ المس أرجل عينة من الصيصان بظهر يدك للتأكد من دفئها وعدم برودة الفرشة."
                 ),
                 liveBarnComparisonText = "🏠 عنبرك الحالي [$barnName] (اليوم $safeAge • الطيور الحية: ${String.format(java.util.Locale.US, "%,d", liveBirds)}): " +
-                    "الوزن الحالي ${String.format(java.util.Locale.US, "%.2f", currentWeightKg)} $kgUnit مقابل معيار Ross 308 (${String.format(java.util.Locale.US, "%.2f", targetWeightKg)} $kgUnit)."
+                    "الوزن الحالي ${String.format(java.util.Locale.US, "%.2f", currentWeightKg)} $kgUnit مقابل معيار Ross 308 (${String.format(java.util.Locale.US, "%.2f", targetWeightKg)} $kgUnit).",
+                posterSpec = Ross308PosterCatalog.forSubCard("care_2")
             ),
             BookSubCardModel(
                 id = "care_3",
                 branchIndex = 0,
                 cardNumberInBranch = 3,
                 iconEmoji = "💨",
-                title = "الأسبوع الرابع والخامس (اليوم 22 - 35): التسمين والتهوية",
-                badge1 = "🌡️ 26°C -> 25°C",
-                badge2 = "💨 أمونيا <10ppm",
+                title = "تهوية العنبر وجودة الهواء",
+                badge1 = "💨 تيار علوي للسقف",
+                badge2 = "🌬️ أمونيا <10ppm",
                 scientificRulePoints = listOf(
-                    "ضبط حرارة العنبر في مدى الراحة الحرارية (26°C -> 25°C ثم 21°C–22°C) مع زيادة سحب الهواء.",
+                    "جدد الهواء حتى في الطقس البارد عبر الفتحات العلوية المائلة ليختلط بالهواء الدافئ في السقف قبل نزوله للطيور.",
                     "الحد الأقصى المسموح للأمونيا NH3 أقل من 10 ppm وثاني أكسيد الكربون CO2 أقل من 2500 ppm.",
-                    "التهوية الدنيا ترتفع تدريجياً إلى 0.95 – 1.50 m³/ساعة/طائر لطرد الحرارة الكامنة والرطوبة."
+                    "تجنب إغلاق التهوية تماماً في البرد أو توجيه الهواء مباشرة على الطيور أو ترك فرشة مبتلة."
                 ),
                 practicalStepsWithCheck = listOf(
-                    "✓ شغّل الشفاطات التبادلية لضمان سرعة هواء متجانسة على مستوى الطيور.",
-                    "✓ افحص رائحة الأمونيا على مستوى الطائر؛ إذا ظهرت أي رائحة ارفع التهوية فوراً.",
-                    "✓ راقب تجانس الأوزان الأسبوعي (CV% < 10%) واستهلاك الماء اليومي."
+                    "✓ اضبط الفتحات الجانبية العلوية بحيث تتجه نحو السقف ولا تسقط تياراً بارداً على الطيور.",
+                    "✓ شغّل التهوية التوقيتية (Timer) بانتظام لطرد الرطوبة والأمونيا دون هبوط مفاجئ بالحرارة.",
+                    "✓ افحص رائحة الأمونيا وجفاف الفرشة يومياً وارفع السحب فوراً عند أي تكثف."
                 ),
                 liveBarnComparisonText = "🏠 عنبرك الحالي [$barnName] (اليوم $safeAge): " +
-                    "التهوية الدنيا المطلوبة لـ ${String.format(java.util.Locale.US, "%,d", liveBirds)} طائر هي ${String.format(java.util.Locale.US, "%,.0f", totalMinVentM3h)} m³/ساعة • الحرارة المسجلة: $tempNowStr."
+                    "التهوية الدنيا المطلوبة لـ ${String.format(java.util.Locale.US, "%,d", liveBirds)} طائر هي ${String.format(java.util.Locale.US, "%,.0f", totalMinVentM3h)} m³/ساعة • الحرارة المسجلة: $tempNowStr.",
+                posterSpec = Ross308PosterCatalog.forSubCard("care_3")
             ),
             BookSubCardModel(
                 id = "care_4",
                 branchIndex = 0,
                 cardNumberInBranch = 4,
                 iconEmoji = "💡",
-                title = "الأسبوع السادس (اليوم 36 - 45): التشطيب وما قبل التسويق",
-                badge1 = "🌡️ 25°C",
-                badge2 = "💡 إظلام 4-6 ساعات",
+                title = "الإضاءة والكثافة وتجهيز ما قبل البيع",
+                badge1 = "🌙 إظلام 4-6 ساعات",
+                badge2 = "⏱️ تصويم 8-10 ساعات",
                 scientificRulePoints = listOf(
-                    "الحفاظ على حرارة عنبر معتدلة (20°C – 25°C كحد أقصى) لأن الأوزان الثقيلة شديدة الحساسية للاحتباس الحراري.",
-                    "استمرار برنامج الإظلام (4–6 ساعات) مع تقليله قبل البيع بـ 48 ساعة لتفادي تزاحم الصيد.",
-                    "تصويم العلف لمدة 8–10 ساعات قبل التحميل مع استمرار الماء حتى ساعة الصيد لتفريغ الأمعاء دون جفاف."
+                    "تطبيق برنامج الإظلام (4–6 ساعات يومياً بعد اليوم 7) يقوي الهيكل العظمي ويمنع الاستسقاء والموت المفاجئ.",
+                    "الكثافة القياسية (10–12 طائر/م² صيفاً و12–14 شتاءً) تحمي التجانس وتقلل أمراض الفرشة.",
+                    "تصويم العلف لمدة 8–10 ساعات قبل التحميل مع بقاء الماء يفرغ الأمعاء دون جفاف أو نقص وزن."
                 ),
                 practicalStepsWithCheck = listOf(
-                    "✓ التزم بفترة السحب الدوائي (Withdrawal Period) لأي علاج قبل التسويق.",
-                    "✓ ارفع خطوط المعالف قبل التحميل لتجنب الكدمات والكسور أثناء الإمساك بالطيور.",
-                    "✓ جهّز سجل الميزان السريع والأقفاص النظيفة والمطهرة قبل دخول شاحنة التاجر."
+                    "✓ طبّق 4–6 ساعات ظلام منتظمة يومياً بعد اليوم السابع مع تقليصها تدريجياً قبل البيع بـ 48 ساعة.",
+                    "✓ التزم بفترة السحب الدوائي (Withdrawal Period) لأي علاج مسجل قبل التحميل.",
+                    "✓ ارفع المعالف قبل التحميل بـ 8–10 ساعات واترك الماء متاحاً حتى ساعة الصيد."
                 ),
                 liveBarnComparisonText = "🏠 عنبرك الحالي [$barnName] (اليوم $safeAge): " +
-                    "متوسط الوزن الحالي ${String.format(java.util.Locale.US, "%.2f", currentWeightKg)} $kgUnit • إجمالي الكتلة الحية التقديرية: ${String.format(java.util.Locale.US, "%,.0f", liveBirds * currentWeightKg)} $kgUnit."
+                    "متوسط الوزن الحالي ${String.format(java.util.Locale.US, "%.2f", currentWeightKg)} $kgUnit • إجمالي الكتلة الحية التقديرية: ${String.format(java.util.Locale.US, "%,.0f", liveBirds * currentWeightKg)} $kgUnit.",
+                posterSpec = Ross308PosterCatalog.forSubCard("care_4")
             )
         )
 
@@ -8758,7 +7665,8 @@ object Ross308BroilerHandbook {
                     "✓ تجنب المضادات الحيوية العشوائية في اليوم الأول دون تشخيص بيطري."
                 ),
                 liveBarnComparisonText = "🏠 عنبرك الحالي [$barnName] (اليوم $safeAge • الكتاكيت المسكنة: ${String.format(java.util.Locale.US, "%,d", placedBirds)}): " +
-                    if (safeAge <= 3) "أنت الآن في نافذة الاستقبال (اليوم $safeAge) — قدّم محلول الجفاف وAD3E." else "تم اجتياز مرحلة استقبال الأيام 1–3."
+                    if (safeAge <= 3) "أنت الآن في نافذة الاستقبال (اليوم $safeAge) — قدّم محلول الجفاف وAD3E." else "تم اجتياز مرحلة استقبال الأيام 1–3.",
+                posterSpec = Ross308PosterCatalog.forSubCard("vax_1")
             ),
             BookSubCardModel(
                 id = "vax_2",
@@ -8783,7 +7691,8 @@ object Ross308BroilerHandbook {
                         safeAge < 6 -> "موعد التحصين الأول بعد ${6 - safeAge} أيام (اليوم 6–7)."
                         safeAge in 6..7 -> "⚠️ اليوم ($safeAge) هو الموعد القياسي لتحصين النيوكاسل B1 + IB!"
                         else -> "تم تجاوز موعد التحصين الأول (اليوم 6–7)."
-                    }
+                    },
+                posterSpec = Ross308PosterCatalog.forSubCard("vax_2")
             ),
             BookSubCardModel(
                 id = "vax_3",
@@ -8808,7 +7717,8 @@ object Ross308BroilerHandbook {
                         safeAge < 12 -> "موعد تحصين الجمبورو بعد ${12 - safeAge} يوم (اليوم 12–14)."
                         safeAge in 12..14 -> "⚠️ اليوم ($safeAge) هو الموعد القياسي لتحصين الجمبورو (IBD)!"
                         else -> "تم تجاوز نافذة تحصين الجمبورو (اليوم 12–14)."
-                    }
+                    },
+                posterSpec = Ross308PosterCatalog.forSubCard("vax_3")
             ),
             BookSubCardModel(
                 id = "vax_4",
@@ -8833,7 +7743,8 @@ object Ross308BroilerHandbook {
                         safeAge < 18 -> "موعد الجرعة المعززة للنيوكاسل بعد ${18 - safeAge} يوم (اليوم 18–20)."
                         safeAge in 18..20 -> "⚠️ اليوم ($safeAge) هو الموعد القياسي للجرعة المعززة (LaSota / Clone 30)!"
                         else -> "مرحلة ما بعد التحصينات (اليوم $safeAge): ركّز على مضاد السموم والغسيل الكلوي والفيتامينات."
-                    }
+                    },
+                posterSpec = Ross308PosterCatalog.forSubCard("vax_4")
             )
         )
 
@@ -8844,83 +7755,88 @@ object Ross308BroilerHandbook {
                 branchIndex = 2,
                 cardNumberInBranch = 1,
                 iconEmoji = "🫁",
-                title = "الميكوبلازما والأمراض التنفسية (CRD)",
-                badge1 = "🚨 عطاس وشخير ليلي",
-                badge2 = "💨 اضبط التهوية فوراً",
+                title = "مرض البرونشيت المعدية — Infectious Bronchitis (IB)",
+                badge1 = "🚨 حشرجة وسعال وتنفس",
+                badge2 = "🧬 تشخيص PCR & ELISA",
                 scientificRulePoints = listOf(
-                    "الأعراض المميزة: عطاس، حشرجة وشخير ليلي، إفرازات أنفية، وتورم الجيوب الأنفية مع انخفاض سحب العلف.",
-                    "السبب الرئيسي لانتشار CRD هو ارتفاع غاز الأمونيا (> 10 ppm) أو التذبذب الحراري الحاد بين الليل والنهار.",
-                    "العلاج الدوائي لا ينجح أبداً بدون إصلاح التهوية وتجفيف الفرشة أولاً."
+                    "مرض فيروسي شديد العدوى يصيب الجيوب الأنفية والقصبة والشعب الهوائية والرئتين (نفوق 5–30% وتراجع وزن 10–20%).",
+                    "يرفع معامل التحويل (FCR +0.10–0.30) ويمهّد لعدوى E.coli البكتيرية الثانوية وتجبن الشعب.",
+                    "مناعة البرونشيت قصيرة الأمد وقد تحدث إصابة بعترات متحورة رغم التحصين."
                 ),
                 practicalStepsWithCheck = listOf(
-                    "✓ ارفع معدل التهوية الدنيا فوراً لطرد الأمونيا والغبار دون إسقاط تيار بارد مباشر.",
-                    "✓ أضف موسعات شعب وزيوت عطرية (منثول / أوكالبتوس) في ماء الشرب لتهدئة الجهاز التنفسي.",
-                    "✓ استشر الطبيب البيطري لاختيار المضاد النوعي مع الالتزام الصارم بفترة السحب."
+                    "✓ قدّم رافع مناعة + AD3E + C وموسع شعب، ومضاداً حيوياً تحت إشراف بيطري للعدوى الثانوية.",
+                    "✓ ارفع حرارة العنبر 1–2 درجة مئوية وحسّن التهوية الدنيا لطرد الأمونيا والرطوبة.",
+                    "✓ التزم بالتحصين المبكر، الأمن الحيوي، وتطهير العنبر بين الدورات."
                 ),
                 liveBarnComparisonText = "🏠 فحص عنبرك [$barnName] (اليوم $safeAge): " +
-                    "الحرارة المسجلة: $tempNowStr • التهوية الدنيا المطلوبة: ${String.format(java.util.Locale.US, "%,.0f", totalMinVentM3h)} m³/ساعة لمنع تراكم الأمونيا."
+                    "الحرارة المسجلة: $tempNowStr • التهوية الدنيا المطلوبة: ${String.format(java.util.Locale.US, "%,.0f", totalMinVentM3h)} m³/ساعة لحماية القصبة الهوائية.",
+                posterSpec = Ross308PosterCatalog.forSubCard("dis_1")
             ),
             BookSubCardModel(
                 id = "dis_2",
                 branchIndex = 2,
                 cardNumberInBranch = 2,
-                iconEmoji = "🦠",
-                title = "الكوكسيديا والكلوستريديا المعوية",
-                badge1 = "🚨 إسهال مدمم أو رغوي",
-                badge2 = "🪵 جفف رطوبة الفرشة",
+                iconEmoji = "😷",
+                title = "الميكوبلازما والأمراض التنفسية المزمنة (CRD)",
+                badge1 = "🚨 شخير ليلي وتورم عين",
+                badge2 = "💨 أمونيا > 10 ppm",
                 scientificRulePoints = listOf(
-                    "الأعراض: زرق مدمم أو بني داكن أو رغوي برتقالي، خمول وانتفاش الريش، وتدهور سريع في معامل التحويل (FCR).",
-                    "طفيلي الكوكسيديا يتحوصل ويتكاثر في الفرشة الرطبة الدافئة (رطوبة > 30%) خاصة تحت خطوط المساقي.",
-                    "الإصابة بالكوكسيديا تدمّر جدار الأمعاء وتمهّد لنمو بكتيريا الكلوستريديا (التهاب الأمعاء النخري)."
+                    "التهاب مزمن يصيب القصبة والأكياس الهوائية ويسبب عتامة وتجبناً وتغطية القلب والكبد بغشاء فبريني مع E.coli.",
+                    "المحفز الرئيسي لانتشار CRD هو ارتفاع غاز الأمونيا (> 10 ppm) والتذبذب الحراري الحاد بين الليل والنهار.",
+                    "العلاج الدوائي لا ينجح أبداً بدون إصلاح التهوية وتجفيف الفرشة أولاً."
                 ),
                 practicalStepsWithCheck = listOf(
-                    "✓ أصلح أي تسريب في حلمات المساقي فوراً وأزل البقع الرطبة واستبدلها بنشارة جافة.",
-                    "✓ قدّم مضاد الكوكسيديا الموصوف مع فيتامين K3 وA لوقف النزيف المعوي وتجديد بطانة الأمعاء.",
-                    "✓ ادعم الأمعاء بالبروبيوتيك والأحماض العضوية بعد انتهاء العلاج لمنع عودة الكلوستريديا."
+                    "✓ ارفع معدل التهوية الدنيا فوراً لطرد الأمونيا والغبار دون إسقاط تيار بارد مباشر.",
+                    "✓ أضف موسعات شعب وزيوت عطرية (منثول / أوكالبتوس) مع المضاد النوعي بوصفة بيطرية.",
+                    "✓ راقب تفاوت الأوزان الأسبوعي والتزم بفترة السحب الدوائي قبل البيع."
                 ),
                 liveBarnComparisonText = "🏠 فحص عنبرك [$barnName] (اليوم $safeAge): " +
-                    "معامل التحويل الحالي ${if (actualFcr > 0.0) String.format(java.util.Locale.US, "%.2f", actualFcr) else "قيد الحساب"} (معيار Ross 308: ${String.format(java.util.Locale.US, "%.2f", targetFcr)}) — أي ارتفاع مفاجئ في FCR يستوجب فحص الأمعاء والفرشة."
+                    "الحرارة المسجلة: $tempNowStr • التهوية الدنيا المطلوبة: ${String.format(java.util.Locale.US, "%,.0f", totalMinVentM3h)} m³/ساعة لمنع تراكم الأمونيا.",
+                posterSpec = Ross308PosterCatalog.forSubCard("dis_2")
             ),
             BookSubCardModel(
                 id = "dis_3",
                 branchIndex = 2,
                 cardNumberInBranch = 3,
-                iconEmoji = "🌡️",
-                title = "الإجهاد الحراري والاحتباس الحراري",
-                badge1 = "🚨 نهجان وفرد الأجنحة",
-                badge2 = "❄️ فيتامين C ومياه باردة",
+                iconEmoji = "🦠",
+                title = "الكوكسيديا والسموم الفطرية والإجهاد المعوي",
+                badge1 = "🚨 زرق مدمم أو برتقالي",
+                badge2 = "🪵 رطوبة الفرشة > 30%",
                 scientificRulePoints = listOf(
-                    "الأعراض: نهجان سريع (Panting)، فرد الأجنحة بعيداً عن الجسم، تجمّع حول المساقي، وارتفاع مفاجئ في النفوق بالأوزان الكبيرة.",
-                    "عندما تتجاوز الحرارة 30°C مع رطوبة عالية، يفقد الطائر قدرته على التبريد التبخيري ويرتفع استهلاك الماء 2.5–3 أضعاف.",
-                    "هضم العلف خلال ساعات الذروة الحارة يولّد حرارة أيضية خطيرة داخل جسم الطائر."
+                    "طفيلي الأيميريا يتكاثر في الفرشة الرطبة الدافئة ويدمر الأمعاء الدقيقة والأعورين مسبباً نزيفاً وضعف امتصاص.",
+                    "يرفع معامل التحويل الغذائي (+0.18 إلى +0.35) ويمهد للإصابة بالتهاب الأمعاء النخري (كلوستريديا).",
+                    "المطهرات العادية لا تقتل الحويصلات؛ الجفاف التام للفرشة وإصلاح تسريب الحلمات أساس الوقاية."
                 ),
                 practicalStepsWithCheck = listOf(
-                    "✓ ارفع العلف خلال ساعات الذروة الحارة (11 صباحاً – 4 عصراً) وقدّمه في ساعات الليل والصباح الباكر.",
-                    "✓ ضاعف عدد مرات غسيل خطوط الماء لتوفير مياه باردة وأضف فيتامين C وإلكتروليت وبيكربونات.",
-                    "✓ شغّل خلايا التبريد وكامل الشفاطات لرفع سرعة الهواء (2.0 – 2.5 م/ثانية) فوق الطيور."
+                    "✓ أصلح أي تسريب في حلمات المساقي فوراً وأزل البقع الرطبة واستبدلها بنشارة جافة.",
+                    "✓ قدّم مضاد الكوكسيديا الموصوف مع فيتامين K3 وA لوقف النزيف المعوي وتجديد البطانة.",
+                    "✓ ادعم الأمعاء بالبروبيوتيك ومضاد السموم الفطرية لمنع تكاثر الكلوستريديا."
                 ),
                 liveBarnComparisonText = "🏠 فحص عنبرك [$barnName] (اليوم $safeAge): " +
-                    "حرارة العنبر المسجلة: $tempNowStr مقابل الهدف القياسي (${String.format(java.util.Locale.US, "%.0f°C", targetTempC)})."
+                    "معامل التحويل الحالي ${if (actualFcr > 0.0) String.format(java.util.Locale.US, "%.2f", actualFcr) else "قيد الحساب"} (معيار Ross 308: ${String.format(java.util.Locale.US, "%.2f", targetFcr)}) — أي ارتفاع مفاجئ في FCR يستوجب فحص الأمعاء والفرشة.",
+                posterSpec = Ross308PosterCatalog.forSubCard("dis_3")
             ),
             BookSubCardModel(
                 id = "dis_4",
                 branchIndex = 2,
                 cardNumberInBranch = 4,
-                iconEmoji = "🧼",
-                title = "قواعد الأمن الحيوي والتطهير بين الدورات",
-                badge1 = "🧼 غسيل وتطهير شامل",
-                badge2 = "🚫 منع دخول الغرباء",
+                iconEmoji = "🚨",
+                title = "النيوكاسل والجمبورو والإجهاد الحراري (طوارئ القطيع)",
+                badge1 = "🚨 نفوق حاد والتواء رقبة",
+                badge2 = "❄️ تبريد + حجر صحي",
                 scientificRulePoints = listOf(
-                    "الأمن الحيوي (Biosecurity) هو خط الدفاع الأول الذي يمنع 80% من الأمراض الفيروسية والبكتيرية دون تكلفة علاجية.",
-                    "فترة الراحة الصحية بين الدورتين يجب ألا تقل عن 14 يوماً بعد إزالة السبلة والغسيل والتطهير الكامل.",
-                    "تطهير خطوط وخزانات المياه بالأحماض والبيروكسيد يزيل طبقة البيوفيلم (Biofilm) الحاملة للبكتيريا."
+                    "النيوكاسل يضرب التنفس والأعصاب (التواء الرقبة وإسهال أخضر)، والجمبورو يدمر غدة فابريشيوس والمناعة.",
+                    "تجاوز الحرارة 30°C يرفع استهلاك الماء 2.5–3 أضعاف ويسبب احتباساً وسكتة حرارية في الأوزان الكبيرة.",
+                    "تصويم العلف وقت الذروة الحارة (11ص–4ع) يخفض الحرارة الأيضية الداخلية للطائر."
                 ),
                 practicalStepsWithCheck = listOf(
-                    "✓ امنع دخول الوسطاء والتجار والزوار إلى داخل العنبر ووفّر حوض تطهير أحذية وملابس خاصة.",
-                    "✓ طبّق قاعدة (الكل داخل – الكل خارج All-In All-Out) ولا تخلط أعماراً مختلفة في نفس المزرعة.",
-                    "✓ كافح القوارض والطيور البرية والحشرات بين الدورات وأغلق فتحات التهوية بشبك حماية."
+                    "✓ في الحر: ارفع العلف وقت الذروة وشغّل التبريد والشفاطات وقدّم ماءً بارداً + فيتامين C وإلكتروليت.",
+                    "✓ في الاشتباه الفيروسي: اعزل العنبر ومنع انتقال العمال واستدعِ البيطري للفحص (PCR/HI).",
+                    "✓ التزم بمواعيد التحصين والأمن الحيوي وغلق العنبر أمام الزوار والوسطاء."
                 ),
-                liveBarnComparisonText = "🏠 حالة الأمن الحيوي في [$barnName]: الطيور الحية حالياً ${String.format(java.util.Locale.US, "%,d", liveBirds)} من أصل ${String.format(java.util.Locale.US, "%,d", placedBirds)}."
+                liveBarnComparisonText = "🏠 فحص عنبرك [$barnName] (اليوم $safeAge): " +
+                    "حرارة العنبر المسجلة: $tempNowStr مقابل الهدف القياسي (${String.format(java.util.Locale.US, "%.0f°C", targetTempC)}) • الطيور الحية: ${String.format(java.util.Locale.US, "%,d", liveBirds)}.",
+                posterSpec = Ross308PosterCatalog.forSubCard("dis_4")
             )
         )
 
@@ -8945,7 +7861,8 @@ object Ross308BroilerHandbook {
                     "✓ ابدأ خلط 25% علف نامي مع 75% بادئ في اليوم 9–10 للانتقال التدريجي السلس."
                 ),
                 liveBarnComparisonText = "🏠 تغذية [$barnName] (اليوم $safeAge): " +
-                    "العلف المستهلك: ${Translations.formatQuintalNumber(totalFeedQuintals)} $qUnit • المخزون المتبقي: ${Translations.formatQuintalNumber(remainingFeedQuintals)} $qUnit."
+                    "العلف المستهلك: ${Translations.formatQuintalNumber(totalFeedQuintals)} $qUnit • المخزون المتبقي: ${Translations.formatQuintalNumber(remainingFeedQuintals)} $qUnit.",
+                posterSpec = Ross308PosterCatalog.forSubCard("feed_1")
             ),
             BookSubCardModel(
                 id = "feed_2",
@@ -8962,11 +7879,12 @@ object Ross308BroilerHandbook {
                 ),
                 practicalStepsWithCheck = listOf(
                     "✓ انتقل تدريجياً من المحبب الناعم (Crumble) إلى الكبسولات الصغيرة (Mini-pellets 2–2.5 ملم).",
-                    "✓ اضبط فتحة انسياب العلف في المعالف الأوتوماتيكية بحيث يغطي ثلث قاع الطبق فقط لمنع الهدر.",
+                    "✓ اضبط ارتفاع المعلف بمستوى ظهر الطائر بحيث يغطي العلف ثلث قاع الطبق فقط لمنع الهدر.",
                     "✓ اوزن عينة عشوائية (100 طائر) في اليوم 14 واليوم 21 لمطابقة منحنى Ross 308."
                 ),
                 liveBarnComparisonText = "🏠 تغذية [$barnName] (اليوم $safeAge): " +
-                    "الوزن الحالي ${String.format(java.util.Locale.US, "%.2f", currentWeightKg)} $kgUnit مقابل معيار Ross 308 (${String.format(java.util.Locale.US, "%.2f", targetWeightKg)} $kgUnit)."
+                    "الوزن الحالي ${String.format(java.util.Locale.US, "%.2f", currentWeightKg)} $kgUnit مقابل معيار Ross 308 (${String.format(java.util.Locale.US, "%.2f", targetWeightKg)} $kgUnit).",
+                posterSpec = Ross308PosterCatalog.forSubCard("feed_2")
             ),
             BookSubCardModel(
                 id = "feed_3",
@@ -8987,7 +7905,8 @@ object Ross308BroilerHandbook {
                     "✓ استخدم حاسبة المبيعات والفرز لتحديد نقطة البيع المثلى قبل تراجع كفاءة التحويل بعد اليوم 42."
                 ),
                 liveBarnComparisonText = "🏠 تغذية [$barnName] (اليوم $safeAge): " +
-                    "معامل التحويل الحالي ${if (actualFcr > 0.0) String.format(java.util.Locale.US, "%.2f", actualFcr) else "قيد الحساب"} (الهدف: ${String.format(java.util.Locale.US, "%.2f", targetFcr)}) • المخزون المتبقي: ${Translations.formatQuintalNumber(remainingFeedQuintals)} $qUnit."
+                    "معامل التحويل الحالي ${if (actualFcr > 0.0) String.format(java.util.Locale.US, "%.2f", actualFcr) else "قيد الحساب"} (الهدف: ${String.format(java.util.Locale.US, "%.2f", targetFcr)}) • المخزون المتبقي: ${Translations.formatQuintalNumber(remainingFeedQuintals)} $qUnit.",
+                posterSpec = Ross308PosterCatalog.forSubCard("feed_3")
             ),
             BookSubCardModel(
                 id = "feed_4",
@@ -9000,7 +7919,7 @@ object Ross308BroilerHandbook {
                 scientificRulePoints = listOf(
                     "المرجع القياسي للأوزان: يوم 7 (190 غ) • يوم 14 (520 غ) • يوم 21 (1000 غ) • يوم 28 (1580 غ) • يوم 35 (2250 غ) • يوم 42–45 (2800–2950 غ).",
                     "قاعدة ميزان الماء والعلف: يستهلك الطائر 1.6 إلى 1.8 لتر ماء لكل 1 كغ علف (بمتوسط 1.7x في حرارة 21°C).",
-                    "أي انخفاض مفاجئ في استهلاك الماء اليومي عن 1.6x هو أول إنذار مبكر للمرض قبل ظهور النفوق بـ 24 ساعة."
+                    "أي انخفاض مفاجئ في استهلاك الماء اليومي عن 1.6x هو أول إنذار مبكر للمرض قبل ظهور النافق بـ 24 ساعة."
                 ),
                 practicalStepsWithCheck = listOf(
                     "✓ سجّل استهلاك العلف بالقنطار (1 قنطار = 100 كغ) واستهلاك الماء باللتر يومياً في السجل اليومي.",
@@ -9012,7 +7931,8 @@ object Ross308BroilerHandbook {
                         "نسبة الماء/العلف المسجلة: ${String.format(java.util.Locale.US, "%.2f", waterToFeedRatio)} لتر/كغ (المعيار القياسي: 1.6 – 1.8 لتر/كغ)."
                     } else {
                         "الوزن الحالي ${String.format(java.util.Locale.US, "%.2f", currentWeightKg)} $kgUnit • المعيار القياسي للماء 1.7 لتر لكل 1 كغ علف."
-                    }
+                    },
+                posterSpec = Ross308PosterCatalog.forSubCard("feed_4")
             )
         )
 
@@ -9083,9 +8003,17 @@ object Ross308BroilerHandbook {
         if (idx < 0 || cards.isEmpty()) return currentSubCardId
         return cards[(idx - 1 + cards.size) % cards.size].id
     }
+
+    fun buildSixteenBookPages(
+        branches: List<BookBranchModel>
+    ): List<Pair<BookBranchModel, BookSubCardModel>> {
+        return branches.flatMap { branch ->
+            branch.subCards.map { subCard -> branch to subCard }
+        }
+    }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
 @Composable
 fun OwnerGlobalAiVetPlaceholderScreen(
     currentTheme: AppThemeOption,
@@ -9303,14 +8231,7 @@ fun OwnerGlobalAiVetPlaceholderScreen(
             "ai_vet_quick_chip_0" -> {
                 val latestReport = farmReports.maxByOrNull { it.dayNumber }
                 val recordedTempC: Double? = latestReport?.temperature
-                val idealTempC = when {
-                    ageDays <= 3 -> 33.0
-                    ageDays <= 7 -> 31.0
-                    ageDays <= 14 -> 29.0
-                    ageDays <= 21 -> 27.0
-                    ageDays <= 28 -> 24.0
-                    else -> 21.0
-                }
+                val idealTempC = Ross308BroilerHandbook.getStandardTempForDay(ageDays)
                 val tempSummaryLine = if (recordedTempC != null) {
                     val tempDiff = recordedTempC - idealTempC
                     val ventStatus = latestReport?.let { Translations.getLocalizedVentilation(it.ventilationStatus, lang) }
@@ -9663,7 +8584,7 @@ fun OwnerGlobalAiVetPlaceholderScreen(
             // محتوى القسم النشط (📊 التحليلات | 💡 نصائح | 💬 المحادثة)
             when (selectedAiSubTab) {
                 0 -> {
-                    // القسم الأول: 📊 التحليلات (بطاقات التحليل الحية لعنبر المستخدم الفعلي فقط بدون بطاقات وهمية)
+                    // القسم الأول: 📊 التحليلات (بطاقات التحليل الحية لعنبر المستخدم الفعلي فقط مترجمة لـ 14 لغة)
                     LazyColumn(
                         modifier = Modifier
                             .weight(1f)
@@ -9682,6 +8603,14 @@ fun OwnerGlobalAiVetPlaceholderScreen(
 
                         // 1. بطاقة تحليل المصاريف والتكلفة الفعلية
                         item {
+                            val expensesHeader = "${Translations.tr("book_analytics_expenses_header", lang)} — $bookBarnName"
+                            val expensesBody = Translations.tr("book_analytics_expenses_body_fmt", lang)
+                                .replace("{exp}", String.format(java.util.Locale.US, "%,.0f", bookTotalExpenses))
+                                .replace("{inc}", String.format(java.util.Locale.US, "%,.0f", bookTotalIncome))
+                                .replace("{cpb}", String.format(java.util.Locale.US, "%,.1f", bookCostPerBird))
+                                .replace("{cpkg}", String.format(java.util.Locale.US, "%,.1f", bookCostPerKg))
+                                .replace("{curr}", curr)
+                                .replace("{kg}", kgUnit)
                             Card(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -9702,15 +8631,13 @@ fun OwnerGlobalAiVetPlaceholderScreen(
                                     verticalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
                                     Text(
-                                        text = "💰 تحليل المصاريف والتكلفة الفعلية — $bookBarnName",
+                                        text = expensesHeader,
                                         fontWeight = FontWeight.ExtraBold,
                                         fontSize = 13.5.sp,
                                         color = aiAccent
                                     )
                                     Text(
-                                        text = "• إجمالي المصاريف المسجلة: ${String.format(java.util.Locale.US, "%,.0f", bookTotalExpenses)} $curr | المداخيل: ${String.format(java.util.Locale.US, "%,.0f", bookTotalIncome)} $curr\n" +
-                                            "• التكلفة الفعلية للطائر الحي: ${String.format(java.util.Locale.US, "%,.1f", bookCostPerBird)} $curr / طائر\n" +
-                                            "• تكلفة إنتاج 1 $kgUnit وزن حي: ${String.format(java.util.Locale.US, "%,.1f", bookCostPerKg)} $curr / $kgUnit",
+                                        text = expensesBody,
                                         fontSize = 12.sp,
                                         color = primaryText,
                                         lineHeight = 18.sp
@@ -9721,13 +8648,22 @@ fun OwnerGlobalAiVetPlaceholderScreen(
 
                         // 2. بطاقة تحليل استهلاك العلف والمخزون المتبقي ومعامل التحويل
                         item {
-                            val dailyFeedAvgQuintals = if (bookAgeDays > 0 && bookTotalFeedQuintals > 0.0) {
-                                bookTotalFeedQuintals / bookAgeDays.coerceAtLeast(1)
-                            } else 0.0
-                            val estDaysRemaining = if (dailyFeedAvgQuintals > 0.0) {
-                                (bookRemainingFeedQuintals / dailyFeedAvgQuintals).toInt()
-                            } else 0
                             val targetFcrNow = Ross308BroilerHandbook.getStandardFcrForDay(bookAgeDays)
+                            val fcrDisplay = if (bookActualFcr > 0.0) {
+                                String.format(java.util.Locale.US, "%.2f", bookActualFcr)
+                            } else {
+                                Translations.tr("fcr_not_calculated", lang)
+                            }
+                            val feedBody = Translations.tr("book_analytics_feed_body_fmt", lang)
+                                .replace("{used}", Translations.formatQuintalNumber(bookTotalFeedQuintals))
+                                .replace("{rem}", Translations.formatQuintalNumber(bookRemainingFeedQuintals))
+                                .replace("{q}", qUnit)
+                                .replace("{wt}", String.format(java.util.Locale.US, "%.2f", bookCurrentWeightKg))
+                                .replace("{day}", bookAgeDays.toString())
+                                .replace("{targetWt}", String.format(java.util.Locale.US, "%.2f", bookTargetWeightKg))
+                                .replace("{kg}", kgUnit)
+                                .replace("{fcr}", fcrDisplay)
+                                .replace("{targetFcr}", String.format(java.util.Locale.US, "%.2f", targetFcrNow))
                             Card(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -9748,15 +8684,13 @@ fun OwnerGlobalAiVetPlaceholderScreen(
                                     verticalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
                                     Text(
-                                        text = "🌾 تحليل العلف والمخزون ومعامل التحويل (FCR)",
+                                        text = Translations.tr("book_analytics_feed_fcr_header", lang),
                                         fontWeight = FontWeight.ExtraBold,
                                         fontSize = 13.5.sp,
                                         color = aiAccent
                                     )
                                     Text(
-                                        text = "• إجمالي العلف المستهلك: ${Translations.formatQuintalNumber(bookTotalFeedQuintals)} $qUnit | المخزون المتبقي: ${Translations.formatQuintalNumber(bookRemainingFeedQuintals)} $qUnit ${if (estDaysRemaining > 0) "(يكفي ~$estDaysRemaining يوم)" else ""}\n" +
-                                            "• متوسط الوزن الحالي: ${String.format(java.util.Locale.US, "%.2f", bookCurrentWeightKg)} $kgUnit (معيار Ross 308 لليوم $bookAgeDays: ${String.format(java.util.Locale.US, "%.2f", bookTargetWeightKg)} $kgUnit)\n" +
-                                            "• معامل التحويل الغذائي (FCR): ${if (bookActualFcr > 0.0) String.format(java.util.Locale.US, "%.2f", bookActualFcr) else "قيد الحساب"} (الهدف القياسي: ${String.format(java.util.Locale.US, "%.2f", targetFcrNow)})",
+                                        text = feedBody,
                                         fontSize = 12.sp,
                                         color = primaryText,
                                         lineHeight = 18.sp
@@ -9769,10 +8703,18 @@ fun OwnerGlobalAiVetPlaceholderScreen(
                         item {
                             val targetTempNow = Ross308BroilerHandbook.getStandardTempForDay(bookAgeDays)
                             val tempDisplay = if (bookLatestTempC != null) {
-                                "${String.format(java.util.Locale.US, "%.1f°C", bookLatestTempC)} (الهدف: ${String.format(java.util.Locale.US, "%.0f°C", targetTempNow)})"
+                                "${String.format(java.util.Locale.US, "%.1f°C", bookLatestTempC)} (Ross 308: ${String.format(java.util.Locale.US, "%.0f°C", targetTempNow)})"
                             } else {
-                                "غير مسجلة بعد (الهدف: ${String.format(java.util.Locale.US, "%.0f°C", targetTempNow)})"
+                                "— (Ross 308: ${String.format(java.util.Locale.US, "%.0f°C", targetTempNow)})"
                             }
+                            val vitalityBody = Translations.tr("book_analytics_vitality_body_fmt", lang)
+                                .replace("{live}", String.format(java.util.Locale.US, "%,d", bookLiveBirds))
+                                .replace("{placed}", String.format(java.util.Locale.US, "%,d", bookPlacedBirds))
+                                .replace("{day}", bookAgeDays.toString())
+                                .replace("{livPct}", String.format(java.util.Locale.US, "%.1f", bookLivabilityPct))
+                                .replace("{mort}", bookTotalMortality.toString())
+                                .replace("{mortPct}", String.format(java.util.Locale.US, "%.2f", bookMortalityPct))
+                                .replace("{temp}", tempDisplay)
                             Card(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -9793,15 +8735,13 @@ fun OwnerGlobalAiVetPlaceholderScreen(
                                     verticalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
                                     Text(
-                                        text = "🩺 مؤشر الحيوية والمناخ (معيار Ross 308)",
+                                        text = Translations.tr("book_analytics_vitality_climate_header", lang),
                                         fontWeight = FontWeight.ExtraBold,
                                         fontSize = 13.5.sp,
                                         color = aiAccent
                                     )
                                     Text(
-                                        text = "• الطيور الحية: ${String.format(java.util.Locale.US, "%,d", bookLiveBirds)} من أصل ${String.format(java.util.Locale.US, "%,d", bookPlacedBirds)} (اليوم $bookAgeDays)\n" +
-                                            "• نسبة الحيوية: ${String.format(java.util.Locale.US, "%.1f%%", bookLivabilityPct)} | النفوق التراكمي: $bookTotalMortality (${String.format(java.util.Locale.US, "%.2f%%", bookMortalityPct)} — المعيار الآمن < 3.5%)\n" +
-                                            "• حرارة العنبر الحالية: $tempDisplay",
+                                        text = vitalityBody,
                                         fontSize = 12.sp,
                                         color = primaryText,
                                         lineHeight = 18.sp
@@ -9813,509 +8753,285 @@ fun OwnerGlobalAiVetPlaceholderScreen(
                 }
 
                 1 -> {
-                    // الجراحة 2 و3: نظام الفروع الأربعة والانتقال البطاقي المتدرج (4-Branch Drill-Down Card Architecture)
-                    val activeBranch = bookBranches.getOrElse(selectedBookBranchIndex.coerceIn(0, 3)) { bookBranches.first() }
-                    val openedDetailPair = Ross308BroilerHandbook.findSubCard(bookBranches, openedSubCardId)
+                    // 4 كتب مستقلة (كتاب خاص لكل تخصص من الدرس 01 إلى 04 — صفحة 1 من 4 إلى 4 من 4) + شبكة 2x2 واضحة + تقليب ثلاثي الأبعاد بالسحب
+                    val safeBranchIdx = selectedBookBranchIndex.coerceIn(0, (bookBranches.size - 1).coerceAtLeast(0))
+                    val activeBranch = bookBranches.getOrElse(safeBranchIdx) { bookBranches.first() }
+                    val activeBranchLessons = activeBranch.subCards
+                    val totalBranchPages = activeBranchLessons.size.coerceAtLeast(4)
 
-                    LazyColumn(
+                    val branchBookPagerState = rememberPagerState(
+                        initialPage = 0,
+                        pageCount = { activeBranchLessons.size.coerceAtLeast(1) }
+                    )
+                    var triggerZoomForActivePage by remember { mutableStateOf(false) }
+
+                    // عند اختيار تخصص جديد من شبكة الـ 2x2، يُفتح كتابه المستقل فوراً على الصفحة الأولى (الدرس 01 — صفحة 1 من 4)
+                    LaunchedEffect(selectedBookBranchIndex) {
+                        branchBookPagerState.scrollToPage(0)
+                    }
+
+                    val branchTitleKeys = listOf(
+                        "book_branch_0_title",
+                        "book_branch_1_title",
+                        "book_branch_2_title",
+                        "book_branch_3_title"
+                    )
+                    val branchSubtitleKeys = listOf(
+                        "book_branch_0_subtitle",
+                        "book_branch_1_subtitle",
+                        "book_branch_2_subtitle",
+                        "book_branch_3_subtitle"
+                    )
+
+                    Column(
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxWidth()
                             .testTag("ai_diagnostics_cards_list"),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        if (openedDetailPair == null) {
-                            // المستوى الأول: شبكة الفروع الأربعة الرئيسية (2×2 Grid بتصميم tactile3DStyle)
-                            item {
-                                Text(
-                                    text = "أقسام كتاب تربية دجاج التسمين — اختر الفرع",
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = aiAccent,
-                                    modifier = Modifier.testTag("book_branches_grid_header")
-                                )
-                            }
-
-                            item {
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .testTag("book_branches_2x2_grid"),
-                                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                                ) {
-                                    listOf(
-                                        bookBranches.subList(0, 2),
-                                        bookBranches.subList(2, 4)
-                                    ).forEach { rowBranches ->
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                                        ) {
-                                            rowBranches.forEach { branch ->
-                                                val isBranchSelected = selectedBookBranchIndex == branch.branchIndex
-                                                val glowBorderColor = if (isBranchSelected) aiAccent else glassBorderColor
-                                                Card(
-                                                    modifier = Modifier
-                                                        .weight(1f)
-                                                        .tactile3DStyle(
-                                                            baseColor = if (isBranchSelected) aiAccent else secondaryText,
-                                                            cornerRadius = appearance.cornerRadiusDp.dp,
-                                                            elevation = if (isBranchSelected) 6.dp else 3.dp
-                                                        )
-                                                        .clickable {
-                                                            selectedBookBranchIndex = branch.branchIndex
-                                                            openedSubCardId = null
-                                                        }
-                                                        .testTag(branch.tag),
-                                                    shape = aiCardShape,
-                                                    colors = CardDefaults.cardColors(
-                                                        containerColor = if (isBranchSelected) {
-                                                            aiAccentContainer.copy(alpha = if (isDark) 0.42f else 0.65f)
-                                                        } else {
-                                                            currentTheme.cardColor
-                                                        }
-                                                    ),
-                                                    border = BorderStroke(
-                                                        width = if (isBranchSelected) 2.dp else 1.1.dp,
-                                                        color = glowBorderColor
-                                                    )
-                                                ) {
-                                                    Column(
-                                                        modifier = Modifier
-                                                            .fillMaxWidth()
-                                                            .padding(12.dp),
-                                                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                                                    ) {
-                                                        Row(
-                                                            modifier = Modifier.fillMaxWidth(),
-                                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                                            verticalAlignment = Alignment.CenterVertically
-                                                        ) {
-                                                            Text(
-                                                                text = branch.iconEmoji,
-                                                                fontSize = 20.sp
-                                                            )
-                                                            if (isBranchSelected) {
-                                                                Surface(
-                                                                    shape = pillShape,
-                                                                    color = aiPrimaryBtn
-                                                                ) {
-                                                                    Text(
-                                                                        text = "✓ مختار",
-                                                                        fontSize = 10.sp,
-                                                                        fontWeight = FontWeight.ExtraBold,
-                                                                        color = Color.White,
-                                                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                                                                    )
-                                                                }
-                                                            }
-                                                        }
-                                                        Text(
-                                                            text = branch.title,
-                                                            fontWeight = FontWeight.ExtraBold,
-                                                            fontSize = 12.5.sp,
-                                                            color = if (isBranchSelected) aiAccent else primaryText,
-                                                            lineHeight = 17.sp
-                                                        )
-                                                        Text(
-                                                            text = branch.subtitle,
-                                                            fontSize = 11.sp,
-                                                            fontWeight = FontWeight.Medium,
-                                                            color = secondaryText,
-                                                            lineHeight = 15.sp
-                                                        )
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
-                            // المستوى الثاني: بطاقات الفرع المختار (تظهر تحت الشبكة مع زر [التفاصيل ⬅️] لكل بطاقة)
-                            item {
-                                Text(
-                                    text = "بطاقات فرع: ${activeBranch.title} — اضغط للانتقال للتفاصيل",
-                                    fontSize = 12.5.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = primaryText,
-                                    modifier = Modifier
-                                        .padding(top = 4.dp)
-                                        .testTag("book_selected_branch_subtitle")
-                                )
-                            }
-
-                            items(activeBranch.subCards.size) { cardIdx ->
-                                val subCard = activeBranch.subCards[cardIdx]
-                                Card(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .tactile3DStyle(
-                                            baseColor = aiAccent,
-                                            cornerRadius = appearance.cornerRadiusDp.dp,
-                                            elevation = 4.dp
-                                        )
-                                        .clickable { openedSubCardId = subCard.id }
-                                        .testTag("book_subcard_${subCard.id}"),
-                                    shape = aiCardShape,
-                                    colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
-                                    border = BorderStroke(1.2.dp, glassBorderColor)
-                                ) {
-                                    Column(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(14.dp),
-                                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                                        ) {
-                                            Surface(
-                                                modifier = Modifier.size(38.dp),
-                                                shape = CircleShape,
-                                                color = aiAccentContainer,
-                                                border = BorderStroke(1.dp, aiAccent.copy(alpha = 0.45f))
-                                            ) {
-                                                Box(contentAlignment = Alignment.Center) {
-                                                    Text(text = subCard.iconEmoji, fontSize = 18.sp)
-                                                }
-                                            }
-                                            Text(
-                                                text = subCard.title,
-                                                fontWeight = FontWeight.ExtraBold,
-                                                fontSize = 13.sp,
-                                                color = primaryText,
-                                                lineHeight = 18.sp,
-                                                modifier = Modifier.weight(1f)
-                                            )
-                                        }
-
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Surface(
-                                                shape = pillShape,
-                                                color = aiAccentContainer.copy(alpha = if (isDark) 0.35f else 0.65f),
-                                                border = BorderStroke(0.8.dp, aiAccent.copy(alpha = 0.4f))
-                                            ) {
-                                                Text(
-                                                    text = subCard.badge1,
-                                                    fontSize = 11.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = aiAccent,
-                                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                                                )
-                                            }
-                                            Surface(
-                                                shape = pillShape,
-                                                color = if (isDark) Color(0xFF0F172A) else Color(0xFFF1F5F9),
-                                                border = BorderStroke(0.8.dp, glassBorderColor)
-                                            ) {
-                                                Text(
-                                                    text = subCard.badge2,
-                                                    fontSize = 11.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = primaryText,
-                                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                                                )
-                                            }
-                                            Spacer(modifier = Modifier.weight(1f))
-                                            Surface(
-                                                modifier = Modifier
-                                                    .clip(pillShape)
-                                                    .clickable { openedSubCardId = subCard.id }
-                                                    .testTag("btn_open_book_subcard_${subCard.id}"),
-                                                shape = pillShape,
-                                                color = aiPrimaryBtn
-                                            ) {
-                                                Text(
-                                                    text = "التفاصيل ⬅️",
-                                                    fontSize = 11.sp,
-                                                    fontWeight = FontWeight.ExtraBold,
-                                                    color = Color.White,
-                                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        } else {
-                            // الجراحة 3: المستوى الثالث — فتح بطاقة النصيحة التفصيلية والتنقل بين بطاقات نفس المجال
-                            val (parentBranch, detailCard) = openedDetailPair
-
-                            item {
-                                // شريط علوي للعودة + رقم البطاقة في المجال
-                                Surface(
-                                    shape = aiCardShape,
-                                    color = currentTheme.cardColor,
-                                    border = BorderStroke(1.2.dp, glassBorderColor),
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .tactile3DStyle(
-                                            baseColor = aiAccent,
-                                            cornerRadius = appearance.cornerRadiusDp.dp,
-                                            elevation = 3.dp
-                                        )
-                                ) {
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(10.dp),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Surface(
-                                            modifier = Modifier
-                                                .clip(pillShape)
-                                                .clickable { openedSubCardId = null }
-                                                .testTag("btn_back_to_branch_cards"),
-                                            shape = pillShape,
-                                            color = aiAccentContainer,
-                                            border = BorderStroke(1.dp, aiAccent.copy(alpha = 0.5f))
-                                        ) {
-                                            Text(
-                                                text = "🔙 العودة إلى قائمة بطاقات الفرع",
-                                                fontSize = 11.5.sp,
-                                                fontWeight = FontWeight.ExtraBold,
-                                                color = aiAccent,
-                                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
-                                            )
-                                        }
-
-                                        Text(
-                                            text = "بطاقة ${detailCard.cardNumberInBranch} من ${detailCard.totalCardsInBranch} في ${parentBranch.shortName}",
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = secondaryText,
-                                            modifier = Modifier.testTag("book_detail_card_counter")
-                                        )
-                                    }
-                                }
-                            }
-
-                            item {
-                                // البطاقة التفصيلية الكاملة مقسمة إلى 3 بلوكات بصرية ملونة
-                                Card(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .tactile3DStyle(
-                                            baseColor = aiAccent,
-                                            cornerRadius = appearance.cornerRadiusDp.dp,
-                                            elevation = 5.dp
-                                        )
-                                        .testTag("book_detail_view_${detailCard.id}"),
-                                    shape = aiCardShape,
-                                    colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
-                                    border = BorderStroke(1.5.dp, aiAccent.copy(alpha = 0.6f))
-                                ) {
-                                    Column(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(16.dp),
-                                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                                    ) {
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                                        ) {
-                                            Surface(
-                                                modifier = Modifier.size(42.dp),
-                                                shape = CircleShape,
-                                                color = aiAccentContainer,
-                                                border = BorderStroke(1.2.dp, aiAccent)
-                                            ) {
-                                                Box(contentAlignment = Alignment.Center) {
-                                                    Text(text = detailCard.iconEmoji, fontSize = 20.sp)
-                                                }
-                                            }
-                                            Column(modifier = Modifier.weight(1f)) {
-                                                Text(
-                                                    text = detailCard.title,
-                                                    fontWeight = FontWeight.ExtraBold,
-                                                    fontSize = 14.sp,
-                                                    color = aiAccent,
-                                                    lineHeight = 19.sp
-                                                )
-                                                Text(
-                                                    text = "${detailCard.badge1}  •  ${detailCard.badge2}",
-                                                    fontSize = 11.5.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = secondaryText
-                                                )
-                                            }
-                                        }
-
-                                        // بلوك 1: 📌 القاعدة العلمية الموثقة
-                                        Surface(
-                                            shape = RoundedCornerShape((appearance.cornerRadiusDp - 4).coerceAtLeast(6).dp),
-                                            color = aiAccentContainer.copy(alpha = if (isDark) 0.28f else 0.45f),
-                                            border = BorderStroke(1.dp, aiAccent.copy(alpha = 0.45f)),
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .testTag("book_detail_block_scientific")
-                                        ) {
-                                            Column(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .padding(12.dp),
-                                                verticalArrangement = Arrangement.spacedBy(6.dp)
-                                            ) {
-                                                Text(
-                                                    text = "📌 القاعدة العلمية الموثقة",
-                                                    fontWeight = FontWeight.ExtraBold,
-                                                    fontSize = 13.sp,
-                                                    color = aiAccent
-                                                )
-                                                detailCard.scientificRulePoints.forEach { point ->
-                                                    Text(
-                                                        text = "• $point",
-                                                        fontSize = 12.sp,
-                                                        color = primaryText,
-                                                        lineHeight = 18.sp
-                                                    )
-                                                }
-                                            }
-                                        }
-
-                                        // بلوك 2: 🛡️ خطوات التطبيق العملي في العنبر
-                                        Surface(
-                                            shape = RoundedCornerShape((appearance.cornerRadiusDp - 4).coerceAtLeast(6).dp),
-                                            color = if (isDark) Color(0xFF0F172A) else Color(0xFFF8FAFC),
-                                            border = BorderStroke(1.dp, glassBorderColor),
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .testTag("book_detail_block_practical")
-                                        ) {
-                                            Column(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .padding(12.dp),
-                                                verticalArrangement = Arrangement.spacedBy(6.dp)
-                                            ) {
-                                                Text(
-                                                    text = "🛡️ خطوات التطبيق العملي في العنبر",
-                                                    fontWeight = FontWeight.ExtraBold,
-                                                    fontSize = 13.sp,
-                                                    color = aiAccent
-                                                )
-                                                detailCard.practicalStepsWithCheck.forEach { step ->
-                                                    Text(
-                                                        text = step,
-                                                        fontSize = 12.sp,
-                                                        fontWeight = FontWeight.Medium,
-                                                        color = primaryText,
-                                                        lineHeight = 18.sp
-                                                    )
-                                                }
-                                            }
-                                        }
-
-                                        // بلوك 3: 🏠 مقارنة حية مع عنبرك الحالي
-                                        Surface(
-                                            shape = RoundedCornerShape((appearance.cornerRadiusDp - 4).coerceAtLeast(6).dp),
-                                            color = aiAccentContainer.copy(alpha = if (isDark) 0.22f else 0.35f),
-                                            border = BorderStroke(1.dp, aiAccent.copy(alpha = 0.5f)),
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .testTag("book_detail_block_live_comparison")
-                                        ) {
-                                            Column(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .padding(12.dp),
-                                                verticalArrangement = Arrangement.spacedBy(4.dp)
-                                            ) {
-                                                Text(
-                                                    text = "🏠 مقارنة حية مع عنبرك الحالي",
-                                                    fontWeight = FontWeight.ExtraBold,
-                                                    fontSize = 13.sp,
-                                                    color = aiAccent
-                                                )
-                                                Text(
-                                                    text = detailCard.liveBarnComparisonText,
-                                                    fontSize = 12.sp,
-                                                    fontWeight = FontWeight.SemiBold,
-                                                    color = primaryText,
-                                                    lineHeight = 18.sp
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
-                            item {
-                                // شريط التنقل ثلاثي الأبعاد في أسفل البطاقة التفصيلية للانتقال بين بطاقات نفس المجال
+                        // 1. الشبكة الرباعية الواضحة (2x2 Grid — book_branches_2x2_grid) من 4 بطاقات كبيرة وواضحة بدون قص للكلمات
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("book_branches_2x2_grid"),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            bookBranches.chunked(2).forEach { rowBranches ->
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .testTag("book_detail_same_branch_nav_bar"),
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                        .height(IntrinsicSize.Max),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    Button(
-                                        onClick = {
-                                            openedSubCardId = Ross308BroilerHandbook.getPreviousSubCardId(
-                                                bookBranches,
-                                                detailCard.id
-                                            )
-                                        },
-                                        shape = pillShape,
-                                        colors = ButtonDefaults.buttonColors(
-                                            containerColor = currentTheme.cardColor,
-                                            contentColor = primaryText
-                                        ),
-                                        border = BorderStroke(1.2.dp, aiAccent.copy(alpha = 0.55f)),
-                                        modifier = Modifier
-                                            .weight(0.9f)
-                                            .height(46.dp)
-                                            .tactile3DStyle(
-                                                baseColor = aiAccent,
-                                                cornerRadius = appearance.cornerRadiusDp.dp,
-                                                elevation = 4.dp
-                                            )
-                                            .testTag("btn_prev_subcard_same_branch")
-                                    ) {
-                                        Text(
-                                            text = "➡️ البطاقة السابقة",
-                                            fontSize = 11.5.sp,
-                                            fontWeight = FontWeight.ExtraBold,
-                                            color = primaryText,
-                                            maxLines = 1
+                                    rowBranches.forEach { branch ->
+                                        val idx = branch.branchIndex
+                                        val isSelected = safeBranchIdx == idx
+                                        val localizedBranchTitle = Translations.tr(
+                                            branchTitleKeys.getOrElse(idx) { "book_branch_0_title" },
+                                            lang
                                         )
-                                    }
+                                        val localizedBranchSubtitle = Translations.tr(
+                                            branchSubtitleKeys.getOrElse(idx) { "book_branch_0_subtitle" },
+                                            lang
+                                        )
+                                        val independentBookBadge = Translations.tr("book_branch_badge_4_lessons", lang)
 
-                                    Button(
-                                        onClick = {
-                                            openedSubCardId = Ross308BroilerHandbook.getNextSubCardId(
-                                                bookBranches,
-                                                detailCard.id
-                                            )
-                                        },
-                                        shape = pillShape,
-                                        colors = ButtonDefaults.buttonColors(containerColor = aiPrimaryBtn),
-                                        modifier = Modifier
-                                            .weight(1.25f)
-                                            .height(46.dp)
-                                            .tactile3DStyle(
-                                                baseColor = aiAccent,
-                                                cornerRadius = appearance.cornerRadiusDp.dp,
-                                                elevation = 4.dp
-                                            )
-                                            .testTag("btn_next_subcard_same_branch")
-                                    ) {
-                                        Text(
-                                            text = "البطاقة التالية في نفس المجال ⬅️",
-                                            fontSize = 11.5.sp,
-                                            fontWeight = FontWeight.ExtraBold,
-                                            color = Color.White,
-                                            maxLines = 1
-                                        )
+                                        Surface(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .fillMaxHeight()
+                                                .clip(RoundedCornerShape(12.dp))
+                                                .clickable {
+                                                    selectedBookBranchIndex = idx
+                                                    coroutineScope.launch {
+                                                        branchBookPagerState.scrollToPage(0)
+                                                    }
+                                                }
+                                                .testTag(branch.tag),
+                                            shape = RoundedCornerShape(12.dp),
+                                            color = if (isSelected) BookBurgundy else BookParchmentMid,
+                                            border = BorderStroke(
+                                                width = if (isSelected) 2.dp else 1.2.dp,
+                                                color = if (isSelected) BookGoldAccent else BookBorderOuter
+                                            ),
+                                            shadowElevation = if (isSelected) 5.dp else 2.dp
+                                        ) {
+                                            Column(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                                                verticalArrangement = Arrangement.spacedBy(3.dp)
+                                            ) {
+                                                Text(
+                                                    text = localizedBranchTitle,
+                                                    fontSize = 11.5.sp,
+                                                    fontWeight = FontWeight.ExtraBold,
+                                                    color = if (isSelected) Color(0xFFFFF8E7) else BookBurgundyDark,
+                                                    lineHeight = 15.sp
+                                                )
+                                                Text(
+                                                    text = localizedBranchSubtitle,
+                                                    fontSize = 9.sp,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    color = if (isSelected) Color(0xFFFDE68A) else BookSepiaInk,
+                                                    lineHeight = 12.sp
+                                                )
+                                                Surface(
+                                                    shape = RoundedCornerShape(6.dp),
+                                                    color = if (isSelected) BookBurgundyDark else BookParchmentLight,
+                                                    border = BorderStroke(
+                                                        0.8.dp,
+                                                        if (isSelected) BookGoldAccent else BookBorderInner
+                                                    ),
+                                                    modifier = Modifier.padding(top = 2.dp)
+                                                ) {
+                                                    Text(
+                                                        text = independentBookBadge,
+                                                        fontSize = 8.sp,
+                                                        fontWeight = FontWeight.ExtraBold,
+                                                        color = if (isSelected) BookGoldAccent else BookBurgundy,
+                                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                    )
+                                                }
+                                            }
+                                        }
                                     }
+                                }
+                            }
+                        }
+
+                        // 2. تقليب صفحات الكتاب المستقل للتخصص المختار (HorizontalPager — 4 صفحات فقط لكل كتاب من الدرس 01 إلى 04 مع تأثير طي الصفحة ثلاثي الأبعاد 3D Page Flip)
+                        HorizontalPager(
+                            state = branchBookPagerState,
+                            userScrollEnabled = true,
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxWidth()
+                                .testTag("book_pages_horizontal_pager"),
+                            pageSpacing = 12.dp
+                        ) { pageIdx ->
+                            val pageCard = activeBranchLessons.getOrElse(pageIdx) { activeBranchLessons.first() }
+                            val resolvedSpec = pageCard.posterSpec
+                                ?: Ross308PosterCatalog.forSubCard(pageCard.id)
+                            val pageScrollState = rememberScrollState()
+                            val pageOffset = (branchBookPagerState.currentPage - pageIdx) +
+                                branchBookPagerState.currentPageOffsetFraction
+
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .graphicsLayer {
+                                        cameraDistance = 16f * density
+                                        rotationY = (-pageOffset * 28f).coerceIn(-38f, 38f)
+                                        val absOffset = kotlin.math.abs(pageOffset).coerceIn(0f, 1f)
+                                        val scaleFactor = 1f - (absOffset * 0.06f)
+                                        scaleX = scaleFactor
+                                        scaleY = scaleFactor
+                                        alpha = 1f - (absOffset * 0.22f)
+                                    }
+                                    .verticalScroll(pageScrollState)
+                            ) {
+                                if (resolvedSpec != null) {
+                                    VintageSpiralBookPageContainer(
+                                        detailCard = pageCard,
+                                        spec = resolvedSpec,
+                                        pageNumber = pageIdx + 1,
+                                        totalPages = totalBranchPages,
+                                        branchLessons = activeBranchLessons,
+                                        onSelectPageInBranch = { targetPage ->
+                                            val coerced = targetPage.coerceIn(0, (activeBranchLessons.size - 1).coerceAtLeast(0))
+                                            if (coerced != branchBookPagerState.currentPage) {
+                                                coroutineScope.launch {
+                                                    branchBookPagerState.scrollToPage(coerced)
+                                                }
+                                            }
+                                        },
+                                        lang = lang,
+                                        currentTheme = currentTheme,
+                                        accentColor = aiAccent,
+                                        accentPrimaryBtn = aiPrimaryBtn,
+                                        accentContainer = aiAccentContainer,
+                                        cornerRadiusDp = appearance.cornerRadiusDp,
+                                        externalZoomTrigger = triggerZoomForActivePage && branchBookPagerState.currentPage == pageIdx,
+                                        onDismissExternalZoom = { triggerZoomForActivePage = false }
+                                    )
+                                }
+                            }
+                        }
+
+                        // 3. الشريط السفلي لتقليب دروس الكتاب الحالي وتكبير الصفحة ("⬅ الدرس السابق" | "🔍 تكبير الصفحة" | "الدرس التالي ➔")
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("book_detail_same_branch_nav_bar")
+                                .testTag("book_page_bottom_bar"),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // زر الدرس السابق في نفس الكتاب (1..4)
+                            Surface(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(44.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .clickable {
+                                        val count = activeBranchLessons.size.coerceAtLeast(1)
+                                        val prevPage = (branchBookPagerState.currentPage - 1 + count) % count
+                                        coroutineScope.launch {
+                                            branchBookPagerState.animateScrollToPage(prevPage)
+                                        }
+                                    }
+                                    .testTag("btn_prev_book_page")
+                                    .testTag("btn_prev_subcard_same_branch"),
+                                shape = RoundedCornerShape(10.dp),
+                                color = BookParchmentMid,
+                                border = BorderStroke(1.3.dp, BookBorderOuter)
+                            ) {
+                                Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 6.dp)) {
+                                    Text(
+                                        text = Translations.tr("book_btn_prev_lesson", lang),
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = BookBurgundyDark,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+
+                            // زر تكبير الصفحة (يدعم التقليب بالسحب داخل وضع التكبير أيضاً)
+                            Surface(
+                                modifier = Modifier
+                                    .weight(1.05f)
+                                    .height(44.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .clickable { triggerZoomForActivePage = true }
+                                    .testTag("btn_zoom_encyclopedia_poster"),
+                                shape = RoundedCornerShape(10.dp),
+                                color = BookBurgundy,
+                                border = BorderStroke(1.3.dp, BookGoldAccent)
+                            ) {
+                                Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 6.dp)) {
+                                    Text(
+                                        text = Translations.tr("book_btn_zoom_page", lang),
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = Color(0xFFFFF8E7),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+
+                            // زر الدرس التالي في نفس الكتاب (1..4)
+                            Surface(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(44.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .clickable {
+                                        val count = activeBranchLessons.size.coerceAtLeast(1)
+                                        val nextPage = (branchBookPagerState.currentPage + 1) % count
+                                        coroutineScope.launch {
+                                            branchBookPagerState.animateScrollToPage(nextPage)
+                                        }
+                                    }
+                                    .testTag("btn_next_book_page")
+                                    .testTag("btn_next_subcard_same_branch"),
+                                shape = RoundedCornerShape(10.dp),
+                                color = BookBurgundy,
+                                border = BorderStroke(1.3.dp, BookGoldAccent)
+                            ) {
+                                Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 6.dp)) {
+                                    Text(
+                                        text = Translations.tr("book_btn_next_lesson", lang),
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = Color(0xFFFFF8E7),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
                                 }
                             }
                         }
@@ -16049,14 +14765,13 @@ fun OwnerDailyReportDialog(
     }
     var tempInput by remember(initialReport) {
         mutableStateOf(
-            if (initialReport != null) String.format(java.util.Locale.US, "%.1f", initialReport.temperature)
-            else "29.5"
+            initialReport?.temperature?.let { String.format(java.util.Locale.US, "%.1f", it) } ?: ""
         )
     }
     var gasAmmoniaInput by remember(initialReport) {
         mutableStateOf(
             if (initialReport != null) String.format(java.util.Locale.US, "%.1f", initialReport.gasUnits)
-            else "1.5"
+            else ""
         )
     }
     var actualWeightGramsInput by remember(initialReport) {
@@ -16234,6 +14949,7 @@ fun OwnerDailyReportDialog(
                         value = tempInput,
                         onValueChange = { tempInput = it.filter { ch -> ch.isDigit() || ch == '.' } },
                         label = { Text(Translations.tr("th_temp", lang), fontSize = 11.sp, color = secondaryText) },
+                        placeholder = { Text("29.5", fontSize = 11.5.sp, color = secondaryText.copy(alpha = 0.6f)) },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         shape = RoundedCornerShape(12.dp),
@@ -16252,6 +14968,7 @@ fun OwnerDailyReportDialog(
                         value = gasAmmoniaInput,
                         onValueChange = { gasAmmoniaInput = it.filter { ch -> ch.isDigit() || ch == '.' } },
                         label = { Text(Translations.tr("th_gas", lang), fontSize = 11.sp, color = secondaryText) },
+                        placeholder = { Text("1.5", fontSize = 11.5.sp, color = secondaryText.copy(alpha = 0.6f)) },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         shape = RoundedCornerShape(12.dp),
@@ -16354,8 +15071,8 @@ fun OwnerDailyReportDialog(
                     val parsedFeedKg = (parsedFeedQ * 100.0).coerceAtLeast(0.0)
                     val parsedWater = parsedWaterVal.coerceAtLeast(0.0)
                     val parsedMortality = parsedMortVal.coerceAtLeast(0)
-                    val parsedTemp = tempInput.toDoubleOrNull() ?: 29.0
-                    val parsedGas = (gasAmmoniaInput.toDoubleOrNull() ?: 0.0).coerceAtLeast(0.0)
+                    val parsedTemp: Double? = tempInput.trim().toDoubleOrNull()
+                    val parsedGas = (gasAmmoniaInput.trim().toDoubleOrNull() ?: 0.0).coerceAtLeast(0.0)
                     val parsedWeightGrams = actualWeightGramsInput.trim().replace(',', '.').toDoubleOrNull() ?: 0.0
                     val resolvedActualWeightKg = if (parsedWeightGrams > 0.0) {
                         parsedWeightGrams / 1000.0
@@ -16380,11 +15097,19 @@ fun OwnerDailyReportDialog(
                         kotlin.math.abs(newWeight - oldWeight) > 0.0001
                     }
 
+                    val oldTemp = initialReport?.temperature
+                    val tempChanged = if (oldTemp == null && parsedTemp == null) {
+                        false
+                    } else if (oldTemp == null || parsedTemp == null) {
+                        true
+                    } else {
+                        kotlin.math.abs(parsedTemp - oldTemp) > 0.01
+                    }
                     val hasActualValueChange = initialReport != null && (
                         kotlin.math.abs(parsedFeedKg - initialReport.feedIntakeKg) > 0.001 ||
                             kotlin.math.abs(parsedWater - initialReport.waterIntakeLiters) > 0.001 ||
                             parsedMortality != initialReport.mortalityCount ||
-                            kotlin.math.abs(parsedTemp - initialReport.temperature) > 0.01 ||
+                            tempChanged ||
                             kotlin.math.abs(parsedGas - initialReport.gasUnits) > 0.01 ||
                             newVentilation.trim() != initialReport.ventilationStatus.trim() ||
                             newLitter.trim() != initialReport.litterCondition.trim() ||
@@ -16414,7 +15139,8 @@ fun OwnerDailyReportDialog(
                         },
                         previousSummary = if (initialReport != null && hasActualValueChange) {
                             initialReport.previousSummary.ifBlank {
-                                "العلف: ${Translations.formatQuintalNumber(initialReport.feedIntakeKg / 100.0)} ق • الماء: ${initialReport.waterIntakeLiters.toInt()} L • النافق: ${initialReport.mortalityCount} • الحرارة: ${String.format(java.util.Locale.US, "%.1f", initialReport.temperature)}°"
+                                val oldTempText = initialReport.temperature?.let { "${String.format(java.util.Locale.US, "%.1f", it)}°" } ?: "—"
+                                "العلف: ${Translations.formatQuintalNumber(initialReport.feedIntakeKg / 100.0)} ق • الماء: ${initialReport.waterIntakeLiters.toInt()} L • النافق: ${initialReport.mortalityCount} • الحرارة: $oldTempText"
                             }
                         } else {
                             initialReport?.previousSummary ?: ""
@@ -20827,7 +19553,7 @@ fun AgritechVetNotebookScreen(
                                                     maxLines = 1
                                                 )
                                                 Text(
-                                                    String.format(java.util.Locale.US, "%.1f°", r.temperature),
+                                                    r.temperature?.let { String.format(java.util.Locale.US, "%.1f°", it) } ?: "—",
                                                     modifier = Modifier.weight(0.9f),
                                                     fontSize = 11.5.sp,
                                                     color = cellTextColor,
@@ -21362,7 +20088,7 @@ fun DayMedicalDetailsBottomSheet(
                         )
                         CalmMetricRow(
                             Translations.tr("th_temp", lang),
-                            "${String.format(java.util.Locale.US, "%.1f°C", report.temperature)}",
+                            report.temperature?.let { String.format(java.util.Locale.US, "%.1f°C", it) } ?: "—",
                             primaryText
                         )
                         CalmMetricRow(
@@ -21881,8 +20607,8 @@ fun AgritechWorkerDashboard(
                                         }
                                         isSavingReport = true
                                         val feedKg = feedQuintals * 100.0
-                                        val temp = tempText.toDoubleOrNull() ?: 31.5
-                                        val gas = gasText.toDoubleOrNull() ?: 3.5
+                                        val temp: Double? = tempText.trim().toDoubleOrNull()
+                                        val gas = (gasText.trim().toDoubleOrNull() ?: 0.0).coerceAtLeast(0.0)
                                         val resolvedWorkerMed = if (workerMedicineGiven) {
                                             workerMedicineName.trim().ifBlank { defaultWorkerMedName }
                                         } else {

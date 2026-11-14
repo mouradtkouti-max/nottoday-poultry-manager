@@ -1369,7 +1369,7 @@ class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
             feedIntakeKg = doc.getDouble("feedIntakeKg") ?: 0.0,
             waterIntakeLiters = doc.getDouble("waterIntakeLiters") ?: 0.0,
             mortalityCount = (doc.getLong("mortalityCount") ?: 0L).toInt(),
-            temperature = doc.getDouble("temperature") ?: 30.0,
+            temperature = doc.getDouble("temperature"),
             gasUnits = doc.getDouble("gasUnits") ?: 0.0,
             ventilationStatus = doc.getString("ventilationStatus") ?: "جيدة",
             generalStatus = parsedGeneral,

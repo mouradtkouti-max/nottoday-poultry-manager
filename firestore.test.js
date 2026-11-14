@@ -763,6 +763,52 @@ test("Schema v2 & Audit Fields: farms, cycles, dailyReports, vetNotes, transacti
     })
   );
 
+  // 3b. Nullable temperature (omitted climate telemetry) must succeed, out-of-range temperature must fail
+  await assertSucceeds(
+    workerDb.collection("farms").doc(FARM_ID).collection("dailyReports").doc("rep_null_temp").set({
+      userId: WORKER_UID,
+      farmId: FARM_ID,
+      cycleId: "cycle_v2",
+      dayNumber: 6,
+      feedIntakeKg: 350.0,
+      waterIntakeLiters: 680.0,
+      mortalityCount: 1,
+      temperature: null,
+      gasUnits: 0.0,
+      ventilationStatus: "جيدة",
+      litterCondition: "طبيعية",
+      isEdited: false,
+      isLocked: true,
+      previousSummary: "",
+      actualAvgWeightKg: 0.21,
+      medicineGiven: false,
+      medicineSummary: "",
+      withdrawalDays: 0,
+      updatedAtMillis: Date.now(),
+      createdAt: now,
+      updatedAt: now,
+    })
+  );
+  await assertFails(
+    workerDb.collection("farms").doc(FARM_ID).collection("dailyReports").doc("rep_bad_temp").set({
+      userId: WORKER_UID,
+      farmId: FARM_ID,
+      cycleId: "cycle_v2",
+      dayNumber: 7,
+      feedIntakeKg: 360.0,
+      waterIntakeLiters: 700.0,
+      mortalityCount: 1,
+      temperature: 99.0,
+      gasUnits: 0.0,
+      ventilationStatus: "جيدة",
+      litterCondition: "طبيعية",
+      isEdited: false,
+      isLocked: true,
+      createdAt: now,
+      updatedAt: now,
+    })
+  );
+
   // 4. Create vetNote with withdrawalDays and updatedAtMillis
   await assertSucceeds(
     vetDb.collection("farms").doc(FARM_ID).collection("vetNotes").doc("vet_v2").set({

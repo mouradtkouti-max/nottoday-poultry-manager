@@ -15,6 +15,7 @@ object PoultryCalculators {
 
     fun isFeedTransaction(tx: TransactionModel): Boolean {
         if (tx.type != TransactionType.EXPENSE) return false
+        if (tx.quantityQuintals > 0.0) return true
         return tx.category.contains("علف") ||
             tx.category.contains("أعلاف") ||
             tx.category.equals("feed", ignoreCase = true) ||
@@ -23,25 +24,118 @@ object PoultryCalculators {
             tx.category.contains("Pienso", ignoreCase = true) ||
             tx.category.contains("Ração", ignoreCase = true) ||
             tx.category.contains("चारा") ||
+            tx.category.contains("Yem", ignoreCase = true) ||
+            tx.category.contains("Pakan", ignoreCase = true) ||
+            tx.category.contains("چارہ") ||
+            tx.category.contains("Chakula", ignoreCase = true) ||
+            tx.category.contains("Корм", ignoreCase = true) ||
+            tx.category.contains("饲料") ||
+            tx.category.contains("Futter", ignoreCase = true) ||
+            tx.category.contains("Mangime", ignoreCase = true) ||
             tx.notes.contains("علف") ||
             tx.notes.contains("قنطار")
     }
 
     fun extractFeedKgFromTransaction(tx: TransactionModel): Double {
         if (!isFeedTransaction(tx)) return 0.0
+        if (tx.quantityQuintals > 0.0) return tx.quantityQuintals * 100.0
+
+        val rawCat = tx.category.removePrefix("🌾").trim()
+        val parenStart = rawCat.indexOf('(')
+        val parenEnd = rawCat.lastIndexOf(')')
+        if (parenStart >= 0 && parenEnd > parenStart) {
+            val insideParen = rawCat.substring(parenStart + 1, parenEnd).trim()
+            val numericInParen = Regex("""(\d+(?:\.\d+)?)""").find(insideParen)?.groupValues?.get(1)?.toDoubleOrNull()
+            if (numericInParen != null && numericInParen > 0.0) {
+                return when {
+                    insideParen.contains("طن") || insideParen.contains("ton", ignoreCase = true) -> numericInParen * 1000.0
+                    insideParen.contains("كغ") || insideParen.contains("كجم") || insideParen.contains("كيلو") || insideParen.contains("kg", ignoreCase = true) -> numericInParen
+                    else -> numericInParen * 100.0
+                }
+            }
+        }
+
+        val regexTon = Regex("""(\d+(?:\.\d+)?)\s*(?:طن|tons?|tonnes?)""", RegexOption.IGNORE_CASE)
+        val matchTon = regexTon.find(tx.notes) ?: regexTon.find(tx.category)
+        if (matchTon != null) {
+            val tonVal = matchTon.groupValues[1].toDoubleOrNull()
+            if (tonVal != null && tonVal > 0.0) return tonVal * 1000.0
+        }
+
         val regexQ = Regex("""(\d+(?:\.\d+)?)\s*(?:قنطار|ق|Q|q|Quintal|Quintaux)""", RegexOption.IGNORE_CASE)
         val matchQ = regexQ.find(tx.notes) ?: regexQ.find(tx.category)
         if (matchQ != null) {
             val qVal = matchQ.groupValues[1].toDoubleOrNull()
             if (qVal != null && qVal > 0.0) return qVal * 100.0
         }
-        val regexKg = Regex("""(\d+(?:\.\d+)?)\s*(?:كغ|كجم|kg)""", RegexOption.IGNORE_CASE)
+
+        val regexKg = Regex("""(\d+(?:\.\d+)?)\s*(?:كغ|كجم|كيلو|kg)""", RegexOption.IGNORE_CASE)
         val matchKg = regexKg.find(tx.notes) ?: regexKg.find(tx.category)
         if (matchKg != null) {
             val kgVal = matchKg.groupValues[1].toDoubleOrNull()
             if (kgVal != null && kgVal > 0.0) return kgVal
         }
-        return if (tx.amount >= 800.0) (tx.amount / 8000.0) * 100.0 else 0.0
+
+        return if (tx.currency.trim().equals("DZD", ignoreCase = true) && tx.amount >= 800.0) {
+            (tx.amount / 8000.0) * 100.0
+        } else {
+            0.0
+        }
+    }
+
+    fun resolvePurchasedFeedKg(
+        cycleTransactions: List<TransactionModel>,
+        cycleId: String = ""
+    ): Double {
+        return cycleTransactions
+            .filter { tx ->
+                (cycleId.isBlank() || tx.cycleId == cycleId || tx.cycleId.isBlank()) &&
+                    tx.type == TransactionType.EXPENSE &&
+                    tx.status.equals("APPROVED", ignoreCase = true) &&
+                    isFeedTransaction(tx)
+            }
+            .sumOf { extractFeedKgFromTransaction(it) }
+    }
+
+    fun resolveOpeningFeedKg(
+        cycle: CycleModel,
+        reports: List<DailyReportModel>,
+        cycleTransactions: List<TransactionModel>
+    ): Double {
+        val explicitOpening = cycle.customMetrics["openingFeedKg"]?.toDoubleOrNull()
+        if (explicitOpening != null && explicitOpening >= 0.0) {
+            return explicitOpening
+        }
+        val purchasedKg = resolvePurchasedFeedKg(cycleTransactions, cycle.id)
+        val consumedKg = reports
+            .filter { it.farmId == cycle.farmId && (it.cycleId == cycle.id || it.cycleId.isBlank()) }
+            .sumOf { it.feedIntakeKg }
+        return (cycle.feedInventoryKg + consumedKg - purchasedKg).coerceAtLeast(0.0)
+    }
+
+    fun resolveRemainingFeedInventoryKg(
+        cycle: CycleModel,
+        reports: List<DailyReportModel>,
+        cycleTransactions: List<TransactionModel>
+    ): Double {
+        val openingKg = resolveOpeningFeedKg(cycle, reports, cycleTransactions)
+        val purchasedKg = resolvePurchasedFeedKg(cycleTransactions, cycle.id)
+        val consumedKg = reports
+            .filter { it.farmId == cycle.farmId && (it.cycleId == cycle.id || it.cycleId.isBlank()) }
+            .sumOf { it.feedIntakeKg }
+        return (openingKg + purchasedKg - consumedKg).coerceAtLeast(0.0)
+    }
+
+    fun nextInvoiceSequenceNumber(transactions: List<TransactionModel>): Int {
+        val maxExisting = transactions
+            .filter { it.type == TransactionType.INCOME }
+            .mapNotNull { tx ->
+                tx.invoiceNumber ?: tx.invoiceData?.invoiceNumber?.let { invNo ->
+                    Regex("""INV-[^-]+-(\d+)""").find(invNo)?.groupValues?.getOrNull(1)?.toIntOrNull()
+                }
+            }
+            .maxOrNull() ?: 0
+        return maxExisting + 1
     }
 
     /**

@@ -1515,4 +1515,142 @@ class ExampleUnitTest {
         AgritechMockDb.accountDeletionConfirmationMessage = null
         AgritechMockDb.resetForAccountSwitch()
     }
+
+    @Test
+    fun encyclopediaInfographicPosters_allFourBranchesAndUnifiedTempCurve_areComplete() {
+        // 1. Unified Ross 308 temperature curve verification
+        assertEquals(33.0, Ross308BroilerHandbook.getStandardTempForDay(1), 0.001)
+        assertEquals(33.0, Ross308BroilerHandbook.getStandardTempForDay(3), 0.001)
+        assertEquals(31.0, Ross308BroilerHandbook.getStandardTempForDay(4), 0.001)
+        assertEquals(31.0, Ross308BroilerHandbook.getStandardTempForDay(7), 0.001)
+        assertEquals(29.0, Ross308BroilerHandbook.getStandardTempForDay(10), 0.001)
+        assertEquals(29.0, Ross308BroilerHandbook.getStandardTempForDay(14), 0.001)
+        assertEquals(27.0, Ross308BroilerHandbook.getStandardTempForDay(18), 0.001)
+        assertEquals(24.0, Ross308BroilerHandbook.getStandardTempForDay(24), 0.001)
+        assertEquals(21.0, Ross308BroilerHandbook.getStandardTempForDay(35), 0.001)
+
+        val branches = Ross308BroilerHandbook.buildFourBranchesForBarn(
+            barnName = "عنبر الاختبار",
+            ageDays = 14,
+            placedBirds = 5000,
+            liveBirds = 4920,
+            recordedTempC = 29.0,
+            totalFeedQuintals = 18.0,
+            remainingFeedQuintals = 12.0,
+            latestDailyFeedKg = 240.0,
+            latestDailyWaterLiters = 420.0,
+            currentWeightKg = 0.52,
+            actualFcr = 1.08
+        )
+        assertEquals(4, branches.size)
+
+        // All 16 sub-cards must have a complete posterSpec with distinct visualType
+        val visualTypes = mutableSetOf<InfographicVisualType>()
+        branches.forEach { branch ->
+            assertEquals(4, branch.subCards.size)
+            branch.subCards.forEach { subCard ->
+                val spec = subCard.posterSpec
+                assertNotNull("posterSpec missing for ${subCard.id}", spec)
+                spec!!
+                assertTrue("specialtyBadge blank for ${subCard.id}", spec.specialtyBadge.isNotBlank())
+                assertTrue("englishSubtitleOrRule blank for ${subCard.id}", spec.englishSubtitleOrRule.isNotBlank())
+                assertTrue("diagramTitle blank for ${subCard.id}", spec.diagramTitle.isNotBlank())
+                assertTrue("coreIdea blank for ${subCard.id}", spec.coreIdea.isNotBlank())
+                visualTypes.add(spec.visualType)
+            }
+        }
+        assertEquals("Expected 16 unique InfographicVisualType diagrams", 16, visualTypes.size)
+
+        // Branch 3 (Diseases) must follow the 6-section medical anatomy & performance layout
+        val diseaseCards = branches[2].subCards
+        assertEquals(listOf("dis_1", "dis_2", "dis_3", "dis_4"), diseaseCards.map { it.id })
+        diseaseCards.forEach { card ->
+            val spec = card.posterSpec!!
+            assertTrue("Medical layout must be enabled for ${card.id}", spec.isMedicalSixSectionLayout)
+            assertTrue("sec1Definition blank for ${card.id}", spec.sec1Definition.isNotBlank())
+            assertTrue("quickFacts missing for ${card.id}", spec.quickFacts.size >= 4)
+            assertEquals("anatomyLabels must have 4 items for ${card.id}", 4, spec.anatomyLabels.size)
+            assertEquals("sec2SymptomCards must have 5 cards for ${card.id}", 5, spec.sec2SymptomCards.size)
+            assertTrue("sec3TreatmentSteps empty for ${card.id}", spec.sec3TreatmentSteps.isNotEmpty())
+            assertEquals("sec4PerformanceTable must have 5 metrics for ${card.id}", 5, spec.sec4PerformanceTable.size)
+            assertTrue("sec5DiagnosisPoints empty for ${card.id}", spec.sec5DiagnosisPoints.isNotEmpty())
+            assertEquals("sec6PreventionIcons must have 5 shields for ${card.id}", 5, spec.sec6PreventionIcons.size)
+            assertTrue("sec6ImportantNote blank for ${card.id}", spec.sec6ImportantNote.isNotBlank())
+        }
+
+        // Branches 1, 2, 4 must have timeline steps and good/bad comparison cards
+        (branches[0].subCards + branches[1].subCards + branches[3].subCards).forEach { card ->
+            val spec = card.posterSpec!!
+            assertFalse("Non-disease card ${card.id} should not use medical layout", spec.isMedicalSixSectionLayout)
+            assertTrue("whyImportantPoints should have 4 points for ${card.id}", spec.whyImportantPoints.size == 4)
+            assertTrue("timelineSteps missing for ${card.id}", spec.timelineSteps.size >= 3)
+            assertNotNull("comparisonPair missing for ${card.id}", spec.comparisonPair)
+        }
+
+        // Branch 2 (Vaccination) & Branch 4 (Feed) must include structured tables
+        (branches[1].subCards + branches[3].subCards).forEach { card ->
+            val spec = card.posterSpec!!
+            assertTrue("tableHeaders missing for ${card.id}", spec.tableHeaders.isNotEmpty())
+            assertTrue("tableRows missing for ${card.id}", spec.tableRows.isNotEmpty())
+        }
+
+        // Verify 4 independent books (each specialty has 4 lessons numbered 01..04) and 14-language localization
+        branches.forEach { branch ->
+            assertEquals(
+                listOf("01", "02", "03", "04"),
+                branch.subCards.map { it.posterSpec!!.lessonNumberFormatted }
+            )
+            assertEquals(
+                listOf(1, 2, 3, 4),
+                branch.subCards.map { it.cardNumberInBranch }
+            )
+        }
+        val bookPages = Ross308BroilerHandbook.buildSixteenBookPages(branches)
+        assertEquals(16, bookPages.size)
+        for (lang in AppLanguage.values()) {
+            val ribbonTitle = Translations.tr("book_encyclopedia_ribbon_title", lang)
+            assertTrue("book_encyclopedia_ribbon_title blank for $lang", ribbonTitle.isNotBlank() && ribbonTitle != "book_encyclopedia_ribbon_title")
+            for (bIdx in 0..3) {
+                val bTitle = Translations.tr("book_branch_${bIdx}_title", lang)
+                val bSub = Translations.tr("book_branch_${bIdx}_subtitle", lang)
+                assertTrue("book_branch_${bIdx}_title blank for $lang", bTitle.isNotBlank() && bTitle != "book_branch_${bIdx}_title")
+                assertTrue("book_branch_${bIdx}_subtitle blank for $lang", bSub.isNotBlank() && bSub != "book_branch_${bIdx}_subtitle")
+            }
+            for (page in bookPages) {
+                val subCard = page.second
+                val (locCard, locSpec) = com.example.utils.Ross308BookPageTranslations.localizeSubCardAndSpec(
+                    subCard = subCard,
+                    spec = subCard.posterSpec!!,
+                    lang = lang
+                )
+                assertTrue("locCard.title blank for ${subCard.id} in $lang", locCard.title.isNotBlank())
+                assertTrue("locSpec.specialtyBadge blank for ${subCard.id} in $lang", locSpec.specialtyBadge.isNotBlank())
+            }
+        }
+    }
+
+    @Test
+    fun dailyReportNullableTemperature_doesNotFabricateReadingAndDetectsChanges() {
+        val base = DailyReportModel(
+            id = "rep_null_1",
+            farmId = "farm_1",
+            cycleId = "cyc_1",
+            dayNumber = 5,
+            feedIntakeKg = 100.0,
+            waterIntakeLiters = 180.0,
+            mortalityCount = 1,
+            temperature = null
+        )
+        assertNull(base.temperature)
+        val reading = IndoorReadingState.fromManualReport("farm_1", base)
+        assertNull("Report with null temperature must keep IndoorReadingState.temperatureC null", reading.temperatureC)
+
+        val same = base.copy(id = "rep_null_copy")
+        assertFalse(base.hasActualValueChangesFrom(same))
+
+        val withTemp = base.copy(temperature = 31.0)
+        assertTrue(withTemp.hasActualValueChangesFrom(base))
+        assertTrue(base.hasActualValueChangesFrom(withTemp))
+        assertEquals(31.0, IndoorReadingState.fromManualReport("farm_1", withTemp).temperatureC ?: 0.0, 0.001)
+    }
 }

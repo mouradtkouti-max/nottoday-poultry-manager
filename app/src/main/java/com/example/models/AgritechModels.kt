@@ -208,7 +208,7 @@ data class DailyReportModel(
     val feedIntakeKg: Double,
     val waterIntakeLiters: Double,
     val mortalityCount: Int,
-    val temperature: Double,
+    val temperature: Double? = null,
     val gasUnits: Double = 0.0,
     val ventilationStatus: String = "جيدة",
     val generalStatus: String = "طبيعية",
@@ -232,10 +232,19 @@ data class DailyReportModel(
         } else {
             kotlin.math.abs(newWeight - oldWeight) > 0.0001
         }
+        val oldTemp = existingReport.temperature
+        val newTemp = this.temperature
+        val tempChanged = if (oldTemp == null && newTemp == null) {
+            false
+        } else if (oldTemp == null || newTemp == null) {
+            true
+        } else {
+            kotlin.math.abs(newTemp - oldTemp) > 0.01
+        }
         return kotlin.math.abs(this.feedIntakeKg - existingReport.feedIntakeKg) > 0.001 ||
             kotlin.math.abs(this.waterIntakeLiters - existingReport.waterIntakeLiters) > 0.001 ||
             this.mortalityCount != existingReport.mortalityCount ||
-            kotlin.math.abs(this.temperature - existingReport.temperature) > 0.01 ||
+            tempChanged ||
             kotlin.math.abs(this.gasUnits - existingReport.gasUnits) > 0.01 ||
             this.ventilationStatus.trim() != existingReport.ventilationStatus.trim() ||
             this.litterCondition.trim() != existingReport.litterCondition.trim() ||
@@ -339,9 +348,15 @@ data class SalesInvoiceModel(
     val grossWeightsCount: Int = 0
 )
 
+object AppCurrency {
+    const val EUR = "EUR"
+    const val USD = "USD"
+    const val DZD = "DZD"
+}
+
 data class TransactionModel(
     val id: String,
-    val farmId: String,
+    val farmId: String = "",
     val cycleId: String,
     val type: TransactionType,
     val category: String,
@@ -352,7 +367,8 @@ data class TransactionModel(
     val status: String = "APPROVED",
     val notes: String = "",
     val quantityQuintals: Double = 0.0,
-    val approvedBySignature: String = ""
+    val approvedBySignature: String = "",
+    val invoiceNumber: Int? = null
 )
 
 data class WeighingRecord(

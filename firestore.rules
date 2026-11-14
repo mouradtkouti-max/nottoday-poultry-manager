@@ -241,7 +241,7 @@ service cloud.firestore {
         && data.feedIntakeKg is number && data.feedIntakeKg >= 0 && data.feedIntakeKg <= 100000
         && data.waterIntakeLiters is number && data.waterIntakeLiters >= 0 && data.waterIntakeLiters <= 200000
         && data.mortalityCount is int && data.mortalityCount >= 0 && data.mortalityCount <= 1000000
-        && data.temperature is number && data.temperature >= -10 && data.temperature <= 60
+        && (data.temperature == null || (data.temperature is number && data.temperature >= -10 && data.temperature <= 60))
         && (!('isLocked' in data) || data.isLocked is bool)
         && (!('actualAvgWeightKg' in data) || (data.actualAvgWeightKg is number && data.actualAvgWeightKg >= 0 && data.actualAvgWeightKg <= 25))
         && (!('withdrawalDays' in data) || (data.withdrawalDays is int && data.withdrawalDays >= 0 && data.withdrawalDays <= 90));

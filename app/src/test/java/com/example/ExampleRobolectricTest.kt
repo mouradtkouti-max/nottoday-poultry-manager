@@ -1666,10 +1666,9 @@ class ExampleRobolectricTest {
     fun `multiProviderAuth_phoneE164_emailValidation_cairoFont_and_14LangKeys`() {
         val context = ApplicationProvider.getApplicationContext<Context>()
 
-        // 1. Verify bundled Cairo font resource is resolvable in res/font
-        assertTrue("R.font.cairo resource id must be non-zero", R.font.cairo != 0)
-        val fontResName = context.resources.getResourceEntryName(R.font.cairo)
-        assertEquals("cairo", fontResName)
+        // 1. Verify Typography uses clean SansSerif CairoFontFamily after font asset removal
+        assertEquals(androidx.compose.ui.text.font.FontFamily.SansSerif, com.example.ui.theme.CairoFontFamily)
+        assertEquals(com.example.ui.theme.CairoFontFamily, com.example.ui.theme.Typography.bodyLarge.fontFamily)
 
         // 2. Verify Phone E.164 normalization and validation across international dial codes
         val dzPhone = AgritechAuthHelper.formatNormalizedIdentifier("0550 12 34 56", "+213")
@@ -1753,8 +1752,180 @@ class ExampleRobolectricTest {
             }
         }
     }
+
+    @Test
+    fun `package2_persistenceNullableTemp_invoiceNumber_currencyPreservation_and_localization`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        AgritechMockDb.resetForAccountSwitch()
+
+        // 1. LocalFarmPersistence round-trip preserves null temperature, invoiceNumber, and vetNotes
+        val nullTempReport = DailyReportModel(
+            id = "rep_null_temp_pkg2",
+            farmId = "farm_pkg2",
+            cycleId = "cyc_pkg2",
+            dayNumber = 5,
+            feedIntakeKg = 45.0,
+            waterIntakeLiters = 90.0,
+            mortalityCount = 2,
+            temperature = null,
+            actualAvgWeightKg = 0.135
+        )
+        val sequencedIncomeTx = TransactionModel(
+            id = "tx_inc_seq_pkg2",
+            farmId = "farm_pkg2",
+            cycleId = "cyc_pkg2",
+            type = TransactionType.INCOME,
+            category = "بيع طيور",
+            amount = 150000.0,
+            notes = "دفعة بيع رقم 7",
+            date = "2026-11-12",
+            currency = "USD",
+            invoiceNumber = 7
+        )
+        val blankCurrencyTx = TransactionModel(
+            id = "tx_blank_cur_pkg2",
+            farmId = "farm_pkg2",
+            cycleId = "cyc_pkg2",
+            type = TransactionType.EXPENSE,
+            category = "علف",
+            amount = 5000.0,
+            notes = "شراء 100 كغ علف",
+            date = "2026-11-12",
+            currency = ""
+        )
+        val vetNote = VetNoteModel(
+            id = "vn_persist_pkg2",
+            farmId = "farm_pkg2",
+            cycleId = "cyc_pkg2",
+            dayNumber = 5,
+            medicineName = "جرعة فيتامينات",
+            dosage = "1 مل/لتر",
+            note = "إضافة فيتامين E",
+            isUrgent = false
+        )
+
+        AgritechMockDb.dailyReports.add(nullTempReport)
+        AgritechMockDb.transactions.addAll(listOf(sequencedIncomeTx, blankCurrencyTx))
+        AgritechMockDb.vetNotes.add(vetNote)
+        LocalFarmPersistence.saveAll(context)
+
+        AgritechMockDb.dailyReports.clear()
+        AgritechMockDb.transactions.clear()
+        AgritechMockDb.vetNotes.clear()
+        LocalFarmPersistence.loadAll(context)
+
+        val restoredReport = AgritechMockDb.dailyReports.firstOrNull { it.id == "rep_null_temp_pkg2" }
+        assertTrue("Restored report must preserve null temperature", restoredReport != null && restoredReport.temperature == null)
+        val restoredTx = AgritechMockDb.transactions.firstOrNull { it.id == "tx_inc_seq_pkg2" }
+        assertEquals(7, restoredTx?.invoiceNumber)
+        assertEquals("USD", restoredTx?.currency)
+        assertTrue("Restored vetNote must persist across save/load", AgritechMockDb.vetNotes.any { it.id == "vn_persist_pkg2" })
+
+        // 2. applyCurrencyToMockTransactions preserves existing non-blank currency and fills blank currency
+        SaasPreferencesManager.applyCurrencyToMockTransactions(AppCurrency.EUR)
+        val afterCurrencyTx = AgritechMockDb.transactions.first { it.id == "tx_inc_seq_pkg2" }
+        val afterBlankCurrencyTx = AgritechMockDb.transactions.first { it.id == "tx_blank_cur_pkg2" }
+        assertEquals("USD", afterCurrencyTx.currency)
+        assertEquals("EUR", afterBlankCurrencyTx.currency)
+
+        // 3. Swahili typo fix and new Package 2/2 localization keys
+        val swWarning = Translations.tr("weigh_unsaved_draft_warning", AppLanguage.SW)
+        assertTrue("Swahili weigh draft warning must contain 'uzani'", swWarning.contains("uzani"))
+        assertTrue("Swahili weigh draft warning must not contain Arabic script typo", !swWarning.contains("uzاني"))
+
+        val package2Keys = listOf(
+            "weather_search_no_results",
+            "qr_scanner_captured_success",
+            "qr_scanner_active_status",
+            "qr_camera_permission_denied_msg",
+            "qr_camera_permission_request_msg",
+            "qr_enable_camera_btn",
+            "sig_sign_with_finger_placeholder",
+            "book_analytics_expenses_header",
+            "book_analytics_feed_fcr_header",
+            "book_analytics_vitality_climate_header",
+            "sales_invoice_modal_title",
+            "sales_invoice_total_payable_label",
+            "sales_invoice_confirm_btn"
+        )
+        val checkLangs = listOf(AppLanguage.AR, AppLanguage.EN, AppLanguage.FR, AppLanguage.ES, AppLanguage.PT, AppLanguage.SW)
+        for (key in package2Keys) {
+            assertTrue("Key '$key' must exist", Translations.hasKey(key))
+            for (lang in checkLangs) {
+                val translated = Translations.tr(key, lang)
+                assertTrue("Key '$key' in $lang must not be blank or raw", translated.isNotBlank() && translated != key)
+            }
+        }
+
+        AgritechMockDb.resetForAccountSwitch()
+    }
+
+    @Test
+    fun vintageSpiralBookPages_all16LessonsAnd14Languages_areComplete() {
+        val branches = Ross308BroilerHandbook.buildFourBranchesForBarn(
+            barnName = "عنبر الموسوعة",
+            ageDays = 10,
+            placedBirds = 5000,
+            liveBirds = 4950,
+            recordedTempC = 29.0,
+            totalFeedQuintals = 12.0,
+            remainingFeedQuintals = 18.0,
+            latestDailyFeedKg = 180.0,
+            latestDailyWaterLiters = 320.0,
+            currentWeightKg = 0.30,
+            actualFcr = 1.05
+        )
+        val sixteenPages = Ross308BroilerHandbook.buildSixteenBookPages(branches)
+        assertEquals(16, sixteenPages.size)
+        assertEquals("care_1", sixteenPages[0].second.id)
+        assertEquals("vax_1", sixteenPages[4].second.id)
+        assertEquals("dis_1", sixteenPages[8].second.id)
+        assertEquals("feed_1", sixteenPages[12].second.id)
+        branches.forEach { branch ->
+            assertEquals(4, branch.subCards.size)
+            assertEquals(
+                listOf("01", "02", "03", "04"),
+                branch.subCards.map { it.posterSpec!!.lessonNumberFormatted }
+            )
+        }
+
+        val bookKeys = listOf(
+            "book_encyclopedia_ribbon_title",
+            "book_lesson_number_fmt",
+            "book_page_footer_fmt",
+            "book_branch_0_title",
+            "book_branch_0_subtitle",
+            "book_branch_1_title",
+            "book_branch_1_subtitle",
+            "book_branch_2_title",
+            "book_branch_2_subtitle",
+            "book_branch_3_title",
+            "book_branch_3_subtitle",
+            "book_branch_badge_4_lessons",
+            "book_chick_crop_yolk",
+            "book_btn_prev_lesson",
+            "book_btn_zoom_page",
+            "book_btn_next_lesson",
+            "book_ribbon_core_idea",
+            "book_ribbon_why_important",
+            "book_ribbon_how_to_prepare",
+            "book_ribbon_avoid_mistake",
+            "book_ribbon_chick_anatomy",
+            "book_ribbon_readiness_signs",
+            "book_ribbon_disease_def",
+            "book_ribbon_main_symptoms",
+            "book_ribbon_treatment",
+            "book_ribbon_performance_impact",
+            "book_ribbon_diagnosis",
+            "book_ribbon_prevention",
+            "book_ribbon_important_note"
+        )
+        for (key in bookKeys) {
+            assertTrue("Book key '$key' must exist", Translations.hasKey(key))
+            for (lang in AppLanguage.values()) {
+                val value = Translations.tr(key, lang)
+                assertTrue("Book key '$key' in $lang must not be blank or raw", value.isNotBlank() && value != key)
+            }
+        }
+    }
 }
-
-
-
-

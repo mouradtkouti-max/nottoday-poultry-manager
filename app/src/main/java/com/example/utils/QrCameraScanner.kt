@@ -165,7 +165,8 @@ fun parsePersonalContactQr(rawValue: String): QrPersonalContactData? {
 fun RealQrCameraScannerView(
     selectedRoleFallback: AppRole,
     onQrCodeScanned: (QrFarmInviteData) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    lang: AppLanguage = AppLanguage.AR
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -362,9 +363,9 @@ fun RealQrCameraScannerView(
                         )
                         Text(
                             text = if (lastScannedRaw != null) {
-                                "تم التقاط الرمز بنجاح ✓"
+                                Translations.tr("qr_scanner_captured_success", lang)
                             } else {
-                                "ماسح الكاميرا نشط (ML Kit QR)..."
+                                Translations.tr("qr_scanner_active_status", lang)
                             },
                             color = Color.White,
                             fontSize = 11.sp,
@@ -400,9 +401,9 @@ fun RealQrCameraScannerView(
                 Spacer(modifier = Modifier.height(10.dp))
                 Text(
                     text = if (permissionDeniedOnce) {
-                        "يلزم منح صلاحية الكاميرا لمسح رمز QR الخاص بالعنبر"
+                        Translations.tr("qr_camera_permission_denied_msg", lang)
                     } else {
-                        "يرجى السماح بتشغيل الكاميرا لمسح رمز دعوة الفريق (QR)"
+                        Translations.tr("qr_camera_permission_request_msg", lang)
                     },
                     fontSize = 12.5.sp,
                     fontWeight = FontWeight.Bold,
@@ -424,7 +425,7 @@ fun RealQrCameraScannerView(
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        "تفعيل الكاميرا للمسح 📷",
+                        Translations.tr("qr_enable_camera_btn", lang),
                         fontSize = 12.5.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.White

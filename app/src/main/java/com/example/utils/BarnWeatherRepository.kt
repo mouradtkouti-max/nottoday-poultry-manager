@@ -244,14 +244,19 @@ object BarnWeatherRepository {
     /**
      * Searches Open-Meteo Geocoding API for localities matching query.
      */
-    suspend fun searchLocalities(query: String, count: Int = 5): List<BarnWeatherLocation> {
+    suspend fun searchLocalities(
+        query: String,
+        count: Int = 5,
+        languageCode: String = "ar"
+    ): List<BarnWeatherLocation> {
         val clean = query.trim()
         if (clean.length < 2) return emptyList()
+        val safeLang = languageCode.trim().lowercase().take(2).ifBlank { "ar" }
         return withContext(Dispatchers.IO) {
             var conn: HttpURLConnection? = null
             try {
                 val encoded = URLEncoder.encode(clean, "UTF-8")
-                val urlStr = "https://geocoding-api.open-meteo.com/v1/search?name=$encoded&count=$count&language=ar&format=json"
+                val urlStr = "https://geocoding-api.open-meteo.com/v1/search?name=$encoded&count=$count&language=$safeLang&format=json"
                 val url = URL(urlStr)
                 conn = (url.openConnection() as HttpURLConnection).apply {
                     requestMethod = "GET"

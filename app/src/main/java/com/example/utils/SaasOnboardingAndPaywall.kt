@@ -599,7 +599,9 @@ object SaasPreferencesManager {
         if (currencyCode.isBlank()) return
         for (i in AgritechMockDb.transactions.indices) {
             val tx = AgritechMockDb.transactions[i]
-            AgritechMockDb.transactions[i] = tx.copy(currency = currencyCode)
+            if (tx.currency.isBlank() || tx.currency == "دج") {
+                AgritechMockDb.transactions[i] = tx.copy(currency = currencyCode)
+            }
         }
     }
 }
@@ -6448,7 +6450,7 @@ object LocalFarmPersistence {
                 obj.put("feedIntakeKg", r.feedIntakeKg)
                 obj.put("waterIntakeLiters", r.waterIntakeLiters)
                 obj.put("mortalityCount", r.mortalityCount)
-                obj.put("temperature", r.temperature)
+                obj.put("temperature", r.temperature ?: org.json.JSONObject.NULL)
                 obj.put("gasUnits", r.gasUnits)
                 obj.put("ventilationStatus", r.ventilationStatus)
                 obj.put("generalStatus", r.generalStatus)
@@ -6480,6 +6482,7 @@ object LocalFarmPersistence {
                 obj.put("notes", t.notes)
                 obj.put("quantityQuintals", t.quantityQuintals)
                 obj.put("approvedBySignature", t.approvedBySignature)
+                obj.put("invoiceNumber", t.invoiceNumber ?: org.json.JSONObject.NULL)
                 t.invoiceData?.let { inv ->
                     val invObj = org.json.JSONObject()
                     invObj.put("invoiceNumber", inv.invoiceNumber)
@@ -6721,7 +6724,11 @@ object LocalFarmPersistence {
                                 feedIntakeKg = obj.optDouble("feedIntakeKg", 0.0),
                                 waterIntakeLiters = obj.optDouble("waterIntakeLiters", 0.0),
                                 mortalityCount = obj.optInt("mortalityCount", 0),
-                                temperature = obj.optDouble("temperature", 30.0),
+                                temperature = if (obj.has("temperature") && !obj.isNull("temperature")) {
+                                    obj.optDouble("temperature").takeIf { !it.isNaN() }
+                                } else {
+                                    null
+                                },
                                 gasUnits = obj.optDouble("gasUnits", 0.0),
                                 ventilationStatus = obj.optString("ventilationStatus", "جيدة"),
                                 generalStatus = obj.optString("generalStatus", "طبيعية"),
@@ -6795,7 +6802,8 @@ object LocalFarmPersistence {
                                 status = obj.optString("status", "APPROVED"),
                                 notes = obj.optString("notes", ""),
                                 quantityQuintals = obj.optDouble("quantityQuintals", 0.0),
-                                approvedBySignature = obj.optString("approvedBySignature", "")
+                                approvedBySignature = obj.optString("approvedBySignature", ""),
+                                invoiceNumber = if (obj.has("invoiceNumber") && !obj.isNull("invoiceNumber")) obj.optInt("invoiceNumber").takeIf { it > 0 } else null
                             )
                             if (tx.id.isNotBlank()) {
                                 loadedTx.add(tx)
