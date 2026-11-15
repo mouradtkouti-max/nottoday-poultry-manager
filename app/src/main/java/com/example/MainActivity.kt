@@ -812,58 +812,49 @@ object AgritechMockDb {
     }
 
     fun mergeCloudCycleWithLocal(cloudCycle: CycleModel, localCycle: CycleModel): CycleModel {
+        val effectiveFarmId = cloudCycle.farmId.ifBlank { localCycle.farmId }
+        val effectiveCycleId = cloudCycle.id.ifBlank { localCycle.id }
         val localIsStrictlyNewer = localCycle.updatedAtMillis > 0L &&
             cloudCycle.updatedAtMillis > 0L &&
             localCycle.updatedAtMillis > cloudCycle.updatedAtMillis
 
-        if (localIsStrictlyNewer) {
-            return localCycle.copy(
-                totalBirdsPlaced = if (localCycle.totalBirdsPlaced > 0) localCycle.totalBirdsPlaced else cloudCycle.totalBirdsPlaced,
-                targetWeight = if (localCycle.targetWeight > 0.0) localCycle.targetWeight else cloudCycle.targetWeight,
-                startDate = localCycle.startDate.ifBlank { cloudCycle.startDate },
-                currencyCode = localCycle.currencyCode.ifBlank { cloudCycle.currencyCode }
-            )
-        }
-
-        // Cloud is newer or authoritative: respect cloud corrections/reductions directly without blind maxOf
-        val hasCloudTimestamp = cloudCycle.updatedAtMillis > 0L ||
-            cloudCycle.lastDailyReportId.isNotBlank() ||
-            cloudCycle.feedDeficitKg > 0.0 ||
-            cloudCycle.cumulativeFeedConsumedKg > 0.0
-
-        if (hasCloudTimestamp) {
-            return cloudCycle.copy(
-                feedInventoryKg = cloudCycle.feedInventoryKg.coerceAtLeast(0.0),
-                feedDeficitKg = cloudCycle.feedDeficitKg.coerceAtLeast(0.0),
-                cumulativeFeedConsumedKg = cloudCycle.cumulativeFeedConsumedKg.coerceAtLeast(0.0),
-                cumulativeMortality = cloudCycle.cumulativeMortality.coerceAtLeast(0),
-                cumulativeBirdsSold = cloudCycle.cumulativeBirdsSold.coerceAtLeast(0),
-                cumulativeSoldWeightKg = cloudCycle.cumulativeSoldWeightKg.coerceAtLeast(0.0),
-                updatedAtMillis = maxOf(cloudCycle.updatedAtMillis, localCycle.updatedAtMillis)
-            )
-        }
+        val allRecordedDaysForCycle = resolveReportsForFarmAndCycle(effectiveFarmId, effectiveCycleId)
+        val reportsConsumedFeedKg = allRecordedDaysForCycle.sumOf { it.feedIntakeKg }
+        val reportsMortality = allRecordedDaysForCycle.sumOf { it.mortalityCount }
 
         val totalPurchasedFeedKg = transactions.filter {
-            (it.cycleId == cloudCycle.id || it.cycleId == localCycle.id) &&
+            (it.cycleId == effectiveCycleId || it.cycleId == localCycle.id) &&
                 it.type == TransactionType.EXPENSE &&
                 it.status.equals("APPROVED", ignoreCase = true) &&
-                (it.category.contains("علف") ||
+                (it.quantityQuintals > 0.0 ||
+                    it.category.contains("علف") ||
                     it.category.contains("Feed", ignoreCase = true) ||
                     it.category.contains("Aliment", ignoreCase = true) ||
-                    it.category.contains("Pienso", ignoreCase = true))
+                    it.category.contains("Pienso", ignoreCase = true) ||
+                    it.category.contains("Yem", ignoreCase = true) ||
+                    it.category.contains("Ração", ignoreCase = true))
         }.sumOf { parseFeedTransaction(it, AppLanguage.AR).estimatedKg }
 
-        val totalConsumedFeedKg = dailyReports
-            .filter { it.cycleId == cloudCycle.id || it.cycleId == localCycle.id }
-            .sumOf { it.feedIntakeKg }
+        val effectiveConsumedFeedKg = if (allRecordedDaysForCycle.isNotEmpty()) {
+            reportsConsumedFeedKg
+        } else {
+            maxOf(cloudCycle.cumulativeFeedConsumedKg, localCycle.cumulativeFeedConsumedKg)
+        }
 
         val (accurateFeedInventoryKg, accurateFeedDeficitKg) = when {
-            totalPurchasedFeedKg > 0.0 || totalConsumedFeedKg > 0.0 ->
+            totalPurchasedFeedKg > 0.0 ->
                 AgritechFirestoreRepository.applyFeedDeltaWithDeficit(
                     currentInventoryKg = totalPurchasedFeedKg,
                     currentDeficitKg = 0.0,
-                    feedDeltaToDeduct = totalConsumedFeedKg
+                    feedDeltaToDeduct = effectiveConsumedFeedKg
                 )
+            allRecordedDaysForCycle.isNotEmpty() -> {
+                val bestBaseFeed = if (localIsStrictlyNewer) localCycle.feedInventoryKg else cloudCycle.feedInventoryKg
+                val bestBaseDeficit = if (localIsStrictlyNewer) localCycle.feedDeficitKg else cloudCycle.feedDeficitKg
+                Pair(bestBaseFeed.coerceAtLeast(0.0), bestBaseDeficit.coerceAtLeast(0.0))
+            }
+            localIsStrictlyNewer ->
+                Pair(localCycle.feedInventoryKg.coerceAtLeast(0.0), localCycle.feedDeficitKg.coerceAtLeast(0.0))
             localCycle.feedInventoryKg > 0.0 && cloudCycle.feedInventoryKg > 0.0 ->
                 Pair(minOf(localCycle.feedInventoryKg, cloudCycle.feedInventoryKg), maxOf(localCycle.feedDeficitKg, cloudCycle.feedDeficitKg))
             localCycle.feedInventoryKg > 0.0 ->
@@ -874,13 +865,40 @@ object AgritechMockDb {
             )
         }
 
-        return cloudCycle.copy(
+        val effectiveMortality = if (allRecordedDaysForCycle.isNotEmpty()) {
+            reportsMortality
+        } else {
+            maxOf(cloudCycle.cumulativeMortality, localCycle.cumulativeMortality)
+        }
+
+        val farmSalesTxs = transactions.filter {
+            it.farmId == effectiveFarmId && (it.cycleId == effectiveCycleId || it.cycleId.isBlank())
+        }
+        val effectiveBirdsPlaced = maxOf(localCycle.totalBirdsPlaced, cloudCycle.totalBirdsPlaced)
+        val effectiveBirdsSold = maxOf(
+            PoultryCalculators.resolveCumulativeBirdsSold(localCycle, farmSalesTxs),
+            cloudCycle.cumulativeBirdsSold
+        )
+        val effectiveSoldWeightKg = maxOf(
+            PoultryCalculators.resolveCumulativeSoldWeightKg(localCycle, farmSalesTxs),
+            cloudCycle.cumulativeSoldWeightKg
+        )
+
+        val base = if (localIsStrictlyNewer) localCycle else cloudCycle
+        return base.copy(
+            id = effectiveCycleId,
+            farmId = effectiveFarmId,
+            totalBirdsPlaced = effectiveBirdsPlaced,
+            targetWeight = if (localCycle.targetWeight > 0.0) localCycle.targetWeight else cloudCycle.targetWeight,
+            startDate = localCycle.startDate.ifBlank { cloudCycle.startDate },
+            currencyCode = localCycle.currencyCode.ifBlank { cloudCycle.currencyCode },
             feedInventoryKg = accurateFeedInventoryKg,
             feedDeficitKg = accurateFeedDeficitKg,
-            cumulativeFeedConsumedKg = maxOf(cloudCycle.cumulativeFeedConsumedKg, totalConsumedFeedKg),
-            cumulativeMortality = maxOf(cloudCycle.cumulativeMortality, localCycle.cumulativeMortality),
-            cumulativeBirdsSold = maxOf(cloudCycle.cumulativeBirdsSold, localCycle.cumulativeBirdsSold),
-            cumulativeSoldWeightKg = maxOf(cloudCycle.cumulativeSoldWeightKg, localCycle.cumulativeSoldWeightKg)
+            cumulativeFeedConsumedKg = effectiveConsumedFeedKg,
+            cumulativeMortality = effectiveMortality,
+            cumulativeBirdsSold = effectiveBirdsSold,
+            cumulativeSoldWeightKg = effectiveSoldWeightKg,
+            updatedAtMillis = maxOf(cloudCycle.updatedAtMillis, localCycle.updatedAtMillis)
         )
     }
 
@@ -1223,18 +1241,69 @@ object AgritechMockDb {
         cycleId: String? = null,
         extraReports: List<DailyReportModel> = emptyList()
     ): List<DailyReportModel> {
+        val targetCycleId = cycleId?.trim().orEmpty()
         val combined = (dailyReports.asSequence() + extraReports.asSequence())
             .filter {
                 it.farmId == farmId &&
-                    (cycleId.isNullOrBlank() || it.cycleId == cycleId || it.cycleId.isBlank())
+                    (targetCycleId.isBlank() || it.cycleId == targetCycleId || it.cycleId.isBlank())
             }
             .toList()
         return combined
-            .groupBy { Triple(it.farmId, it.cycleId.ifBlank { cycleId.orEmpty() }, it.dayNumber) }
+            .groupBy { rep ->
+                val resolvedCycle = if (targetCycleId.isNotBlank()) targetCycleId else rep.cycleId
+                Triple(rep.farmId, resolvedCycle, rep.dayNumber)
+            }
             .map { (_, group) ->
                 group.maxByOrNull { it.updatedAtMillis } ?: group.last()
             }
+            .let { deduped ->
+                if (targetCycleId.isNotBlank()) deduped.distinctBy { it.dayNumber } else deduped
+            }
             .sortedBy { it.dayNumber }
+    }
+
+    /**
+     * Non-destructive merge for incoming Firestore `dailyReports` snapshots:
+     * NEVER deletes local days when cloud snapshots arrive with fewer items or delayed writes.
+     * Matches exclusively by `(farmId, cycleId, dayNumber)` or canonical `id`, preserving all recorded days.
+     */
+    fun mergeCloudDailyReportsNonDestructive(
+        farmId: String,
+        cloudReports: List<DailyReportModel>
+    ) {
+        if (cloudReports.isEmpty()) return
+        var changed = false
+        cloudReports.forEach { cloudReport ->
+            if (cloudReport.farmId != farmId) return@forEach
+            val canonicalId = AgritechFirestoreRepository.buildCanonicalDailyReportId(
+                farmId = cloudReport.farmId,
+                cycleId = cloudReport.cycleId,
+                dayNumber = cloudReport.dayNumber
+            )
+            val normalizedCloud = cloudReport.copy(id = canonicalId)
+            val idx = dailyReports.indexOfFirst { local ->
+                local.id == normalizedCloud.id ||
+                    local.id == cloudReport.id ||
+                    (local.farmId == normalizedCloud.farmId &&
+                        (local.cycleId == normalizedCloud.cycleId || local.cycleId.isBlank() || normalizedCloud.cycleId.isBlank()) &&
+                        local.dayNumber == normalizedCloud.dayNumber)
+            }
+            if (idx >= 0) {
+                val existingLocal = dailyReports[idx]
+                val merged = mergeCloudReportWithLocal(
+                    cloudReport = normalizedCloud,
+                    existingLocal = existingLocal.copy(id = canonicalId)
+                )
+                dailyReports[idx] = merged
+            } else {
+                dailyReports.add(normalizedCloud)
+            }
+            changed = true
+        }
+        if (changed) {
+            dailyReports.sortBy { it.dayNumber }
+            persistLocalState()
+        }
     }
 
     private val initialBarnInventorySeed = mapOf(
@@ -1363,27 +1432,48 @@ object AgritechMockDb {
                 )
                 dailyReports[existingIdx] = updated
                 val feedDeltaKg = updated.feedIntakeKg - old.feedIntakeKg
-                val mortalityDelta = updated.mortalityCount - old.mortalityCount
-                if (kotlin.math.abs(feedDeltaKg) > 0.0001 || mortalityDelta != 0) {
-                    val cycleIdx = cycles.indexOfFirst { it.id == resolvedCycleId }
-                        .takeIf { it >= 0 }
-                        ?: cycles.indexOfFirst { it.farmId == updated.farmId && it.status.equals("active", true) }
-                    if (cycleIdx >= 0) {
-                        val c = cycles[cycleIdx]
-                        val (newInv, newDeficit) = AgritechFirestoreRepository.applyFeedDeltaWithDeficit(
+                val cycleIdx = cycles.indexOfFirst { it.id == resolvedCycleId }
+                    .takeIf { it >= 0 }
+                    ?: cycles.indexOfFirst { it.farmId == updated.farmId && it.status.equals("active", true) }
+                if (cycleIdx >= 0) {
+                    val c = cycles[cycleIdx]
+                    val allDaysForCycle = resolveReportsForFarmAndCycle(updated.farmId, resolvedCycleId)
+                    val cumulativeConsumedKg = allDaysForCycle.sumOf { it.feedIntakeKg }
+                    val cumulativeMortCount = allDaysForCycle.sumOf { it.mortalityCount }
+                    val purchasedFeedKg = transactions.filter {
+                        it.farmId == updated.farmId &&
+                            (it.cycleId == resolvedCycleId || it.cycleId.isBlank()) &&
+                            it.type == TransactionType.EXPENSE &&
+                            it.status.equals("APPROVED", ignoreCase = true) &&
+                            (it.quantityQuintals > 0.0 ||
+                                it.category.contains("علف") ||
+                                it.category.contains("Feed", ignoreCase = true) ||
+                                it.category.contains("Aliment", ignoreCase = true) ||
+                                it.category.contains("Pienso", ignoreCase = true) ||
+                                it.category.contains("Yem", ignoreCase = true) ||
+                                it.category.contains("Ração", ignoreCase = true))
+                    }.sumOf { parseFeedTransaction(it, AppLanguage.AR).estimatedKg }
+                    val (newInv, newDeficit) = if (purchasedFeedKg > 0.0) {
+                        AgritechFirestoreRepository.applyFeedDeltaWithDeficit(
+                            currentInventoryKg = purchasedFeedKg,
+                            currentDeficitKg = 0.0,
+                            feedDeltaToDeduct = cumulativeConsumedKg
+                        )
+                    } else {
+                        AgritechFirestoreRepository.applyFeedDeltaWithDeficit(
                             currentInventoryKg = c.feedInventoryKg,
                             currentDeficitKg = c.feedDeficitKg,
                             feedDeltaToDeduct = feedDeltaKg
                         )
-                        cycles[cycleIdx] = c.copy(
-                            feedInventoryKg = newInv,
-                            feedDeficitKg = newDeficit,
-                            cumulativeFeedConsumedKg = (c.cumulativeFeedConsumedKg + feedDeltaKg).coerceAtLeast(0.0),
-                            cumulativeMortality = (c.cumulativeMortality + mortalityDelta).coerceAtLeast(0),
-                            lastDailyReportId = canonicalId,
-                            updatedAtMillis = nowMillis
-                        )
                     }
+                    cycles[cycleIdx] = c.copy(
+                        feedInventoryKg = newInv,
+                        feedDeficitKg = newDeficit,
+                        cumulativeFeedConsumedKg = cumulativeConsumedKg,
+                        cumulativeMortality = cumulativeMortCount,
+                        lastDailyReportId = canonicalId,
+                        updatedAtMillis = nowMillis
+                    )
                 }
                 updated
             }
@@ -1395,21 +1485,59 @@ object AgritechMockDb {
             )
             dailyReports.add(stamped)
             dailyReports.sortBy { it.dayNumber }
-            val cycleIdx = cycles.indexOfFirst { it.id == resolvedCycleId }
+            var cycleIdx = cycles.indexOfFirst { it.id == resolvedCycleId }
                 .takeIf { it >= 0 }
                 ?: cycles.indexOfFirst { it.farmId == stamped.farmId && it.status.equals("active", true) }
+            if (cycleIdx < 0 && stamped.farmId.isNotBlank()) {
+                val targetFarm = farms.firstOrNull { it.id == stamped.farmId }
+                cycles.add(
+                    CycleModel(
+                        id = resolvedCycleId,
+                        farmId = stamped.farmId,
+                        totalBirdsPlaced = targetFarm?.capacity ?: 0,
+                        targetWeight = 2.3,
+                        status = "active",
+                        startDate = java.time.LocalDate.now().toString()
+                    )
+                )
+                cycleIdx = cycles.lastIndex
+            }
             if (cycleIdx >= 0) {
                 val c = cycles[cycleIdx]
-                val (newInv, newDeficit) = AgritechFirestoreRepository.applyFeedDeltaWithDeficit(
-                    currentInventoryKg = c.feedInventoryKg,
-                    currentDeficitKg = c.feedDeficitKg,
-                    feedDeltaToDeduct = stamped.feedIntakeKg
-                )
+                val allDaysForCycle = resolveReportsForFarmAndCycle(stamped.farmId, resolvedCycleId)
+                val cumulativeConsumedKg = allDaysForCycle.sumOf { it.feedIntakeKg }
+                val cumulativeMortCount = allDaysForCycle.sumOf { it.mortalityCount }
+                val purchasedFeedKg = transactions.filter {
+                    it.farmId == stamped.farmId &&
+                        (it.cycleId == resolvedCycleId || it.cycleId.isBlank()) &&
+                        it.type == TransactionType.EXPENSE &&
+                        it.status.equals("APPROVED", ignoreCase = true) &&
+                        (it.quantityQuintals > 0.0 ||
+                            it.category.contains("علف") ||
+                            it.category.contains("Feed", ignoreCase = true) ||
+                            it.category.contains("Aliment", ignoreCase = true) ||
+                            it.category.contains("Pienso", ignoreCase = true) ||
+                            it.category.contains("Yem", ignoreCase = true) ||
+                            it.category.contains("Ração", ignoreCase = true))
+                }.sumOf { parseFeedTransaction(it, AppLanguage.AR).estimatedKg }
+                val (newInv, newDeficit) = if (purchasedFeedKg > 0.0) {
+                    AgritechFirestoreRepository.applyFeedDeltaWithDeficit(
+                        currentInventoryKg = purchasedFeedKg,
+                        currentDeficitKg = 0.0,
+                        feedDeltaToDeduct = cumulativeConsumedKg
+                    )
+                } else {
+                    AgritechFirestoreRepository.applyFeedDeltaWithDeficit(
+                        currentInventoryKg = c.feedInventoryKg,
+                        currentDeficitKg = c.feedDeficitKg,
+                        feedDeltaToDeduct = stamped.feedIntakeKg
+                    )
+                }
                 cycles[cycleIdx] = c.copy(
                     feedInventoryKg = newInv,
                     feedDeficitKg = newDeficit,
-                    cumulativeFeedConsumedKg = (c.cumulativeFeedConsumedKg + stamped.feedIntakeKg).coerceAtLeast(0.0),
-                    cumulativeMortality = (c.cumulativeMortality + stamped.mortalityCount).coerceAtLeast(0),
+                    cumulativeFeedConsumedKg = cumulativeConsumedKg,
+                    cumulativeMortality = cumulativeMortCount,
                     lastDailyReportId = canonicalId,
                     updatedAtMillis = nowMillis
                 )
@@ -1418,6 +1546,111 @@ object AgritechMockDb {
         }
         persistLocalState()
         return finalReport
+    }
+
+    /**
+     * Immediately registers a newly created barn, its active cycle, and optional chick-purchase transaction
+     * into local state (`AgritechMockDb` + `LocalFarmPersistence`) with ZERO dependency on network availability.
+     */
+    fun registerFarmAndCycleLocally(
+        newFarm: FarmModel,
+        newCycle: CycleModel,
+        initialTx: TransactionModel? = null
+    ) {
+        deletedFarmIds.remove(newFarm.id)
+        val existingFarmIdx = farms.indexOfFirst { it.id == newFarm.id }
+        if (existingFarmIdx >= 0) {
+            farms[existingFarmIdx] = newFarm
+        } else {
+            farms.add(newFarm)
+        }
+        for (i in cycles.indices) {
+            val c = cycles[i]
+            if (c.farmId == newFarm.id && c.id != newCycle.id && c.status.equals("active", ignoreCase = true)) {
+                cycles[i] = c.copy(status = "completed")
+            }
+        }
+        val existingCycleIdx = cycles.indexOfFirst { it.id == newCycle.id }
+        if (existingCycleIdx >= 0) {
+            cycles[existingCycleIdx] = newCycle
+        } else {
+            cycles.add(newCycle)
+        }
+        if (initialTx != null && initialTx.amount > 0.0 && transactions.none { it.id == initialTx.id }) {
+            transactions.add(
+                initialTx.copy(
+                    status = initialTx.status.ifBlank { "APPROVED" },
+                    updatedAtMillis = System.currentTimeMillis()
+                )
+            )
+        }
+        persistLocalState()
+    }
+
+    /**
+     * Offline-First financial transaction + feed inventory update:
+     * Immediately appends the APPROVED transaction to `transactions`, updates `cycle.feedInventoryKg`,
+     * and persists locally. NEVER rolls back on cloud unavailability.
+     */
+    fun recordExpenseOrIncomeOfflineFirst(
+        tx: TransactionModel,
+        addedFeedKg: Double = 0.0
+    ): Boolean {
+        if (tx.amount <= 0.0 || tx.id.isBlank()) return false
+        if (transactions.any { it.id == tx.id }) return false
+
+        val resolvedAddedFeedKg = when {
+            addedFeedKg > 0.0 -> addedFeedKg
+            tx.quantityQuintals > 0.0 -> tx.quantityQuintals * 100.0
+            else -> 0.0
+        }
+        val nowMillis = System.currentTimeMillis()
+        val normalizedTx = tx.copy(
+            status = tx.status.ifBlank { "APPROVED" },
+            quantityQuintals = if (resolvedAddedFeedKg > 0.0 && tx.quantityQuintals <= 0.0) {
+                resolvedAddedFeedKg / 100.0
+            } else {
+                tx.quantityQuintals
+            },
+            updatedAtMillis = nowMillis
+        )
+
+        if (resolvedAddedFeedKg > 0.0 && normalizedTx.type == TransactionType.EXPENSE && countedFeedTxIds.add(normalizedTx.id)) {
+            var cycleIdx = cycles.indexOfFirst { it.id == normalizedTx.cycleId }
+                .takeIf { it >= 0 }
+                ?: cycles.indexOfFirst { it.farmId == normalizedTx.farmId && it.status.equals("active", ignoreCase = true) }
+            if (cycleIdx < 0 && normalizedTx.farmId.isNotBlank()) {
+                val targetFarm = farms.firstOrNull { it.id == normalizedTx.farmId }
+                cycles.add(
+                    CycleModel(
+                        id = normalizedTx.cycleId.ifBlank { "cycle_default_${normalizedTx.farmId}" },
+                        farmId = normalizedTx.farmId,
+                        totalBirdsPlaced = targetFarm?.capacity ?: 0,
+                        targetWeight = 2.3,
+                        status = "active",
+                        startDate = java.time.LocalDate.now().toString()
+                    )
+                )
+                cycleIdx = cycles.lastIndex
+            }
+            if (cycleIdx >= 0) {
+                val c = cycles[cycleIdx]
+                val (newInv, newDeficit) = AgritechFirestoreRepository.applyFeedDeltaWithDeficit(
+                    currentInventoryKg = c.feedInventoryKg,
+                    currentDeficitKg = c.feedDeficitKg,
+                    feedDeltaToDeduct = -resolvedAddedFeedKg
+                )
+                cycles[cycleIdx] = c.copy(
+                    feedInventoryKg = newInv,
+                    feedDeficitKg = newDeficit,
+                    updatedAtMillis = nowMillis
+                )
+            }
+        }
+
+        transactions.add(normalizedTx)
+        persistLocalState()
+        return true
     }
 
     fun resetCycleAndClearBarn(farmId: String, cycleId: String): CycleModel? {
@@ -1782,7 +2015,11 @@ fun AgritechMainApp(
                                     validCloudFarms.forEach { farm ->
                                         val idx = AgritechMockDb.farms.indexOfFirst { it.id == farm.id }
                                         if (idx >= 0) {
-                                            AgritechMockDb.farms[idx] = farm
+                                            val existing = AgritechMockDb.farms[idx]
+                                            AgritechMockDb.farms[idx] = farm.copy(
+                                                capacity = maxOf(farm.capacity, existing.capacity),
+                                                customMetrics = existing.customMetrics + farm.customMetrics
+                                            )
                                         } else {
                                             AgritechMockDb.farms.add(farm)
                                         }
@@ -1806,7 +2043,11 @@ fun AgritechMainApp(
                                         validCloudFarms.forEach { farm ->
                                             val idx = AgritechMockDb.farms.indexOfFirst { it.id == farm.id }
                                             if (idx >= 0) {
-                                                AgritechMockDb.farms[idx] = farm
+                                                val existing = AgritechMockDb.farms[idx]
+                                                AgritechMockDb.farms[idx] = farm.copy(
+                                                    capacity = maxOf(farm.capacity, existing.capacity),
+                                                    customMetrics = existing.customMetrics + farm.customMetrics
+                                                )
                                             } else {
                                                 AgritechMockDb.farms.add(farm)
                                             }
@@ -1839,31 +2080,10 @@ fun AgritechMainApp(
                         launch {
                             try {
                                 firestoreRepo.observeDailyReports(activeFarmId).collectLatest { cloudReports ->
-                                    if (cloudReports.isNotEmpty()) {
-                                        val cloudIds = cloudReports.map { it.id }.toSet()
-                                        val maxCloudTs = cloudReports.maxOfOrNull { it.updatedAtMillis } ?: 0L
-                                        AgritechMockDb.dailyReports.removeAll { localRep ->
-                                            localRep.farmId == activeFarmId &&
-                                                localRep.id !in cloudIds &&
-                                                localRep.updatedAtMillis > 0L &&
-                                                localRep.updatedAtMillis <= maxCloudTs
-                                        }
-                                        cloudReports.forEach { report ->
-                                            val idx = AgritechMockDb.dailyReports.indexOfFirst {
-                                                it.id == report.id || (it.farmId == report.farmId && it.cycleId == report.cycleId && it.dayNumber == report.dayNumber)
-                                            }
-                                            if (idx >= 0) {
-                                                val existingLocal = AgritechMockDb.dailyReports[idx]
-                                                AgritechMockDb.dailyReports[idx] = AgritechMockDb.mergeCloudReportWithLocal(
-                                                    cloudReport = report,
-                                                    existingLocal = existingLocal
-                                                )
-                                            } else {
-                                                AgritechMockDb.dailyReports.add(report)
-                                            }
-                                        }
-                                        AgritechMockDb.persistLocalState()
-                                    }
+                                    AgritechMockDb.mergeCloudDailyReportsNonDestructive(
+                                        farmId = activeFarmId,
+                                        cloudReports = cloudReports
+                                    )
                                 }
                             } catch (_: Exception) {}
                         }
@@ -2062,14 +2282,18 @@ fun AgritechMainApp(
                 vetNotes = AgritechMockDb.vetNotes.filter { it.farmId == farm.id },
                 transactions = AgritechMockDb.transactions.filter { it.farmId == farm.id && it.farmId != "personal_worker_ledger" },
                 onAddTransaction = { tx, addedFeedKg ->
-                    val normalizedTx = if (addedFeedKg > 0.0 && tx.quantityQuintals <= 0.0) {
-                        tx.copy(quantityQuintals = addedFeedKg / 100.0)
+                    val resolvedAddedFeedKg = when {
+                        addedFeedKg > 0.0 -> addedFeedKg
+                        tx.quantityQuintals > 0.0 -> tx.quantityQuintals * 100.0
+                        else -> 0.0
+                    }
+                    val normalizedTx = if (resolvedAddedFeedKg > 0.0 && tx.quantityQuintals <= 0.0) {
+                        tx.copy(quantityQuintals = resolvedAddedFeedKg / 100.0, status = tx.status.ifBlank { "APPROVED" })
                     } else {
-                        tx
+                        tx.copy(status = tx.status.ifBlank { "APPROVED" })
                     }
                     val invoice = normalizedTx.invoiceData
                     if (invoice != null && normalizedTx.type == TransactionType.INCOME) {
-                        val hadTxBefore = AgritechMockDb.transactions.any { it.id == normalizedTx.id }
                         val recordedLocally = AgritechMockDb.recordSalesInvoiceIdempotent(
                             farmId = normalizedTx.farmId,
                             cycleId = normalizedTx.cycleId,
@@ -2090,49 +2314,17 @@ fun AgritechMainApp(
                                 invoice = invoice
                             )
                             if (cloudRes != null && cloudRes.isFailure) {
-                                if (!hadTxBefore && recordedLocally) {
-                                    AgritechMockDb.rollbackSalesInvoiceDelta(
-                                        cycleId = normalizedTx.cycleId,
-                                        txId = normalizedTx.id,
-                                        soldBirdsDelta = invoice.totalBirdsSold,
-                                        soldWeightDeltaKg = invoice.totalNetKg
-                                    )
-                                    LocalFarmPersistence.saveAll(context)
-                                }
-                                val errDetail = cloudRes.exceptionOrNull()?.localizedMessage ?: "تعذر حفظ فاتورة البيع سحابياً"
-                                android.widget.Toast.makeText(
-                                    context,
-                                    "⚠️ تعذر اعتماد عملية البيع سحابياً ($errDetail). تم التراجع لحماية تطابق الرصيد.",
-                                    android.widget.Toast.LENGTH_LONG
-                                ).show()
+                                android.util.Log.w("OfflineFirstSync", "Sales invoice saved locally; cloud sync deferred: ${cloudRes.exceptionOrNull()?.message}")
                             }
                         }
-                    } else if (AgritechMockDb.transactions.none { it.id == normalizedTx.id }) {
-                        if (addedFeedKg > 0.0) {
-                            AgritechMockDb.countedFeedTxIds.add(normalizedTx.id)
-                            val cycleIdx = AgritechMockDb.cycles.indexOfFirst { it.id == normalizedTx.cycleId }
-                            if (cycleIdx >= 0) {
-                                val c = AgritechMockDb.cycles[cycleIdx]
-                                val (newInv, newDeficit) = AgritechFirestoreRepository.applyFeedDeltaWithDeficit(
-                                    currentInventoryKg = c.feedInventoryKg,
-                                    currentDeficitKg = c.feedDeficitKg,
-                                    feedDeltaToDeduct = -addedFeedKg
-                                )
-                                AgritechMockDb.cycles[cycleIdx] = c.copy(
-                                    feedInventoryKg = newInv,
-                                    feedDeficitKg = newDeficit,
-                                    updatedAtMillis = System.currentTimeMillis()
-                                )
-                            }
-                        }
-                        AgritechMockDb.transactions.add(normalizedTx.copy(updatedAtMillis = System.currentTimeMillis()))
+                    } else if (AgritechMockDb.recordExpenseOrIncomeOfflineFirst(normalizedTx, resolvedAddedFeedKg)) {
                         LocalFarmPersistence.saveAll(context)
                         scope.launch {
-                            val cloudRes = if (addedFeedKg > 0.0 && normalizedTx.type == TransactionType.EXPENSE) {
+                            val cloudRes = if (resolvedAddedFeedKg > 0.0 && normalizedTx.type == TransactionType.EXPENSE) {
                                 firestoreRepo?.recordFeedPurchaseAndExpenseIdempotent(
                                     idempotencyKey = normalizedTx.id,
                                     tx = normalizedTx,
-                                    addedFeedKg = addedFeedKg
+                                    addedFeedKg = resolvedAddedFeedKg
                                 )
                             } else {
                                 firestoreRepo?.recordTransactionIdempotent(
@@ -2141,33 +2333,18 @@ fun AgritechMainApp(
                                 )
                             }
                             if (cloudRes != null && cloudRes.isFailure) {
-                                AgritechMockDb.rollbackFeedPurchaseDelta(
-                                    cycleId = normalizedTx.cycleId,
-                                    txId = normalizedTx.id,
-                                    addedFeedKg = if (normalizedTx.type == TransactionType.EXPENSE) addedFeedKg else 0.0
-                                )
-                                LocalFarmPersistence.saveAll(context)
-                                val errDetail = cloudRes.exceptionOrNull()?.localizedMessage ?: "خطأ في الاتصال"
-                                android.widget.Toast.makeText(
-                                    context,
-                                    "⚠️ تعذر حفظ المعاملة سحابياً ($errDetail). تم التراجع لحماية تطابق الخزنة.",
-                                    android.widget.Toast.LENGTH_LONG
-                                ).show()
+                                android.util.Log.w("OfflineFirstSync", "Transaction saved locally; cloud sync deferred: ${cloudRes.exceptionOrNull()?.message}")
                             }
                         }
                     }
                 },
                 onSaveOrUpdateDailyReport = { report ->
-                    val prevReport = AgritechMockDb.dailyReports.firstOrNull {
-                        it.id == report.id || (it.farmId == report.farmId && it.cycleId == report.cycleId && it.dayNumber == report.dayNumber)
-                    }?.copy()
                     val savedReport = AgritechMockDb.upsertDailyReportWithAudit(report)
                     LocalFarmPersistence.saveAll(context)
                     scope.launch {
                         val cloudRes = firestoreRepo?.saveDailyReport(savedReport)
                         if (cloudRes != null && cloudRes.isFailure) {
-                            AgritechMockDb.rollbackDailyReportMutation(prevReport, savedReport)
-                            LocalFarmPersistence.saveAll(context)
+                            android.util.Log.w("OfflineFirstSync", "Daily report saved locally; cloud sync deferred: ${cloudRes.exceptionOrNull()?.message}")
                         }
                     }
                 },
@@ -2247,16 +2424,12 @@ fun AgritechMainApp(
                     sessionState.selectedFarmForWorker = it
                 },
                 onSubmitReport = { report ->
-                    val prevReport = AgritechMockDb.dailyReports.firstOrNull {
-                        it.id == report.id || (it.farmId == report.farmId && it.cycleId == report.cycleId && it.dayNumber == report.dayNumber)
-                    }?.copy()
                     val savedReport = AgritechMockDb.upsertDailyReportWithAudit(report)
                     LocalFarmPersistence.saveAll(context)
                     scope.launch {
                         val cloudRes = firestoreRepo?.saveDailyReport(savedReport)
                         if (cloudRes != null && cloudRes.isFailure) {
-                            AgritechMockDb.rollbackDailyReportMutation(prevReport, savedReport)
-                            LocalFarmPersistence.saveAll(context)
+                            android.util.Log.w("OfflineFirstSync", "Worker report saved locally; cloud sync deferred: ${cloudRes.exceptionOrNull()?.message}")
                         }
                     }
                 },
@@ -2296,28 +2469,7 @@ fun AgritechMainApp(
                     }
                 },
                 onAddFarmAndCycle = { newFarm, newCycle, initialTx ->
-                    val existingFarmIdx = AgritechMockDb.farms.indexOfFirst { it.id == newFarm.id }
-                    if (existingFarmIdx >= 0) {
-                        AgritechMockDb.farms[existingFarmIdx] = newFarm
-                    } else {
-                        AgritechMockDb.farms.add(newFarm)
-                    }
-                    // Complete any previous active cycles for this exact farmId before binding the new active cycle
-                    for (i in AgritechMockDb.cycles.indices) {
-                        val c = AgritechMockDb.cycles[i]
-                        if (c.farmId == newFarm.id && c.id != newCycle.id && c.status.equals("active", ignoreCase = true)) {
-                            AgritechMockDb.cycles[i] = c.copy(status = "completed")
-                        }
-                    }
-                    val existingCycleIdx = AgritechMockDb.cycles.indexOfFirst { it.id == newCycle.id }
-                    if (existingCycleIdx >= 0) {
-                        AgritechMockDb.cycles[existingCycleIdx] = newCycle
-                    } else {
-                        AgritechMockDb.cycles.add(newCycle)
-                    }
-                    if (AgritechMockDb.transactions.none { it.id == initialTx.id }) {
-                        AgritechMockDb.transactions.add(initialTx)
-                    }
+                    AgritechMockDb.registerFarmAndCycleLocally(newFarm, newCycle, initialTx)
                     LocalFarmPersistence.saveAll(context)
                     // Creating a farm automatically links the user as an Owner and reveals the 🏠 Barns tab
                     sessionState.markAuthenticated(
@@ -2329,20 +2481,18 @@ fun AgritechMainApp(
                     scope.launch {
                         firestoreRepo?.saveFarmRecord(newFarm, AppRole.OWNER)
                         firestoreRepo?.saveCycleRecord(newCycle, 0)
-                        firestoreRepo?.recordTransactionIdempotent(initialTx.id, initialTx)
+                        if (initialTx.amount > 0.0) {
+                            firestoreRepo?.recordTransactionIdempotent(initialTx.id, initialTx)
+                        }
                     }
                 },
                 onSubmitWorkerReport = { report ->
-                    val prevReport = AgritechMockDb.dailyReports.firstOrNull {
-                        it.id == report.id || (it.farmId == report.farmId && it.cycleId == report.cycleId && it.dayNumber == report.dayNumber)
-                    }?.copy()
                     val savedReport = AgritechMockDb.upsertDailyReportWithAudit(report)
                     LocalFarmPersistence.saveAll(context)
                     scope.launch {
                         val cloudRes = firestoreRepo?.saveDailyReport(savedReport)
                         if (cloudRes != null && cloudRes.isFailure) {
-                            AgritechMockDb.rollbackDailyReportMutation(prevReport, savedReport)
-                            LocalFarmPersistence.saveAll(context)
+                            android.util.Log.w("OfflineFirstSync", "Universal worker report saved locally; cloud sync deferred: ${cloudRes.exceptionOrNull()?.message}")
                         }
                     }
                 },
@@ -9329,7 +9479,13 @@ fun FarmCard(
                 val totalPurchasedFeedKg = txsForCycle.filter {
                     it.type == TransactionType.EXPENSE &&
                         it.status.equals("APPROVED", true) &&
-                        (it.category.contains("علف") || it.category.contains("Feed", true) || it.category.contains("Aliment", true))
+                        (it.quantityQuintals > 0.0 ||
+                            it.category.contains("علف") ||
+                            it.category.contains("Feed", true) ||
+                            it.category.contains("Aliment", true) ||
+                            it.category.contains("Pienso", true) ||
+                            it.category.contains("Yem", true) ||
+                            it.category.contains("Ração", true))
                 }.sumOf { parseFeedTransaction(it, lang).estimatedKg }
                 val effectiveFeedInventoryKg = if (totalPurchasedFeedKg > 0.0 || reportsForCycle.isNotEmpty()) {
                     (totalPurchasedFeedKg - totalFeed).coerceAtLeast(0.0)
@@ -11853,7 +12009,13 @@ fun AgritechFarmNotebookScreen(
     val totalPurchasedFeedKg = txsForCycle.filter {
         it.type == TransactionType.EXPENSE &&
             it.status.equals("APPROVED", true) &&
-            (it.category.contains("علف") || it.category.contains("Feed", true) || it.category.contains("Aliment", true))
+            (it.quantityQuintals > 0.0 ||
+                it.category.contains("علف") ||
+                it.category.contains("Feed", true) ||
+                it.category.contains("Aliment", true) ||
+                it.category.contains("Pienso", true) ||
+                it.category.contains("Yem", true) ||
+                it.category.contains("Ração", true))
     }.sumOf { parseFeedTransaction(it, lang).estimatedKg }
     val effectiveFeedInventoryKg = if (totalPurchasedFeedKg > 0.0 || reportsForCycle.isNotEmpty()) {
         (totalPurchasedFeedKg - totalFeed).coerceAtLeast(0.0)
@@ -11975,14 +12137,14 @@ fun AgritechFarmNotebookScreen(
             onDismiss = { showIncomeDialog = false },
             onConfirm = { cat, amt, _ ->
                 if (amt > 0.0) {
-                    val idempKey = "tx_inc_${farm.id}_${cycle.id}_$incomeDialogIdempUuid"
+                    val idempKey = "tx_inc_${farm.id}_${activeCycle.id}_$incomeDialogIdempUuid"
                     if (idempKey != lastSubmittedIdempotencyKey) {
                         lastSubmittedIdempotencyKey = idempKey
                         onAddTransaction(
                             TransactionModel(
                                 id = idempKey,
                                 farmId = farm.id,
-                                cycleId = cycle.id,
+                                cycleId = activeCycle.id,
                                 type = TransactionType.INCOME,
                                 category = cat,
                                 amount = amt,
@@ -14260,6 +14422,7 @@ fun AgritechFarmNotebookScreen(
                 }
                 3 -> {
                     // TAB 3: 📦 المخزون (Barn Inventory: Gas, Wood Shavings, Water Tankers, Medications + Vet Records & Consultation)
+                    val inventorySyncScope = rememberCoroutineScope()
                     val pendingVetNotes = vetNotes.filter { it.status.equals("PENDING", ignoreCase = true) }
                     val gasCount = AgritechMockDb.getBarnSupplyCount(farm.id, "gas", 0)
                     val shavingsCount = AgritechMockDb.getBarnSupplyCount(farm.id, "shavings", 0)
@@ -14407,7 +14570,11 @@ fun AgritechFarmNotebookScreen(
                                     ) {
                                         PremiumTactileCalcButton(
                                             label = "\u200E-1",
-                                            onClick = { AgritechMockDb.adjustBarnSupplyCount(farm.id, supplyKey, -1, defaultVal) },
+                                            onClick = {
+                                                AgritechMockDb.adjustBarnSupplyCount(farm.id, supplyKey, -1, defaultVal)
+                                                val nextVal = AgritechMockDb.getBarnSupplyCount(farm.id, supplyKey, defaultVal)
+                                                inventorySyncScope.launch { firestoreRepo?.updateBarnInventoryItem(farm.id, supplyKey, nextVal) }
+                                            },
                                             isDark = currentTheme.isDark,
                                             accentColor = notebookAccent,
                                             fontSize = 12.5.sp,
@@ -14419,7 +14586,11 @@ fun AgritechFarmNotebookScreen(
                                         )
                                         PremiumTactileCalcButton(
                                             label = "\u200E+1",
-                                            onClick = { AgritechMockDb.adjustBarnSupplyCount(farm.id, supplyKey, +1, defaultVal) },
+                                            onClick = {
+                                                AgritechMockDb.adjustBarnSupplyCount(farm.id, supplyKey, +1, defaultVal)
+                                                val nextVal = AgritechMockDb.getBarnSupplyCount(farm.id, supplyKey, defaultVal)
+                                                inventorySyncScope.launch { firestoreRepo?.updateBarnInventoryItem(farm.id, supplyKey, nextVal) }
+                                            },
                                             isDark = currentTheme.isDark,
                                             accentColor = notebookAccent,
                                             fontSize = 12.5.sp,
@@ -14431,7 +14602,11 @@ fun AgritechFarmNotebookScreen(
                                         )
                                         PremiumTactileCalcButton(
                                             label = "\u200E+5",
-                                            onClick = { AgritechMockDb.adjustBarnSupplyCount(farm.id, supplyKey, +5, defaultVal) },
+                                            onClick = {
+                                                AgritechMockDb.adjustBarnSupplyCount(farm.id, supplyKey, +5, defaultVal)
+                                                val nextVal = AgritechMockDb.getBarnSupplyCount(farm.id, supplyKey, defaultVal)
+                                                inventorySyncScope.launch { firestoreRepo?.updateBarnInventoryItem(farm.id, supplyKey, nextVal) }
+                                            },
                                             isSelected = true,
                                             isDark = currentTheme.isDark,
                                             accentColor = notebookButtonAccent,
@@ -14734,9 +14909,7 @@ fun OwnerDailyReportDialog(
     val cornerRadius = appearance.cornerRadiusDp.coerceIn(10, 22).dp
 
     val isEditMode = initialReport != null
-    var dayNumberInput by remember(initialReport, suggestedDayNumber) {
-        mutableStateOf((initialReport?.dayNumber ?: suggestedDayNumber).toString())
-    }
+    val lockedDayNumber = (initialReport?.dayNumber ?: suggestedDayNumber).coerceAtLeast(1)
     var feedQuintalsInput by remember(initialReport) {
         mutableStateOf(
             if (initialReport != null) Translations.formatQuintalNumber(initialReport.feedIntakeKg / 100.0)
@@ -14774,7 +14947,7 @@ fun OwnerDailyReportDialog(
     }
     var dailyReportValidationError by remember { mutableStateOf<String?>(null) }
 
-    val parsedCurrentDay = dayNumberInput.toIntOrNull() ?: suggestedDayNumber
+    val parsedCurrentDay = lockedDayNumber
     val activeDayOrFarmVetNote = vetNotes.firstOrNull { it.dayNumber == parsedCurrentDay }
         ?: vetNotes.lastOrNull()
         ?: AgritechMockDb.vetNotes.firstOrNull { it.farmId == farm.id && it.dayNumber == parsedCurrentDay }
@@ -14798,6 +14971,16 @@ fun OwnerDailyReportDialog(
         focusedContainerColor = fieldSurfaceBg,
         unfocusedContainerColor = fieldSurfaceBg,
         cursorColor = accentEmerald
+    )
+    val lockedDayFieldColors = OutlinedTextFieldDefaults.colors(
+        focusedTextColor = primaryText,
+        unfocusedTextColor = primaryText,
+        disabledTextColor = primaryText,
+        disabledBorderColor = accentEmerald.copy(alpha = 0.45f),
+        disabledContainerColor = if (isDark) Color(0xFF0B1324) else Color(0xFFF1F5F9),
+        disabledLabelColor = secondaryText,
+        disabledLeadingIconColor = accentEmerald,
+        disabledSupportingTextColor = secondaryText.copy(alpha = 0.9f)
     )
 
     AlertDialog(
@@ -14851,11 +15034,20 @@ fun OwnerDailyReportDialog(
             ) {
                 HorizontalDivider(color = cardBorderColor.copy(alpha = 0.7f))
 
-                // Cycle Day Field (Full Width)
+                // Locked Auto-Increment Cycle Day Field (Full Width, readOnly & non-editable)
                 OutlinedTextField(
-                    value = dayNumberInput,
-                    onValueChange = { if (!isEditMode) dayNumberInput = it.filter { ch -> ch.isDigit() } },
-                    readOnly = isEditMode,
+                    value = "${Translations.tr("day_prefix", lang)} $lockedDayNumber",
+                    onValueChange = {},
+                    readOnly = true,
+                    enabled = false,
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.Lock,
+                            contentDescription = null,
+                            tint = accentEmerald,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    },
                     label = {
                         Text(
                             Translations.tr("field_day_number_mid_cycle", lang),
@@ -14869,13 +15061,13 @@ fun OwnerDailyReportDialog(
                         Text(
                             Translations.tr("field_day_number_mid_cycle_hint", lang),
                             fontSize = 10.5.sp,
-                            color = secondaryText.copy(alpha = 0.85f)
+                            color = secondaryText.copy(alpha = 0.9f),
+                            lineHeight = 14.sp
                         )
                     },
                     singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     shape = RoundedCornerShape(12.dp),
-                    colors = fieldColors,
+                    colors = lockedDayFieldColors,
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("input_owner_report_day")
@@ -15123,7 +15315,7 @@ fun OwnerDailyReportDialog(
                         dailyReportValidationError = Translations.tr("input_required_error", lang)
                         return@PremiumPillButton
                     }
-                    val parsedDay = (dayNumberInput.toIntOrNull() ?: suggestedDayNumber).coerceAtLeast(1)
+                    val parsedDay = lockedDayNumber
                     val parsedFeedKg = (parsedFeedQ * 100.0).coerceAtLeast(0.0)
                     val parsedWater = parsedWaterVal.coerceAtLeast(0.0)
                     val parsedMortality = parsedMortVal.coerceAtLeast(0)
@@ -15174,7 +15366,11 @@ fun OwnerDailyReportDialog(
                             weightChanged
                     )
 
-                    val reportId = initialReport?.id ?: "rep_${farm.id}_${cycle.id}_d$parsedDay"
+                    val reportId = AgritechFirestoreRepository.buildCanonicalDailyReportId(
+                        farmId = farm.id,
+                        cycleId = cycle.id,
+                        dayNumber = parsedDay
+                    )
                     val reportToSave = DailyReportModel(
                         id = reportId,
                         farmId = farm.id,
@@ -20693,7 +20889,11 @@ fun AgritechWorkerDashboard(
                                             delay(350)
                                             onSubmitReport(
                                                 DailyReportModel(
-                                                    id = "rep_${System.currentTimeMillis()}",
+                                                    id = AgritechFirestoreRepository.buildCanonicalDailyReportId(
+                                                        farmId = farm.id,
+                                                        cycleId = cycle.id,
+                                                        dayNumber = currentDay
+                                                    ),
                                                     farmId = farm.id,
                                                     cycleId = cycle.id,
                                                     dayNumber = currentDay,

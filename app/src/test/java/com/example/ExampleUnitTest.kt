@@ -751,7 +751,7 @@ class ExampleUnitTest {
 
         // 2. Surgery 2 & 3: Verify concise day label, hint, and indoor_reading_no_data keys
         assertEquals("📅 رقم اليوم في الدورة", Translations.tr("field_day_number_mid_cycle", AppLanguage.AR))
-        assertEquals("يُكتشف تلقائياً، أو اكتب رقم يوم سابق مثل 20 أو 30 لتعديله", Translations.tr("field_day_number_mid_cycle_hint", AppLanguage.AR))
+        assertEquals("🔒 يتدرج رقم اليوم تلقائياً مع الدورة (لتعديل يوم سابق اضغط عليه من جدول السجل)", Translations.tr("field_day_number_mid_cycle_hint", AppLanguage.AR))
         assertEquals("لا توجد قراءة مسجلة بعد — أدخل التقرير اليومي", Translations.tr("indoor_reading_no_data", AppLanguage.AR))
 
         // 3. Surgery 4: Weather coordinate key formatting
@@ -1899,6 +1899,248 @@ class ExampleUnitTest {
             assertTrue("Fallback drawable for $visualType must be non-zero", resId != 0)
         }
     }
+
+    @Test
+    fun offlineFirstFarmCycleExpenseAndDailyReport_neverRollbackAndUpdateMetricsAccurately() {
+        val farmId = "farm_offline_scenario"
+        val cycleId = "cycle_offline_scenario"
+        val ownerUid = "uid_offline_unit"
+
+        AgritechMockDb.farms.removeAll { it.id == farmId }
+        AgritechMockDb.cycles.removeAll { it.farmId == farmId || it.id == cycleId }
+        AgritechMockDb.transactions.removeAll { it.farmId == farmId }
+        AgritechMockDb.dailyReports.removeAll { it.farmId == farmId }
+        AgritechMockDb.countedFeedTxIds.removeAll { it.startsWith("tx_offline_") }
+
+        // 1. Register new barn + active cycle (6000 chicks x 125 DZD = 750,000 DZD)
+        val farm = FarmModel(
+            id = farmId,
+            name = "عنبر البركة",
+            location = "الجزائر",
+            capacity = 6000,
+            members = mapOf(ownerUid to "OWNER")
+        )
+        val cycle = CycleModel(
+            id = cycleId,
+            farmId = farmId,
+            totalBirdsPlaced = 6000,
+            targetWeight = 2.3,
+            status = "active",
+            startDate = "2026-11-14",
+            chickPrice = 125.0,
+            feedInventoryKg = 0.0
+        )
+        val chickTx = TransactionModel(
+            id = "tx_offline_chicks",
+            farmId = farmId,
+            cycleId = cycleId,
+            type = TransactionType.EXPENSE,
+            category = "🐤 كتاكيت",
+            amount = 750000.0,
+            currency = "دج",
+            date = "اليوم 1",
+            status = "APPROVED"
+        )
+        AgritechMockDb.registerFarmAndCycleLocally(farm, cycle, chickTx)
+
+        assertTrue(AgritechMockDb.farms.any { it.id == farmId })
+        assertEquals(6000, AgritechMockDb.cycles.first { it.id == cycleId }.totalBirdsPlaced)
+
+        // 2. Record feed purchase expense: علف بادئ 1 (40 q x 8,000 DZD = 320,000 DZD)
+        val feedTx = TransactionModel(
+            id = "tx_offline_feed_starter_1",
+            farmId = farmId,
+            cycleId = cycleId,
+            type = TransactionType.EXPENSE,
+            category = "🌾 علف بادئ 1 (40 ق)",
+            amount = 320000.0,
+            currency = "دج",
+            date = "اليوم 1",
+            quantityQuintals = 40.0,
+            status = "APPROVED"
+        )
+        val recordedFeed = AgritechMockDb.recordExpenseOrIncomeOfflineFirst(feedTx, addedFeedKg = 4000.0)
+        assertTrue(recordedFeed)
+
+        val farmTxs = AgritechMockDb.transactions.filter { it.farmId == farmId && it.status == "APPROVED" }
+        assertEquals(2, farmTxs.size)
+        val summaryAfterFeed = AgritechFirestoreRepository.calculateNetBalanceFromTransactions(farmTxs)
+        assertEquals(1070000.0, summaryAfterFeed.totalExpenses, 0.001)
+        assertEquals(4000.0, AgritechMockDb.cycles.first { it.id == cycleId }.feedInventoryKg, 0.001)
+
+        // 3. Submit Day 1 report (1 q = 100 kg feed, 120 L water, 5 mortality, 5 gas, 33.0 C)
+        val savedReport = AgritechMockDb.upsertDailyReportWithAudit(
+            DailyReportModel(
+                id = "rep_day_1_manual",
+                farmId = farmId,
+                cycleId = cycleId,
+                dayNumber = 1,
+                feedIntakeKg = 100.0,
+                waterIntakeLiters = 120.0,
+                mortalityCount = 5,
+                temperature = 33.0,
+                gasUnits = 5.0
+            )
+        )
+        assertEquals(1, savedReport.dayNumber)
+        assertEquals(100.0, savedReport.feedIntakeKg, 0.001)
+        assertEquals(120.0, savedReport.waterIntakeLiters, 0.001)
+        assertEquals(5, savedReport.mortalityCount)
+        assertEquals(33.0, savedReport.temperature ?: 0.0, 0.001)
+
+        val updatedCycle = AgritechMockDb.cycles.first { it.id == cycleId }
+        assertEquals(3900.0, updatedCycle.feedInventoryKg, 0.001)
+        assertEquals(5, updatedCycle.cumulativeMortality)
+        val liveBirds = PoultryCalculators.calculateLiveBirds(
+            totalBirdsPlaced = updatedCycle.totalBirdsPlaced,
+            totalMortality = updatedCycle.cumulativeMortality,
+            cumulativeBirdsSold = updatedCycle.cumulativeBirdsSold
+        )
+        assertEquals(5995, liveBirds)
+        assertEquals(33.0, IndoorReadingState.fromManualReport(farmId, savedReport).temperatureC ?: 0.0, 0.001)
+
+        // Clean up isolated test fixtures
+        AgritechMockDb.farms.removeAll { it.id == farmId }
+        AgritechMockDb.cycles.removeAll { it.farmId == farmId || it.id == cycleId }
+        AgritechMockDb.transactions.removeAll { it.farmId == farmId }
+        AgritechMockDb.dailyReports.removeAll { it.farmId == farmId }
+    }
+
+    @Test
+    fun sequentialFiveDays_preserveAllDaysComputeCumulativeMetrics_and_resistPartialCloudOverwrite() {
+        val farmId = "farm_five_days_unit"
+        val cycleId = "cycle_five_days_unit"
+        val ownerUid = "uid_five_days_unit"
+
+        AgritechMockDb.farms.removeAll { it.id == farmId }
+        AgritechMockDb.cycles.removeAll { it.farmId == farmId || it.id == cycleId }
+        AgritechMockDb.transactions.removeAll { it.farmId == farmId }
+        AgritechMockDb.dailyReports.removeAll { it.farmId == farmId }
+        AgritechMockDb.countedFeedTxIds.removeAll { it.startsWith("tx_5d_") }
+
+        val farm = FarmModel(
+            id = farmId,
+            name = "عنبر الخمسة أيام",
+            location = "الجزائر",
+            capacity = 6000,
+            members = mapOf(ownerUid to "OWNER")
+        )
+        val cycle = CycleModel(
+            id = cycleId,
+            farmId = farmId,
+            totalBirdsPlaced = 6000,
+            targetWeight = 2.4,
+            status = "active",
+            startDate = "2026-11-14",
+            chickPrice = 125.0,
+            feedInventoryKg = 0.0
+        )
+        val chickTx = TransactionModel(
+            id = "tx_5d_chicks",
+            farmId = farmId,
+            cycleId = cycleId,
+            type = TransactionType.EXPENSE,
+            category = "🐤 كتاكيت",
+            amount = 750000.0,
+            currency = "دج",
+            date = "اليوم 1",
+            status = "APPROVED"
+        )
+        AgritechMockDb.registerFarmAndCycleLocally(farm, cycle, chickTx)
+
+        // Purchase 40 q (4000 kg) feed
+        val feedTx = TransactionModel(
+            id = "tx_5d_feed",
+            farmId = farmId,
+            cycleId = cycleId,
+            type = TransactionType.EXPENSE,
+            category = "🌾 علف بادئ 1 (40 ق)",
+            amount = 320000.0,
+            currency = "دج",
+            date = "اليوم 1",
+            quantityQuintals = 40.0,
+            status = "APPROVED"
+        )
+        assertTrue(AgritechMockDb.recordExpenseOrIncomeOfflineFirst(feedTx, addedFeedKg = 4000.0))
+
+        // Record Days 1..5 sequentially with same calendar date string to verify deduplication is by dayNumber, NOT date
+        val specs = listOf(
+            Triple(1, 100.0, 1) to 120.0, // Day 1: 1 q, 120 L, mort 1
+            Triple(2, 200.0, 2) to 240.0, // Day 2: 2 q, 240 L, mort 2
+            Triple(3, 300.0, 3) to 360.0, // Day 3: 3 q, 360 L, mort 3
+            Triple(4, 500.0, 4) to 520.0, // Day 4: 5 q, 520 L, mort 4
+            Triple(5, 700.0, 5) to 760.0  // Day 5: 7 q, 760 L, mort 5
+        )
+        for ((triple, water) in specs) {
+            val (dayNum, feedKg, mort) = triple
+            val suggestedNextDay = (AgritechMockDb.resolveReportsForFarmAndCycle(farmId, cycleId).maxOfOrNull { it.dayNumber } ?: 0) + 1
+            assertEquals(dayNum, suggestedNextDay)
+            val reportId = AgritechFirestoreRepository.buildCanonicalDailyReportId(farmId, cycleId, dayNum)
+            assertEquals("rep_${farmId}_${cycleId}_day_${dayNum}", reportId)
+            AgritechMockDb.upsertDailyReportWithAudit(
+                DailyReportModel(
+                    id = reportId,
+                    farmId = farmId,
+                    cycleId = cycleId,
+                    dayNumber = dayNum,
+                    feedIntakeKg = feedKg,
+                    waterIntakeLiters = water,
+                    mortalityCount = mort,
+                    temperature = 32.5,
+                    gasUnits = 1.0
+                )
+            )
+        }
+
+        // Verify all 5 days exist and cumulative calculations equal totals (18 q feed, 2000 L water, 15 mortality)
+        val afterFiveDays = AgritechMockDb.resolveReportsForFarmAndCycle(farmId, cycleId)
+        assertEquals(listOf(1, 2, 3, 4, 5), afterFiveDays.map { it.dayNumber })
+        assertEquals(1800.0, afterFiveDays.sumOf { it.feedIntakeKg }, 0.001)
+        assertEquals(2000.0, afterFiveDays.sumOf { it.waterIntakeLiters }, 0.001)
+        assertEquals(15, afterFiveDays.sumOf { it.mortalityCount })
+
+        val cycleBeforeCloud = AgritechMockDb.cycles.first { it.id == cycleId }
+        assertEquals(1800.0, cycleBeforeCloud.cumulativeFeedConsumedKg, 0.001)
+        assertEquals(2200.0, cycleBeforeCloud.feedInventoryKg, 0.001) // 4000 - 1800 = 2200 kg (22 q)
+        assertEquals(15, cycleBeforeCloud.cumulativeMortality)
+        assertEquals(5985, PoultryCalculators.calculateLiveBirds(6000, cycleBeforeCloud.cumulativeMortality, 0))
+
+        // Simulate 0.5s delayed partial Firestore snapshot containing ONLY Day 5 with a newer cloud timestamp
+        val delayedPartialCloudDay5 = afterFiveDays.last().copy(
+            updatedAtMillis = System.currentTimeMillis() + 5000L
+        )
+        AgritechMockDb.mergeCloudDailyReportsNonDestructive(farmId, listOf(delayedPartialCloudDay5))
+
+        // Days 1..4 MUST NOT vanish after partial cloud snapshot
+        val afterPartialCloud = AgritechMockDb.resolveReportsForFarmAndCycle(farmId, cycleId)
+        assertEquals(5, afterPartialCloud.size)
+        assertEquals(listOf(1, 2, 3, 4, 5), afterPartialCloud.map { it.dayNumber })
+
+        // Simulate delayed/stale Cycle snapshot carrying only Day 5 metrics with a newer cloud timestamp
+        val staleCloudCycle = cycleBeforeCloud.copy(
+            cumulativeFeedConsumedKg = 700.0,
+            cumulativeMortality = 5,
+            feedInventoryKg = 3300.0,
+            updatedAtMillis = System.currentTimeMillis() + 5000L
+        )
+        val mergedCycle = AgritechMockDb.mergeCloudCycleWithLocal(staleCloudCycle, cycleBeforeCloud)
+        assertEquals(1800.0, mergedCycle.cumulativeFeedConsumedKg, 0.001)
+        assertEquals(2200.0, mergedCycle.feedInventoryKg, 0.001)
+        assertEquals(15, mergedCycle.cumulativeMortality)
+
+        // All 14 languages must translate the locked-day hint cleanly without raw keys
+        for (lang in AppLanguage.values()) {
+            val hint = Translations.tr("field_day_number_mid_cycle_hint", lang)
+            assertTrue("Locked day hint blank for $lang", hint.isNotBlank())
+            assertFalse("Raw key leaked for $lang", hint.contains("field_day_number_mid_cycle_hint"))
+        }
+
+        AgritechMockDb.farms.removeAll { it.id == farmId }
+        AgritechMockDb.cycles.removeAll { it.farmId == farmId || it.id == cycleId }
+        AgritechMockDb.transactions.removeAll { it.farmId == farmId }
+        AgritechMockDb.dailyReports.removeAll { it.farmId == farmId }
+    }
 }
+
 
 

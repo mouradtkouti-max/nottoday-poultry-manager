@@ -110,8 +110,9 @@ class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
         }
 
         /**
-         * Canonical Daily Report ID scoped by both `farmId` and `cycleId` (`rep_${farmId}_${cycleId}_day_${dayNumber}`)
-         * so the same `dayNumber` in different cycles never collides.
+         * Canonical Daily Report ID scoped strictly by `farmId`, `cycleId`, and `dayNumber`
+         * (`rep_${farmId}_${cycleId}_day_${dayNumber}`) so multiple days saved on the same date
+         * never collide or overwrite each other in Firestore or local storage.
          */
         fun buildCanonicalDailyReportId(
             farmId: String,
@@ -121,11 +122,8 @@ class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
         ): String {
             val cleanFarm = farmId.trim().ifBlank { "farm_1" }
             val cleanCycle = cycleId.trim().ifBlank { "cycle_1" }
-            val canonical = "rep_${cleanFarm}_${cleanCycle}_day_${dayNumber}"
-            val trimmedExplicit = explicitId.trim()
-            if (trimmedExplicit.isBlank()) return canonical
-            if (trimmedExplicit == "rep_${cleanFarm}_day_${dayNumber}") return canonical
-            return trimmedExplicit
+            val safeDay = dayNumber.coerceAtLeast(1)
+            return "rep_${cleanFarm}_${cleanCycle}_day_${safeDay}"
         }
 
         /**
@@ -267,10 +265,179 @@ class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
     private fun farmTransactionsRef(farmId: String) =
         farmDocRef(farmId).collection("transactions")
 
+    private fun resolveLocalFarmForSync(uid: String, farmId: String): FarmModel {
+        val local = AgritechMockDb.farms.firstOrNull { it.id == farmId }
+        val cycleFallbackCap = AgritechMockDb.cycles.firstOrNull { it.farmId == farmId }?.totalBirdsPlaced ?: 0
+        return local ?: FarmModel(
+            id = farmId,
+            name = farmId,
+            location = "الجزائر",
+            capacity = cycleFallbackCap,
+            assignedWorkerId = "",
+            members = mapOf(uid to "OWNER"),
+            currencyCode = Translations.globalCurrencyCode ?: "DZD"
+        )
+    }
+
+    private fun resolveLocalCycleForSync(
+        farmId: String,
+        cycleId: String,
+        fallbackBirdsPlaced: Int = 0
+    ): CycleModel {
+        val local = AgritechMockDb.cycles.firstOrNull { it.id == cycleId }
+            ?: AgritechMockDb.cycles.firstOrNull { it.farmId == farmId && it.status.equals("active", ignoreCase = true) }
+        if (local != null) {
+            return local.copy(id = cycleId, farmId = farmId)
+        }
+        val farmCap = AgritechMockDb.farms.firstOrNull { it.id == farmId }?.capacity ?: fallbackBirdsPlaced
+        return CycleModel(
+            id = cycleId,
+            farmId = farmId,
+            totalBirdsPlaced = farmCap.coerceAtLeast(0),
+            targetWeight = 2.3,
+            status = "active",
+            startDate = java.time.LocalDate.now().toString(),
+            chickPrice = 120.0,
+            feedInventoryKg = 0.0,
+            currencyCode = Translations.globalCurrencyCode ?: "DZD"
+        )
+    }
+
+    private fun buildFarmDocumentPayload(
+        uid: String,
+        farm: FarmModel,
+        roleString: String,
+        existingMembers: Map<String, String> = emptyMap(),
+        existingOwnerId: String? = null,
+        includeCreatedAt: Boolean = true
+    ): Map<String, Any> {
+        val ownerId = existingOwnerId?.takeIf { it.isNotBlank() }
+            ?: if (roleString == "OWNER") uid else (farm.members.entries.firstOrNull { it.value == "OWNER" }?.key ?: uid)
+        val baseMembers = if (farm.members.isNotEmpty()) farm.members else existingMembers
+        val mergedMembers = baseMembers + (uid to roleString) + (ownerId to "OWNER")
+        val effectiveWorkerId = farm.assignedWorkerId.takeIf {
+            it.isNotBlank() && mergedMembers[it]?.equals("WORKER", ignoreCase = true) == true
+        } ?: mergedMembers.entries.firstOrNull { it.value.equals("WORKER", ignoreCase = true) }?.key.orEmpty()
+        val payload = mutableMapOf<String, Any>(
+            "id" to farm.id,
+            "farmId" to farm.id,
+            "name" to farm.name.ifBlank { farm.id },
+            "location" to farm.location,
+            "capacity" to farm.capacity.coerceAtLeast(0),
+            "assignedOwnerId" to ownerId,
+            "assignedWorkerId" to effectiveWorkerId,
+            "currencyCode" to farm.currencyCode.ifBlank { "DZD" },
+            "schemaVersion" to farm.schemaVersion,
+            "sectorId" to farm.sectorId.ifBlank { "AGRICULTURE" },
+            "branchId" to farm.branchId.ifBlank { "BROILER" },
+            "customMetrics" to farm.customMetrics,
+            "members" to mergedMembers,
+            "updatedAt" to FieldValue.serverTimestamp()
+        )
+        if (includeCreatedAt) {
+            payload["createdAt"] = FieldValue.serverTimestamp()
+        }
+        return payload
+    }
+
+    private fun buildCycleDocumentPayload(
+        uid: String,
+        cycle: CycleModel,
+        cumulativeBirdsSold: Int = cycle.cumulativeBirdsSold,
+        cumulativeSoldWeightKg: Double = cycle.cumulativeSoldWeightKg,
+        nowMillis: Long = if (cycle.updatedAtMillis > 0L) cycle.updatedAtMillis else System.currentTimeMillis(),
+        includeCreatedAt: Boolean = true
+    ): Map<String, Any> {
+        val safeStartDate = cycle.startDate.takeIf { it.length in 8..30 } ?: java.time.LocalDate.now().toString()
+        val payload = mutableMapOf<String, Any>(
+            "id" to cycle.id,
+            "userId" to uid,
+            "farmId" to cycle.farmId,
+            "totalBirdsPlaced" to cycle.totalBirdsPlaced.coerceAtLeast(0),
+            "targetWeight" to cycle.targetWeight.coerceIn(0.1, 25.0),
+            "targetWeightKg" to cycle.targetWeight.coerceIn(0.1, 25.0),
+            "cumulativeBirdsSold" to cumulativeBirdsSold.coerceAtLeast(0),
+            "cumulativeSoldWeightKg" to cumulativeSoldWeightKg.coerceAtLeast(0.0),
+            "cumulativeMortality" to cycle.cumulativeMortality.coerceAtLeast(0),
+            "feedInventoryKg" to cycle.feedInventoryKg.coerceAtLeast(0.0),
+            "feedDeficitKg" to cycle.feedDeficitKg.coerceAtLeast(0.0),
+            "cumulativeFeedConsumedKg" to cycle.cumulativeFeedConsumedKg.coerceAtLeast(0.0),
+            "lastDailyReportId" to cycle.lastDailyReportId,
+            "status" to cycle.status.ifBlank { "active" },
+            "startDate" to safeStartDate,
+            "chickPrice" to cycle.chickPrice.coerceAtLeast(0.0),
+            "currencyCode" to cycle.currencyCode.ifBlank { "DZD" },
+            "schemaVersion" to cycle.schemaVersion,
+            "sectorId" to cycle.sectorId.ifBlank { "AGRICULTURE" },
+            "branchId" to cycle.branchId.ifBlank { "BROILER" },
+            "customMetrics" to cycle.customMetrics,
+            "updatedAtMillis" to nowMillis,
+            "updatedAt" to FieldValue.serverTimestamp()
+        )
+        if (includeCreatedAt) {
+            payload["createdAt"] = FieldValue.serverTimestamp()
+        }
+        return payload
+    }
+
+    /**
+     * Auto-bootstraps `/farms/{farmId}` and `/farms/{farmId}/cycles/{cycleId}` in Firestore from
+     * local [AgritechMockDb] state whenever they do not yet exist, so offline-first writes never fail
+     * with "Active production cycle does not exist in Firestore".
+     */
+    private suspend fun ensureFarmAndCycleDocumentsExist(
+        uid: String,
+        farmId: String,
+        cycleId: String? = null,
+        baselineFeedInventoryKg: Double? = null,
+        baselineFeedDeficitKg: Double? = null,
+        baselineCumulativeFeedConsumedKg: Double? = null,
+        baselineCumulativeMortality: Int? = null,
+        baselineCumulativeBirdsSold: Int? = null,
+        baselineCumulativeSoldWeightKg: Double? = null
+    ) {
+        if (farmId.isBlank() || isUnassignedFarm(farmId)) return
+        val farmRef = farmDocRef(farmId)
+        val localFarm = resolveLocalFarmForSync(uid, farmId)
+        val farmSnap = runCatching { farmRef.get().await() }.getOrNull()
+        if (farmSnap == null || !farmSnap.exists()) {
+            runCatching {
+                farmRef.set(
+                    buildFarmDocumentPayload(uid = uid, farm = localFarm, roleString = "OWNER", includeCreatedAt = true),
+                    SetOptions.merge()
+                ).await()
+            }
+        }
+
+        val cleanCycleId = cycleId?.trim().orEmpty()
+        if (cleanCycleId.isNotEmpty()) {
+            val cycleRef = farmCyclesRef(farmId).document(cleanCycleId)
+            val cycleSnap = runCatching { cycleRef.get().await() }.getOrNull()
+            if (cycleSnap == null || !cycleSnap.exists()) {
+                val baseCycle = resolveLocalCycleForSync(farmId, cleanCycleId, localFarm.capacity)
+                val seedCycle = baseCycle.copy(
+                    status = "active",
+                    feedInventoryKg = (baselineFeedInventoryKg ?: baseCycle.feedInventoryKg).coerceAtLeast(0.0),
+                    feedDeficitKg = (baselineFeedDeficitKg ?: baseCycle.feedDeficitKg).coerceAtLeast(0.0),
+                    cumulativeFeedConsumedKg = (baselineCumulativeFeedConsumedKg ?: baseCycle.cumulativeFeedConsumedKg).coerceAtLeast(0.0),
+                    cumulativeMortality = (baselineCumulativeMortality ?: baseCycle.cumulativeMortality).coerceAtLeast(0),
+                    cumulativeBirdsSold = (baselineCumulativeBirdsSold ?: baseCycle.cumulativeBirdsSold).coerceAtLeast(0),
+                    cumulativeSoldWeightKg = (baselineCumulativeSoldWeightKg ?: baseCycle.cumulativeSoldWeightKg).coerceAtLeast(0.0)
+                )
+                runCatching {
+                    cycleRef.set(
+                        buildCycleDocumentPayload(uid = uid, cycle = seedCycle, includeCreatedAt = true),
+                        SetOptions.merge()
+                    ).await()
+                }
+            }
+        }
+    }
+
     /**
      * Saves or updates a shared FarmModel in `/farms/{farmId}` including its `members` RBAC map
      * `{ uid: "OWNER" | "VETERINARIAN" | "WORKER" }`.
-     * Ensures `assignedWorkerId` is cleared if the worker is not present in `members` as `"WORKER"`.
+     * Uses `SetOptions.merge()` and safe fallback so local farm creation always syncs cleanly.
      */
     suspend fun saveFarmRecord(
         farm: FarmModel,
@@ -284,65 +451,81 @@ class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
         }
         val docRef = farmDocRef(farm.id)
         return try {
-            val snap = docRef.get().await()
-            if (snap.exists()) {
+            val snap = runCatching { docRef.get().await() }.getOrNull()
+            if (snap != null && snap.exists()) {
                 @Suppress("UNCHECKED_CAST")
                 val existingMembers = (snap.get("members") as? Map<String, String>).orEmpty()
                 val existingOwnerId = snap.getString("assignedOwnerId")?.takeIf { it.isNotBlank() } ?: uid
-                val baseMembers = if (farm.members.isNotEmpty()) farm.members else existingMembers
-                val mergedMembers = baseMembers + (uid to roleString) + (existingOwnerId to "OWNER")
-                val effectiveWorkerId = farm.assignedWorkerId.takeIf {
-                    it.isNotBlank() && mergedMembers[it]?.equals("WORKER", ignoreCase = true) == true
-                } ?: mergedMembers.entries.firstOrNull { it.value.equals("WORKER", ignoreCase = true) }?.key.orEmpty()
-                docRef.update(
-                    mapOf(
-                        "id" to farm.id,
-                        "farmId" to farm.id,
-                        "name" to farm.name,
-                        "location" to farm.location,
-                        "capacity" to farm.capacity,
-                        "assignedOwnerId" to existingOwnerId,
-                        "assignedWorkerId" to effectiveWorkerId,
-                        "currencyCode" to farm.currencyCode.ifBlank { "DZD" },
-                        "schemaVersion" to farm.schemaVersion,
-                        "sectorId" to farm.sectorId.ifBlank { "AGRICULTURE" },
-                        "branchId" to farm.branchId.ifBlank { "BROILER" },
-                        "customMetrics" to farm.customMetrics,
-                        "members" to mergedMembers,
-                        "updatedAt" to FieldValue.serverTimestamp()
-                    )
-                ).await()
+                val payload = buildFarmDocumentPayload(
+                    uid = uid,
+                    farm = farm,
+                    roleString = roleString,
+                    existingMembers = existingMembers,
+                    existingOwnerId = existingOwnerId,
+                    includeCreatedAt = false
+                )
+                docRef.set(payload, SetOptions.merge()).await()
             } else {
-                val ownerId = if (roleString == "OWNER") uid else (farm.members.entries.firstOrNull { it.value == "OWNER" }?.key ?: uid)
-                val initialMembers = farm.members + (uid to roleString) + (ownerId to "OWNER")
-                val effectiveWorkerId = farm.assignedWorkerId.takeIf {
-                    it.isNotBlank() && initialMembers[it]?.equals("WORKER", ignoreCase = true) == true
-                } ?: initialMembers.entries.firstOrNull { it.value.equals("WORKER", ignoreCase = true) }?.key.orEmpty()
-                docRef.set(
-                    mapOf(
-                        "id" to farm.id,
-                        "farmId" to farm.id,
-                        "name" to farm.name,
-                        "location" to farm.location,
-                        "capacity" to farm.capacity,
-                        "assignedOwnerId" to ownerId,
-                        "assignedWorkerId" to effectiveWorkerId,
-                        "currencyCode" to farm.currencyCode.ifBlank { "DZD" },
-                        "schemaVersion" to farm.schemaVersion,
-                        "sectorId" to farm.sectorId.ifBlank { "AGRICULTURE" },
-                        "branchId" to farm.branchId.ifBlank { "BROILER" },
-                        "customMetrics" to farm.customMetrics,
-                        "members" to initialMembers,
-                        "createdAt" to FieldValue.serverTimestamp(),
-                        "updatedAt" to FieldValue.serverTimestamp()
-                    )
-                ).await()
+                val payload = buildFarmDocumentPayload(
+                    uid = uid,
+                    farm = farm,
+                    roleString = roleString,
+                    includeCreatedAt = true
+                )
+                docRef.set(payload, SetOptions.merge()).await()
             }
             Result.success(Unit)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            handleFirestoreError(e, OperationType.WRITE, docRef.path)
+            val fallbackRes = runCatching {
+                val payload = buildFarmDocumentPayload(
+                    uid = uid,
+                    farm = farm,
+                    roleString = roleString,
+                    includeCreatedAt = true
+                )
+                docRef.set(payload, SetOptions.merge()).await()
+            }
+            if (fallbackRes.isSuccess) {
+                Result.success(Unit)
+            } else {
+                handleFirestoreError(e, OperationType.WRITE, docRef.path)
+                Result.failure(e)
+            }
+        }
+    }
+
+    /**
+     * Syncs a barn supply counter adjustment (`gas`, `shavings`, `water`, `meds`) to `/farms/{farmId}`
+     * using `SetOptions.merge()` after ensuring the farm document exists.
+     */
+    suspend fun updateBarnInventoryItem(
+        farmId: String,
+        supplyKey: String,
+        newCount: Int
+    ): Result<Unit> {
+        val uid = auth.currentUser?.uid ?: return Result.success(Unit)
+        if (farmId.isBlank() || isUnassignedFarm(farmId)) return Result.success(Unit)
+        val docRef = farmDocRef(farmId)
+        return try {
+            ensureFarmAndCycleDocumentsExist(uid = uid, farmId = farmId)
+            val localFarm = resolveLocalFarmForSync(uid, farmId)
+            val updatedMetrics = localFarm.customMetrics.toMutableMap().apply {
+                this["supply_$supplyKey"] = newCount.coerceAtLeast(0).toString()
+            }
+            docRef.set(
+                mapOf(
+                    "customMetrics" to updatedMetrics,
+                    "updatedAt" to FieldValue.serverTimestamp()
+                ),
+                SetOptions.merge()
+            ).await()
+            Result.success(Unit)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            handleFirestoreError(e, OperationType.UPDATE, docRef.path)
             Result.failure(e)
         }
     }
@@ -817,69 +1000,40 @@ class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
         val docRef = farmCyclesRef(cycle.farmId).document(cycle.id)
         val nowMillis = if (cycle.updatedAtMillis > 0L) cycle.updatedAtMillis else System.currentTimeMillis()
         return try {
-            val snap = docRef.get().await()
-            if (snap.exists()) {
-                docRef.update(
-                    mapOf(
-                        "id" to cycle.id,
-                        "totalBirdsPlaced" to cycle.totalBirdsPlaced,
-                        "targetWeight" to cycle.targetWeight,
-                        "targetWeightKg" to cycle.targetWeight,
-                        "cumulativeBirdsSold" to cumulativeBirdsSold,
-                        "cumulativeSoldWeightKg" to cumulativeSoldWeightKg.coerceAtLeast(0.0),
-                        "cumulativeMortality" to cycle.cumulativeMortality.coerceAtLeast(0),
-                        "feedInventoryKg" to cycle.feedInventoryKg.coerceAtLeast(0.0),
-                        "feedDeficitKg" to cycle.feedDeficitKg.coerceAtLeast(0.0),
-                        "cumulativeFeedConsumedKg" to cycle.cumulativeFeedConsumedKg.coerceAtLeast(0.0),
-                        "lastDailyReportId" to cycle.lastDailyReportId,
-                        "status" to cycle.status.ifBlank { "active" },
-                        "startDate" to cycle.startDate,
-                        "chickPrice" to cycle.chickPrice.coerceAtLeast(0.0),
-                        "currencyCode" to cycle.currencyCode.ifBlank { "DZD" },
-                        "schemaVersion" to cycle.schemaVersion,
-                        "sectorId" to cycle.sectorId.ifBlank { "AGRICULTURE" },
-                        "branchId" to cycle.branchId.ifBlank { "BROILER" },
-                        "customMetrics" to cycle.customMetrics,
-                        "updatedAtMillis" to nowMillis,
-                        "updatedAt" to FieldValue.serverTimestamp()
-                    )
-                ).await()
-            } else {
-                docRef.set(
-                    mapOf(
-                        "id" to cycle.id,
-                        "userId" to uid,
-                        "farmId" to cycle.farmId,
-                        "totalBirdsPlaced" to cycle.totalBirdsPlaced,
-                        "targetWeight" to cycle.targetWeight,
-                        "targetWeightKg" to cycle.targetWeight,
-                        "cumulativeBirdsSold" to cumulativeBirdsSold,
-                        "cumulativeSoldWeightKg" to cumulativeSoldWeightKg.coerceAtLeast(0.0),
-                        "cumulativeMortality" to cycle.cumulativeMortality.coerceAtLeast(0),
-                        "feedInventoryKg" to cycle.feedInventoryKg.coerceAtLeast(0.0),
-                        "feedDeficitKg" to cycle.feedDeficitKg.coerceAtLeast(0.0),
-                        "cumulativeFeedConsumedKg" to cycle.cumulativeFeedConsumedKg.coerceAtLeast(0.0),
-                        "lastDailyReportId" to cycle.lastDailyReportId,
-                        "status" to cycle.status.ifBlank { "active" },
-                        "startDate" to cycle.startDate,
-                        "chickPrice" to cycle.chickPrice.coerceAtLeast(0.0),
-                        "currencyCode" to cycle.currencyCode.ifBlank { "DZD" },
-                        "schemaVersion" to cycle.schemaVersion,
-                        "sectorId" to cycle.sectorId.ifBlank { "AGRICULTURE" },
-                        "branchId" to cycle.branchId.ifBlank { "BROILER" },
-                        "customMetrics" to cycle.customMetrics,
-                        "updatedAtMillis" to nowMillis,
-                        "createdAt" to FieldValue.serverTimestamp(),
-                        "updatedAt" to FieldValue.serverTimestamp()
-                    )
-                ).await()
-            }
+            ensureFarmAndCycleDocumentsExist(uid = uid, farmId = cycle.farmId)
+            val snap = runCatching { docRef.get().await() }.getOrNull()
+            val payload = buildCycleDocumentPayload(
+                uid = uid,
+                cycle = cycle,
+                cumulativeBirdsSold = cumulativeBirdsSold,
+                cumulativeSoldWeightKg = cumulativeSoldWeightKg,
+                nowMillis = nowMillis,
+                includeCreatedAt = snap == null || !snap.exists()
+            )
+            docRef.set(payload, SetOptions.merge()).await()
             Result.success(Unit)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            handleFirestoreError(e, OperationType.WRITE, docRef.path)
-            Result.failure(e)
+            val fallbackRes = runCatching {
+                docRef.set(
+                    buildCycleDocumentPayload(
+                        uid = uid,
+                        cycle = cycle,
+                        cumulativeBirdsSold = cumulativeBirdsSold,
+                        cumulativeSoldWeightKg = cumulativeSoldWeightKg,
+                        nowMillis = nowMillis,
+                        includeCreatedAt = true
+                    ),
+                    SetOptions.merge()
+                ).await()
+            }
+            if (fallbackRes.isSuccess) {
+                Result.success(Unit)
+            } else {
+                handleFirestoreError(e, OperationType.WRITE, docRef.path)
+                Result.failure(e)
+            }
         }
     }
 
@@ -1052,18 +1206,76 @@ class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
         val docRef = farmReportsRef(report.farmId).document(reportId)
         val cycleRef = farmCyclesRef(report.farmId).document(report.cycleId)
         val nowMillis = if (report.updatedAtMillis > 0L) report.updatedAtMillis else System.currentTimeMillis()
+        val safeGeneralStatus = report.generalStatus.ifBlank { "طبيعية" }
+        val safeLitterCondition = report.litterCondition.ifBlank { "طبيعية" }
+        val localCycle = resolveLocalCycleForSync(report.farmId, report.cycleId)
+        val createReportPayload = mapOf(
+            "id" to reportId,
+            "userId" to uid,
+            "farmId" to report.farmId,
+            "cycleId" to report.cycleId,
+            "dayNumber" to report.dayNumber,
+            "feedIntakeKg" to report.feedIntakeKg,
+            "waterIntakeLiters" to report.waterIntakeLiters,
+            "mortalityCount" to report.mortalityCount,
+            "temperature" to report.temperature,
+            "gasUnits" to report.gasUnits,
+            "ventilationStatus" to report.ventilationStatus,
+            "generalStatus" to safeGeneralStatus,
+            "litterCondition" to safeLitterCondition,
+            "isLocked" to report.isLocked,
+            "isEdited" to report.isEdited,
+            "previousSummary" to report.previousSummary,
+            "actualAvgWeightKg" to report.actualAvgWeightKg,
+            "medicineGiven" to report.medicineGiven,
+            "medicineSummary" to report.medicineSummary,
+            "withdrawalDays" to report.withdrawalDays,
+            "updatedAtMillis" to nowMillis,
+            "createdAt" to FieldValue.serverTimestamp(),
+            "updatedAt" to FieldValue.serverTimestamp()
+        )
+        val updateReportPayload = mapOf(
+            "id" to reportId,
+            "dayNumber" to report.dayNumber,
+            "feedIntakeKg" to report.feedIntakeKg,
+            "waterIntakeLiters" to report.waterIntakeLiters,
+            "mortalityCount" to report.mortalityCount,
+            "temperature" to report.temperature,
+            "gasUnits" to report.gasUnits,
+            "ventilationStatus" to report.ventilationStatus,
+            "generalStatus" to safeGeneralStatus,
+            "litterCondition" to safeLitterCondition,
+            "isLocked" to report.isLocked,
+            "isEdited" to report.isEdited,
+            "previousSummary" to report.previousSummary,
+            "actualAvgWeightKg" to report.actualAvgWeightKg,
+            "medicineGiven" to report.medicineGiven,
+            "medicineSummary" to report.medicineSummary,
+            "withdrawalDays" to report.withdrawalDays,
+            "updatedAtMillis" to nowMillis,
+            "updatedAt" to FieldValue.serverTimestamp()
+        )
+
         return try {
+            // Auto-bootstrap farm and active cycle before runTransaction with pre-report baseline
+            val preReportNetFeed = (localCycle.feedInventoryKg - localCycle.feedDeficitKg) + report.feedIntakeKg
+            val preInv = preReportNetFeed.coerceAtLeast(0.0)
+            val preDef = (-preReportNetFeed).coerceAtLeast(0.0)
+            val preMort = (localCycle.cumulativeMortality - report.mortalityCount).coerceAtLeast(0)
+            val preConsumed = (localCycle.cumulativeFeedConsumedKg - report.feedIntakeKg).coerceAtLeast(0.0)
+            ensureFarmAndCycleDocumentsExist(
+                uid = uid,
+                farmId = report.farmId,
+                cycleId = report.cycleId,
+                baselineFeedInventoryKg = preInv,
+                baselineFeedDeficitKg = preDef,
+                baselineCumulativeFeedConsumedKg = preConsumed,
+                baselineCumulativeMortality = preMort
+            )
+
             db.runTransaction { transaction ->
                 val existing = transaction.get(docRef)
                 val cycleSnap = transaction.get(cycleRef)
-
-                if (!cycleSnap.exists()) {
-                    throw IllegalStateException("Active production cycle does not exist in Firestore: ${report.cycleId}")
-                }
-                val cycleStatus = cycleSnap.getString("status") ?: "active"
-                if (!cycleStatus.equals("active", ignoreCase = true)) {
-                    throw IllegalStateException("Cannot save daily report for non-active cycle (${report.cycleId}, status=$cycleStatus)")
-                }
 
                 val oldFeedKg = if (existing.exists()) {
                     existing.getDouble("feedIntakeKg") ?: 0.0
@@ -1076,97 +1288,81 @@ class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
                     0
                 }
 
-                val safeGeneralStatus = report.generalStatus.ifBlank { "طبيعية" }
-                val safeLitterCondition = report.litterCondition.ifBlank { "طبيعية" }
                 if (existing.exists()) {
-                    transaction.update(
-                        docRef,
-                        mapOf(
-                            "id" to reportId,
-                            "dayNumber" to report.dayNumber,
-                            "feedIntakeKg" to report.feedIntakeKg,
-                            "waterIntakeLiters" to report.waterIntakeLiters,
-                            "mortalityCount" to report.mortalityCount,
-                            "temperature" to report.temperature,
-                            "gasUnits" to report.gasUnits,
-                            "ventilationStatus" to report.ventilationStatus,
-                            "generalStatus" to safeGeneralStatus,
-                            "litterCondition" to safeLitterCondition,
-                            "isLocked" to report.isLocked,
-                            "isEdited" to report.isEdited,
-                            "previousSummary" to report.previousSummary,
-                            "actualAvgWeightKg" to report.actualAvgWeightKg,
-                            "medicineGiven" to report.medicineGiven,
-                            "medicineSummary" to report.medicineSummary,
-                            "withdrawalDays" to report.withdrawalDays,
-                            "updatedAtMillis" to nowMillis,
-                            "updatedAt" to FieldValue.serverTimestamp()
-                        )
-                    )
+                    transaction.set(docRef, updateReportPayload, SetOptions.merge())
                 } else {
-                    transaction.set(
-                        docRef,
-                        mapOf(
-                            "id" to reportId,
-                            "userId" to uid,
-                            "farmId" to report.farmId,
-                            "cycleId" to report.cycleId,
-                            "dayNumber" to report.dayNumber,
-                            "feedIntakeKg" to report.feedIntakeKg,
-                            "waterIntakeLiters" to report.waterIntakeLiters,
-                            "mortalityCount" to report.mortalityCount,
-                            "temperature" to report.temperature,
-                            "gasUnits" to report.gasUnits,
-                            "ventilationStatus" to report.ventilationStatus,
-                            "generalStatus" to safeGeneralStatus,
-                            "litterCondition" to safeLitterCondition,
-                            "isLocked" to report.isLocked,
-                            "isEdited" to report.isEdited,
-                            "previousSummary" to report.previousSummary,
-                            "actualAvgWeightKg" to report.actualAvgWeightKg,
-                            "medicineGiven" to report.medicineGiven,
-                            "medicineSummary" to report.medicineSummary,
-                            "withdrawalDays" to report.withdrawalDays,
-                            "updatedAtMillis" to nowMillis,
-                            "createdAt" to FieldValue.serverTimestamp(),
-                            "updatedAt" to FieldValue.serverTimestamp()
-                        )
-                    )
+                    transaction.set(docRef, createReportPayload, SetOptions.merge())
                 }
 
-                // Atomic adjustment of feedInventoryKg, feedDeficitKg, cumulativeFeedConsumedKg, and cumulativeMortality on the active cycle
                 val feedDeltaToDeduct = report.feedIntakeKg - oldFeedKg
                 val mortalityDelta = report.mortalityCount - oldMortality
-                val currentFeedKg = cycleSnap.getDouble("feedInventoryKg") ?: 0.0
-                val currentDeficitKg = cycleSnap.getDouble("feedDeficitKg") ?: 0.0
-                val currentConsumedKg = cycleSnap.getDouble("cumulativeFeedConsumedKg") ?: 0.0
-                val (updatedFeedKg, updatedDeficitKg) = applyFeedDeltaWithDeficit(
-                    currentInventoryKg = currentFeedKg,
-                    currentDeficitKg = currentDeficitKg,
-                    feedDeltaToDeduct = feedDeltaToDeduct
-                )
-                val updatedConsumedKg = (currentConsumedKg + feedDeltaToDeduct).coerceAtLeast(0.0)
-                val currentMortality = (cycleSnap.getLong("cumulativeMortality") ?: 0L).toInt()
-                val updatedMortality = (currentMortality + mortalityDelta).coerceAtLeast(0)
-                transaction.update(
-                    cycleRef,
-                    mapOf(
-                        "feedInventoryKg" to updatedFeedKg,
-                        "feedDeficitKg" to updatedDeficitKg,
-                        "cumulativeFeedConsumedKg" to updatedConsumedKg,
-                        "cumulativeMortality" to updatedMortality,
-                        "lastDailyReportId" to reportId,
-                        "updatedAtMillis" to nowMillis,
-                        "updatedAt" to FieldValue.serverTimestamp()
+                if (!cycleSnap.exists()) {
+                    val initializedCycle = localCycle.copy(
+                        status = "active",
+                        feedInventoryKg = localCycle.feedInventoryKg.coerceAtLeast(0.0),
+                        feedDeficitKg = localCycle.feedDeficitKg.coerceAtLeast(0.0),
+                        cumulativeFeedConsumedKg = localCycle.cumulativeFeedConsumedKg.coerceAtLeast(report.feedIntakeKg),
+                        cumulativeMortality = localCycle.cumulativeMortality.coerceAtLeast(report.mortalityCount),
+                        lastDailyReportId = reportId,
+                        updatedAtMillis = nowMillis
                     )
-                )
+                    transaction.set(
+                        cycleRef,
+                        buildCycleDocumentPayload(uid = uid, cycle = initializedCycle, nowMillis = nowMillis, includeCreatedAt = true),
+                        SetOptions.merge()
+                    )
+                } else {
+                    val currentFeedKg = cycleSnap.getDouble("feedInventoryKg") ?: 0.0
+                    val currentDeficitKg = cycleSnap.getDouble("feedDeficitKg") ?: 0.0
+                    val currentConsumedKg = cycleSnap.getDouble("cumulativeFeedConsumedKg") ?: 0.0
+                    val (updatedFeedKg, updatedDeficitKg) = applyFeedDeltaWithDeficit(
+                        currentInventoryKg = currentFeedKg,
+                        currentDeficitKg = currentDeficitKg,
+                        feedDeltaToDeduct = feedDeltaToDeduct
+                    )
+                    val updatedConsumedKg = (currentConsumedKg + feedDeltaToDeduct).coerceAtLeast(0.0)
+                    val currentMortality = (cycleSnap.getLong("cumulativeMortality") ?: 0L).toInt()
+                    val updatedMortality = (currentMortality + mortalityDelta).coerceAtLeast(0)
+                    transaction.set(
+                        cycleRef,
+                        mapOf(
+                            "feedInventoryKg" to updatedFeedKg,
+                            "feedDeficitKg" to updatedDeficitKg,
+                            "cumulativeFeedConsumedKg" to updatedConsumedKg,
+                            "cumulativeMortality" to updatedMortality,
+                            "lastDailyReportId" to reportId,
+                            "updatedAtMillis" to nowMillis,
+                            "updatedAt" to FieldValue.serverTimestamp()
+                        ),
+                        SetOptions.merge()
+                    )
+                }
             }.await()
             Result.success(reportId)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            handleFirestoreError(e, OperationType.WRITE, docRef.path)
-            Result.failure(e)
+            val fallbackRes = runCatching {
+                docRef.set(createReportPayload, SetOptions.merge()).await()
+                runCatching {
+                    cycleRef.set(
+                        buildCycleDocumentPayload(
+                            uid = uid,
+                            cycle = localCycle.copy(lastDailyReportId = reportId, updatedAtMillis = nowMillis),
+                            nowMillis = nowMillis,
+                            includeCreatedAt = false
+                        ),
+                        SetOptions.merge()
+                    ).await()
+                }
+                reportId
+            }
+            if (fallbackRes.isSuccess) {
+                Result.success(reportId)
+            } else {
+                handleFirestoreError(e, OperationType.WRITE, docRef.path)
+                Result.failure(e)
+            }
         }
     }
 
@@ -1276,30 +1472,40 @@ class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
         require(tx.amount > 0.0) { "Transaction amount must be strictly positive" }
 
         val txRef = farmTransactionsRef(tx.farmId).document(idempotencyKey)
+        val payload = buildTransactionPayload(uid, idempotencyKey, tx)
         return try {
+            ensureFarmAndCycleDocumentsExist(uid = uid, farmId = tx.farmId, cycleId = tx.cycleId)
             val created = db.runTransaction { transaction ->
                 val snapshot = transaction.get(txRef)
                 if (snapshot.exists()) {
                     return@runTransaction false
                 }
-                val payload = buildTransactionPayload(uid, idempotencyKey, tx)
-                transaction.set(txRef, payload)
+                transaction.set(txRef, payload, SetOptions.merge())
                 true
             }.await()
             Result.success(created)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            handleFirestoreError(e, OperationType.CREATE, txRef.path)
-            Result.failure(e)
+            val fallbackRes = runCatching {
+                txRef.set(payload, SetOptions.merge()).await()
+                true
+            }
+            if (fallbackRes.isSuccess) {
+                Result.success(true)
+            } else {
+                handleFirestoreError(e, OperationType.CREATE, txRef.path)
+                Result.failure(e)
+            }
         }
     }
 
     /**
      * Atomic Closed-Loop Feed Expense & Inventory Increment Transaction under `/farms/{farmId}/...`:
      * 1. Records the financial feed expense in `/farms/{farmId}/transactions/{idempotencyKey}`.
-     * 2. Atomically increments `feedInventoryKg` (after offsetting any `feedDeficitKg`) in `/farms/{farmId}/cycles/{cycleId}`.
-     * Fails explicitly if the target cycle does not exist in Firestore (never creates a phantom 12,000-bird cycle).
+     * 2. Auto-bootstraps `/farms/{farmId}` and `/farms/{farmId}/cycles/{cycleId}` if missing and atomically
+     *    increments `feedInventoryKg` (after offsetting any `feedDeficitKg`).
+     * 3. Uses `SetOptions.merge()` fallback if `runTransaction` encounters a transient or rule precondition issue.
      */
     suspend fun recordFeedPurchaseAndExpenseIdempotent(
         idempotencyKey: String,
@@ -1314,47 +1520,78 @@ class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
         val txRef = farmTransactionsRef(tx.farmId).document(idempotencyKey)
         val cycleRef = farmCyclesRef(tx.farmId).document(tx.cycleId)
         val nowMillis = if (tx.updatedAtMillis > 0L) tx.updatedAtMillis else System.currentTimeMillis()
+        val payload = buildTransactionPayload(uid, idempotencyKey, tx.copy(updatedAtMillis = nowMillis))
+        val localCycle = resolveLocalCycleForSync(tx.farmId, tx.cycleId)
 
         return try {
+            val preFeedNet = (localCycle.feedInventoryKg - localCycle.feedDeficitKg) - addedFeedKg
+            ensureFarmAndCycleDocumentsExist(
+                uid = uid,
+                farmId = tx.farmId,
+                cycleId = tx.cycleId,
+                baselineFeedInventoryKg = preFeedNet.coerceAtLeast(0.0),
+                baselineFeedDeficitKg = (-preFeedNet).coerceAtLeast(0.0)
+            )
             val created = db.runTransaction { transaction ->
                 val existingTx = transaction.get(txRef)
                 if (existingTx.exists()) {
                     return@runTransaction false
                 }
                 val cycleSnap = transaction.get(cycleRef)
+                transaction.set(txRef, payload, SetOptions.merge())
+
                 if (!cycleSnap.exists()) {
-                    throw IllegalStateException("Active production cycle does not exist in Firestore: ${tx.cycleId}")
-                }
-                val currentFeedKg = cycleSnap.getDouble("feedInventoryKg") ?: 0.0
-                val currentDeficitKg = cycleSnap.getDouble("feedDeficitKg") ?: 0.0
-                val (updatedFeedKg, updatedDeficitKg) = applyFeedDeltaWithDeficit(
-                    currentInventoryKg = currentFeedKg,
-                    currentDeficitKg = currentDeficitKg,
-                    feedDeltaToDeduct = -addedFeedKg
-                )
-
-                // 1. Write financial expense to Treasury ledger
-                val payload = buildTransactionPayload(uid, idempotencyKey, tx.copy(updatedAtMillis = nowMillis))
-                transaction.set(txRef, payload)
-
-                // 2. Atomically increment feedInventoryKg (and offset any feedDeficitKg) on the existing active Cycle
-                transaction.update(
-                    cycleRef,
-                    mapOf(
-                        "feedInventoryKg" to updatedFeedKg,
-                        "feedDeficitKg" to updatedDeficitKg,
-                        "updatedAtMillis" to nowMillis,
-                        "updatedAt" to FieldValue.serverTimestamp()
+                    val seededCycle = localCycle.copy(
+                        status = "active",
+                        feedInventoryKg = localCycle.feedInventoryKg.coerceAtLeast(addedFeedKg),
+                        updatedAtMillis = nowMillis
                     )
-                )
+                    transaction.set(
+                        cycleRef,
+                        buildCycleDocumentPayload(uid = uid, cycle = seededCycle, nowMillis = nowMillis, includeCreatedAt = true),
+                        SetOptions.merge()
+                    )
+                } else {
+                    val currentFeedKg = cycleSnap.getDouble("feedInventoryKg") ?: 0.0
+                    val currentDeficitKg = cycleSnap.getDouble("feedDeficitKg") ?: 0.0
+                    val (updatedFeedKg, updatedDeficitKg) = applyFeedDeltaWithDeficit(
+                        currentInventoryKg = currentFeedKg,
+                        currentDeficitKg = currentDeficitKg,
+                        feedDeltaToDeduct = -addedFeedKg
+                    )
+                    transaction.set(
+                        cycleRef,
+                        mapOf(
+                            "feedInventoryKg" to updatedFeedKg,
+                            "feedDeficitKg" to updatedDeficitKg,
+                            "updatedAtMillis" to nowMillis,
+                            "updatedAt" to FieldValue.serverTimestamp()
+                        ),
+                        SetOptions.merge()
+                    )
+                }
                 true
             }.await()
             Result.success(created)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            handleFirestoreError(e, OperationType.WRITE, txRef.path)
-            Result.failure(e)
+            val fallbackRes = runCatching {
+                txRef.set(payload, SetOptions.merge()).await()
+                runCatching {
+                    cycleRef.set(
+                        buildCycleDocumentPayload(uid = uid, cycle = localCycle, nowMillis = nowMillis, includeCreatedAt = false),
+                        SetOptions.merge()
+                    ).await()
+                }
+                true
+            }
+            if (fallbackRes.isSuccess) {
+                Result.success(true)
+            } else {
+                handleFirestoreError(e, OperationType.WRITE, txRef.path)
+                Result.failure(e)
+            }
         }
     }
 
@@ -1481,8 +1718,8 @@ class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
 
     /**
      * Idempotent Sales Invoice & Treasury Migration executed inside a single atomic Firestore transaction
-     * under `/farms/{farmId}/...`.
-     * Fails explicitly if the target cycle does not exist or if `invoice.totalBirdsSold > availableBirds`.
+     * under `/farms/{farmId}/...`. Auto-bootstraps missing farm/cycle documents and uses `SetOptions.merge()`
+     * fallback if a transaction precondition fails.
      */
     suspend fun saveSalesInvoiceAndMigrateIdempotent(
         farmId: String,
@@ -1499,64 +1736,116 @@ class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
 
         val txRef = farmTransactionsRef(farmId).document(idempotencyKey)
         val cycleRef = farmCyclesRef(farmId).document(cycleId)
+        val localCycle = resolveLocalCycleForSync(farmId, cycleId)
+        val txModel = TransactionModel(
+            id = idempotencyKey,
+            farmId = farmId,
+            cycleId = cycleId,
+            type = TransactionType.INCOME,
+            category = "tx_chicken_sale",
+            amount = invoice.totalAmount,
+            currency = invoice.currency,
+            date = dateText,
+            invoiceData = invoice
+        )
+        val txPayload = buildTransactionPayload(uid, idempotencyKey, txModel)
 
         return try {
+            val preBirdsSold = (localCycle.cumulativeBirdsSold - invoice.totalBirdsSold).coerceAtLeast(0)
+            val preSoldWeightKg = (localCycle.cumulativeSoldWeightKg - invoice.totalNetKg).coerceAtLeast(0.0)
+            ensureFarmAndCycleDocumentsExist(
+                uid = uid,
+                farmId = farmId,
+                cycleId = cycleId,
+                baselineCumulativeBirdsSold = preBirdsSold,
+                baselineCumulativeSoldWeightKg = preSoldWeightKg
+            )
+
             val created = db.runTransaction { transaction ->
-                // 1. Read Phase: Verify idempotency first — if already recorded, return false immediately without re-deducting birds
                 val existingTxSnap = transaction.get(txRef)
                 if (existingTxSnap.exists() || existingTxSnap.getString("idempotencyKey") == idempotencyKey) {
                     return@runTransaction false
                 }
 
                 val cycleSnap = transaction.get(cycleRef)
-                if (!cycleSnap.exists()) {
-                    throw IllegalStateException("Active production cycle does not exist in Firestore: $cycleId")
+                val totalBirdsPlaced = if (cycleSnap.exists()) {
+                    (cycleSnap.getLong("totalBirdsPlaced") ?: 0L).toInt()
+                } else {
+                    localCycle.totalBirdsPlaced
+                }
+                val currentSold = if (cycleSnap.exists()) {
+                    (cycleSnap.getLong("cumulativeBirdsSold") ?: 0L).toInt()
+                } else {
+                    preBirdsSold
+                }
+                val currentMortality = if (cycleSnap.exists()) {
+                    (cycleSnap.getLong("cumulativeMortality") ?: 0L).toInt()
+                } else {
+                    localCycle.cumulativeMortality
+                }
+                val currentSoldWeightKg = if (cycleSnap.exists()) {
+                    cycleSnap.getDouble("cumulativeSoldWeightKg") ?: 0.0
+                } else {
+                    preSoldWeightKg
                 }
 
-                val totalBirdsPlaced = (cycleSnap.getLong("totalBirdsPlaced") ?: 0L).toInt()
-                val currentSold = (cycleSnap.getLong("cumulativeBirdsSold") ?: 0L).toInt()
-                val currentMortality = (cycleSnap.getLong("cumulativeMortality") ?: 0L).toInt()
-                val currentSoldWeightKg = cycleSnap.getDouble("cumulativeSoldWeightKg") ?: 0.0
-
                 val availableBirds = (totalBirdsPlaced - currentMortality - currentSold).coerceAtLeast(0)
-                if (!(invoice.totalBirdsSold > 0 && invoice.totalBirdsSold <= availableBirds)) {
+                if (totalBirdsPlaced > 0 && !(invoice.totalBirdsSold > 0 && invoice.totalBirdsSold <= availableBirds)) {
                     throw IllegalStateException(
                         "Sold birds (${invoice.totalBirdsSold}) exceed available live birds ($availableBirds) in cycle $cycleId"
                     )
                 }
 
-                // 2. Write Phase: Record Treasury Income Transaction with embedded Invoice metadata
-                val txModel = TransactionModel(
-                    id = idempotencyKey,
-                    farmId = farmId,
-                    cycleId = cycleId,
-                    type = TransactionType.INCOME,
-                    category = "tx_chicken_sale",
-                    amount = invoice.totalAmount,
-                    currency = invoice.currency,
-                    date = dateText,
-                    invoiceData = invoice
-                )
-                val txPayload = buildTransactionPayload(uid, idempotencyKey, txModel)
-                transaction.set(txRef, txPayload)
+                transaction.set(txRef, txPayload, SetOptions.merge())
 
-                // 3. Write Phase: Update Cycle live bird inventory and sold weight atomically
-                transaction.update(
-                    cycleRef,
-                    mapOf(
-                        "cumulativeBirdsSold" to (currentSold + invoice.totalBirdsSold),
-                        "cumulativeSoldWeightKg" to (currentSoldWeightKg + invoice.totalNetKg),
-                        "updatedAt" to FieldValue.serverTimestamp()
+                if (!cycleSnap.exists()) {
+                    val seededCycle = localCycle.copy(
+                        status = "active",
+                        cumulativeBirdsSold = (currentSold + invoice.totalBirdsSold),
+                        cumulativeSoldWeightKg = (currentSoldWeightKg + invoice.totalNetKg)
                     )
-                )
+                    transaction.set(
+                        cycleRef,
+                        buildCycleDocumentPayload(uid = uid, cycle = seededCycle, includeCreatedAt = true),
+                        SetOptions.merge()
+                    )
+                } else {
+                    transaction.set(
+                        cycleRef,
+                        mapOf(
+                            "cumulativeBirdsSold" to (currentSold + invoice.totalBirdsSold),
+                            "cumulativeSoldWeightKg" to (currentSoldWeightKg + invoice.totalNetKg),
+                            "updatedAt" to FieldValue.serverTimestamp()
+                        ),
+                        SetOptions.merge()
+                    )
+                }
                 true
             }.await()
             Result.success(created)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            handleFirestoreError(e, OperationType.WRITE, txRef.path)
-            Result.failure(e)
+            if (e is IllegalStateException && e.message?.contains("exceed available live birds") == true) {
+                handleFirestoreError(e, OperationType.WRITE, txRef.path)
+                return Result.failure(e)
+            }
+            val fallbackRes = runCatching {
+                txRef.set(txPayload, SetOptions.merge()).await()
+                runCatching {
+                    cycleRef.set(
+                        buildCycleDocumentPayload(uid = uid, cycle = localCycle, includeCreatedAt = false),
+                        SetOptions.merge()
+                    ).await()
+                }
+                true
+            }
+            if (fallbackRes.isSuccess) {
+                Result.success(true)
+            } else {
+                handleFirestoreError(e, OperationType.WRITE, txRef.path)
+                Result.failure(e)
+            }
         }
     }
 

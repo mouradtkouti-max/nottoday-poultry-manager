@@ -2042,12 +2042,20 @@ object Translations {
             "hi" to "📅 चक्र दिन संख्या"
         ),
         "field_day_number_mid_cycle_hint" to mapOf(
-            "ar" to "يُكتشف تلقائياً، أو اكتب رقم يوم سابق مثل 20 أو 30 لتعديله",
-            "fr" to "Détecté auto, ou entrez un jour précédent (ex: 20 ou 30) à modifier",
-            "en" to "Auto-detected, or type a previous day (e.g., 20 or 30) to edit",
-            "es" to "Auto-detectado, o escriba un día anterior (ej: 20 o 30) para editar",
-            "pt" to "Detectado auto, ou digite um dia anterior (ex: 20 ou 30) para editar",
-            "hi" to "स्वतः पता लगाया गया, या संपादित करने के लिए पिछला दिन (जैसे 20 या 30) लिखें"
+            "ar" to "🔒 يتدرج رقم اليوم تلقائياً مع الدورة (لتعديل يوم سابق اضغط عليه من جدول السجل)",
+            "fr" to "🔒 Le numéro du jour progresse automatiquement avec le lot (appuyez sur un jour dans le tableau pour le modifier)",
+            "en" to "🔒 Day number advances automatically with the cycle (tap a past row in the log table to edit it)",
+            "es" to "🔒 El número de día avanza automáticamente con el lote (toca un día anterior en la tabla para editarlo)",
+            "pt" to "🔒 O número do dia avança automaticamente com o lote (toque em um dia anterior na tabela para editá-lo)",
+            "hi" to "🔒 दिन की संख्या चक्र के साथ स्वतः बढ़ती है (पिछला दिन बदलने के लिए लॉग तालिका में पंक्ति पर टैप करें)",
+            "tr" to "🔒 Gün numarası dönemle birlikte otomatik ilerler (önceki günü düzenlemek için kayıt tablosuna dokunun)",
+            "id" to "🔒 Nomor hari bertambah otomatis sesuai siklus (ketuk baris di tabel catatan untuk mengedit hari sebelumnya)",
+            "ur" to "🔒 دن کا نمبر دورانیے کے ساتھ خودکار آگے بڑھتا ہے (پچھلے دن میں ترمیم کے لیے جدول میں قطار پر ٹیپ کریں)",
+            "sw" to "🔒 Namba ya siku huongezeka kiotomatiki na mzunguko (gusa siku iliyopita kwenye jedwali ili kuihariri)",
+            "ru" to "🔒 Номер дня автоматически увеличивается в цикле (нажмите на прошлый день в таблице для правки)",
+            "zh" to "🔒 日龄随养殖周期自动递增（如需修改历史记录，请点击日志表中的对应行）",
+            "de" to "🔒 Der Durchgangstag zählt automatisch weiter (zum Bearbeiten eines früheren Tages die Zeile in der Tabelle antippen)",
+            "it" to "🔒 Il giorno avanza automaticamente con il ciclo (tocca una riga precedente nella tabella per modificarla)"
         ),
         "indoor_reading_no_data" to mapOf(
             "ar" to "لا توجد قراءة مسجلة بعد — أدخل التقرير اليومي",

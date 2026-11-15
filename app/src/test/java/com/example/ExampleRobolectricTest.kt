@@ -3,10 +3,17 @@ package com.example
 import android.content.Context
 import android.graphics.Bitmap
 import android.util.Base64
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTextReplacement
 import androidx.test.core.app.ApplicationProvider
 import com.example.models.*
 import com.example.ui.VintageBookShelfCoverEmblem
@@ -2190,6 +2197,263 @@ class ExampleRobolectricTest {
         composeTestRule.onNodeWithTag("vintage_book_three_stage_cards_row").assertExists()
         composeTestRule.onNodeWithTag("infographic_canvas_feed_starter_spec", useUnmergedTree = true).assertExists()
     }
+
+    @Test
+    fun `offlineFirstBarnExpenseAndDailyReport persist across reload even offline with zero rollback`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val testUid = "uid_offline_e2e_test"
+        val farmId = "farm_e2e_offline_1"
+        val cycleId = "cycle_e2e_offline_1"
+
+        LocalFarmPersistence.clearAllForDeletedIdentity(context, testUid)
+        LocalFarmPersistence.setActiveIdentity(testUid)
+        LocalFarmPersistence.loadIntoMockDb(context, testUid)
+
+        // 1. Create new barn + active cycle (6000 chicks x 125 DZD = 750,000 DZD)
+        val farm = FarmModel(
+            id = farmId,
+            name = "عنبر الاختبار الشامل",
+            location = "البليدة",
+            capacity = 6000,
+            members = mapOf(testUid to "OWNER")
+        )
+        val cycle = CycleModel(
+            id = cycleId,
+            farmId = farmId,
+            totalBirdsPlaced = 6000,
+            targetWeight = 2.3,
+            status = "active",
+            startDate = "2026-11-14",
+            chickPrice = 125.0,
+            feedInventoryKg = 0.0
+        )
+        val chickTx = TransactionModel(
+            id = "tx_e2e_chicks",
+            farmId = farmId,
+            cycleId = cycleId,
+            type = TransactionType.EXPENSE,
+            category = "🐤 كتاكيت",
+            amount = 750000.0,
+            currency = "دج",
+            date = "اليوم 1",
+            status = "APPROVED"
+        )
+        AgritechMockDb.registerFarmAndCycleLocally(farm, cycle, chickTx)
+
+        // 2. Add feed purchase expense (علف بادئ 1: 40 q x 8,000 DZD = 320,000 DZD)
+        val feedTx = TransactionModel(
+            id = "tx_e2e_feed_starter_1",
+            farmId = farmId,
+            cycleId = cycleId,
+            type = TransactionType.EXPENSE,
+            category = "🌾 علف بادئ 1",
+            amount = 320000.0,
+            currency = "دج",
+            date = "اليوم 1",
+            quantityQuintals = 40.0,
+            status = "APPROVED"
+        )
+        assertTrue(AgritechMockDb.recordExpenseOrIncomeOfflineFirst(feedTx, addedFeedKg = 4000.0))
+
+        // 3. Submit Day 1 daily report (1 q = 100 kg feed, 120 L water, 5 mortality, 5 gas, 33.0 C)
+        AgritechMockDb.upsertDailyReportWithAudit(
+            DailyReportModel(
+                id = "rep_temp_day1",
+                farmId = farmId,
+                cycleId = cycleId,
+                dayNumber = 1,
+                feedIntakeKg = 100.0,
+                waterIntakeLiters = 120.0,
+                mortalityCount = 5,
+                temperature = 33.0,
+                gasUnits = 5.0
+            )
+        )
+        AgritechMockDb.adjustBarnSupplyCount(farmId, "gas", +5, 0)
+        LocalFarmPersistence.saveAll(context, testUid)
+
+        // 4. Simulate cold app restart while offline (clear in-memory cache and reload from SharedPreferences)
+        AgritechMockDb.farms.clear()
+        AgritechMockDb.cycles.clear()
+        AgritechMockDb.transactions.clear()
+        AgritechMockDb.dailyReports.clear()
+        AgritechMockDb.barnInventoryCounters.clear()
+
+        LocalFarmPersistence.loadIntoMockDb(context, testUid)
+
+        val restoredFarm = AgritechMockDb.farms.firstOrNull { it.id == farmId }
+        assertTrue("Farm must persist across cold reload", restoredFarm != null)
+
+        val restoredCycle = AgritechMockDb.cycles.firstOrNull { it.id == cycleId }
+        assertTrue("Active cycle must persist across cold reload", restoredCycle != null)
+        assertEquals(6000, restoredCycle!!.totalBirdsPlaced)
+        assertEquals(3900.0, restoredCycle.feedInventoryKg, 0.001)
+        assertEquals(5, restoredCycle.cumulativeMortality)
+
+        val restoredTxs = AgritechMockDb.transactions.filter { it.farmId == farmId }
+        assertEquals(2, restoredTxs.size)
+        val treasury = AgritechFirestoreRepository.calculateNetBalanceFromTransactions(restoredTxs)
+        assertEquals(1070000.0, treasury.totalExpenses, 0.001)
+
+        val restoredReports = AgritechMockDb.resolveReportsForFarmAndCycle(farmId, cycleId)
+        assertEquals(1, restoredReports.size)
+        val day1 = restoredReports.first()
+        assertEquals(1, day1.dayNumber)
+        assertEquals(100.0, day1.feedIntakeKg, 0.001)
+        assertEquals(120.0, day1.waterIntakeLiters, 0.001)
+        assertEquals(5, day1.mortalityCount)
+        assertEquals(33.0, day1.temperature ?: 0.0, 0.001)
+        assertEquals(5995, PoultryCalculators.calculateLiveBirds(restoredCycle.totalBirdsPlaced, restoredCycle.cumulativeMortality, restoredCycle.cumulativeBirdsSold))
+        assertEquals(5, AgritechMockDb.getBarnSupplyCount(farmId, "gas", 0))
+
+        // Cleanup test storage
+        LocalFarmPersistence.clearAllForDeletedIdentity(context, testUid)
+    }
+
+    @Test
+    fun `sequentialFiveDays and locked auto-day dialog persist and accumulate without cloud erasure`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val testUid = "uid_five_days_robo"
+        val farmId = "farm_five_days_robo"
+        val cycleId = "cycle_five_days_robo"
+
+        LocalFarmPersistence.clearAllForDeletedIdentity(context, testUid)
+        LocalFarmPersistence.setActiveIdentity(testUid)
+        LocalFarmPersistence.loadIntoMockDb(context, testUid)
+
+        val farm = FarmModel(
+            id = farmId,
+            name = "عنبر التتابع 5 أيام",
+            location = "سطيف",
+            capacity = 6000,
+            members = mapOf(testUid to "OWNER")
+        )
+        val cycle = CycleModel(
+            id = cycleId,
+            farmId = farmId,
+            totalBirdsPlaced = 6000,
+            targetWeight = 2.4,
+            status = "active",
+            startDate = "2026-11-14",
+            chickPrice = 125.0,
+            feedInventoryKg = 0.0
+        )
+        val chickTx = TransactionModel(
+            id = "tx_robo_5d_chicks",
+            farmId = farmId,
+            cycleId = cycleId,
+            type = TransactionType.EXPENSE,
+            category = "🐤 كتاكيت",
+            amount = 750000.0,
+            currency = "دج",
+            date = "اليوم 1",
+            status = "APPROVED"
+        )
+        AgritechMockDb.registerFarmAndCycleLocally(farm, cycle, chickTx)
+
+        val feedTx = TransactionModel(
+            id = "tx_robo_5d_feed",
+            farmId = farmId,
+            cycleId = cycleId,
+            type = TransactionType.EXPENSE,
+            category = "🌾 علف بادئ 1",
+            amount = 320000.0,
+            currency = "دج",
+            date = "اليوم 1",
+            quantityQuintals = 40.0,
+            status = "APPROVED"
+        )
+        assertTrue(AgritechMockDb.recordExpenseOrIncomeOfflineFirst(feedTx, addedFeedKg = 4000.0))
+
+        val nextDayState = mutableIntStateOf(1)
+        composeTestRule.setContent {
+            val activeSuggestedDay = remember { nextDayState }.intValue
+            key(activeSuggestedDay) {
+                OwnerDailyReportDialog(
+                    farm = farm,
+                    cycle = AgritechMockDb.cycles.first { it.id == cycleId },
+                    initialReport = null,
+                    suggestedDayNumber = activeSuggestedDay,
+                    vetNotes = emptyList(),
+                    lang = AppLanguage.AR,
+                    currentTheme = AppThemeOption.NATURE_GREEN,
+                    onDismiss = {},
+                    onSaveReport = { report ->
+                        AgritechMockDb.upsertDailyReportWithAudit(report)
+                        val maxDay = AgritechMockDb.resolveReportsForFarmAndCycle(farmId, cycleId)
+                            .maxOfOrNull { it.dayNumber } ?: 0
+                        nextDayState.intValue = maxDay + 1
+                    }
+                )
+            }
+        }
+
+        val dailyEntries = listOf(
+            Triple("1", "120", "1"), // Day 1: 1 q, 120 L, mort 1
+            Triple("2", "240", "2"), // Day 2: 2 q, 240 L, mort 2
+            Triple("3", "360", "3"), // Day 3: 3 q, 360 L, mort 3
+            Triple("5", "520", "4"), // Day 4: 5 q, 520 L, mort 4
+            Triple("7", "760", "5")  // Day 5: 7 q, 760 L, mort 5
+        )
+
+        dailyEntries.forEachIndexed { idx, (feedQ, waterL, mort) ->
+            val expectedDay = idx + 1
+            composeTestRule.waitForIdle()
+            val dayField = composeTestRule.onNodeWithTag("input_owner_report_day")
+            dayField.assertIsDisplayed()
+            dayField.assertIsNotEnabled()
+            dayField.assertTextContains("اليوم $expectedDay", substring = true)
+
+            composeTestRule.onNodeWithTag("input_owner_report_feed_quintals").performTextReplacement(feedQ)
+            composeTestRule.onNodeWithTag("input_owner_report_water").performTextReplacement(waterL)
+            composeTestRule.onNodeWithTag("input_owner_report_mortality").performTextReplacement(mort)
+            composeTestRule.onNodeWithTag("btn_confirm_owner_daily_report").performClick()
+            composeTestRule.waitForIdle()
+        }
+
+        assertEquals(6, nextDayState.intValue)
+
+        // Simulate partial/delayed Firestore snapshot carrying ONLY Day 5 & stale Cycle snapshot
+        val savedDays = AgritechMockDb.resolveReportsForFarmAndCycle(farmId, cycleId)
+        assertEquals(listOf(1, 2, 3, 4, 5), savedDays.map { it.dayNumber })
+
+        val partialCloudDay5 = savedDays.last().copy(updatedAtMillis = System.currentTimeMillis() + 5000L)
+        AgritechMockDb.mergeCloudDailyReportsNonDestructive(farmId, listOf(partialCloudDay5))
+
+        val localCycleAfter5 = AgritechMockDb.cycles.first { it.id == cycleId }
+        val staleCloudCycle = localCycleAfter5.copy(
+            cumulativeFeedConsumedKg = 700.0,
+            cumulativeMortality = 5,
+            feedInventoryKg = 3300.0,
+            updatedAtMillis = System.currentTimeMillis() + 5000L
+        )
+        val mergedCycle = AgritechMockDb.mergeCloudCycleWithLocal(staleCloudCycle, localCycleAfter5)
+        val cycleIdx = AgritechMockDb.cycles.indexOfFirst { it.id == cycleId }
+        AgritechMockDb.cycles[cycleIdx] = mergedCycle
+
+        LocalFarmPersistence.saveAll(context, testUid)
+        AgritechMockDb.farms.clear()
+        AgritechMockDb.cycles.clear()
+        AgritechMockDb.transactions.clear()
+        AgritechMockDb.dailyReports.clear()
+        LocalFarmPersistence.loadIntoMockDb(context, testUid)
+
+        val reloadedReports = AgritechMockDb.resolveReportsForFarmAndCycle(farmId, cycleId)
+        assertEquals(5, reloadedReports.size)
+        assertEquals(listOf(1, 2, 3, 4, 5), reloadedReports.map { it.dayNumber })
+        assertEquals(1800.0, reloadedReports.sumOf { it.feedIntakeKg }, 0.001)
+        assertEquals(2000.0, reloadedReports.sumOf { it.waterIntakeLiters }, 0.001)
+        assertEquals(15, reloadedReports.sumOf { it.mortalityCount })
+
+        val reloadedCycle = AgritechMockDb.cycles.first { it.id == cycleId }
+        assertEquals(1800.0, reloadedCycle.cumulativeFeedConsumedKg, 0.001)
+        assertEquals(2200.0, reloadedCycle.feedInventoryKg, 0.001)
+        assertEquals(15, reloadedCycle.cumulativeMortality)
+        assertEquals(5985, PoultryCalculators.calculateLiveBirds(reloadedCycle.totalBirdsPlaced, reloadedCycle.cumulativeMortality, reloadedCycle.cumulativeBirdsSold))
+
+        LocalFarmPersistence.clearAllForDeletedIdentity(context, testUid)
+    }
 }
+
 
 
