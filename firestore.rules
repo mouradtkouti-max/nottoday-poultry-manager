@@ -21,8 +21,8 @@ service cloud.firestore {
     }
 
     function isImmutableAuthorAndUnit(farmId) {
-      return request.resource.data.userId == resource.data.userId
-          && request.resource.data.farmId == resource.data.farmId
+      return (!('userId' in resource.data) || request.resource.data.get('userId', resource.data.userId) == resource.data.userId)
+          && request.resource.data.farmId == resource.data.get('farmId', farmId)
           && request.resource.data.farmId == farmId;
     }
 
@@ -67,8 +67,12 @@ service cloud.firestore {
     }
 
     function isCycleActive(farmId, cycleId) {
-      return exists(/databases/$(database)/documents/farms/$(farmId)/cycles/$(cycleId))
-          && get(/databases/$(database)/documents/farms/$(farmId)/cycles/$(cycleId)).data.get('status', 'active') == 'active';
+      let primaryPath = /databases/$(database)/documents/farms/$(farmId)/cycles/$(cycleId);
+      let altPath = /databases/$(database)/documents/farms/$(farmId)/production_cycles/$(cycleId);
+      return (exists(primaryPath) && get(primaryPath).data.get('status', 'active') in ['active', 'ACTIVE'])
+          || (exists(altPath) && get(altPath).data.get('status', 'active') in ['active', 'ACTIVE'])
+          || (existsAfter(primaryPath) && getAfter(primaryPath).data.get('status', 'active') in ['active', 'ACTIVE'])
+          || (existsAfter(altPath) && getAfter(altPath).data.get('status', 'active') in ['active', 'ACTIVE']);
     }
 
     // =========================================================================
@@ -314,6 +318,17 @@ service cloud.firestore {
         && (!('lastDailyReportId' in cNext) || cNext.lastDailyReportId == '' || cNext.lastDailyReportId == reportId);
     }
 
+    function verifyCycleCreatedWithReportAtPath(cyclePath, reportId, feedDelta, mortDelta) {
+      let cNext = getAfter(cyclePath).data;
+      let newInv = cNext.get('feedInventoryKg', 0);
+      let newDef = cNext.get('feedDeficitKg', 0);
+      let newMort = cNext.get('cumulativeMortality', 0);
+      return cNext.get('status', 'active') in ['active', 'ACTIVE']
+        && newInv >= 0 && newDef >= 0 && (newInv == 0 || newDef == 0)
+        && newMort >= 0 && newMort >= mortDelta
+        && (!('lastDailyReportId' in cNext) || cNext.lastDailyReportId == '' || cNext.lastDailyReportId == reportId);
+    }
+
     function isCycleAtomicallyUpdatedForReport(farmId, reportId) {
       let data = request.resource.data;
       let rawCycleId = data.get('cycleId', '');
@@ -327,7 +342,11 @@ service cloud.firestore {
       return (exists(primaryCyclePath) && existsAfter(primaryCyclePath)
               && verifyCycleUpdatedForReportAtPath(primaryCyclePath, reportId, feedDelta, mortDelta))
           || (exists(altCyclePath) && existsAfter(altCyclePath)
-              && verifyCycleUpdatedForReportAtPath(altCyclePath, reportId, feedDelta, mortDelta));
+              && verifyCycleUpdatedForReportAtPath(altCyclePath, reportId, feedDelta, mortDelta))
+          || (!exists(primaryCyclePath) && existsAfter(primaryCyclePath)
+              && verifyCycleCreatedWithReportAtPath(primaryCyclePath, reportId, feedDelta, mortDelta))
+          || (!exists(altCyclePath) && existsAfter(altCyclePath)
+              && verifyCycleCreatedWithReportAtPath(altCyclePath, reportId, feedDelta, mortDelta));
     }
 
     function isValidDailyReport(farmId) {
@@ -665,26 +684,27 @@ service cloud.firestore {
                       && isAuthor();
         allow update: if (isOwnerRole(farmId)
                           && isValidProductionCycle(farmId)
-                          && isImmutableAuthorAndUnit(farmId))
+                          && request.resource.data.farmId == farmId)
                       || isValidWorkerCycleAtomicReportUpdate(farmId, cycleId);
         allow delete: if isOwnerRole(farmId);
       }
 
       match /dailyReports/{reportId} {
         allow get, list: if isAnyFarmMember(farmId);
-        allow create: if (isOwnerRole(farmId) || isWorkerRole(farmId))
-                      && isValidDailyReport(farmId)
+        allow create: if isValidDailyReport(farmId)
                       && isAuthor()
-                      && isCycleActive(farmId, request.resource.data.cycleId)
-                      && isCycleAtomicallyUpdatedForReport(farmId, reportId);
-        allow update: if isValidDailyReport(farmId)
-                      && isImmutableAuthorAndUnit(farmId)
-                      && request.resource.data.cycleId == resource.data.cycleId
-                      && request.resource.data.dayNumber == resource.data.dayNumber
-                      && isCycleActive(farmId, resource.data.cycleId)
-                      && isCycleAtomicallyUpdatedForReport(farmId, reportId)
                       && (isOwnerRole(farmId)
                           || (isWorkerRole(farmId)
+                              && isCycleActive(farmId, request.resource.data.cycleId)
+                              && isCycleAtomicallyUpdatedForReport(farmId, reportId)));
+        allow update: if isValidDailyReport(farmId)
+                      && request.resource.data.cycleId == resource.data.cycleId
+                      && request.resource.data.dayNumber == resource.data.dayNumber
+                      && (isOwnerRole(farmId)
+                          || (isWorkerRole(farmId)
+                              && isImmutableAuthorAndUnit(farmId)
+                              && isCycleActive(farmId, resource.data.cycleId)
+                              && isCycleAtomicallyUpdatedForReport(farmId, reportId)
                               && resource.data.userId == request.auth.uid
                               && resource.data.get('isLocked', true) == false
                               && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
@@ -699,19 +719,20 @@ service cloud.firestore {
 
       match /daily_reports/{reportId} {
         allow get, list: if isAnyFarmMember(farmId);
-        allow create: if (isOwnerRole(farmId) || isWorkerRole(farmId))
-                      && isValidDailyReport(farmId)
+        allow create: if isValidDailyReport(farmId)
                       && isAuthor()
-                      && isCycleActive(farmId, request.resource.data.cycleId)
-                      && isCycleAtomicallyUpdatedForReport(farmId, reportId);
+                      && (isOwnerRole(farmId)
+                          || (isWorkerRole(farmId)
+                              && isCycleActive(farmId, request.resource.data.cycleId)
+                              && isCycleAtomicallyUpdatedForReport(farmId, reportId)));
         allow update: if isValidDailyReport(farmId)
-                      && isImmutableAuthorAndUnit(farmId)
                       && request.resource.data.cycleId == resource.data.cycleId
                       && request.resource.data.dayNumber == resource.data.dayNumber
-                      && isCycleActive(farmId, resource.data.cycleId)
-                      && isCycleAtomicallyUpdatedForReport(farmId, reportId)
                       && (isOwnerRole(farmId)
                           || ((isWorkerRole(farmId) || isVetRole(farmId))
+                              && isImmutableAuthorAndUnit(farmId)
+                              && isCycleActive(farmId, resource.data.cycleId)
+                              && isCycleAtomicallyUpdatedForReport(farmId, reportId)
                               && resource.data.userId == request.auth.uid
                               && resource.data.get('isLocked', true) == false
                               && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
@@ -731,7 +752,7 @@ service cloud.firestore {
                       && isAuthor();
         allow update: if (isOwnerRole(farmId)
                           && isValidProductionCycle(farmId)
-                          && isImmutableAuthorAndUnit(farmId))
+                          && request.resource.data.farmId == farmId)
                       || isValidWorkerCycleAtomicReportUpdate(farmId, cycleId);
         allow delete: if isOwnerRole(farmId);
       }
@@ -746,9 +767,30 @@ service cloud.firestore {
                                    && request.resource.data.get('linkedTransactionId', '') == '')
                                   || request.resource.data.get('status', 'PENDING') == 'PENDING')));
         allow update: if isValidVetPrescription(farmId)
-                      && isImmutableAuthorAndUnit(farmId)
                       && (isOwnerRole(farmId)
                           || (isVetRole(farmId)
+                              && isImmutableAuthorAndUnit(farmId)
+                              && resource.data.userId == request.auth.uid
+                              && request.resource.data.get('status', 'PENDING') == resource.data.get('status', 'PENDING')
+                              && ((request.resource.data.get('invoiceAmount', 0) == 0
+                                   && request.resource.data.get('linkedTransactionId', '') == '')
+                                  || request.resource.data.get('status', 'PENDING') == 'PENDING')));
+        allow delete: if isOwnerRole(farmId);
+      }
+
+      match /vet_notes/{noteId} {
+        allow get, list: if isAnyFarmMember(farmId);
+        allow create: if isValidVetPrescription(farmId)
+                      && isAuthor()
+                      && (isOwnerRole(farmId)
+                          || (isVetRole(farmId)
+                              && ((request.resource.data.get('invoiceAmount', 0) == 0
+                                   && request.resource.data.get('linkedTransactionId', '') == '')
+                                  || request.resource.data.get('status', 'PENDING') == 'PENDING')));
+        allow update: if isValidVetPrescription(farmId)
+                      && (isOwnerRole(farmId)
+                          || (isVetRole(farmId)
+                              && isImmutableAuthorAndUnit(farmId)
                               && resource.data.userId == request.auth.uid
                               && request.resource.data.get('status', 'PENDING') == resource.data.get('status', 'PENDING')
                               && ((request.resource.data.get('invoiceAmount', 0) == 0
@@ -775,16 +817,23 @@ service cloud.firestore {
                               && request.resource.data.get('approvedBySignature', '') == ''));
         allow update: if isOwnerRole(farmId)
                       && isValidTreasuryTransaction(farmId)
-                      && isImmutableAuthorAndUnit(farmId);
+                      && request.resource.data.farmId == farmId;
         allow delete: if isOwnerRole(farmId);
       }
 
       match /idempotencyReceipts/{receiptId} {
         allow get, list: if isAnyFarmMember(farmId);
-        allow create: if isOwnerRole(farmId)
-                      && request.resource.data.farmId == farmId
-                      && request.resource.data.userId == request.auth.uid;
-        allow update: if false;
+        allow create, update: if isOwnerRole(farmId)
+                              && request.resource.data.farmId == farmId
+                              && request.resource.data.userId == request.auth.uid;
+        allow delete: if isOwnerRole(farmId);
+      }
+
+      match /idempotency_receipts/{receiptId} {
+        allow get, list: if isAnyFarmMember(farmId);
+        allow create, update: if isOwnerRole(farmId)
+                              && request.resource.data.farmId == farmId
+                              && request.resource.data.userId == request.auth.uid;
         allow delete: if isOwnerRole(farmId);
       }
     }

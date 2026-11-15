@@ -13,6 +13,47 @@ import com.example.models.VetNoteModel
 object PoultryCalculators {
     const val INITIAL_BASELINE_FEED_KG = 8000.0 // 80 Quintals baseline feed per barn cycle
 
+    /**
+     * OWASP MASVS Input Sanitization:
+     * Protects numeric inputs (feed, water, weight, price, gas) against NaN, Infinity,
+     * negative numbers, and numeric overflow before local or Firestore persistence.
+     */
+    fun sanitizeFiniteDouble(
+        value: Double,
+        min: Double = 0.0,
+        max: Double = 1_000_000_000.0,
+        defaultValue: Double = 0.0
+    ): Double {
+        if (value.isNaN() || value.isInfinite()) {
+            return defaultValue.coerceIn(min, max)
+        }
+        return value.coerceIn(min, max)
+    }
+
+    fun sanitizeBoundedInt(
+        value: Int,
+        min: Int = 0,
+        max: Int = 1_000_000
+    ): Int = value.coerceIn(min, max)
+
+    fun sanitizeNullableTemperatureC(temp: Double?): Double? {
+        if (temp == null || temp.isNaN() || temp.isInfinite()) return null
+        return temp.coerceIn(-10.0, 60.0)
+    }
+
+    fun sanitizeDailyReport(report: DailyReportModel): DailyReportModel {
+        return report.copy(
+            dayNumber = sanitizeBoundedInt(report.dayNumber, min = 1, max = 365),
+            feedIntakeKg = sanitizeFiniteDouble(report.feedIntakeKg, min = 0.0, max = 100_000.0),
+            waterIntakeLiters = sanitizeFiniteDouble(report.waterIntakeLiters, min = 0.0, max = 200_000.0),
+            mortalityCount = sanitizeBoundedInt(report.mortalityCount, min = 0, max = 1_000_000),
+            temperature = sanitizeNullableTemperatureC(report.temperature),
+            gasUnits = sanitizeFiniteDouble(report.gasUnits, min = 0.0, max = 100_000.0),
+            actualAvgWeightKg = sanitizeFiniteDouble(report.actualAvgWeightKg, min = 0.0, max = 25.0),
+            withdrawalDays = sanitizeBoundedInt(report.withdrawalDays, min = 0, max = 90)
+        )
+    }
+
     fun isFeedTransaction(tx: TransactionModel): Boolean {
         if (tx.type != TransactionType.EXPENSE) return false
         if (tx.quantityQuintals > 0.0) return true

@@ -2140,6 +2140,41 @@ class ExampleUnitTest {
         AgritechMockDb.transactions.removeAll { it.farmId == farmId }
         AgritechMockDb.dailyReports.removeAll { it.farmId == farmId }
     }
+
+    @Test
+    fun owaspInputSanitization_clampsNegativeNaNInfinityAndOverflow() {
+        assertEquals(0.0, PoultryCalculators.sanitizeFiniteDouble(Double.NaN), 0.001)
+        assertEquals(0.0, PoultryCalculators.sanitizeFiniteDouble(Double.POSITIVE_INFINITY), 0.001)
+        assertEquals(0.0, PoultryCalculators.sanitizeFiniteDouble(-500.0), 0.001)
+        assertEquals(1000.0, PoultryCalculators.sanitizeFiniteDouble(9_999_999.0, 0.0, 1000.0), 0.001)
+        assertEquals(1, PoultryCalculators.sanitizeBoundedInt(-99, 1, 365))
+        assertEquals(365, PoultryCalculators.sanitizeBoundedInt(99999, 1, 365))
+        assertNull(PoultryCalculators.sanitizeNullableTemperatureC(Double.NaN))
+        assertEquals(60.0, PoultryCalculators.sanitizeNullableTemperatureC(250.0) ?: 0.0, 0.001)
+
+        val poisonedReport = DailyReportModel(
+            id = "rep_poison",
+            farmId = "farm_sec",
+            cycleId = "cyc_sec",
+            dayNumber = -10,
+            feedIntakeKg = Double.NaN,
+            waterIntakeLiters = -300.0,
+            mortalityCount = -25,
+            temperature = Double.POSITIVE_INFINITY,
+            gasUnits = -5.0,
+            actualAvgWeightKg = 999.0,
+            withdrawalDays = -7
+        )
+        val clean = PoultryCalculators.sanitizeDailyReport(poisonedReport)
+        assertEquals(1, clean.dayNumber)
+        assertEquals(0.0, clean.feedIntakeKg, 0.001)
+        assertEquals(0.0, clean.waterIntakeLiters, 0.001)
+        assertEquals(0, clean.mortalityCount)
+        assertNull(clean.temperature)
+        assertEquals(0.0, clean.gasUnits, 0.001)
+        assertEquals(25.0, clean.actualAvgWeightKg, 0.001)
+        assertEquals(0, clean.withdrawalDays)
+    }
 }
 
 

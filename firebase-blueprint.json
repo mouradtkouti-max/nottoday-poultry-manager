@@ -164,13 +164,25 @@
       "schema": { "$ref": "#/entities/CycleRecord" },
       "description": "Cycle metadata and live bird inventory."
     },
+    "/farms/{farmId}/production_cycles/{cycleId}": {
+      "schema": { "$ref": "#/entities/CycleRecord" },
+      "description": "Snake-case alias for production cycle metadata and live bird inventory."
+    },
     "/farms/{farmId}/dailyReports/{reportId}": {
       "schema": { "$ref": "#/entities/DailyReport" },
       "description": "Daily barn reports (Workers & Owners write; Vets read-only)."
     },
+    "/farms/{farmId}/daily_reports/{reportId}": {
+      "schema": { "$ref": "#/entities/DailyReport" },
+      "description": "Snake-case alias for daily barn reports."
+    },
     "/farms/{farmId}/vetNotes/{noteId}": {
       "schema": { "$ref": "#/entities/VetNote" },
       "description": "Veterinary notes (Vets & Owners read/write; Workers read-only)."
+    },
+    "/farms/{farmId}/vet_notes/{noteId}": {
+      "schema": { "$ref": "#/entities/VetNote" },
+      "description": "Snake-case alias for veterinary notes."
     },
     "/farms/{farmId}/transactions/{transactionId}": {
       "schema": { "$ref": "#/entities/TreasuryTransaction" },

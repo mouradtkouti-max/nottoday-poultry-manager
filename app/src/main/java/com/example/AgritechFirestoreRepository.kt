@@ -353,19 +353,19 @@ class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
             "id" to cycle.id,
             "userId" to uid,
             "farmId" to cycle.farmId,
-            "totalBirdsPlaced" to cycle.totalBirdsPlaced.coerceAtLeast(0),
-            "targetWeight" to cycle.targetWeight.coerceIn(0.1, 25.0),
-            "targetWeightKg" to cycle.targetWeight.coerceIn(0.1, 25.0),
-            "cumulativeBirdsSold" to cumulativeBirdsSold.coerceAtLeast(0),
-            "cumulativeSoldWeightKg" to cumulativeSoldWeightKg.coerceAtLeast(0.0),
-            "cumulativeMortality" to cycle.cumulativeMortality.coerceAtLeast(0),
-            "feedInventoryKg" to cycle.feedInventoryKg.coerceAtLeast(0.0),
-            "feedDeficitKg" to cycle.feedDeficitKg.coerceAtLeast(0.0),
-            "cumulativeFeedConsumedKg" to cycle.cumulativeFeedConsumedKg.coerceAtLeast(0.0),
+            "totalBirdsPlaced" to PoultryCalculators.sanitizeBoundedInt(cycle.totalBirdsPlaced, 0, 5_000_000),
+            "targetWeight" to PoultryCalculators.sanitizeFiniteDouble(cycle.targetWeight, 0.1, 25.0),
+            "targetWeightKg" to PoultryCalculators.sanitizeFiniteDouble(cycle.targetWeight, 0.1, 25.0),
+            "cumulativeBirdsSold" to PoultryCalculators.sanitizeBoundedInt(cumulativeBirdsSold, 0, 5_000_000),
+            "cumulativeSoldWeightKg" to PoultryCalculators.sanitizeFiniteDouble(cumulativeSoldWeightKg, 0.0, 25_000_000.0),
+            "cumulativeMortality" to PoultryCalculators.sanitizeBoundedInt(cycle.cumulativeMortality, 0, 5_000_000),
+            "feedInventoryKg" to PoultryCalculators.sanitizeFiniteDouble(cycle.feedInventoryKg, 0.0, 50_000_000.0),
+            "feedDeficitKg" to PoultryCalculators.sanitizeFiniteDouble(cycle.feedDeficitKg, 0.0, 50_000_000.0),
+            "cumulativeFeedConsumedKg" to PoultryCalculators.sanitizeFiniteDouble(cycle.cumulativeFeedConsumedKg, 0.0, 50_000_000.0),
             "lastDailyReportId" to cycle.lastDailyReportId,
             "status" to cycle.status.ifBlank { "active" },
             "startDate" to safeStartDate,
-            "chickPrice" to cycle.chickPrice.coerceAtLeast(0.0),
+            "chickPrice" to PoultryCalculators.sanitizeFiniteDouble(cycle.chickPrice, 0.0, 100_000.0),
             "currencyCode" to cycle.currencyCode.ifBlank { "DZD" },
             "schemaVersion" to cycle.schemaVersion,
             "sectorId" to cycle.sectorId.ifBlank { "AGRICULTURE" },
@@ -1195,7 +1195,8 @@ class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
      * Uses canonical cycle-scoped report ID (`rep_${farmId}_${cycleId}_day_${dayNumber}`) by default so
      * different cycles never overwrite each other's daily reports.
      */
-    suspend fun saveDailyReport(report: DailyReportModel): Result<String> {
+    suspend fun saveDailyReport(rawReport: DailyReportModel): Result<String> {
+        val report = PoultryCalculators.sanitizeDailyReport(rawReport)
         val uid = requireUserId()
         val reportId = buildCanonicalDailyReportId(
             farmId = report.farmId,
@@ -1387,13 +1388,16 @@ class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
         val uid = requireUserId()
         val noteId = note.id.ifBlank { "vet_${System.currentTimeMillis()}" }
         val docRef = farmVetNotesRef(note.farmId).document(noteId)
+        val safeDay = PoultryCalculators.sanitizeBoundedInt(note.dayNumber, 1, 365)
+        val safeInvoiceAmt = PoultryCalculators.sanitizeFiniteDouble(note.invoiceAmount, 0.0, 500_000_000.0)
+        val safeWithdrawalDays = PoultryCalculators.sanitizeBoundedInt(note.withdrawalDays, 0, 120)
         return try {
             val existing = docRef.get().await()
             if (existing.exists()) {
                 docRef.update(
                     mapOf(
                         "id" to noteId,
-                        "dayNumber" to note.dayNumber,
+                        "dayNumber" to safeDay,
                         "medicineName" to note.medicineName,
                         "medication" to note.medicineName,
                         "dosage" to note.dosage,
@@ -1402,9 +1406,9 @@ class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
                         "isUrgent" to note.isUrgent,
                         "status" to note.status,
                         "linkedTransactionId" to note.linkedTransactionId,
-                        "invoiceAmount" to note.invoiceAmount,
+                        "invoiceAmount" to safeInvoiceAmt,
                         "currency" to note.currency,
-                        "withdrawalDays" to note.withdrawalDays,
+                        "withdrawalDays" to safeWithdrawalDays,
                         "updatedAtMillis" to note.updatedAtMillis,
                         "updatedAt" to FieldValue.serverTimestamp()
                     )
@@ -1416,7 +1420,7 @@ class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
                         "userId" to uid,
                         "farmId" to note.farmId,
                         "cycleId" to note.cycleId,
-                        "dayNumber" to note.dayNumber,
+                        "dayNumber" to safeDay,
                         "medicineName" to note.medicineName,
                         "medication" to note.medicineName,
                         "dosage" to note.dosage,
@@ -1425,9 +1429,9 @@ class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
                         "isUrgent" to note.isUrgent,
                         "status" to note.status,
                         "linkedTransactionId" to note.linkedTransactionId,
-                        "invoiceAmount" to note.invoiceAmount,
+                        "invoiceAmount" to safeInvoiceAmt,
                         "currency" to note.currency,
-                        "withdrawalDays" to note.withdrawalDays,
+                        "withdrawalDays" to safeWithdrawalDays,
                         "updatedAtMillis" to note.updatedAtMillis,
                         "createdAt" to FieldValue.serverTimestamp(),
                         "updatedAt" to FieldValue.serverTimestamp()
@@ -1880,6 +1884,8 @@ class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
         tx: TransactionModel
     ): Map<String, Any> {
         val nowMillis = if (tx.updatedAtMillis > 0L) tx.updatedAtMillis else System.currentTimeMillis()
+        val safeAmount = PoultryCalculators.sanitizeFiniteDouble(tx.amount, 0.0, 1_000_000_000.0)
+        val safeQuintals = PoultryCalculators.sanitizeFiniteDouble(tx.quantityQuintals, 0.0, 500_000.0)
         val base = mutableMapOf<String, Any?>(
             "id" to idempotencyKey,
             "userId" to uid,
@@ -1887,13 +1893,13 @@ class AgritechFirestoreRepository(private val db: FirebaseFirestore) {
             "cycleId" to tx.cycleId,
             "type" to tx.type.name,
             "category" to tx.category,
-            "amount" to tx.amount,
+            "amount" to safeAmount,
             "currency" to tx.currency,
             "date" to tx.date,
             "idempotencyKey" to idempotencyKey,
             "status" to tx.status.ifBlank { "APPROVED" },
             "notes" to tx.notes,
-            "quantityQuintals" to tx.quantityQuintals,
+            "quantityQuintals" to safeQuintals,
             "approvedBySignature" to tx.approvedBySignature,
             "updatedAtMillis" to nowMillis,
             "createdAt" to FieldValue.serverTimestamp(),

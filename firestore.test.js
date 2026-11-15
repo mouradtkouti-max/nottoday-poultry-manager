@@ -1504,5 +1504,110 @@ test("Audit Section 6 & 7: Atomic DailyReport + Cycle Totals, Feed Deficit track
   await assertSucceeds(validEditBatch.commit());
 });
 
+test("Carbon Alignment: Dual-path collections (production_cycles, daily_reports, vet_notes, idempotency_receipts) and Owner SetOptions.merge() auto-bootstrap succeed", async () => {
+  await seedSharedFarmWithMembers(FARM_ID, {
+    [OWNER_UID]: "OWNER",
+    [VET_UID]: "VETERINARIAN",
+    [WORKER_UID]: "WORKER",
+  });
+  const now = new Date();
+  const ownerDb = testEnv.authenticatedContext(OWNER_UID).firestore();
+  const vetDb = testEnv.authenticatedContext(VET_UID).firestore();
+
+  // 1. Owner creates and merges production_cycles/{cycleId}
+  await assertSucceeds(
+    ownerDb.collection("farms").doc(FARM_ID).collection("production_cycles").doc("cycle_snake_1").set(
+      {
+        userId: OWNER_UID,
+        farmId: FARM_ID,
+        status: "active",
+        totalBirdsPlaced: 6000,
+        targetWeightKg: 2.4,
+        feedInventoryKg: 4000.0,
+        feedDeficitKg: 0.0,
+        cumulativeFeedConsumedKg: 0.0,
+        cumulativeMortality: 0,
+        cumulativeBirdsSold: 0,
+        createdAt: now,
+        updatedAt: now,
+      },
+      { merge: true }
+    )
+  );
+
+  // 2. Owner saves canonical daily reports (Day 1 & Day 2) via SetOptions.merge() in both dailyReports and daily_reports
+  await assertSucceeds(
+    ownerDb.collection("farms").doc(FARM_ID).collection("dailyReports").doc("rep_farm_1_cycle_snake_1_day_1").set(
+      {
+        id: "rep_farm_1_cycle_snake_1_day_1",
+        userId: OWNER_UID,
+        farmId: FARM_ID,
+        cycleId: "cycle_snake_1",
+        dayNumber: 1,
+        feedIntakeKg: 100.0,
+        waterIntakeLiters: 120.0,
+        mortalityCount: 1,
+        temperature: 33.5,
+        gasUnits: 2.0,
+        ventilationStatus: "جيدة",
+        litterCondition: "طبيعية",
+        createdAt: now,
+        updatedAt: now,
+      },
+      { merge: true }
+    )
+  );
+
+  await assertSucceeds(
+    ownerDb.collection("farms").doc(FARM_ID).collection("daily_reports").doc("rep_farm_1_cycle_snake_1_day_2").set(
+      {
+        id: "rep_farm_1_cycle_snake_1_day_2",
+        userId: OWNER_UID,
+        farmId: FARM_ID,
+        cycleId: "cycle_snake_1",
+        dayNumber: 2,
+        feedIntakeKg: 200.0,
+        waterIntakeLiters: 240.0,
+        mortalityCount: 2,
+        temperature: 33.0,
+        gasUnits: 2.0,
+        ventilationStatus: "جيدة",
+        litterCondition: "طبيعية",
+        createdAt: now,
+        updatedAt: now,
+      },
+      { merge: true }
+    )
+  );
+
+  // 3. Vet writes to vet_notes and Owner writes/merges to idempotencyReceipts & idempotency_receipts
+  await assertSucceeds(
+    vetDb.collection("farms").doc(FARM_ID).collection("vet_notes").doc("vn_snake_1").set({
+      userId: VET_UID,
+      farmId: FARM_ID,
+      cycleId: "cycle_snake_1",
+      dayNumber: 2,
+      medication: "AD3E + C",
+      dosage: "1ml/L",
+      diagnosis: "Immune support",
+      isUrgent: false,
+      createdAt: now,
+      updatedAt: now,
+    })
+  );
+
+  await assertSucceeds(
+    ownerDb.collection("farms").doc(FARM_ID).collection("idempotency_receipts").doc("rcpt_1").set(
+      {
+        farmId: FARM_ID,
+        userId: OWNER_UID,
+        createdAt: now,
+      },
+      { merge: true }
+    )
+  );
+});
+
+
 
 

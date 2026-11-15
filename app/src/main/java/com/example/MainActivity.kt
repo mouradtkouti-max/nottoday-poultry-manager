@@ -50,6 +50,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
@@ -1380,7 +1381,8 @@ object AgritechMockDb {
      * - If an existing report is modified, marks `isEdited = true` and records `previousSummary`.
      * - Adjusts `cycle.feedInventoryKg` by the feed delta and `cycle.cumulativeMortality` by the mortality delta.
      */
-    fun upsertDailyReportWithAudit(report: DailyReportModel): DailyReportModel {
+    fun upsertDailyReportWithAudit(rawReport: DailyReportModel): DailyReportModel {
+        val report = PoultryCalculators.sanitizeDailyReport(rawReport)
         val resolvedCycleId = report.cycleId.trim().ifBlank {
             cycles.firstOrNull { it.farmId == report.farmId && it.status.equals("active", ignoreCase = true) }?.id
                 ?: cycles.firstOrNull { it.farmId == report.farmId }?.id
@@ -1596,21 +1598,25 @@ object AgritechMockDb {
         tx: TransactionModel,
         addedFeedKg: Double = 0.0
     ): Boolean {
-        if (tx.amount <= 0.0 || tx.id.isBlank()) return false
+        val safeAmount = PoultryCalculators.sanitizeFiniteDouble(tx.amount, 0.0, 1_000_000_000.0)
+        val safeQuintals = PoultryCalculators.sanitizeFiniteDouble(tx.quantityQuintals, 0.0, 500_000.0)
+        val safeAddedFeedKg = PoultryCalculators.sanitizeFiniteDouble(addedFeedKg, 0.0, 50_000_000.0)
+        if (safeAmount <= 0.0 || tx.id.isBlank()) return false
         if (transactions.any { it.id == tx.id }) return false
 
         val resolvedAddedFeedKg = when {
-            addedFeedKg > 0.0 -> addedFeedKg
-            tx.quantityQuintals > 0.0 -> tx.quantityQuintals * 100.0
+            safeAddedFeedKg > 0.0 -> safeAddedFeedKg
+            safeQuintals > 0.0 -> safeQuintals * 100.0
             else -> 0.0
         }
         val nowMillis = System.currentTimeMillis()
         val normalizedTx = tx.copy(
+            amount = safeAmount,
             status = tx.status.ifBlank { "APPROVED" },
-            quantityQuintals = if (resolvedAddedFeedKg > 0.0 && tx.quantityQuintals <= 0.0) {
+            quantityQuintals = if (resolvedAddedFeedKg > 0.0 && safeQuintals <= 0.0) {
                 resolvedAddedFeedKg / 100.0
             } else {
-                tx.quantityQuintals
+                safeQuintals
             },
             updatedAtMillis = nowMillis
         )
@@ -3558,6 +3564,7 @@ fun AgritechOwnerDashboard(
         containerColor = currentTheme.bgColor,
         topBar = {
             TopAppBar(
+                modifier = Modifier.statusBarsPadding(),
                 title = {
                     Column {
                         Text(
@@ -3565,7 +3572,8 @@ fun AgritechOwnerDashboard(
                             fontWeight = FontWeight.Bold,
                             fontSize = 15.5.sp,
                             color = primaryTextColor,
-                            maxLines = 1
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                         Text(
                             when (activeRole.normalizedHubRole) {
@@ -3691,7 +3699,9 @@ fun AgritechOwnerDashboard(
             NavigationBar(
                 containerColor = currentTheme.cardColor,
                 contentColor = accentEmerald,
-                modifier = Modifier.testTag("owner_global_bottom_nav")
+                modifier = Modifier
+                    .navigationBarsPadding()
+                    .testTag("owner_global_bottom_nav")
             ) {
                 val dynamicGlobalTabs = buildList {
                     if (showBarnsTab) {
@@ -3731,7 +3741,8 @@ fun AgritechOwnerDashboard(
                                 color = if (isSelected) accentEmerald else secondaryTextColor,
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                                 fontSize = 10.5.sp,
-                                maxLines = 1
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         },
                         colors = NavigationBarItemDefaults.colors(
@@ -3746,6 +3757,12 @@ fun AgritechOwnerDashboard(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                .animateContentSize(
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioNoBouncy,
+                        stiffness = Spring.StiffnessMediumLow
+                    )
+                )
         ) {
             when (selectedGlobalTab) {
                 GlobalDashboardTab.BARNS -> {
@@ -4020,8 +4037,8 @@ fun AgritechOwnerDashboard(
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(14.dp),
-                            colors = CardDefaults.cardColors(containerColor = if (isDark) Color(0xFF064E3B) else Color(0xFFF1F8E9)),
-                            border = BorderStroke(1.dp, if (isDark) Color(0xFF10B981).copy(alpha = 0.45f) else Color(0xFFC8E6C9))
+                            colors = CardDefaults.cardColors(containerColor = accentBadgeBg),
+                            border = BorderStroke(1.dp, accentEmerald.copy(alpha = 0.45f))
                         ) {
                             Column(modifier = Modifier.padding(12.dp)) {
                                 Row(
@@ -4110,9 +4127,11 @@ fun AgritechOwnerDashboard(
                             chickPriceInput = ""
                             newCycleValidationError = null
                         },
-                        modifier = Modifier.testTag("btn_confirm_new_cycle"),
+                        modifier = Modifier
+                            .defaultMinSize(minHeight = 48.dp)
+                            .testTag("btn_confirm_new_cycle"),
                         shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = TextForestGreen)
+                        colors = ButtonDefaults.buttonColors(containerColor = primaryButtonAccent)
                     ) {
                         Text(Translations.tr("btn_create_cycle", lang), fontWeight = FontWeight.Bold, color = Color.White)
                     }
@@ -4123,6 +4142,7 @@ fun AgritechOwnerDashboard(
                             showNewCycleDialog = false
                             targetFarmForCycle = null
                         },
+                        modifier = Modifier.defaultMinSize(minHeight = 48.dp),
                         shape = RoundedCornerShape(12.dp)
                     ) {
                         Text(Translations.tr("btn_cancel", lang), color = secondaryTextColor, fontWeight = FontWeight.SemiBold)
@@ -4300,12 +4320,13 @@ fun ManagementHubScreen(
                 border = BorderStroke(1.dp, activeAccent.copy(alpha = 0.45f)),
                 modifier = Modifier
                     .weight(1f)
+                    .defaultMinSize(minHeight = 48.dp)
                     .clip(pillShape)
                     .clickable { showMyManagementsDialog = true }
                     .testTag("btn_my_managements")
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -4333,6 +4354,7 @@ fun ManagementHubScreen(
                 border = BorderStroke(1.2.dp, activeAccent.copy(alpha = 0.55f)),
                 modifier = Modifier
                     .weight(1f)
+                    .defaultMinSize(minHeight = 48.dp)
                     .clip(pillShape)
                     .clickable { showAddManagementDialog = true }
                     .testTag("btn_add_management")
@@ -13333,9 +13355,11 @@ fun AgritechFarmNotebookScreen(
         },
         bottomBar = {
             val appearance = LocalAppAppearanceState.current
+            val unselectedNavColor = if (currentTheme.isDark) Color(0xFFCBD5E1) else Color(0xFF475569)
             NavigationBar(
                 containerColor = currentTheme.cardColor,
-                contentColor = appearance.accentColor
+                contentColor = appearance.accentColor,
+                modifier = Modifier.navigationBarsPadding()
             ) {
                 val items = listOf(
                     Triple(0, Translations.tr("tab_ledger", lang), Icons.Default.TableChart),
@@ -13354,15 +13378,17 @@ fun AgritechFarmNotebookScreen(
                             Icon(
                                 icon,
                                 contentDescription = label,
-                                tint = if (isSelected) appearance.accentColor else Color.Gray
+                                tint = if (isSelected) appearance.accentColor else unselectedNavColor
                             )
                         },
                         label = {
                             Text(
                                 label,
-                                color = if (isSelected) appearance.accentColor else Color.Gray,
+                                color = if (isSelected) appearance.accentColor else unselectedNavColor,
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                fontSize = 10.sp
+                                fontSize = 10.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         },
                         colors = NavigationBarItemDefaults.colors(
@@ -13384,6 +13410,12 @@ fun AgritechFarmNotebookScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                .animateContentSize(
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioNoBouncy,
+                        stiffness = Spring.StiffnessMediumLow
+                    )
+                )
         ) {
             Crossfade(
                 targetState = selectedTab,
@@ -13432,7 +13464,7 @@ fun AgritechFarmNotebookScreen(
                                     )
                                 },
                                 modifier = Modifier
-                                    .height(40.dp)
+                                    .defaultMinSize(minHeight = 48.dp)
                                     .testTag("btn_owner_add_daily_report")
                             )
                         }

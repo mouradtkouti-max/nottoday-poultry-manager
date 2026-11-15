@@ -1099,33 +1099,162 @@ fun NanoBananaStageArtBox(
                 modifier = Modifier.fillMaxSize()
             )
         } else {
-            Column(
+            Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(4.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
+                    .padding(horizontal = 4.dp, vertical = 3.dp),
+                contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = stageVisual.iconEmoji,
-                    fontSize = 26.sp,
-                    textAlign = TextAlign.Center
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Surface(
-                    shape = RoundedCornerShape(6.dp),
-                    color = BookParchmentCard,
-                    border = BorderStroke(1.dp, BookBurgundy)
+                // Clear agricultural vector emblem behind/alongside the farmer icon & badge
+                Canvas(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(44.dp)
+                        .align(Alignment.TopCenter)
+                ) {
+                    val cx = size.width * 0.22f
+                    val cy = size.height * 0.52f
+                    when (visualType) {
+                        InfographicVisualType.CARE_BROODING_BEHAVIOR -> {
+                            // Clear red-bulb mercury thermometer
+                            drawRoundRect(
+                                color = Color.White,
+                                topLeft = Offset(cx - 5f, cy - 16f),
+                                size = Size(10f, 24f),
+                                cornerRadius = CornerRadius(5f, 5f)
+                            )
+                            drawRoundRect(
+                                color = BookBurgundy,
+                                topLeft = Offset(cx - 5f, cy - 16f),
+                                size = Size(10f, 24f),
+                                cornerRadius = CornerRadius(5f, 5f),
+                                style = Stroke(width = 2f)
+                            )
+                            val fillRatio = (1f - stepIndex * 0.22f).coerceIn(0.35f, 1f)
+                            val mercuryH = 16f * fillRatio
+                            drawRect(
+                                color = Color(0xFFDC2626),
+                                topLeft = Offset(cx - 2.5f, (cy + 6f) - mercuryH),
+                                size = Size(5f, mercuryH)
+                            )
+                            drawCircle(
+                                color = Color(0xFFDC2626),
+                                radius = 7.5f,
+                                center = Offset(cx, cy + 9f)
+                            )
+                        }
+                        InfographicVisualType.CARE_PREHEAT_PREP -> {
+                            // Wood-shavings wave + vertical ruler ticks (5–8 cm)
+                            drawRoundRect(
+                                color = Color(0xFFD9A05B),
+                                topLeft = Offset(cx - 14f, cy + 2f),
+                                size = Size(28f, 12f),
+                                cornerRadius = CornerRadius(4f, 4f)
+                            )
+                            drawRect(
+                                color = Color(0xFFFACC15),
+                                topLeft = Offset(cx - 14f, cy - 14f),
+                                size = Size(7f, 28f)
+                            )
+                            for (tick in 0..3) {
+                                val ty = (cy - 12f) + tick * 7f
+                                drawLine(
+                                    color = BookBurgundyDark,
+                                    start = Offset(cx - 14f, ty),
+                                    end = Offset(cx - 9f, ty),
+                                    strokeWidth = 1.6f
+                                )
+                            }
+                        }
+                        InfographicVisualType.FEED_STARTER_SPEC,
+                        InfographicVisualType.FEED_FINISHER_PELLETS,
+                        InfographicVisualType.FEED_WEIGHT_WATER_CURVE -> {
+                            // Burlap feed sack silhouette with grain mound
+                            drawRoundRect(
+                                color = Color(0xFFC89D66),
+                                topLeft = Offset(cx - 11f, cy - 10f),
+                                size = Size(22f, 24f),
+                                cornerRadius = CornerRadius(5f, 5f)
+                            )
+                            drawRoundRect(
+                                color = BookBorderOuter,
+                                topLeft = Offset(cx - 11f, cy - 10f),
+                                size = Size(22f, 24f),
+                                cornerRadius = CornerRadius(5f, 5f),
+                                style = Stroke(width = 1.8f)
+                            )
+                            drawCircle(
+                                color = Color(0xFFEAB308),
+                                radius = 6f,
+                                center = Offset(cx, cy + 2f)
+                            )
+                        }
+                        InfographicVisualType.VAX_RECEPTION_WATER,
+                        InfographicVisualType.VAX_NEWCASTLE_EYE_SPRAY,
+                        InfographicVisualType.VAX_GUMBORO_DRINKING,
+                        InfographicVisualType.VAX_BOOSTER_DETOX -> {
+                            // Cold-chain medical vial in ice bath
+                            drawRoundRect(
+                                color = Color(0xFFDBEAFE),
+                                topLeft = Offset(cx - 8f, cy - 10f),
+                                size = Size(16f, 22f),
+                                cornerRadius = CornerRadius(4f, 4f)
+                            )
+                            drawRoundRect(
+                                color = Color(0xFF1D4ED8),
+                                topLeft = Offset(cx - 8f, cy - 10f),
+                                size = Size(16f, 22f),
+                                cornerRadius = CornerRadius(4f, 4f),
+                                style = Stroke(width = 1.8f)
+                            )
+                            drawRect(
+                                color = Color(0xFF1E40AF),
+                                topLeft = Offset(cx - 6f, cy - 15f),
+                                size = Size(12f, 5f)
+                            )
+                        }
+                        else -> {
+                            // Clean circular agricultural gauge
+                            drawCircle(
+                                color = BookParchmentCard,
+                                radius = 12f,
+                                center = Offset(cx, cy)
+                            )
+                            drawCircle(
+                                color = BookBurgundy,
+                                radius = 12f,
+                                center = Offset(cx, cy),
+                                style = Stroke(width = 1.8f)
+                            )
+                        }
+                    }
+                }
+
+                Column(
+                    modifier = Modifier.fillMaxSize(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        text = stageVisual.prominentBadge,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = BookBurgundyDark,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        text = stageVisual.iconEmoji,
+                        fontSize = 24.sp,
+                        textAlign = TextAlign.Center
                     )
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = BookParchmentCard,
+                        border = BorderStroke(1.dp, BookBurgundy)
+                    ) {
+                        Text(
+                            text = stageVisual.prominentBadge,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = BookBurgundyDark,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
                 }
             }
         }
