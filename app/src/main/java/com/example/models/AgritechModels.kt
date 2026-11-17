@@ -1,21 +1,77 @@
 package com.example.models
 
+import androidx.compose.runtime.Stable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 
 // ============================================================================
-// THEME OPTIONS & COLOR CONSTANTS
+// THEME OPTIONS, PAPER STYLES & COLOR CONSTANTS
 // ============================================================================
 
+enum class AppPaperStyleOption(
+    val id: String,
+    val emoji: String,
+    val defaultLabel: String
+) {
+    DARWIN_PARCHMENT("darwin_parchment", "📜", "Darwin Parchment"),
+    RULED_LEDGER("ruled_ledger", "📓", "Ruled Ledger"),
+    BLUEPRINT_GRID("blueprint_grid", "📐", "Blueprint Grid"),
+    CLEAN_DEFAULT("clean_default", "💎", "Clean Default")
+}
+
+@Stable
+object AppPaperStyleRuntime {
+    var activePaperStyle by mutableStateOf(AppPaperStyleOption.DARWIN_PARCHMENT)
+}
+
 enum class AppThemeOption(
-    val bgColor: Color,
-    val cardColor: Color,
-    val headingColor: Color,
+    val baseBgColor: Color,
+    val baseCardColor: Color,
+    val baseHeadingColor: Color,
     val isDark: Boolean
 ) {
     ICE_BLUE(Color(0xFFE8F4FD), Color.White, Color(0xFF1B5E20), false),
     NATURE_GREEN(Color(0xFFE8F5E9), Color.White, Color(0xFF1B5E20), false),
     CRISP_WHITE(Color(0xFFF8FAFC), Color.White, Color(0xFF1B5E20), false),
-    NIGHT_MODE(Color(0xFF0E121A), Color(0xFF161B26), Color(0xFFFFFFFF), true)
+    NIGHT_MODE(Color(0xFF0E121A), Color(0xFF161B26), Color(0xFFFFFFFF), true);
+
+    val bgColor: Color
+        get() = when (AppPaperStyleRuntime.activePaperStyle) {
+            AppPaperStyleOption.DARWIN_PARCHMENT ->
+                if (isDark) Color(0xFF18120E) else Color(0xFFF4EBD6)
+            AppPaperStyleOption.RULED_LEDGER ->
+                if (isDark) Color(0xFF111824) else Color(0xFFFBF8F1)
+            AppPaperStyleOption.BLUEPRINT_GRID ->
+                if (isDark) Color(0xFF0B192C) else Color(0xFFEFF6FF)
+            AppPaperStyleOption.CLEAN_DEFAULT -> baseBgColor
+        }
+
+    val cardColor: Color
+        get() = when (AppPaperStyleRuntime.activePaperStyle) {
+            AppPaperStyleOption.DARWIN_PARCHMENT ->
+                if (isDark) Color(0xFF2A2018) else Color(0xFFFAF3E4)
+            AppPaperStyleOption.RULED_LEDGER ->
+                if (isDark) Color(0xFF1C2536) else Color(0xFFFFFDF8)
+            AppPaperStyleOption.BLUEPRINT_GRID ->
+                if (isDark) Color(0xFF15263F) else Color(0xFFF8FAFC)
+            AppPaperStyleOption.CLEAN_DEFAULT -> baseCardColor
+        }
+
+    val headingColor: Color
+        get() = when (AppPaperStyleRuntime.activePaperStyle) {
+            AppPaperStyleOption.DARWIN_PARCHMENT ->
+                if (isDark) Color(0xFFF5ECD8) else Color(0xFF26160C)
+            else -> if (isDark) Color(0xFFFFFFFF) else baseHeadingColor
+        }
+
+    val secondaryTextColor: Color
+        get() = when (AppPaperStyleRuntime.activePaperStyle) {
+            AppPaperStyleOption.DARWIN_PARCHMENT ->
+                if (isDark) Color(0xFFD7C4A3) else Color(0xFF5C4028)
+            else -> if (isDark) Color(0xFFCBD5E1) else Color(0xFF475569)
+        }
 }
 
 enum class AppAccentColorOption(
@@ -30,7 +86,8 @@ enum class AppAccentColorOption(
     OCEAN_BLUE("#2563EB", Color(0xFF2563EB), Color(0xFF60A5FA), Color(0xFFDBEAFE), Color(0xFF1E3A8A)),
     MINT_EMERALD("#10B981", Color(0xFF10B981), Color(0xFF34D399), Color(0xFFD1FAE5), Color(0xFF064E3B)),
     AMBER_GOLD("#D97706", Color(0xFFD97706), Color(0xFFFBBF24), Color(0xFFFEF3C7), Color(0xFF78350F)),
-    ROSE("#E11D48", Color(0xFFE11D48), Color(0xFFFB7185), Color(0xFFFFE4E6), Color(0xFF881337))
+    ROSE("#E11D48", Color(0xFFE11D48), Color(0xFFFB7185), Color(0xFFFFE4E6), Color(0xFF881337)),
+    DARWIN_BRONZE("#6E4720", Color(0xFF6E4720), Color(0xFFD4AF37), Color(0xFFF3E5CE), Color(0xFF3A2616))
 }
 
 enum class AppTextScaleOption(

@@ -175,61 +175,45 @@ fun VintageSpiralBookPageContainer(
     }
 
     CompositionLocalProvider(LocalLayoutDirection provides pageLayoutDirection) {
-        // Outer Book Parchment Sheet matching Reference Image 2 (1794641992685_cdefeea4.jpg)
+        // Darwin Parchment Manuscript Sheet framed with double-line ink border (no school spiral rings)
         Surface(
             modifier = modifier
                 .fillMaxWidth()
                 .testTag("vintage_spiral_book_page_$lessonNumFormatted")
                 .testTag("book_detail_view_${detailCard.id}"),
             shape = RoundedCornerShape(cornerRadiusDp.dp),
-            color = BookParchmentDeep,
-            border = BorderStroke(2.0.dp, BookBorderOuter),
+            color = Color(0xFFF4EBD6),
+            border = BorderStroke(1.4.dp, Color(0xFF4A321F)),
             shadowElevation = 5.dp
         ) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(4.dp)
+                    .padding(3.dp)
                     .background(
-                        BookParchmentLight,
-                        RoundedCornerShape((cornerRadiusDp - 3).coerceAtLeast(8).dp)
+                        Color(0xFFFAF3E4),
+                        RoundedCornerShape((cornerRadiusDp - 3).coerceAtLeast(4).dp)
                     )
                     .border(
-                        width = 1.2.dp,
-                        color = BookBorderInner,
-                        shape = RoundedCornerShape((cornerRadiusDp - 3).coerceAtLeast(8).dp)
+                        width = 0.8.dp,
+                        color = Color(0xFF8C6D46),
+                        shape = RoundedCornerShape((cornerRadiusDp - 3).coerceAtLeast(4).dp)
                     )
             ) {
-                // Keep metallic spiral binding cleanly along visual left edge matching Reference Image 2
-                CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        SpiralBindingRingsCanvas(
-                            ringCount = 9,
-                            onRightEdge = false,
-                            modifier = Modifier
-                                .heightIn(min = 580.dp)
-                                .padding(vertical = 8.dp)
-                        )
-
-                        CompositionLocalProvider(LocalLayoutDirection provides pageLayoutDirection) {
-                            VintageBookPageInnerContent(
-                                detailCard = localizedCard,
-                                spec = localizedSpec,
-                                pageNumber = pageNumber,
-                                totalPages = totalPages,
-                                lang = lang,
-                                specialtyTitle = specialtyTitle,
-                                onBackToIndex = onBackToIndex,
-                                onOpenZoom = { internalZoomOpen = true },
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .padding(start = 4.dp, end = 10.dp, top = 8.dp, bottom = 8.dp)
-                            )
-                        }
-                    }
+                CompositionLocalProvider(LocalLayoutDirection provides pageLayoutDirection) {
+                    VintageBookPageInnerContent(
+                        detailCard = localizedCard,
+                        spec = localizedSpec,
+                        pageNumber = pageNumber,
+                        totalPages = totalPages,
+                        lang = lang,
+                        specialtyTitle = specialtyTitle,
+                        onBackToIndex = onBackToIndex,
+                        onOpenZoom = { internalZoomOpen = true },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 10.dp, vertical = 10.dp)
+                    )
                 }
             }
         }
@@ -426,6 +410,12 @@ private fun VintageBookPageInnerContent(
                     lang = lang
                 )
 
+                val romanNumeral = when (idx) {
+                    0 -> "I"
+                    1 -> "II"
+                    else -> "III"
+                }
+
                 Box(
                     modifier = Modifier
                         .weight(1f)
@@ -434,19 +424,21 @@ private fun VintageBookPageInnerContent(
                     Surface(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(top = 12.dp),
+                            .padding(top = 13.dp),
                         shape = RoundedCornerShape(10.dp),
-                        color = BookParchmentCard,
-                        border = BorderStroke(1.2.dp, BookBorderInner),
+                        color = Color(0xFFFAF3E4),
+                        border = BorderStroke(1.3.dp, Color(0xFF4A321F)),
                         shadowElevation = 2.dp
                     ) {
                         Column(
                             modifier = Modifier
                                 .fillMaxSize()
+                                .padding(2.5.dp)
+                                .border(0.7.dp, Color(0xFF8C6D46), RoundedCornerShape(8.dp))
                                 .padding(
                                     start = 5.dp,
                                     end = 5.dp,
-                                    top = 15.dp,
+                                    top = 14.dp,
                                     bottom = 8.dp
                                 ),
                             horizontalAlignment = Alignment.CenterHorizontally,
@@ -456,7 +448,7 @@ private fun VintageBookPageInnerContent(
                                 text = stage.headerTitle,
                                 fontSize = 10.5.sp,
                                 fontWeight = FontWeight.ExtraBold,
-                                color = BookBurgundyDark,
+                                color = Color(0xFF26160C),
                                 textAlign = TextAlign.Center,
                                 lineHeight = 14.sp,
                                 maxLines = 3,
@@ -476,7 +468,7 @@ private fun VintageBookPageInnerContent(
                                     text = stage.bottomSummary,
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.ExtraBold,
-                                    color = BookBurgundyDark,
+                                    color = Color(0xFF26160C),
                                     textAlign = TextAlign.Center,
                                     lineHeight = 13.5.sp,
                                     maxLines = 3,
@@ -486,23 +478,29 @@ private fun VintageBookPageInnerContent(
                         }
                     }
 
-                    // Protruding burgundy circular badge centered on top border (1, 2, 3)
+                    // Protruding Darwin Brass Roman Numeral Seal centered on top border (I, II, III)
                     Surface(
                         modifier = Modifier
-                            .size(24.dp)
+                            .size(26.dp)
                             .align(Alignment.TopCenter)
                             .zIndex(2f),
                         shape = CircleShape,
-                        color = BookBurgundy,
-                        border = BorderStroke(1.5.dp, Color(0xFFFFF8E7)),
-                        shadowElevation = 2.dp
+                        color = Color(0xFF6E4720),
+                        border = BorderStroke(1.5.dp, Color(0xFFD4AF37)),
+                        shadowElevation = 3.dp
                     ) {
-                        Box(contentAlignment = Alignment.Center) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(2.dp)
+                                .border(0.7.dp, Color(0xFFF4EBD6).copy(alpha = 0.7f), CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
                             Text(
-                                text = "${idx + 1}",
-                                fontSize = 11.5.sp,
+                                text = romanNumeral,
+                                fontSize = 10.5.sp,
                                 fontWeight = FontWeight.ExtraBold,
-                                color = Color.White
+                                color = Color(0xFFFAF3E4)
                             )
                         }
                     }

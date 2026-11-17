@@ -12,6 +12,7 @@ import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextReplacement
 import androidx.test.core.app.ApplicationProvider
@@ -448,8 +449,9 @@ class ExampleRobolectricTest {
             assertTrue("Language ${lang.name} must safely resolve translations without raw keys", titleTranslated != "settings_dialog_title" && titleTranslated.isNotBlank())
         }
 
-        // 3. Verify Appearance Studio options (6 Accent Colors, 4 Text Scales, 3 Corner Styles)
-        assertEquals(6, AppAccentColorOption.values().size)
+        // 3. Verify Appearance Studio options (7 Accent Colors including Darwin Bronze, 4 Paper Styles, 4 Text Scales, 3 Corner Styles)
+        assertEquals(7, AppAccentColorOption.values().size)
+        assertEquals(4, AppPaperStyleOption.values().size)
         assertEquals(4, AppTextScaleOption.values().size)
         assertEquals(3, AppCornerStyleOption.values().size)
         assertEquals(20, AppCornerStyleOption.ROUNDED.cornerRadiusDp)
@@ -2452,6 +2454,263 @@ class ExampleRobolectricTest {
         assertEquals(5985, PoultryCalculators.calculateLiveBirds(reloadedCycle.totalBirdsPlaced, reloadedCycle.cumulativeMortality, reloadedCycle.cumulativeBirdsSold))
 
         LocalFarmPersistence.clearAllForDeletedIdentity(context, testUid)
+    }
+
+    @Test
+    fun `broilerFarmerEndToEndFieldAudit_dayAndNight_extraLargeFont_allJourneys`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val farmerUid = "uid_broiler_farmer_audit"
+        val farmId = "farm_broiler_audit_1"
+        val cycleId = "cycle_broiler_audit_1"
+
+        LocalFarmPersistence.clearAllForDeletedIdentity(context, farmerUid)
+        LocalFarmPersistence.setActiveIdentity(farmerUid)
+
+        // 1. Verify all 14 languages remain 100% intact with zero raw translation keys on Darwin & Farmer strings
+        assertEquals(14, AppLanguage.values().size)
+        val criticalKeys = listOf(
+            "appearance_paper_style_label",
+            "paper_style_darwin_parchment",
+            "paper_style_ruled_ledger",
+            "paper_style_blueprint_grid",
+            "paper_style_clean_default",
+            "book_field_observation_fig1",
+            "quintal_short",
+            "btn_spend",
+            "btn_income"
+        )
+        for (lang in AppLanguage.values()) {
+            for (k in criticalKeys) {
+                val resolved = Translations.tr(k, lang)
+                assertTrue("Key $k in $lang must not be blank or raw", resolved.isNotBlank() && resolved != k)
+            }
+        }
+        // Guardrail: Never use the word "ديون" (Debts) in Arabic Expense labels
+        assertTrue(!Translations.tr("btn_spend", AppLanguage.AR).contains("ديون"))
+
+        // 2. Verify Darwin Parchment Day & Night root theme tokens
+        AppPaperStyleRuntime.activePaperStyle = AppPaperStyleOption.DARWIN_PARCHMENT
+        assertEquals(0xFFF4EBD6, AppThemeOption.NATURE_GREEN.bgColor.value.toLong() shr 32 and 0xFFFFFFFFL)
+        assertEquals(0xFFFAF3E4, AppThemeOption.NATURE_GREEN.cardColor.value.toLong() shr 32 and 0xFFFFFFFFL)
+        assertEquals(0xFF18120E, AppThemeOption.NIGHT_MODE.bgColor.value.toLong() shr 32 and 0xFFFFFFFFL)
+        assertEquals(0xFF2A2018, AppThemeOption.NIGHT_MODE.cardColor.value.toLong() shr 32 and 0xFFFFFFFFL)
+
+        // 3. Station 1: Farmer creates Barn & Cycle (5,000 broilers, 80 Quintals initial starter feed)
+        val farm = FarmModel(
+            id = farmId,
+            name = "عنبر التسمين النموذجي 1",
+            location = "باتنة — تكوت",
+            capacity = 5000,
+            members = mapOf(farmerUid to "OWNER")
+        )
+        val cycle = CycleModel(
+            id = cycleId,
+            farmId = farmId,
+            totalBirdsPlaced = 5000,
+            targetWeight = 2.6,
+            status = "active",
+            startDate = "2026-11-16",
+            chickPrice = 130.0,
+            feedInventoryKg = 8000.0 // 80 Quintals
+        )
+        val chickExpense = TransactionModel(
+            id = "tx_audit_chicks",
+            farmId = farmId,
+            cycleId = cycleId,
+            type = TransactionType.EXPENSE,
+            category = "🐤 كتاكيت",
+            amount = 650000.0,
+            currency = "دج",
+            date = "اليوم 1",
+            status = "APPROVED"
+        )
+        AgritechMockDb.registerFarmAndCycleLocally(farm, cycle, chickExpense)
+
+        // 4. Station 1, 2, 4, 5, 6 under BOTH Day Mode & Night Mode + Extra-Large Font Scale (125%)
+        val isDarkState = androidx.compose.runtime.mutableStateOf(false)
+        val currentStepState = androidx.compose.runtime.mutableIntStateOf(0)
+
+        composeTestRule.setContent {
+            val isDark = isDarkState.value
+            val step = currentStepState.intValue
+            val activeTheme = if (isDark) AppThemeOption.NIGHT_MODE else AppThemeOption.NATURE_GREEN
+            val appearance = AppAppearanceState(
+                theme = activeTheme,
+                accentOption = AppAccentColorOption.DARWIN_BRONZE,
+                textScale = AppTextScaleOption.EXTRA_LARGE,
+                cornerStyle = AppCornerStyleOption.ROUNDED,
+                paperStyle = AppPaperStyleOption.DARWIN_PARCHMENT
+            )
+            androidx.compose.runtime.CompositionLocalProvider(
+                LocalAppAppearanceState provides appearance
+            ) {
+                when (step) {
+                    0 -> {
+                        // Station 1: FarmCard with 3 stat boxes (Est. Weight, Vitality, Feed Inventory in Quintals)
+                        FarmCard(
+                            farm = farm,
+                            currentTheme = activeTheme,
+                            lang = AppLanguage.AR,
+                            onOpenNotebook = {},
+                            onStartNewCycle = {}
+                        )
+                    }
+                    1 -> {
+                        // Station 2: OwnerDailyReportDialog with LuminousOutlinedTextField
+                        OwnerDailyReportDialog(
+                            farm = farm,
+                            cycle = AgritechMockDb.cycles.first { it.id == cycleId },
+                            initialReport = null,
+                            suggestedDayNumber = 1,
+                            vetNotes = emptyList(),
+                            lang = AppLanguage.AR,
+                            currentTheme = activeTheme,
+                            onDismiss = {},
+                            onSaveReport = { report ->
+                                AgritechMockDb.upsertDailyReportWithAudit(report)
+                            }
+                        )
+                    }
+                    2 -> {
+                        // Station 3 (Read-Only Guardrail): BatchQuickWeighingScreen inspection without code changes
+                        BatchQuickWeighingScreen(
+                            currentTheme = activeTheme,
+                            lang = AppLanguage.AR,
+                            farm = farm,
+                            cycle = AgritechMockDb.cycles.first { it.id == cycleId },
+                            ageInDays = 1,
+                            liveBirds = 4997,
+                            buyerName = "تاجر الجملة",
+                            truckPlate = "12345-116-05",
+                            birdsPerCrate = 10,
+                            tareMode = TareMode.DIRECT_TOTAL,
+                            directTareTotal = 45.0,
+                            pricePerKg = 390.0,
+                            tareWeights = emptyList(),
+                            grossWeights = emptyList(),
+                            onAddTareWeight = {},
+                            onDeleteTareWeight = {},
+                            onAddGrossWeight = { _, _ -> },
+                            onDeleteGrossWeight = {},
+                            onFinalizeAndMigrate = {},
+                            onBack = {}
+                        )
+                    }
+                    3 -> {
+                        // Station 4: SimpleTransactionDialog (Expense / Income in Treasury)
+                        SimpleTransactionDialog(
+                            title = Translations.tr("btn_spend", AppLanguage.AR),
+                            type = TransactionType.EXPENSE,
+                            lang = AppLanguage.AR,
+                            categories = listOf("🌾 علف بادئ 1", "💊 أدوية"),
+                            onDismiss = {},
+                            onConfirm = { _, _, _ -> }
+                        )
+                    }
+                    4 -> {
+                        // Station 5: Darwin Manuscript Lesson Page (Book -> Advice -> Fig. 1 + Roman Seals)
+                        val branches = Ross308BroilerHandbook.buildFourBranchesForBarn(
+                            barnName = farm.name,
+                            ageDays = 10,
+                            placedBirds = 5000,
+                            liveBirds = 4997,
+                            recordedTempC = 29.0,
+                            totalFeedQuintals = 2.5,
+                            remainingFeedQuintals = 77.5,
+                            latestDailyFeedKg = 250.0,
+                            latestDailyWaterLiters = 450.0,
+                            currentWeightKg = 0.28,
+                            actualFcr = 1.15
+                        )
+                        val feedCard = branches[3].subCards.first { it.id == "feed_1" }
+                        VintageSpiralBookPageContainer(
+                            detailCard = feedCard,
+                            spec = feedCard.posterSpec!!,
+                            pageNumber = 1,
+                            totalPages = 4,
+                            lang = AppLanguage.AR,
+                            currentTheme = activeTheme
+                        )
+                    }
+                    5 -> {
+                        // Station 6: AddMarketPostDialog
+                        AddMarketPostDialog(
+                            lang = AppLanguage.AR,
+                            currentTheme = activeTheme,
+                            onDismiss = {},
+                            onPublishPost = {}
+                        )
+                    }
+                }
+            }
+        }
+
+        // Inspect Station 1 (FarmCard) in Day Mode & Night Mode at 125% Font Scale
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithText("عنبر التسمين النموذجي 1", substring = true).assertIsDisplayed()
+        composeTestRule.onNodeWithText("80", substring = true).assertIsDisplayed() // 80 ق
+        isDarkState.value = true
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithText("عنبر التسمين النموذجي 1", substring = true).assertIsDisplayed()
+        isDarkState.value = false
+
+        // Inspect Station 2 (Daily Report Dialog) & log Day 1 (2.5 Quintals = 250 kg feed, 450 L water, 3 mortality)
+        currentStepState.intValue = 1
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithTag("input_owner_report_day").assertIsDisplayed().assertIsNotEnabled()
+        composeTestRule.onNodeWithTag("input_owner_report_feed_quintals").performTextReplacement("2.5")
+        composeTestRule.onNodeWithTag("input_owner_report_water").performTextReplacement("450")
+        composeTestRule.onNodeWithTag("input_owner_report_mortality").performTextReplacement("3")
+        composeTestRule.onNodeWithTag("btn_confirm_owner_daily_report").performClick()
+        composeTestRule.waitForIdle()
+
+        val updatedCycleAfterDay1 = AgritechMockDb.cycles.first { it.id == cycleId }
+        assertEquals(250.0, updatedCycleAfterDay1.cumulativeFeedConsumedKg, 0.001)
+        assertEquals(7750.0, updatedCycleAfterDay1.feedInventoryKg, 0.001) // 77.5 Quintals left
+        assertEquals(4997, PoultryCalculators.calculateLiveBirds(updatedCycleAfterDay1.totalBirdsPlaced, updatedCycleAfterDay1.cumulativeMortality, updatedCycleAfterDay1.cumulativeBirdsSold))
+
+        // Inspect Station 3 (BatchQuickWeighingScreen - Read-Only Verification)
+        currentStepState.intValue = 2
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithText("تاجر الجملة", substring = true).assertIsDisplayed()
+
+        // Inspect Station 4 (SimpleTransactionDialog: Feed Quintals & Medication Expense) in Day & Night Mode
+        currentStepState.intValue = 3
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithTag("input_feed_quintals").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("input_feed_unit_price").assertIsDisplayed()
+        composeTestRule.onNodeWithText("💊 أدوية", substring = true).performClick()
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithTag("input_tx_amount").assertIsDisplayed()
+        isDarkState.value = true
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithTag("input_tx_amount").assertIsDisplayed()
+        isDarkState.value = false
+
+        // Inspect Station 5 (Darwin Manuscript Lesson Page: Fig. 1 + Roman numerals I, II, III + original hero illustration)
+        currentStepState.intValue = 4
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithTag("book_card_success_farmer").assertExists()
+        composeTestRule.onNodeWithTag("book_card_mistake_farmer").assertExists()
+        composeTestRule.onNodeWithTag("infographic_canvas_feed_starter_spec", useUnmergedTree = true).assertExists()
+        composeTestRule.onNodeWithText("لوحة الرصد الميداني — Fig. 1", substring = true).assertExists()
+        isDarkState.value = true
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithTag("infographic_canvas_feed_starter_spec", useUnmergedTree = true).assertExists()
+        isDarkState.value = false
+
+        // Inspect Station 6 (AddMarketPostDialog) in Day & Night Mode
+        currentStepState.intValue = 5
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithTag("input_market_post_title").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("input_market_post_desc").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("input_market_post_price").assertIsDisplayed()
+        isDarkState.value = true
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithTag("input_market_post_title").assertIsDisplayed()
+        isDarkState.value = false
+
+        LocalFarmPersistence.clearAllForDeletedIdentity(context, farmerUid)
     }
 }
 

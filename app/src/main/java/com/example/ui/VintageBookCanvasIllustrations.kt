@@ -5,6 +5,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -972,12 +973,16 @@ fun NanoBananaLessonHeroPanel(
             .fillMaxWidth()
             .testTag("infographic_canvas_${spec.visualType.name.lowercase()}"),
         shape = RoundedCornerShape(12.dp),
-        color = BookParchmentCard,
-        border = BorderStroke(1.3.dp, BookBorderInner),
+        color = Color(0xFFFAF3E4),
+        border = BorderStroke(1.4.dp, Color(0xFF4A321F)),
         shadowElevation = 2.dp
     ) {
         Column(
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(3.dp)
+                .border(0.7.dp, Color(0xFF8C6D46), RoundedCornerShape(9.dp))
+                .clip(RoundedCornerShape(9.dp))
         ) {
             Box(
                 modifier = Modifier
@@ -1005,40 +1010,62 @@ fun NanoBananaLessonHeroPanel(
                 }
             }
 
-            // Crisp, ultra-readable farmer telemetry & standards strip below illustration
+            // Darwin Field Observation Caption ("لوحة الرصد الميداني — Fig. 1")
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color(0xFFF4EBD6))
+                    .border(width = 0.6.dp, color = Color(0xFF8C6D46))
+                    .padding(horizontal = 8.dp, vertical = 3.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "✒️ ${Translations.tr("book_field_observation_fig1", lang)}",
+                    fontSize = 9.5.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF5C4028),
+                    textAlign = TextAlign.Center,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+
+            // Brown-ink ruled telemetry table (│ dividers)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(BookParchmentMid)
-                    .padding(horizontal = 8.dp, vertical = 6.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    .background(Color(0xFFFAF3E4))
+                    .padding(horizontal = 6.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                gauges.forEach { gauge ->
-                    Surface(
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(8.dp),
-                        color = BookParchmentCard,
-                        border = BorderStroke(1.dp, BookBorderInner)
+                gauges.forEachIndexed { idx, gauge ->
+                    Row(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(horizontal = 4.dp, vertical = 3.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 6.dp, vertical = 5.dp),
-                            horizontalArrangement = Arrangement.Center,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(text = gauge.icon, fontSize = 12.sp)
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = gauge.metricValue,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = BookBurgundyDark,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
+                        Text(text = gauge.icon, fontSize = 11.5.sp)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = gauge.metricValue,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = Color(0xFF26160C),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    if (idx < gauges.lastIndex) {
+                        Text(
+                            text = "│",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF6E4720),
+                            modifier = Modifier.padding(horizontal = 2.dp)
+                        )
                     }
                 }
             }
@@ -1273,10 +1300,14 @@ fun SuccessMistakeFarmerCard(
     textLayoutDirection: LayoutDirection,
     modifier: Modifier = Modifier
 ) {
-    val bannerColor = if (isSuccess) Color(0xFF15803D) else Color(0xFFB91C1C)
-    val softTintBg = if (isSuccess) Color(0xFFF0FDF4) else Color(0xFFFEF2F2)
-    val cardBorder = if (isSuccess) Color(0xFF15803D) else Color(0xFFB91C1C)
-    val badgeSymbol = if (isSuccess) "✓" else "✕"
+    // Darwin Parchment Manuscript Comparison Cards:
+    // Success = Dark Olive Ink (#2E4722) + Quill (✒️)
+    // Warning = Antique Crimson Wax (#6E2219)
+    val outerInkBorder = if (isSuccess) Color(0xFF2E4722) else Color(0xFF6E2219)
+    val innerInkBorder = if (isSuccess) Color(0xFF2E4722).copy(alpha = 0.65f) else Color(0xFF6E2219).copy(alpha = 0.65f)
+    val parchmentBg = Color(0xFFFAF3E4)
+    val headerStripBg = if (isSuccess) Color(0xFF2E4722) else Color(0xFF6E2219)
+    val badgeSymbol = if (isSuccess) "✒️" else "🕯️"
 
     CompositionLocalProvider(LocalLayoutDirection provides textLayoutDirection) {
         Surface(
@@ -1285,18 +1316,22 @@ fun SuccessMistakeFarmerCard(
                 .fillMaxHeight()
                 .testTag(if (isSuccess) "book_card_success_farmer" else "book_card_mistake_farmer"),
             shape = RoundedCornerShape(12.dp),
-            color = softTintBg,
-            border = BorderStroke(1.5.dp, cardBorder),
+            color = parchmentBg,
+            border = BorderStroke(1.4.dp, outerInkBorder),
             shadowElevation = 2.dp
         ) {
             Column(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(3.dp)
+                    .border(0.7.dp, innerInkBorder, RoundedCornerShape(9.dp))
+                    .clip(RoundedCornerShape(9.dp)),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(bannerColor)
+                        .background(headerStripBg)
                         .padding(horizontal = 8.dp, vertical = 7.dp),
                     contentAlignment = Alignment.Center
                 ) {
@@ -1304,7 +1339,7 @@ fun SuccessMistakeFarmerCard(
                         text = headerTitle,
                         fontSize = 10.5.sp,
                         fontWeight = FontWeight.ExtraBold,
-                        color = Color.White,
+                        color = Color(0xFFFAF3E4),
                         textAlign = TextAlign.Center,
                         maxLines = 2,
                         lineHeight = 13.5.sp,
@@ -1321,17 +1356,17 @@ fun SuccessMistakeFarmerCard(
                 ) {
                     Surface(
                         shape = CircleShape,
-                        color = bannerColor,
-                        border = BorderStroke(2.dp, Color.White),
-                        shadowElevation = 2.dp,
-                        modifier = Modifier.size(36.dp)
+                        color = Color(0xFFF4EBD6),
+                        border = BorderStroke(1.4.dp, outerInkBorder),
+                        shadowElevation = 1.dp,
+                        modifier = Modifier.size(34.dp)
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Text(
                                 text = badgeSymbol,
-                                fontSize = 18.sp,
+                                fontSize = 15.sp,
                                 fontWeight = FontWeight.ExtraBold,
-                                color = Color.White
+                                color = outerInkBorder
                             )
                         }
                     }
@@ -1340,7 +1375,7 @@ fun SuccessMistakeFarmerCard(
                         text = bodyText,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.ExtraBold,
-                        color = BookBurgundyDark,
+                        color = Color(0xFF26160C),
                         textAlign = TextAlign.Center,
                         lineHeight = 15.5.sp,
                         maxLines = 4,

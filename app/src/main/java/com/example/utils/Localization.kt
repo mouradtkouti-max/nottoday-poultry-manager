@@ -2369,6 +2369,54 @@ object Translations {
             "pt" to "ESTILO DE INTERFACE (UI STYLE)",
             "hi" to "यूआई स्टाइल (UI STYLE)"
         ),
+        "appearance_paper_style_label" to mapOf(
+            "ar" to "📜 نمط خلفية ومظهر الورق (PAPER STYLE)",
+            "fr" to "📜 STYLE DE PAPIER ET FOND (PAPER STYLE)",
+            "en" to "📜 PAPER & BACKGROUND STYLE",
+            "es" to "📜 ESTILO DE PAPEL Y FONDO (PAPER STYLE)",
+            "pt" to "📜 ESTILO DE PAPEL E FUNDO (PAPER STYLE)",
+            "hi" to "📜 कागज और पृष्ठभूमि शैली (PAPER STYLE)"
+        ),
+        "paper_style_darwin_parchment" to mapOf(
+            "ar" to "📜 ورق مخطوطة داروين",
+            "fr" to "📜 Parchemin de Darwin",
+            "en" to "📜 Darwin Parchment",
+            "es" to "📜 Pergamino de Darwin",
+            "pt" to "📜 Pergaminho de Darwin",
+            "hi" to "📜 डार्विन चर्मपत्र"
+        ),
+        "paper_style_ruled_ledger" to mapOf(
+            "ar" to "📓 ورق دفتر مسطّر",
+            "fr" to "📓 Registre ligné",
+            "en" to "📓 Ruled Ledger",
+            "es" to "📓 Cuaderno rayado",
+            "pt" to "📓 Caderno pautado",
+            "hi" to "📓 रेखांकित बही"
+        ),
+        "paper_style_blueprint_grid" to mapOf(
+            "ar" to "📐 ورق هندسي مربعات",
+            "fr" to "📐 Grille géométrique",
+            "en" to "📐 Blueprint Grid",
+            "es" to "📐 Cuadrícula técnica",
+            "pt" to "📐 Grade geométrica",
+            "hi" to "📐 ज्यामितीय ग्रिड"
+        ),
+        "paper_style_clean_default" to mapOf(
+            "ar" to "💎 الخلفية النقية الافتراضية",
+            "fr" to "💎 Fond pur par défaut",
+            "en" to "💎 Clean Default",
+            "es" to "💎 Fondo limpio predeterminado",
+            "pt" to "💎 Fundo limpo padrão",
+            "hi" to "💎 स्वच्छ डिफ़ॉल्ट पृष्ठभूमि"
+        ),
+        "book_field_observation_fig1" to mapOf(
+            "ar" to "لوحة الرصد الميداني — Fig. 1",
+            "fr" to "Planche d'observation sur le terrain — Fig. 1",
+            "en" to "Field Observation Plate — Fig. 1",
+            "es" to "Lámina de observación de campo — Fig. 1",
+            "pt" to "Prancha de observação de campo — Fig. 1",
+            "hi" to "फील्ड अवलोकन प्लेट — Fig. 1"
+        ),
         "text_size_small" to mapOf(
             "ar" to "صغير",
             "fr" to "Petit",

@@ -255,6 +255,7 @@ object SaasPreferencesManager {
     private const val KEY_ACCENT_COLOR = "selected_accent_color"
     private const val KEY_TEXT_SCALE = "selected_text_scale"
     private const val KEY_CORNER_STYLE = "selected_corner_style"
+    private const val KEY_PAPER_STYLE = "selected_paper_style"
     private const val KEY_UNLOCKED_ADDITIONAL_BARNS = "unlocked_additional_barns"
     private const val KEY_IS_LOGGED_IN = "session_is_logged_in"
     private const val KEY_USER_ROLE = "session_user_role"
@@ -491,13 +492,29 @@ object SaasPreferencesManager {
         }
     }
 
+    fun getSavedPaperStyle(context: Context): AppPaperStyleOption {
+        return try {
+            val name = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .getString(KEY_PAPER_STYLE, AppPaperStyleOption.DARWIN_PARCHMENT.name)
+                ?: AppPaperStyleOption.DARWIN_PARCHMENT.name
+            val resolved = AppPaperStyleOption.values().firstOrNull { it.name == name }
+                ?: AppPaperStyleOption.DARWIN_PARCHMENT
+            AppPaperStyleRuntime.activePaperStyle = resolved
+            resolved
+        } catch (_: Exception) {
+            AppPaperStyleOption.DARWIN_PARCHMENT
+        }
+    }
+
     fun saveAppearanceStudioSettings(
         context: Context,
         theme: AppThemeOption,
         accentColor: AppAccentColorOption,
         textScale: AppTextScaleOption,
-        cornerStyle: AppCornerStyleOption
+        cornerStyle: AppCornerStyleOption,
+        paperStyle: AppPaperStyleOption = AppPaperStyleRuntime.activePaperStyle
     ) {
+        AppPaperStyleRuntime.activePaperStyle = paperStyle
         try {
             context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                 .edit()
@@ -505,6 +522,7 @@ object SaasPreferencesManager {
                 .putString(KEY_ACCENT_COLOR, accentColor.name)
                 .putString(KEY_TEXT_SCALE, textScale.name)
                 .putString(KEY_CORNER_STYLE, cornerStyle.name)
+                .putString(KEY_PAPER_STYLE, paperStyle.name)
                 .apply()
         } catch (_: Exception) {}
     }
@@ -676,6 +694,7 @@ class AgritechAppSessionState(
     initialAccentColor: AppAccentColorOption = AppAccentColorOption.FOREST_GREEN,
     initialTextScale: AppTextScaleOption = AppTextScaleOption.DEFAULT,
     initialCornerStyle: AppCornerStyleOption = AppCornerStyleOption.ROUNDED,
+    initialPaperStyle: AppPaperStyleOption = AppPaperStyleOption.DARWIN_PARCHMENT,
     initialProfessionSelected: Boolean = true
 ) {
     var hasCompletedOnboarding by mutableStateOf(initialOnboardingCompleted)
@@ -689,6 +708,11 @@ class AgritechAppSessionState(
     var currentAccentColor by mutableStateOf(initialAccentColor)
     var currentTextScale by mutableStateOf(initialTextScale)
     var currentCornerStyle by mutableStateOf(initialCornerStyle)
+    var currentPaperStyle by mutableStateOf(initialPaperStyle)
+
+    init {
+        AppPaperStyleRuntime.activePaperStyle = initialPaperStyle
+    }
 
     // Hoisted Auth & Navigation State — NEVER resets on recomposition or theme/language changes
     var isLoggedIn by mutableStateOf(initialIsLoggedIn)
@@ -873,18 +897,22 @@ class AgritechAppSessionState(
         newTheme: AppThemeOption = currentTheme,
         newAccentColor: AppAccentColorOption = currentAccentColor,
         newTextScale: AppTextScaleOption = currentTextScale,
-        newCornerStyle: AppCornerStyleOption = currentCornerStyle
+        newCornerStyle: AppCornerStyleOption = currentCornerStyle,
+        newPaperStyle: AppPaperStyleOption = currentPaperStyle
     ) {
         currentTheme = newTheme
         currentAccentColor = newAccentColor
         currentTextScale = newTextScale
         currentCornerStyle = newCornerStyle
+        currentPaperStyle = newPaperStyle
+        AppPaperStyleRuntime.activePaperStyle = newPaperStyle
         SaasPreferencesManager.saveAppearanceStudioSettings(
             context = context,
             theme = newTheme,
             accentColor = newAccentColor,
             textScale = newTextScale,
-            cornerStyle = newCornerStyle
+            cornerStyle = newCornerStyle,
+            paperStyle = newPaperStyle
         )
     }
 
@@ -914,6 +942,10 @@ class AgritechAppSessionState(
         updateAppearanceStudio(context = context, newCornerStyle = newCornerStyle)
     }
 
+    fun updatePaperStyle(context: Context, newPaperStyle: AppPaperStyleOption) {
+        updateAppearanceStudio(context = context, newPaperStyle = newPaperStyle)
+    }
+
     val appearanceState: AppAppearanceState
         get() = AppAppearanceState(
             theme = currentTheme,
@@ -926,6 +958,7 @@ class AgritechAppSessionState(
             textScale = currentTextScale,
             cornerStyle = currentCornerStyle,
             cornerRadiusDp = currentCornerStyle.cornerRadiusDp,
+            paperStyle = currentPaperStyle,
             cardShape = RoundedCornerShape(currentCornerStyle.cornerRadiusDp.dp),
             buttonShape = RoundedCornerShape((currentCornerStyle.cornerRadiusDp - 4).coerceAtLeast(4).dp)
         )
@@ -942,6 +975,7 @@ data class AppAppearanceState(
     val textScale: AppTextScaleOption = AppTextScaleOption.DEFAULT,
     val cornerStyle: AppCornerStyleOption = AppCornerStyleOption.ROUNDED,
     val cornerRadiusDp: Int = cornerStyle.cornerRadiusDp,
+    val paperStyle: AppPaperStyleOption = AppPaperStyleRuntime.activePaperStyle,
     val cardShape: RoundedCornerShape = RoundedCornerShape(cornerStyle.cornerRadiusDp.dp),
     val buttonShape: RoundedCornerShape = RoundedCornerShape((cornerStyle.cornerRadiusDp - 4).coerceAtLeast(4).dp)
 ) {
@@ -1442,11 +1476,13 @@ fun PremiumSettingsModal(
     val committedAccent = sessionState.currentAccentColor
     val committedTextScale = sessionState.currentTextScale
     val committedCornerStyle = sessionState.currentCornerStyle
+    val committedPaperStyle = sessionState.currentPaperStyle
 
     var draftTheme by remember(committedTheme) { mutableStateOf(committedTheme) }
     var draftAccent by remember(committedAccent) { mutableStateOf(committedAccent) }
     var draftTextScale by remember(committedTextScale) { mutableStateOf(committedTextScale) }
     var draftCornerStyle by remember(committedCornerStyle) { mutableStateOf(committedCornerStyle) }
+    var draftPaperStyle by remember(committedPaperStyle) { mutableStateOf(committedPaperStyle) }
 
     var selectedLang by remember(currentLanguage) { mutableStateOf(currentLanguage) }
     var selectedCountry by remember(currentCountryCode) {
@@ -1476,24 +1512,36 @@ fun PremiumSettingsModal(
         draftTheme, committedTheme,
         draftAccent, committedAccent,
         draftTextScale, committedTextScale,
-        draftCornerStyle, committedCornerStyle
+        draftCornerStyle, committedCornerStyle,
+        draftPaperStyle, committedPaperStyle
     ) {
         var count = 0
         if (draftTheme != committedTheme) count++
         if (draftAccent != committedAccent) count++
         if (draftTextScale != committedTextScale) count++
         if (draftCornerStyle != committedCornerStyle) count++
+        if (draftPaperStyle != committedPaperStyle) count++
         count
     }
 
     val isDark = draftTheme.isDark
-    val screenBg = if (isDark) Color(0xFF0F172A) else draftTheme.bgColor
-    val cardBg = if (isDark) Color(0xFF1E293B) else Color.White
-    val subtleSurfaceBg = if (isDark) Color(0xFF0F172A) else Color(0xFFF8FAFC)
-    val borderCol = if (isDark) Color(0xFF334155) else Color(0xFFE2E8F0)
-    // Strict High-Contrast Legibility (#FFFFFF primary and #CBD5E1 secondary on dark surfaces)
-    val textPrimary = if (isDark) Color(0xFFFFFFFF) else Color(0xFF0F172A)
-    val textSecondary = if (isDark) Color(0xFFCBD5E1) else Color(0xFF64748B)
+    val isDarwinPaper = draftPaperStyle == AppPaperStyleOption.DARWIN_PARCHMENT
+    val screenBg = draftTheme.bgColor
+    val cardBg = draftTheme.cardColor
+    val subtleSurfaceBg = when {
+        isDark && isDarwinPaper -> Color(0xFF211913)
+        isDark -> Color(0xFF0F172A)
+        isDarwinPaper -> Color(0xFFF4EBD6)
+        else -> Color(0xFFF8FAFC)
+    }
+    val borderCol = when {
+        isDark && isDarwinPaper -> Color(0xFF8B6914)
+        isDark -> Color(0xFF334155)
+        isDarwinPaper -> Color(0xFF8C6D46)
+        else -> Color(0xFFE2E8F0)
+    }
+    val textPrimary = draftTheme.headingColor
+    val textSecondary = draftTheme.secondaryTextColor
     val activeAccent = if (isDark) draftAccent.darkModeColor else draftAccent.primaryColor
     val activeAccentContainer = if (isDark) draftAccent.darkContainerColor else draftAccent.softContainerColor
     val previewShape = RoundedCornerShape(draftCornerStyle.cornerRadiusDp.dp)
@@ -1728,12 +1776,14 @@ fun PremiumSettingsModal(
                                         draftAccent = committedAccent
                                         draftTextScale = committedTextScale
                                         draftCornerStyle = committedCornerStyle
+                                        draftPaperStyle = committedPaperStyle
                                         sessionState.updateAppearanceStudio(
                                             context = context,
                                             newTheme = committedTheme,
                                             newAccentColor = committedAccent,
                                             newTextScale = committedTextScale,
-                                            newCornerStyle = committedCornerStyle
+                                            newCornerStyle = committedCornerStyle,
+                                            newPaperStyle = committedPaperStyle
                                         )
                                         onSelectTheme(committedTheme)
                                     },
@@ -1760,7 +1810,8 @@ fun PremiumSettingsModal(
                                         newTheme = draftTheme,
                                         newAccentColor = draftAccent,
                                         newTextScale = draftTextScale,
-                                        newCornerStyle = draftCornerStyle
+                                        newCornerStyle = draftCornerStyle,
+                                        newPaperStyle = draftPaperStyle
                                     )
                                     onSelectTheme(draftTheme)
                                     onSelectLanguage(selectedLang)
@@ -2392,7 +2443,7 @@ fun PremiumSettingsModal(
                                     .testTag("card_toggle_dark_light_mode"),
                                 shape = previewShape,
                                 colors = CardDefaults.cardColors(
-                                    containerColor = if (isDark) Color(0xFF1E293B) else Color.White
+                                    containerColor = cardBg
                                 ),
                                 border = BorderStroke(1.5.dp, activeAccent.copy(alpha = 0.55f)),
                                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
@@ -2469,7 +2520,116 @@ fun PremiumSettingsModal(
                                 }
                             }
 
-                            // c) THEME COLOR Selector (6 Circular Swatches with Scale Animation & Checkmark ✓)
+                            // b2) PAPER STYLE Selector (📜 ورق مخطوطة داروين, 📓 ورق دفتر مسطّر, 📐 ورق هندسي مربعات, 💎 الخلفية النقية الافتراضية)
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = previewShape,
+                                colors = CardDefaults.cardColors(containerColor = cardBg),
+                                border = BorderStroke(1.dp, borderCol)
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(18.dp),
+                                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    Text(
+                                        text = Translations.tr("appearance_paper_style_label", selectedLang),
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontSize = 12.5.sp,
+                                        color = textSecondary
+                                    )
+
+                                    Column(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        AppPaperStyleOption.values().forEach { paperOpt ->
+                                            val isSelected = draftPaperStyle == paperOpt
+                                            val labelKey = when (paperOpt) {
+                                                AppPaperStyleOption.DARWIN_PARCHMENT -> "paper_style_darwin_parchment"
+                                                AppPaperStyleOption.RULED_LEDGER -> "paper_style_ruled_ledger"
+                                                AppPaperStyleOption.BLUEPRINT_GRID -> "paper_style_blueprint_grid"
+                                                AppPaperStyleOption.CLEAN_DEFAULT -> "paper_style_clean_default"
+                                            }
+                                            val swatchBg = when (paperOpt) {
+                                                AppPaperStyleOption.DARWIN_PARCHMENT -> if (isDark) Color(0xFF2A2018) else Color(0xFFF4EBD6)
+                                                AppPaperStyleOption.RULED_LEDGER -> if (isDark) Color(0xFF1E293B) else Color(0xFFFDFBF7)
+                                                AppPaperStyleOption.BLUEPRINT_GRID -> if (isDark) Color(0xFF0F2537) else Color(0xFFEEF6FF)
+                                                AppPaperStyleOption.CLEAN_DEFAULT -> if (isDark) Color(0xFF1E293B) else Color(0xFFF8FAFC)
+                                            }
+                                            Surface(
+                                                shape = previewShape,
+                                                color = if (isSelected) activeAccentContainer else subtleSurfaceBg,
+                                                border = BorderStroke(
+                                                    width = if (isSelected) 2.dp else 1.dp,
+                                                    color = if (isSelected) activeAccent else borderCol
+                                                ),
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .clip(previewShape)
+                                                    .clickable {
+                                                        draftPaperStyle = paperOpt
+                                                        val recommendedAccent = if (paperOpt == AppPaperStyleOption.DARWIN_PARCHMENT && draftAccent == AppAccentColorOption.FOREST_GREEN) {
+                                                            draftAccent
+                                                        } else {
+                                                            draftAccent
+                                                        }
+                                                        sessionState.updateAppearanceStudio(
+                                                            context = context,
+                                                            newTheme = draftTheme,
+                                                            newAccentColor = recommendedAccent,
+                                                            newTextScale = draftTextScale,
+                                                            newCornerStyle = draftCornerStyle,
+                                                            newPaperStyle = paperOpt
+                                                        )
+                                                    }
+                                                    .testTag("card_paper_style_${paperOpt.name}")
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Row(
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                                        modifier = Modifier.weight(1f)
+                                                    ) {
+                                                        Box(
+                                                            modifier = Modifier
+                                                                .size(28.dp)
+                                                                .clip(RoundedCornerShape(6.dp))
+                                                                .background(swatchBg)
+                                                                .border(
+                                                                    width = 1.2.dp,
+                                                                    color = if (paperOpt == AppPaperStyleOption.DARWIN_PARCHMENT) Color(0xFF6E4720) else borderCol,
+                                                                    shape = RoundedCornerShape(6.dp)
+                                                                )
+                                                        )
+                                                        Text(
+                                                            text = Translations.tr(labelKey, selectedLang),
+                                                            fontSize = 13.sp,
+                                                            fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.SemiBold,
+                                                            color = if (isSelected) activeAccent else textPrimary
+                                                        )
+                                                    }
+                                                    if (isSelected) {
+                                                        Text(
+                                                            text = "✓",
+                                                            fontSize = 15.sp,
+                                                            fontWeight = FontWeight.ExtraBold,
+                                                            color = activeAccent
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // c) THEME COLOR Selector (7 Circular Swatches including DARWIN_BRONZE with Scale Animation & Checkmark ✓)
                             Card(
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = previewShape,
@@ -2500,8 +2660,10 @@ fun PremiumSettingsModal(
                                     }
 
                                     Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .horizontalScroll(rememberScrollState()),
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         AppAccentColorOption.values().forEach { swatch ->
@@ -2513,7 +2675,7 @@ fun PremiumSettingsModal(
                                             )
                                             Box(
                                                 modifier = Modifier
-                                                    .size(44.dp)
+                                                    .size(42.dp)
                                                     .scale(animatedScale)
                                                     .clip(CircleShape)
                                                     .background(swatch.primaryColor)
@@ -2529,7 +2691,8 @@ fun PremiumSettingsModal(
                                                             newTheme = draftTheme,
                                                             newAccentColor = swatch,
                                                             newTextScale = draftTextScale,
-                                                            newCornerStyle = draftCornerStyle
+                                                            newCornerStyle = draftCornerStyle,
+                                                            newPaperStyle = draftPaperStyle
                                                         )
                                                     }
                                                     .testTag("swatch_theme_color_${swatch.name}"),
@@ -2596,7 +2759,8 @@ fun PremiumSettingsModal(
                                                             newTheme = draftTheme,
                                                             newAccentColor = draftAccent,
                                                             newTextScale = scaleOpt,
-                                                            newCornerStyle = draftCornerStyle
+                                                            newCornerStyle = draftCornerStyle,
+                                                            newPaperStyle = draftPaperStyle
                                                         )
                                                     }
                                                     .testTag("card_text_scale_${scaleOpt.name}")
@@ -2676,7 +2840,8 @@ fun PremiumSettingsModal(
                                                             newTheme = draftTheme,
                                                             newAccentColor = draftAccent,
                                                             newTextScale = draftTextScale,
-                                                            newCornerStyle = cornerOpt
+                                                            newCornerStyle = cornerOpt,
+                                                            newPaperStyle = draftPaperStyle
                                                         )
                                                     }
                                                     .testTag("card_corner_style_${cornerOpt.name}")

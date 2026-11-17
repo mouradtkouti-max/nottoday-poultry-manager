@@ -403,230 +403,197 @@ private fun BookIndexImmersiveSheet(
             .padding(6.dp)
             .testTag("book_step2_index_screen"),
         shape = RoundedCornerShape(14.dp),
-        color = BookParchmentDeep,
-        border = BorderStroke(2.dp, BookBorderOuter),
+        color = Color(0xFFF4EBD6),
+        border = BorderStroke(1.4.dp, Color(0xFF4A321F)),
         shadowElevation = 6.dp
     ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(4.dp)
-                .background(BookParchmentLight, RoundedCornerShape(10.dp))
-                .border(1.2.dp, BookBorderInner, RoundedCornerShape(10.dp))
+                .padding(3.dp)
+                .background(Color(0xFFFAF3E4), RoundedCornerShape(11.dp))
+                .border(0.8.dp, Color(0xFF8C6D46), RoundedCornerShape(11.dp))
         ) {
-            // Top Metallic Spiral Binding Rings across the top of the notebook index sheet
-            TopSpiralBindingRingsCanvas(
-                ringCount = 12,
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)
-            )
-
-            // Spine rings on binding edge (Right for RTL Arabic matching Reference Image 1; Left for LTR)
-            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-                Row(
+            CompositionLocalProvider(LocalLayoutDirection provides pageDir) {
+                Column(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxWidth()
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    if (!lang.isRtl) {
-                        SpiralBindingRingsCanvas(
-                            ringCount = 9,
-                            onRightEdge = false,
+                    // Top row: Clean back arrow button ONLY (no spiral rings, no giant pill clutter)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Start
+                    ) {
+                        IconButton(
+                            onClick = onBackToBooks,
                             modifier = Modifier
-                                .fillMaxHeight()
-                                .padding(vertical = 8.dp)
-                        )
+                                .size(48.dp)
+                                .testTag("btn_back_to_four_books")
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = Translations.tr("book_btn_back_to_4_books", lang),
+                                tint = BookBurgundyDark
+                            )
+                        }
                     }
 
-                    CompositionLocalProvider(LocalLayoutDirection provides pageDir) {
-                        Column(
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxHeight()
-                                .verticalScroll(rememberScrollState())
-                                .padding(horizontal = 10.dp, vertical = 4.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            // Top row: Clean back arrow button ONLY (no giant pill clutter)
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.Start
-                            ) {
-                                IconButton(
-                                    onClick = onBackToBooks,
-                                    modifier = Modifier
-                                        .size(48.dp)
-                                        .testTag("btn_back_to_four_books")
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                        contentDescription = Translations.tr("book_btn_back_to_4_books", lang),
-                                        tint = BookBurgundyDark
-                                    )
-                                }
-                            }
+                    // Ornate Scroll Header Banner ("فهرس: التغذية والأوزان (4 دروس)")
+                    VintageScrollIndexBanner(
+                        text = indexHeaderText,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 4.dp)
+                            .testTag("book_index_scroll_banner")
+                    )
 
-                            // Ornate Scroll Header Banner ("فهرس: التغذية والأوزان (4 دروس)")
-                            VintageScrollIndexBanner(
-                                text = indexHeaderText,
+                    Spacer(modifier = Modifier.height(2.dp))
+
+                    // 4 Sleek Single-Row Lesson Cards framed with Darwin manuscript double ink border
+                    activeBranchLessons.forEachIndexed { idx, lesson ->
+                        val rawSpec = lesson.posterSpec ?: Ross308PosterCatalog.forSubCard(lesson.id)
+                        val (localizedLesson, localizedSpec) = remember(lesson, rawSpec, lang) {
+                            if (rawSpec != null) {
+                                Ross308BookPageTranslations.localizeSubCardAndSpec(lesson, rawSpec, lang)
+                            } else {
+                                lesson to rawSpec
+                            }
+                        }
+                        val isStoppedHere = lastReadLessonId == lesson.id
+                        val lessonNumberStr = String.format(java.util.Locale.US, "%02d", idx + 1)
+                        val lessonHeading = if (lang == AppLanguage.AR) {
+                            "الدرس $lessonNumberStr: ${localizedLesson.title}"
+                        } else {
+                            "${Translations.tr("book_lesson_number_fmt", lang).replace("{num}", lessonNumberStr)}: ${localizedLesson.title}"
+                        }
+
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .defaultMinSize(minHeight = 92.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .clickable { onOpenLesson(idx, lesson) }
+                                .testTag("book_index_lesson_${lesson.id}"),
+                            shape = RoundedCornerShape(14.dp),
+                            color = Color(0xFFFAF3E4),
+                            border = BorderStroke(
+                                width = if (isStoppedHere) 1.8.dp else 1.4.dp,
+                                color = if (isStoppedHere) BookGoldAccent else Color(0xFF4A321F)
+                            ),
+                            shadowElevation = 2.dp
+                        ) {
+                            Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 4.dp)
-                                    .testTag("book_index_scroll_banner")
-                            )
-
-                            Spacer(modifier = Modifier.height(2.dp))
-
-                            // 4 Sleek Single-Row Lesson Cards (NO coreIdea paragraph, NO giant orange button below)
-                            activeBranchLessons.forEachIndexed { idx, lesson ->
-                                val rawSpec = lesson.posterSpec ?: Ross308PosterCatalog.forSubCard(lesson.id)
-                                val (localizedLesson, localizedSpec) = remember(lesson, rawSpec, lang) {
-                                    if (rawSpec != null) {
-                                        Ross308BookPageTranslations.localizeSubCardAndSpec(lesson, rawSpec, lang)
-                                    } else {
-                                        lesson to rawSpec
-                                    }
-                                }
-                                val isStoppedHere = lastReadLessonId == lesson.id
-                                val lessonNumberStr = String.format(java.util.Locale.US, "%02d", idx + 1)
-                                val lessonHeading = if (lang == AppLanguage.AR) {
-                                    "الدرس $lessonNumberStr: ${localizedLesson.title}"
-                                } else {
-                                    "${Translations.tr("book_lesson_number_fmt", lang).replace("{num}", lessonNumberStr)}: ${localizedLesson.title}"
-                                }
-
-                                Surface(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .defaultMinSize(minHeight = 92.dp)
-                                        .clip(RoundedCornerShape(14.dp))
-                                        .clickable { onOpenLesson(idx, lesson) }
-                                        .testTag("book_index_lesson_${lesson.id}"),
-                                    shape = RoundedCornerShape(14.dp),
-                                    color = BookParchmentCard,
-                                    border = BorderStroke(
-                                        width = if (isStoppedHere) 1.8.dp else 1.3.dp,
-                                        color = if (isStoppedHere) BookGoldAccent else BookBorderInner
-                                    ),
-                                    shadowElevation = 3.dp
-                                ) {
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(horizontal = 10.dp, vertical = 12.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                                    ) {
-                                        // Start (Right in RTL): Framed Circle Art + optional overlapping "🔖 توقفت هنا" gold ribbon
-                                        Box(
-                                            contentAlignment = Alignment.BottomCenter,
-                                            modifier = Modifier.padding(bottom = if (isStoppedHere) 6.dp else 0.dp)
-                                        ) {
-                                            BookIndexLessonCircleArt(
-                                                lessonId = lesson.id,
-                                                visualType = localizedSpec?.visualType ?: InfographicVisualType.FEED_STARTER_SPEC
-                                            )
-
-                                            if (isStoppedHere) {
-                                                Surface(
-                                                    shape = RoundedCornerShape(6.dp),
-                                                    color = BookGoldAccent,
-                                                    border = BorderStroke(1.dp, BookBurgundyDark),
-                                                    shadowElevation = 2.dp,
-                                                    modifier = Modifier
-                                                        .offset(y = 8.dp)
-                                                        .zIndex(2f)
-                                                        .testTag("badge_last_read_${lesson.id}")
-                                                ) {
-                                                    Text(
-                                                        text = Translations.tr("book_badge_stopped_here", lang),
-                                                        fontSize = 8.5.sp,
-                                                        fontWeight = FontWeight.ExtraBold,
-                                                        color = BookBurgundyDark,
-                                                        maxLines = 1,
-                                                        overflow = TextOverflow.Ellipsis,
-                                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                                    )
-                                                }
-                                            }
-                                        }
-
-                                        // Center: Bold 2-line Lesson Title ("الدرس 01: ...")
-                                        Text(
-                                            text = lessonHeading,
-                                            fontSize = 13.sp,
-                                            fontWeight = FontWeight.ExtraBold,
-                                            color = BookBurgundyDark,
-                                            lineHeight = 18.sp,
-                                            maxLines = 3,
-                                            overflow = TextOverflow.Ellipsis,
-                                            modifier = Modifier.weight(1f)
-                                        )
-
-                                        // End (Left in RTL): Inline burgundy "إبدأ القراءة 📖 ‹" text CTA
-                                        Text(
-                                            text = "${Translations.tr("book_btn_start_reading", lang)} $ctaArrow",
-                                            fontSize = 11.5.sp,
-                                            fontWeight = FontWeight.ExtraBold,
-                                            color = BookBurgundy,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis,
-                                            modifier = Modifier
-                                                .padding(horizontal = 2.dp)
-                                                .testTag("btn_start_reading_${lesson.id}")
-                                        )
-                                    }
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(6.dp))
-
-                            // Ornate Sepia Flourish Divider at the bottom of the notebook index sheet
-                            Canvas(
-                                modifier = Modifier
-                                    .fillMaxWidth(0.75f)
-                                    .height(18.dp)
+                                    .padding(3.dp)
+                                    .border(0.7.dp, Color(0xFF8C6D46), RoundedCornerShape(11.dp))
+                                    .padding(horizontal = 10.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
-                                val w = size.width
-                                val cy = size.height / 2f
-                                drawLine(
-                                    color = BookSepiaInk.copy(alpha = 0.7f),
-                                    start = Offset(0f, cy),
-                                    end = Offset(w * 0.38f, cy),
-                                    strokeWidth = 1.6f,
-                                    cap = StrokeCap.Round
-                                )
-                                drawLine(
-                                    color = BookSepiaInk.copy(alpha = 0.7f),
-                                    start = Offset(w * 0.62f, cy),
-                                    end = Offset(w, cy),
-                                    strokeWidth = 1.6f,
-                                    cap = StrokeCap.Round
-                                )
-                                val swirl = Path().apply {
-                                    moveTo(w * 0.40f, cy)
-                                    cubicTo(w * 0.44f, cy - 8f, w * 0.50f, cy + 8f, w * 0.50f, cy)
-                                    cubicTo(w * 0.50f, cy - 8f, w * 0.56f, cy + 8f, w * 0.60f, cy)
+                                // Start (Right in RTL): Framed Circle Art + optional overlapping "🔖 توقفت هنا" gold ribbon
+                                Box(
+                                    contentAlignment = Alignment.BottomCenter,
+                                    modifier = Modifier.padding(bottom = if (isStoppedHere) 6.dp else 0.dp)
+                                ) {
+                                    BookIndexLessonCircleArt(
+                                        lessonId = lesson.id,
+                                        visualType = localizedSpec?.visualType ?: InfographicVisualType.FEED_STARTER_SPEC
+                                    )
+
+                                    if (isStoppedHere) {
+                                        Surface(
+                                            shape = RoundedCornerShape(6.dp),
+                                            color = BookGoldAccent,
+                                            border = BorderStroke(1.dp, BookBurgundyDark),
+                                            shadowElevation = 2.dp,
+                                            modifier = Modifier
+                                                .offset(y = 8.dp)
+                                                .zIndex(2f)
+                                                .testTag("badge_last_read_${lesson.id}")
+                                        ) {
+                                            Text(
+                                                text = Translations.tr("book_badge_stopped_here", lang),
+                                                fontSize = 8.5.sp,
+                                                fontWeight = FontWeight.ExtraBold,
+                                                color = BookBurgundyDark,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                    }
                                 }
-                                drawPath(
-                                    path = swirl,
-                                    color = BookBurgundy,
-                                    style = Stroke(width = 1.8f, cap = StrokeCap.Round)
+
+                                // Center: Bold 2-line Lesson Title ("الدرس 01: ...")
+                                Text(
+                                    text = lessonHeading,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = Color(0xFF26160C),
+                                    lineHeight = 18.sp,
+                                    maxLines = 3,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f)
                                 )
-                                drawCircle(color = BookBurgundy, radius = 3.2f, center = Offset(w * 0.50f, cy))
+
+                                // End (Left in RTL): Inline bronze/burgundy "إبدأ القراءة 📖 ‹" text CTA
+                                Text(
+                                    text = "${Translations.tr("book_btn_start_reading", lang)} $ctaArrow",
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = Color(0xFF6E4720),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier
+                                        .padding(horizontal = 2.dp)
+                                        .testTag("btn_start_reading_${lesson.id}")
+                                )
                             }
                         }
                     }
 
-                    if (lang.isRtl) {
-                        SpiralBindingRingsCanvas(
-                            ringCount = 9,
-                            onRightEdge = true,
-                            modifier = Modifier
-                                .fillMaxHeight()
-                                .padding(vertical = 8.dp)
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    // Ornate Sepia Flourish Divider at the bottom of the manuscript index sheet
+                    Canvas(
+                        modifier = Modifier
+                            .fillMaxWidth(0.75f)
+                            .height(18.dp)
+                    ) {
+                        val w = size.width
+                        val cy = size.height / 2f
+                        drawLine(
+                            color = BookSepiaInk.copy(alpha = 0.7f),
+                            start = Offset(0f, cy),
+                            end = Offset(w * 0.38f, cy),
+                            strokeWidth = 1.6f,
+                            cap = StrokeCap.Round
                         )
+                        drawLine(
+                            color = BookSepiaInk.copy(alpha = 0.7f),
+                            start = Offset(w * 0.62f, cy),
+                            end = Offset(w, cy),
+                            strokeWidth = 1.6f,
+                            cap = StrokeCap.Round
+                        )
+                        val swirl = Path().apply {
+                            moveTo(w * 0.40f, cy)
+                            cubicTo(w * 0.44f, cy - 8f, w * 0.50f, cy + 8f, w * 0.50f, cy)
+                            cubicTo(w * 0.50f, cy - 8f, w * 0.56f, cy + 8f, w * 0.60f, cy)
+                        }
+                        drawPath(
+                            path = swirl,
+                            color = Color(0xFF6E4720),
+                            style = Stroke(width = 1.8f, cap = StrokeCap.Round)
+                        )
+                        drawCircle(color = Color(0xFF6E4720), radius = 3.2f, center = Offset(w * 0.50f, cy))
                     }
                 }
             }
