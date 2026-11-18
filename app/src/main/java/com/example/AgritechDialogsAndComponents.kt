@@ -134,166 +134,97 @@ enum class PremiumPillVariant {
 fun Modifier.darwinPaperBackground(
     theme: AppThemeOption,
     paperStyle: AppPaperStyleOption = AppPaperStyleRuntime.activePaperStyle
-): Modifier = this.drawWithContent {
-    val isDark = theme.isDark
-    when (paperStyle) {
-        AppPaperStyleOption.DARWIN_PARCHMENT -> {
-            val radius = maxOf(size.width, size.height) * 0.78f
-            val brush = if (isDark) {
-                Brush.radialGradient(
-                    colors = listOf(
-                        Color(0xFF211913),
-                        Color(0xFF1C1510),
-                        Color(0xFF18120E)
-                    ),
-                    center = Offset(size.width * 0.5f, size.height * 0.42f),
-                    radius = radius.coerceAtLeast(1f)
-                )
-            } else {
-                Brush.radialGradient(
-                    colors = listOf(
-                        Color(0xFFF4EBD6),
-                        Color(0xFFE7D6B5),
-                        Color(0xFFD2B892)
-                    ),
-                    center = Offset(size.width * 0.5f, size.height * 0.42f),
-                    radius = radius.coerceAtLeast(1f)
-                )
-            }
-            drawRect(brush = brush)
-        }
-        AppPaperStyleOption.RULED_LEDGER -> {
-            drawRect(color = theme.bgColor)
-            val lineColor = if (isDark) Color(0xFF334155).copy(alpha = 0.35f) else Color(0xFFCBD5E1).copy(alpha = 0.55f)
-            val stepPx = 28.dp.toPx()
-            var y = stepPx
-            while (y < size.height) {
-                drawLine(
-                    color = lineColor,
-                    start = Offset(0f, y),
-                    end = Offset(size.width, y),
-                    strokeWidth = 1.dp.toPx()
-                )
-                y += stepPx
-            }
-        }
-        AppPaperStyleOption.BLUEPRINT_GRID -> {
-            drawRect(color = theme.bgColor)
-            val gridColor = if (isDark) Color(0xFF38BDF8).copy(alpha = 0.14f) else Color(0xFF0284C7).copy(alpha = 0.12f)
-            val stepPx = 24.dp.toPx()
-            var x = stepPx
-            while (x < size.width) {
-                drawLine(color = gridColor, start = Offset(x, 0f), end = Offset(x, size.height), strokeWidth = 1.dp.toPx())
-                x += stepPx
-            }
-            var y = stepPx
-            while (y < size.height) {
-                drawLine(color = gridColor, start = Offset(0f, y), end = Offset(size.width, y), strokeWidth = 1.dp.toPx())
-                y += stepPx
-            }
-        }
-        AppPaperStyleOption.CLEAN_DEFAULT -> {
-            drawRect(color = theme.bgColor)
-        }
-    }
-    drawContent()
-}
+): Modifier = this.universalPaperScreenBackground(
+    paperStyle = paperStyle,
+    isDark = theme.isDark,
+    baseBgColor = theme.bgColor,
+    accentColor = Color(0xFF10B981)
+)
 
 fun Modifier.darwinPaperBackground(
     appearance: AppAppearanceState,
     isDark: Boolean = appearance.isDark
-): Modifier = this.darwinPaperBackground(
-    theme = if (isDark && !appearance.theme.isDark) AppThemeOption.NIGHT_MODE else appearance.theme,
-    paperStyle = appearance.paperStyle
+): Modifier = this.universalPaperScreenBackground(
+    paperStyle = appearance.paperStyle,
+    isDark = isDark,
+    baseBgColor = appearance.theme.bgColor,
+    accentColor = appearance.accentColor
 )
 
 /**
- * Curved Double-Line Manuscript Border following `appearance.cornerRadiusDp.dp`:
- * - Outer line: 1.4.dp (#4A321F in Day mode, #C59B27 in Night mode)
- * - Inner parallel line: 0.7.dp inset by 3.dp (#8C6D46 in Day mode, #8B6914 in Night mode)
+ * Universal Paper Card Frame following `appearance.cornerRadiusDp.dp` across all 5 paper styles
+ * (zero horizontal lines or grid lines over text inside cards!).
  */
 fun Modifier.darwinManuscriptBorder(
     appearance: AppAppearanceState,
     isDark: Boolean = appearance.isDark
-): Modifier = this.darwinManuscriptBorder(
-    cornerRadius = appearance.cornerRadiusDp.dp,
+): Modifier = this.universalPaperCardFrame(
+    paperStyle = appearance.paperStyle,
     isDark = isDark,
-    paperStyle = appearance.paperStyle
+    cornerRadius = appearance.cornerRadiusDp.dp,
+    accentColor = appearance.accentColor
 )
 
 fun Modifier.darwinManuscriptBorder(
     cornerRadius: androidx.compose.ui.unit.Dp,
     isDark: Boolean = false,
     paperStyle: AppPaperStyleOption = AppPaperStyleRuntime.activePaperStyle
-): Modifier {
-    if (paperStyle != AppPaperStyleOption.DARWIN_PARCHMENT) return this
-    return this.drawWithContent {
-        drawContent()
-        val outerStrokePx = 1.4.dp.toPx()
-        val innerStrokePx = 0.7.dp.toPx()
-        val insetPx = 3.dp.toPx()
-        val outerRadiusPx = cornerRadius.toPx()
-        val innerRadiusPx = (outerRadiusPx - insetPx).coerceAtLeast(2.dp.toPx())
-        val outerColor = if (isDark) Color(0xFFC59B27) else Color(0xFF4A321F)
-        val innerColor = if (isDark) Color(0xFF8B6914) else Color(0xFF8C6D46)
-
-        drawRoundRect(
-            color = outerColor,
-            topLeft = Offset(outerStrokePx / 2f, outerStrokePx / 2f),
-            size = androidx.compose.ui.geometry.Size(
-                (size.width - outerStrokePx).coerceAtLeast(0f),
-                (size.height - outerStrokePx).coerceAtLeast(0f)
-            ),
-            cornerRadius = androidx.compose.ui.geometry.CornerRadius(outerRadiusPx, outerRadiusPx),
-            style = androidx.compose.ui.graphics.drawscope.Stroke(width = outerStrokePx)
-        )
-        if (size.width > insetPx * 2 && size.height > insetPx * 2) {
-            drawRoundRect(
-                color = innerColor,
-                topLeft = Offset(insetPx, insetPx),
-                size = androidx.compose.ui.geometry.Size(
-                    size.width - insetPx * 2f,
-                    size.height - insetPx * 2f
-                ),
-                cornerRadius = androidx.compose.ui.geometry.CornerRadius(innerRadiusPx, innerRadiusPx),
-                style = androidx.compose.ui.graphics.drawscope.Stroke(width = innerStrokePx)
-            )
-        }
-    }
-}
+): Modifier = this.universalPaperCardFrame(
+    paperStyle = paperStyle,
+    isDark = isDark,
+    cornerRadius = cornerRadius,
+    accentColor = Color(0xFF10B981)
+)
 
 /**
- * Outer Luminous Halo + Inner Ambient Illumination for focused inputs (`isFocused == true`),
- * respecting `appearance.cornerRadiusDp.dp` without any inner orange line or harsh black border.
+ * Outer Luminous Halo + Single Frame Illumination for focused inputs (`isFocused == true`),
+ * respecting `appearance.cornerRadiusDp.dp` and glowing with `accentColor.copy(alpha = 0.28f)` (6.dp halo + 2.dp bright frame).
  */
 fun Modifier.luminousFocusGlow(
     isFocused: Boolean,
     cornerRadius: androidx.compose.ui.unit.Dp,
-    isDark: Boolean = false
+    isDark: Boolean = false,
+    accentColor: Color = if (isDark) Color(0xFF34D399) else Color(0xFF10B981)
 ): Modifier = this.drawWithContent {
     val radiusPx = cornerRadius.toPx()
     if (isFocused) {
-        val ambientFill = if (isDark) {
-            Color(0xFFF59E0B).copy(alpha = 0.14f)
-        } else {
-            Color(0xFFFDE68A).copy(alpha = 0.32f)
-        }
+        val outerHaloPx = 6.dp.toPx()
         drawRoundRect(
-            color = ambientFill,
+            color = accentColor.copy(alpha = 0.28f),
+            topLeft = Offset(-outerHaloPx * 0.35f, -outerHaloPx * 0.35f),
+            size = androidx.compose.ui.geometry.Size(
+                size.width + outerHaloPx * 0.7f,
+                size.height + outerHaloPx * 0.7f
+            ),
+            cornerRadius = androidx.compose.ui.geometry.CornerRadius(
+                radiusPx + outerHaloPx * 0.35f,
+                radiusPx + outerHaloPx * 0.35f
+            ),
+            style = androidx.compose.ui.graphics.drawscope.Stroke(width = outerHaloPx)
+        )
+        drawRoundRect(
+            color = accentColor.copy(alpha = if (isDark) 0.14f else 0.10f),
             cornerRadius = androidx.compose.ui.geometry.CornerRadius(radiusPx, radiusPx)
         )
     }
     drawContent()
     val outerStrokeColor = if (isFocused) {
-        if (isDark) Color(0xFFFBBF24).copy(alpha = 0.85f) else Color(0xFFD97706).copy(alpha = 0.75f)
+        accentColor
     } else {
-        if (AppPaperStyleRuntime.activePaperStyle == AppPaperStyleOption.DARWIN_PARCHMENT) {
-            if (isDark) Color(0xFF8B6914).copy(alpha = 0.65f) else Color(0xFF8C6D46).copy(alpha = 0.65f)
-        } else {
-            if (isDark) Color(0xFF334155) else Color(0xFFCBD5E1)
+        when (AppPaperStyleRuntime.activePaperStyle) {
+            AppPaperStyleOption.DARWIN_PARCHMENT ->
+                if (isDark) Color(0xFF8B6914).copy(alpha = 0.65f) else Color(0xFF8C6D46).copy(alpha = 0.65f)
+            AppPaperStyleOption.RULED_NOTEBOOK ->
+                if (isDark) Color(0xFF475569) else Color(0xFF94A3B8).copy(alpha = 0.65f)
+            AppPaperStyleOption.ENGINEERING_GRID ->
+                if (isDark) Color(0xFF38BDF8).copy(alpha = 0.38f) else Color(0xFF0284C7).copy(alpha = 0.32f)
+            AppPaperStyleOption.FROSTED_GLASS ->
+                if (isDark) Color.White.copy(alpha = 0.28f) else Color.White.copy(alpha = 0.75f)
+            AppPaperStyleOption.DEFAULT_PURE ->
+                if (isDark) Color(0xFF334155) else Color(0xFFCBD5E1)
         }
     }
-    val strokeWidthPx = if (isFocused) 1.8.dp.toPx() else 1.dp.toPx()
+    val strokeWidthPx = if (isFocused) 2.dp.toPx() else 1.dp.toPx()
     drawRoundRect(
         color = outerStrokeColor,
         topLeft = Offset(strokeWidthPx / 2f, strokeWidthPx / 2f),
@@ -304,23 +235,6 @@ fun Modifier.luminousFocusGlow(
         cornerRadius = androidx.compose.ui.geometry.CornerRadius(radiusPx, radiusPx),
         style = androidx.compose.ui.graphics.drawscope.Stroke(width = strokeWidthPx)
     )
-    if (isFocused) {
-        val haloInset = 2.2.dp.toPx()
-        val haloColor = if (isDark) Color(0xFFFDE68A).copy(alpha = 0.35f) else Color(0xFFF59E0B).copy(alpha = 0.28f)
-        drawRoundRect(
-            color = haloColor,
-            topLeft = Offset(haloInset, haloInset),
-            size = androidx.compose.ui.geometry.Size(
-                (size.width - haloInset * 2f).coerceAtLeast(0f),
-                (size.height - haloInset * 2f).coerceAtLeast(0f)
-            ),
-            cornerRadius = androidx.compose.ui.geometry.CornerRadius(
-                (radiusPx - haloInset).coerceAtLeast(2f),
-                (radiusPx - haloInset).coerceAtLeast(2f)
-            ),
-            style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.2.dp.toPx())
-        )
-    }
 }
 
 /**
@@ -336,8 +250,31 @@ fun Modifier.tactile3DStyle(
     cornerRadius: androidx.compose.ui.unit.Dp = 14.dp,
     elevation: androidx.compose.ui.unit.Dp = 6.dp
 ): Modifier {
-    val isDarwin = AppPaperStyleRuntime.activePaperStyle == AppPaperStyleOption.DARWIN_PARCHMENT
+    val activeStyle = AppPaperStyleRuntime.activePaperStyle
+    val isDarwin = activeStyle == AppPaperStyleOption.DARWIN_PARCHMENT
+    val isFrosted = activeStyle == AppPaperStyleOption.FROSTED_GLASS
     val shape = RoundedCornerShape(cornerRadius)
+    if (isFrosted) {
+        val glassBorderBrush = Brush.linearGradient(
+            colors = listOf(
+                Color.White.copy(alpha = 0.72f),
+                baseColor.copy(alpha = 0.55f),
+                Color.White.copy(alpha = 0.28f)
+            )
+        )
+        return this
+            .clip(shape)
+            .border(width = 1.25.dp, brush = glassBorderBrush, shape = shape)
+            .drawWithContent {
+                drawContent()
+                val lipPx = 2.dp.toPx()
+                drawRect(
+                    color = baseColor.copy(alpha = 0.22f),
+                    topLeft = androidx.compose.ui.geometry.Offset(0f, size.height - lipPx),
+                    size = androidx.compose.ui.geometry.Size(size.width, lipPx)
+                )
+            }
+    }
     val darkLipColor = if (isDarwin) {
         Color(0xFF3A2415)
     } else {
@@ -753,27 +690,15 @@ fun NeumorphicRecessedDisplay(
     content: @Composable ColumnScope.() -> Unit
 ) {
     val appearance = LocalAppAppearanceState.current
-    val isDarwin = appearance.paperStyle == AppPaperStyleOption.DARWIN_PARCHMENT
     val cornerDp = appearance.cornerRadiusDp.dp
     val recessedShape = RoundedCornerShape(cornerDp)
-    val recessedBg = when {
-        isDark && isDarwin -> Color(0xFF211913)
-        isDark -> Color(0xFF0B1324)
-        isDarwin -> Color(0xFFF4EBD6)
-        else -> Color(0xFFEBF1F8)
-    }
-    val recessedBorderBrush = when {
-        isDark && isDarwin -> Brush.linearGradient(listOf(Color(0xFF8B6914), Color(0xFFC59B27)))
-        isDark -> Brush.linearGradient(listOf(Color(0xFF050914), Color(0xFF26354D)))
-        isDarwin -> Brush.linearGradient(listOf(Color(0xFF8C6D46), Color(0xFF4A321F)))
-        else -> Brush.linearGradient(listOf(Color(0xFFCBD5E1), Color.White))
-    }
+    val recessedBg = appearance.theme.innerStatBoxColor
 
     Box(
         modifier = modifier
             .clip(recessedShape)
             .background(color = recessedBg, shape = recessedShape)
-            .border(width = 1.2.dp, brush = recessedBorderBrush, shape = recessedShape)
+            .darwinManuscriptBorder(cornerRadius = cornerDp, isDark = isDark, paperStyle = appearance.paperStyle)
             .padding(contentPadding)
     ) {
         Column(
@@ -796,17 +721,11 @@ fun NeumorphicRecessedField(
     keyboardActions: KeyboardActions = KeyboardActions.Default
 ) {
     val appearance = LocalAppAppearanceState.current
-    val isDarwin = appearance.paperStyle == AppPaperStyleOption.DARWIN_PARCHMENT
     val cornerDp = appearance.cornerRadiusDp.dp
     val recessedShape = RoundedCornerShape(cornerDp)
     var isFocused by remember { mutableStateOf(false) }
 
-    val recessedBg = when {
-        isDark && isDarwin -> Color(0xFF211913)
-        isDark -> Color(0xFF0B1324)
-        isDarwin -> Color(0xFFFAF3E4)
-        else -> Color(0xFFEBF1F8)
-    }
+    val recessedBg = appearance.theme.cardColor
     val primaryText = appearance.theme.headingColor
     val secondaryText = appearance.theme.secondaryTextColor
 
@@ -847,7 +766,8 @@ fun NeumorphicRecessedField(
             .luminousFocusGlow(
                 isFocused = isFocused,
                 cornerRadius = cornerDp,
-                isDark = isDark
+                isDark = isDark,
+                accentColor = accentColor
             )
             .onFocusChanged { isFocused = it.isFocused }
     )
@@ -869,22 +789,21 @@ fun LuminousOutlinedTextField(
     singleLine: Boolean = true,
     minLines: Int = 1,
     maxLines: Int = if (singleLine) 1 else Int.MAX_VALUE,
+    visualTransformation: androidx.compose.ui.text.input.VisualTransformation = androidx.compose.ui.text.input.VisualTransformation.None,
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
-    keyboardActions: KeyboardActions = KeyboardActions.Default
+    keyboardActions: KeyboardActions = KeyboardActions.Default,
+    shape: androidx.compose.ui.graphics.Shape? = null
 ) {
     val appearance = LocalAppAppearanceState.current
     val isDark = appearance.isDark
-    val isDarwin = appearance.paperStyle == AppPaperStyleOption.DARWIN_PARCHMENT
     val cornerDp = appearance.cornerRadiusDp.dp
-    val fieldShape = RoundedCornerShape(cornerDp)
+    val fieldShape = shape ?: RoundedCornerShape(cornerDp)
     var isFocused by remember { mutableStateOf(false) }
 
-    val fieldBg = when {
-        !enabled -> if (isDark) Color(0xFF18120E) else Color(0xFFF4EBD6)
-        isDark && isDarwin -> Color(0xFF211913)
-        isDark -> Color(0xFF0F172A)
-        isDarwin -> Color(0xFFFAF3E4)
-        else -> Color.White
+    val fieldBg = if (!enabled) {
+        appearance.theme.innerStatBoxColor
+    } else {
+        appearance.theme.cardColor
     }
     val primaryText = appearance.theme.headingColor
     val secondaryText = appearance.theme.secondaryTextColor
@@ -904,6 +823,7 @@ fun LuminousOutlinedTextField(
         singleLine = singleLine,
         minLines = minLines,
         maxLines = maxLines,
+        visualTransformation = visualTransformation,
         keyboardOptions = keyboardOptions,
         keyboardActions = keyboardActions,
         shape = fieldShape,
@@ -929,7 +849,8 @@ fun LuminousOutlinedTextField(
             .luminousFocusGlow(
                 isFocused = isFocused && enabled && !readOnly,
                 cornerRadius = cornerDp,
-                isDark = isDark
+                isDark = isDark,
+                accentColor = if (isError) ActionRed else activeAccent
             )
             .onFocusChanged { isFocused = it.isFocused }
     )
@@ -1503,7 +1424,7 @@ fun ChatDetailScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(currentTheme.bgColor)
+            .darwinPaperBackground(currentTheme)
             .testTag("chat_detail_screen_${conversation.id}")
     ) {
         // WhatsApp-style Conversation Top Header
@@ -1722,7 +1643,7 @@ fun AddPhoneContactDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = currentTheme.cardColor,
+        containerColor = currentTheme.dialogCardColor,
         shape = RoundedCornerShape(appearance.cornerRadiusDp.dp),
         modifier = Modifier
             .darwinManuscriptBorder(appearance, isDark)
@@ -1859,7 +1780,7 @@ fun UniversalFinancialRequestDialog(
     val appearance = LocalAppAppearanceState.current
     val curr = Translations.tr("currency", lang)
     val isDark = currentTheme.isDark
-    val dialogBg = currentTheme.cardColor
+    val dialogBg = currentTheme.dialogCardColor
     val primaryText = currentTheme.headingColor
     val secondaryText = currentTheme.secondaryTextColor
     val activeAccent = appearance.accentColor
@@ -2468,7 +2389,7 @@ fun AddMarketPostDialog(
     val context = LocalContext.current
     val appearance = LocalAppAppearanceState.current
     val isDark = currentTheme.isDark
-    val dialogBg = currentTheme.cardColor
+    val dialogBg = currentTheme.dialogCardColor
     val fieldBg = currentTheme.bgColor
     val fieldBorder = if (isDark) Color(0xFF334155) else Color(0xFFE2E8F0)
     val primaryText = currentTheme.headingColor
@@ -2709,7 +2630,7 @@ fun OwnerDailyReportDialog(
 ) {
     val appearance = LocalAppAppearanceState.current
     val isDark = currentTheme.isDark
-    val dialogBg = currentTheme.cardColor
+    val dialogBg = currentTheme.dialogCardColor
     val fieldSurfaceBg = currentTheme.bgColor
     val cardBorderColor = if (isDark) Color(0xFF334155) else Color(0xFFE2E8F0)
     val primaryText = currentTheme.headingColor
@@ -3242,7 +3163,8 @@ fun ContextualChatBottomSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = currentTheme.bgColor,
+        containerColor = currentTheme.dialogCardColor,
+        scrimColor = Color.Black.copy(alpha = 0.65f),
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
     ) {
         Column(
@@ -3254,7 +3176,7 @@ fun ContextualChatBottomSheet(
             // Contextual Chat Header Bar (100% identical layout for both Worker Chat and Vet Consultation Chat)
             val appearance = LocalAppAppearanceState.current
             val isDark = currentTheme.isDark
-            val headerBg = if (isDark) Color(0xFF1E293B) else Color.White
+            val headerBg = currentTheme.cardColor
             val primaryText = if (isDark) Color(0xFFFFFFFF) else currentTheme.headingColor
             val secondaryText = if (isDark) Color(0xFFCBD5E1) else Color(0xFF64748B)
             val accentEmerald = appearance.accentColor
@@ -3378,7 +3300,7 @@ fun VetMedicineInvoiceDialog(
     val appearance = LocalAppAppearanceState.current
     val curr = Translations.tr("currency", lang)
     val isDark = currentTheme.isDark
-    val dialogBg = currentTheme.cardColor
+    val dialogBg = currentTheme.dialogCardColor
     val primaryText = currentTheme.headingColor
     val secondaryText = currentTheme.secondaryTextColor
     val accentEmerald = appearance.accentColor
@@ -3743,7 +3665,7 @@ fun TeamChatTab(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(currentTheme.bgColor)
+            .darwinPaperBackground(currentTheme)
             .testTag("team_chat_tab")
     ) {
         // 1. Message Bubbles ListView
@@ -3791,7 +3713,7 @@ fun TeamChatTab(
                 val bubbleBgColor = if (isMe) {
                     appearance.accentContainerColor
                 } else {
-                    if (isDark) Color(0xFF1E293B) else Color.White
+                    currentTheme.cardColor
                 }
 
                 val linkedTx = if (msg.linkedTransactionId.isNotBlank()) {
@@ -3808,6 +3730,7 @@ fun TeamChatTab(
                     Surface(
                         modifier = Modifier
                             .widthIn(min = 120.dp, max = 315.dp)
+                            .darwinManuscriptBorder(appearance, isDark)
                             .testTag("chat_bubble_${msg.id}"),
                         shape = bubbleShape,
                         color = bubbleBgColor,
@@ -3817,9 +3740,21 @@ fun TeamChatTab(
                         Column(
                             modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
                         ) {
-                            // Sender Name & Role
+                            // Sender Name & Role (deduplicate if both contain "مالك المزرعة" or are identical)
+                            val cleanSenderName = msg.senderName.trim()
+                            val cleanSenderRole = msg.senderRole.trim()
+                            val senderHeaderLabel = when {
+                                cleanSenderRole.isBlank() || cleanSenderName.equals(cleanSenderRole, ignoreCase = true) ->
+                                    cleanSenderName
+                                cleanSenderName.contains("مالك المزرعة") && cleanSenderRole.contains("مالك المزرعة") ->
+                                    "مالك المزرعة 🏠"
+                                cleanSenderRole.startsWith(cleanSenderName) ->
+                                    cleanSenderRole
+                                else ->
+                                    "$cleanSenderName - $cleanSenderRole"
+                            }
                             Text(
-                                "${msg.senderName} - ${msg.senderRole}",
+                                senderHeaderLabel,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.ExtraBold,
                                 color = roleAccentColor
@@ -3958,7 +3893,7 @@ fun TeamChatTab(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                OutlinedTextField(
+                LuminousOutlinedTextField(
                     value = messageInput,
                     onValueChange = { messageInput = it },
                     placeholder = {
@@ -3972,15 +3907,7 @@ fun TeamChatTab(
                         .weight(1f)
                         .testTag("chat_message_input"),
                     shape = RoundedCornerShape(28.dp),
-                    singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = if (isDark) Color(0xFF1E293B) else Color.White,
-                        unfocusedContainerColor = if (isDark) Color(0xFF1E293B) else Color.White,
-                        focusedTextColor = primaryText,
-                        unfocusedTextColor = primaryText,
-                        focusedBorderColor = accentEmerald.copy(alpha = 0.5f),
-                        unfocusedBorderColor = if (isDark) Color(0xFF334155) else Color.Black.copy(alpha = 0.08f)
-                    )
+                    singleLine = true
                 )
 
                 // Circular Active Accent Send Button
@@ -4186,7 +4113,7 @@ fun BatchShipmentInfoScreen(
                     HorizontalDivider(color = if (currentTheme.isDark) Color(0xFF334155) else Color(0xFFF1F5F9))
 
                     // 1. اسم المشتري / التاجر
-                    OutlinedTextField(
+                    LuminousOutlinedTextField(
                         value = buyerName,
                         onValueChange = onBuyerNameChange,
                         label = { Text(Translations.tr("buyer_name_label", lang), fontSize = 13.sp) },
@@ -4200,15 +4127,11 @@ fun BatchShipmentInfoScreen(
                         },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
-                        shape = shipFieldShape,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = shipAccent,
-                            focusedLabelColor = shipAccent
-                        )
+                        shape = shipFieldShape
                     )
 
                     // 2. رقم لوحة الشاحنة
-                    OutlinedTextField(
+                    LuminousOutlinedTextField(
                         value = truckPlate,
                         onValueChange = onTruckPlateChange,
                         label = { Text(Translations.tr("truck_plate_label", lang), fontSize = 13.sp) },
@@ -4222,16 +4145,12 @@ fun BatchShipmentInfoScreen(
                         },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
-                        shape = shipFieldShape,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = shipAccent,
-                            focusedLabelColor = shipAccent
-                        )
+                        shape = shipFieldShape
                     )
 
                     // 3. عمر الدجاج (محسوب تلقائياً من آخر يوم مسجل في السجل)
                     Surface(
-                        color = if (currentTheme.isDark) Color(0xFF0F172A) else shipAccentContainer.copy(alpha = 0.45f),
+                        color = currentTheme.innerStatBoxColor,
                         shape = shipFieldShape,
                         border = BorderStroke(1.dp, shipAccent.copy(alpha = 0.4f)),
                         modifier = Modifier.fillMaxWidth()
@@ -4258,7 +4177,7 @@ fun BatchShipmentInfoScreen(
                                 Text(
                                     Translations.tr("bird_age_auto_calculated_desc", lang),
                                     fontSize = 11.sp,
-                                    color = Color.Gray
+                                    color = currentTheme.secondaryTextColor
                                 )
                             }
                         }
@@ -4273,7 +4192,7 @@ fun BatchShipmentInfoScreen(
                             }
                         }
                     }
-                    OutlinedTextField(
+                    LuminousOutlinedTextField(
                         value = pricePerKg,
                         onValueChange = onPricePerKgChange,
                         label = { Text(Translations.tr("price_per_kg_label", lang), fontSize = 13.sp) },
@@ -4303,17 +4222,11 @@ fun BatchShipmentInfoScreen(
                             .fillMaxWidth()
                             .offset(x = priceShakeOffset.value.dp)
                             .testTag("input_sales_price_per_kg"),
-                        shape = shipFieldShape,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = shipAccent,
-                            focusedLabelColor = shipAccent,
-                            errorBorderColor = Color(0xFFEF4444),
-                            errorLabelColor = Color(0xFFEF4444)
-                        )
+                        shape = shipFieldShape
                     )
 
                     // 5. عدد الدجاج داخل الصندوق الواحد (حقل إدخال رقمي حر TextField)
-                    OutlinedTextField(
+                    LuminousOutlinedTextField(
                         value = birdsPerCrate,
                         onValueChange = onBirdsPerCrateChange,
                         label = { Text(Translations.tr("birds_per_crate_label", lang), fontSize = 13.sp) },
@@ -4329,7 +4242,7 @@ fun BatchShipmentInfoScreen(
                                     modifier = Modifier.testTag("sales_stage1_live_birds_exceeded_warning")
                                 )
                             } else {
-                                Text(Translations.tr("birds_per_crate_free_hint", lang), fontSize = 11.5.sp, color = Color.Gray)
+                                Text(Translations.tr("birds_per_crate_free_hint", lang), fontSize = 11.5.sp, color = currentTheme.secondaryTextColor)
                             }
                         },
                         leadingIcon = {
@@ -4344,11 +4257,7 @@ fun BatchShipmentInfoScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("input_sales_birds_per_crate"),
-                        shape = shipFieldShape,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = if (isCrateCountExceedingLiveBirds) ActionRed else shipAccent,
-                            focusedLabelColor = if (isCrateCountExceedingLiveBirds) ActionRed else shipAccent
-                        )
+                        shape = shipFieldShape
                     )
 
                     HorizontalDivider(color = if (currentTheme.isDark) Color(0xFF334155) else Color(0xFFF1F5F9))
@@ -4438,7 +4347,7 @@ fun BatchShipmentInfoScreen(
 
                         // إذا اختار المستخدم الخيار (ب): إدخال إجمالي الفارغ مباشرة
                         if (tareMode == TareMode.DIRECT_TOTAL) {
-                            OutlinedTextField(
+                            LuminousOutlinedTextField(
                                 value = directTareTotal,
                                 onValueChange = onDirectTareTotalChange,
                                 label = { Text(Translations.tr("tare_direct_total_label", lang), fontSize = 13.sp) },
@@ -4453,11 +4362,7 @@ fun BatchShipmentInfoScreen(
                                 singleLine = true,
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                                 modifier = Modifier.fillMaxWidth(),
-                                shape = shipFieldShape,
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = shipAccent,
-                                    focusedLabelColor = shipAccent
-                                )
+                                shape = shipFieldShape
                             )
                         }
                     }
@@ -5291,7 +5196,7 @@ fun SimpleTransactionDialog(
 
     val appearance = LocalAppAppearanceState.current
     val isDark = appearance.isDark
-    val dialogBg = appearance.theme.cardColor
+    val dialogBg = appearance.theme.dialogCardColor
     val primaryText = appearance.theme.headingColor
     val secondaryText = appearance.theme.secondaryTextColor
     val accentEmerald = appearance.accentColor
@@ -5579,9 +5484,9 @@ fun FeedOrdersLedgerBottomSheet(
 ) {
     val appearance = LocalAppAppearanceState.current
     val isDark = appearance.isDark
-    val sheetBg = if (isDark) Color(0xFF1E293B) else Color.White
-    val primaryText = if (isDark) Color.White else Color(0xDD000000)
-    val secondaryText = if (isDark) Color(0xFFCBD5E1) else Color.Gray
+    val sheetBg = appearance.theme.dialogCardColor
+    val primaryText = appearance.theme.headingColor
+    val secondaryText = appearance.theme.secondaryTextColor
     val accentEmerald = appearance.accentColor
     val preferredFeedUnit = LocalFeedUnitPreference.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -5625,6 +5530,7 @@ fun FeedOrdersLedgerBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         containerColor = sheetBg,
+        scrimColor = Color.Black.copy(alpha = 0.65f),
         shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
         modifier = Modifier.testTag("feed_orders_ledger_bottom_sheet")
     ) {
@@ -5760,8 +5666,8 @@ fun FeedOrdersLedgerBottomSheet(
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(appearance.cornerRadiusDp.dp),
-                color = if (isDark) Color(0xFF0F172A) else Color(0xFFF8FAFC),
-                border = BorderStroke(1.dp, if (isDark) Color(0xFF334155) else Color(0xFFE2E8F0))
+                color = appearance.theme.innerStatBoxColor,
+                border = BorderStroke(1.dp, if (isDark) Color(0xFF334155) else accentEmerald.copy(alpha = 0.25f))
             ) {
                 Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
                     // Table Header
@@ -5901,9 +5807,9 @@ fun MedicineOrdersLedgerBottomSheet(
 ) {
     val appearance = LocalAppAppearanceState.current
     val isDark = appearance.isDark
-    val dialogBg = if (isDark) Color(0xFF1E293B) else Color.White
-    val primaryText = if (isDark) Color.White else Color(0xDD000000)
-    val secondaryText = if (isDark) Color(0xFFCBD5E1) else Color.Gray
+    val dialogBg = appearance.theme.dialogCardColor
+    val primaryText = appearance.theme.headingColor
+    val secondaryText = appearance.theme.secondaryTextColor
     val accentEmerald = appearance.accentColor
     val primaryButtonAccent = appearance.accentOption.primaryColor
     val curr = Translations.tr("currency", lang)
@@ -6320,8 +6226,8 @@ fun DigitalTransactionReceiptBottomSheet(
     val context = LocalContext.current
     val appearance = LocalAppAppearanceState.current
     val isDark = appearance.isDark
-    val sheetBg = if (isDark) Color(0xFF1E293B) else Color.White
-    val primaryText = if (isDark) Color.White else Color(0xDD000000)
+    val sheetBg = appearance.theme.dialogCardColor
+    val primaryText = appearance.theme.headingColor
     val accentEmerald = appearance.accentColor
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var sharedWhatsAppPreview by remember { mutableStateOf<String?>(null) }
@@ -6384,6 +6290,7 @@ fun DigitalTransactionReceiptBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         containerColor = sheetBg,
+        scrimColor = Color.Black.copy(alpha = 0.65f),
         shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
         modifier = Modifier.testTag("digital_receipt_ticket_sheet")
     ) {
@@ -6452,8 +6359,8 @@ fun DigitalTransactionReceiptBottomSheet(
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(appearance.cornerRadiusDp.dp),
-                color = if (isDark) Color(0xFF0F172A) else Color(0xFFF8FAFC),
-                border = BorderStroke(1.dp, if (isDark) Color(0xFF334155) else Color(0xFFE2E8F0))
+                color = appearance.theme.innerStatBoxColor,
+                border = BorderStroke(1.dp, if (isDark) Color(0xFF334155) else accentEmerald.copy(alpha = 0.25f))
             ) {
                 Column(
                     modifier = Modifier
@@ -6670,7 +6577,7 @@ fun LiveBroilerReceiptDialog(
     var isPrintedOrShared by remember { mutableStateOf(false) }
 
     AlertDialog(
-        containerColor = if (appearance.isDark) Color(0xFF1E293B) else Color.White,
+        containerColor = appearance.theme.dialogCardColor,
         onDismissRequest = onDismiss,
         title = {
             Row(
@@ -6682,13 +6589,13 @@ fun LiveBroilerReceiptDialog(
                     Translations.tr("receipt_dialog_title", lang),
                     fontWeight = FontWeight.Bold,
                     fontSize = 16.sp,
-                    color = if (appearance.isDark) Color.White else Color(0xFF0F172A)
+                    color = appearance.theme.headingColor
                 )
                 Icon(Icons.Default.ReceiptLong, contentDescription = null, tint = accentEmerald)
             }
         },
         text = {
-            val primaryText = if (appearance.isDark) Color.White else Color(0xFF0F172A)
+            val primaryText = appearance.theme.headingColor
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -6696,7 +6603,7 @@ fun LiveBroilerReceiptDialog(
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Surface(
-                    color = if (appearance.isDark) Color(0xFF0F172A) else Color(0xFFF8FAFC),
+                    color = appearance.theme.innerStatBoxColor,
                     shape = RoundedCornerShape(10.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -6713,7 +6620,7 @@ fun LiveBroilerReceiptDialog(
                         Text(
                             "🗓️ ${Translations.tr("active_cycle_label", lang)} • $dateText",
                             fontSize = 12.sp,
-                            color = if (appearance.isDark) Color(0xFFCBD5E1) else Color(0xFF475569)
+                            color = appearance.theme.secondaryTextColor
                         )
                     }
                 }
@@ -6797,11 +6704,11 @@ fun ProfessionalSalesInvoiceModal(
     val appearance = LocalAppAppearanceState.current
     val accentEmerald = appearance.accentColor
     val isDark = appearance.isDark
-    val primaryText = if (isDark) Color.White else Color(0xFF0F172A)
+    val primaryText = appearance.theme.headingColor
     var isPrintedOrShared by remember { mutableStateOf(false) }
 
     AlertDialog(
-        containerColor = if (isDark) Color(0xFF1E293B) else Color.White,
+        containerColor = appearance.theme.dialogCardColor,
         onDismissRequest = onDismiss,
         title = {
             Column(modifier = Modifier.fillMaxWidth()) {
@@ -8019,8 +7926,8 @@ fun DayMedicalDetailsBottomSheet(
 ) {
     val appearance = LocalAppAppearanceState.current
     val isDark = currentTheme.isDark
-    val dialogBg = currentTheme.cardColor
-    val subtleBg = currentTheme.bgColor
+    val dialogBg = currentTheme.dialogCardColor
+    val subtleBg = currentTheme.innerStatBoxColor
     val primaryText = currentTheme.headingColor
     val secondaryText = currentTheme.secondaryTextColor
     val activeAccent = appearance.accentColor

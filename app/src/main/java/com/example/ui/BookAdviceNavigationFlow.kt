@@ -41,6 +41,10 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.zIndex
 import com.example.BookBranchModel
 import com.example.BookSubCardModel
+import com.example.darwinManuscriptBorder
+import com.example.darwinPaperBackground
+import com.example.models.AppPaperStyleOption
+import com.example.models.AppPaperStyleRuntime
 import com.example.models.AppThemeOption
 import com.example.models.InfographicVisualType
 import com.example.models.Ross308PosterCatalog
@@ -73,10 +77,12 @@ fun BookAdviceNavigationFlow(
 
     val context = LocalContext.current
     val isDark = currentTheme.isDark
-    val primaryText = if (isDark) Color(0xFFFFFFFF) else Color(0xFF0F172A)
-    val secondaryText = if (isDark) Color(0xFFCBD5E1) else Color(0xFF475569)
-    val shelfCardBg = if (isDark) Color(0xFF1E293B) else BookParchmentLight
-    val shelfCardBorder = if (isDark) accentColor.copy(alpha = 0.55f) else BookBorderOuter
+    val activePaper = AppPaperStyleRuntime.activePaperStyle
+    val isDarwin = activePaper == AppPaperStyleOption.DARWIN_PARCHMENT
+    val primaryText = currentTheme.headingColor
+    val secondaryText = currentTheme.secondaryTextColor
+    val shelfCardBg = if (isDarwin && !isDark) BookParchmentLight else currentTheme.cardColor
+    val shelfCardBorder = if (isDarwin && !isDark) BookBorderOuter else accentColor.copy(alpha = 0.55f)
     val safeCorner = cornerRadiusDp.coerceIn(8, 24)
 
     var currentStep by rememberSaveable { mutableStateOf(AdviceScreenStep.STEP_1_BOOKS_SHELF) }
@@ -140,6 +146,7 @@ fun BookAdviceNavigationFlow(
                                     .weight(1f)
                                     .fillMaxHeight()
                                     .defaultMinSize(minHeight = 168.dp)
+                                    .darwinManuscriptBorder(cornerRadius = safeCorner.dp, isDark = isDark)
                                     .clip(RoundedCornerShape(safeCorner.dp))
                                     .clickable {
                                         selectedBranchIndex = idx
@@ -239,7 +246,7 @@ fun BookAdviceNavigationFlow(
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(BookParchmentDeep)
+                        .darwinPaperBackground(currentTheme)
                         .windowInsetsPadding(WindowInsets.safeDrawing)
                 ) {
                     when (currentStep) {
@@ -260,6 +267,8 @@ fun BookAdviceNavigationFlow(
                                     activeBranchLessons = activeBranchLessons,
                                     lastReadLessonId = lastReadLessonId,
                                     lang = lang,
+                                    currentTheme = currentTheme,
+                                    accentColor = accentColor,
                                     onBackToBooks = {
                                         currentStep = AdviceScreenStep.STEP_1_BOOKS_SHELF
                                     },
@@ -310,7 +319,7 @@ fun BookAdviceNavigationFlow(
                                 Box(
                                     modifier = Modifier
                                         .fillMaxSize()
-                                        .background(BookParchmentDeep)
+                                        .darwinPaperBackground(currentTheme)
                                         .padding(6.dp)
                                         .testTag("book_step3_lesson_screen")
                                 ) {
@@ -391,28 +400,40 @@ private fun BookIndexImmersiveSheet(
     activeBranchLessons: List<BookSubCardModel>,
     lastReadLessonId: String?,
     lang: AppLanguage,
+    currentTheme: AppThemeOption = AppThemeOption.NATURE_GREEN,
+    accentColor: Color = BookBurgundy,
     onBackToBooks: () -> Unit,
     onOpenLesson: (Int, BookSubCardModel) -> Unit
 ) {
     val pageDir = if (lang.isRtl) LayoutDirection.Rtl else LayoutDirection.Ltr
     val ctaArrow = if (lang.isRtl) "‹" else "›"
+    val isDark = currentTheme.isDark
+    val isDarwin = AppPaperStyleRuntime.activePaperStyle == AppPaperStyleOption.DARWIN_PARCHMENT
+    val sheetOuterBg = if (isDarwin && !isDark) Color(0xFFF4EBD6) else currentTheme.bgColor
+    val sheetInnerBg = if (isDarwin && !isDark) Color(0xFFFAF3E4) else currentTheme.dialogCardColor
+    val lessonCardBg = if (isDarwin && !isDark) Color(0xFFFAF3E4) else currentTheme.cardColor
+    val sheetBorderOuter = if (isDarwin && !isDark) Color(0xFF4A321F) else accentColor.copy(alpha = 0.55f)
+    val sheetBorderInner = if (isDarwin && !isDark) Color(0xFF8C6D46) else accentColor.copy(alpha = 0.35f)
+    val lessonHeadingColor = if (isDarwin && !isDark) Color(0xFF26160C) else currentTheme.headingColor
+    val ctaTextColor = if (isDarwin && !isDark) Color(0xFF6E4720) else accentColor
 
     Surface(
         modifier = Modifier
             .fillMaxSize()
             .padding(6.dp)
+            .darwinManuscriptBorder(cornerRadius = 14.dp, isDark = isDark)
             .testTag("book_step2_index_screen"),
         shape = RoundedCornerShape(14.dp),
-        color = Color(0xFFF4EBD6),
-        border = BorderStroke(1.4.dp, Color(0xFF4A321F)),
+        color = sheetOuterBg,
+        border = BorderStroke(1.4.dp, sheetBorderOuter),
         shadowElevation = 6.dp
     ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(3.dp)
-                .background(Color(0xFFFAF3E4), RoundedCornerShape(11.dp))
-                .border(0.8.dp, Color(0xFF8C6D46), RoundedCornerShape(11.dp))
+                .background(sheetInnerBg, RoundedCornerShape(11.dp))
+                .border(0.8.dp, sheetBorderInner, RoundedCornerShape(11.dp))
         ) {
             CompositionLocalProvider(LocalLayoutDirection provides pageDir) {
                 Column(
@@ -477,14 +498,15 @@ private fun BookIndexImmersiveSheet(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .defaultMinSize(minHeight = 92.dp)
+                                .darwinManuscriptBorder(cornerRadius = 14.dp, isDark = isDark)
                                 .clip(RoundedCornerShape(14.dp))
                                 .clickable { onOpenLesson(idx, lesson) }
                                 .testTag("book_index_lesson_${lesson.id}"),
                             shape = RoundedCornerShape(14.dp),
-                            color = Color(0xFFFAF3E4),
+                            color = lessonCardBg,
                             border = BorderStroke(
                                 width = if (isStoppedHere) 1.8.dp else 1.4.dp,
-                                color = if (isStoppedHere) BookGoldAccent else Color(0xFF4A321F)
+                                color = if (isStoppedHere) BookGoldAccent else sheetBorderOuter
                             ),
                             shadowElevation = 2.dp
                         ) {
@@ -492,7 +514,7 @@ private fun BookIndexImmersiveSheet(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(3.dp)
-                                    .border(0.7.dp, Color(0xFF8C6D46), RoundedCornerShape(11.dp))
+                                    .border(0.7.dp, sheetBorderInner, RoundedCornerShape(11.dp))
                                     .padding(horizontal = 10.dp, vertical = 10.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -536,7 +558,7 @@ private fun BookIndexImmersiveSheet(
                                     text = lessonHeading,
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.ExtraBold,
-                                    color = Color(0xFF26160C),
+                                    color = lessonHeadingColor,
                                     lineHeight = 18.sp,
                                     maxLines = 3,
                                     overflow = TextOverflow.Ellipsis,
@@ -548,7 +570,7 @@ private fun BookIndexImmersiveSheet(
                                     text = "${Translations.tr("book_btn_start_reading", lang)} $ctaArrow",
                                     fontSize = 11.5.sp,
                                     fontWeight = FontWeight.ExtraBold,
-                                    color = Color(0xFF6E4720),
+                                    color = ctaTextColor,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
                                     modifier = Modifier

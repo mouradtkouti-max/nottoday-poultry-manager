@@ -16,9 +16,27 @@ enum class AppPaperStyleOption(
     val defaultLabel: String
 ) {
     DARWIN_PARCHMENT("darwin_parchment", "📜", "Darwin Parchment"),
-    RULED_LEDGER("ruled_ledger", "📓", "Ruled Ledger"),
-    BLUEPRINT_GRID("blueprint_grid", "📐", "Blueprint Grid"),
-    CLEAN_DEFAULT("clean_default", "💎", "Clean Default")
+    RULED_NOTEBOOK("ruled_notebook", "📓", "Ruled Notebook"),
+    ENGINEERING_GRID("engineering_grid", "📐", "Engineering Grid"),
+    FROSTED_GLASS("frosted_glass", "🧊", "Frosted Glass"),
+    DEFAULT_PURE("default_pure", "💎", "Default Pure");
+
+    companion object {
+        val RULED_LEDGER: AppPaperStyleOption get() = RULED_NOTEBOOK
+        val BLUEPRINT_GRID: AppPaperStyleOption get() = ENGINEERING_GRID
+        val CLEAN_DEFAULT: AppPaperStyleOption get() = DEFAULT_PURE
+
+        fun fromStoredValue(raw: String?): AppPaperStyleOption {
+            return when (raw?.trim()) {
+                "DARWIN_PARCHMENT", "darwin_parchment" -> DARWIN_PARCHMENT
+                "RULED_NOTEBOOK", "ruled_notebook", "RULED_LEDGER", "ruled_ledger" -> RULED_NOTEBOOK
+                "ENGINEERING_GRID", "engineering_grid", "BLUEPRINT_GRID", "blueprint_grid" -> ENGINEERING_GRID
+                "FROSTED_GLASS", "frosted_glass" -> FROSTED_GLASS
+                "DEFAULT_PURE", "default_pure", "CLEAN_DEFAULT", "clean_default" -> DEFAULT_PURE
+                else -> DARWIN_PARCHMENT
+            }
+        }
+    }
 }
 
 @Stable
@@ -41,28 +59,63 @@ enum class AppThemeOption(
         get() = when (AppPaperStyleRuntime.activePaperStyle) {
             AppPaperStyleOption.DARWIN_PARCHMENT ->
                 if (isDark) Color(0xFF18120E) else Color(0xFFF4EBD6)
-            AppPaperStyleOption.RULED_LEDGER ->
-                if (isDark) Color(0xFF111824) else Color(0xFFFBF8F1)
-            AppPaperStyleOption.BLUEPRINT_GRID ->
-                if (isDark) Color(0xFF0B192C) else Color(0xFFEFF6FF)
-            AppPaperStyleOption.CLEAN_DEFAULT -> baseBgColor
+            AppPaperStyleOption.RULED_NOTEBOOK ->
+                if (isDark) Color(0xFF1A1814) else Color(0xFFF6F0DD)
+            AppPaperStyleOption.ENGINEERING_GRID ->
+                if (isDark) Color(0xFF0F171E) else Color(0xFFEBF3F9)
+            AppPaperStyleOption.FROSTED_GLASS ->
+                if (isDark) Color(0xFF0B1120) else Color(0xFFEFF6FF)
+            AppPaperStyleOption.DEFAULT_PURE -> baseBgColor
         }
 
     val cardColor: Color
         get() = when (AppPaperStyleRuntime.activePaperStyle) {
             AppPaperStyleOption.DARWIN_PARCHMENT ->
                 if (isDark) Color(0xFF2A2018) else Color(0xFFFAF3E4)
-            AppPaperStyleOption.RULED_LEDGER ->
-                if (isDark) Color(0xFF1C2536) else Color(0xFFFFFDF8)
-            AppPaperStyleOption.BLUEPRINT_GRID ->
-                if (isDark) Color(0xFF15263F) else Color(0xFFF8FAFC)
-            AppPaperStyleOption.CLEAN_DEFAULT -> baseCardColor
+            AppPaperStyleOption.RULED_NOTEBOOK ->
+                if (isDark) Color(0xFF24211B) else Color(0xFFFFFDF4)
+            AppPaperStyleOption.ENGINEERING_GRID ->
+                if (isDark) Color(0xFF17222D) else Color(0xFFF4F9FD)
+            AppPaperStyleOption.FROSTED_GLASS ->
+                if (isDark) Color(0xFF1E293B).copy(alpha = 0.52f) else Color.White.copy(alpha = 0.48f)
+            AppPaperStyleOption.DEFAULT_PURE -> baseCardColor
+        }
+
+    val dialogCardColor: Color
+        get() = when (AppPaperStyleRuntime.activePaperStyle) {
+            AppPaperStyleOption.DARWIN_PARCHMENT ->
+                if (isDark) Color(0xFF2A2018) else Color(0xFFFAF3E4)
+            AppPaperStyleOption.RULED_NOTEBOOK ->
+                if (isDark) Color(0xFF24211B) else Color(0xFFFFFDF4)
+            AppPaperStyleOption.ENGINEERING_GRID ->
+                if (isDark) Color(0xFF17222D) else Color(0xFFFAFDFF)
+            AppPaperStyleOption.FROSTED_GLASS ->
+                if (isDark) Color(0xFF1E293B).copy(alpha = 0.85f) else Color.White.copy(alpha = 0.88f)
+            AppPaperStyleOption.DEFAULT_PURE -> baseCardColor
+        }
+
+    val innerStatBoxColor: Color
+        get() = when (AppPaperStyleRuntime.activePaperStyle) {
+            AppPaperStyleOption.DARWIN_PARCHMENT ->
+                if (isDark) Color(0xFF1E1712) else Color(0xFFF2E5C9)
+            AppPaperStyleOption.RULED_NOTEBOOK ->
+                if (isDark) Color(0xFF1C1915) else Color(0xFFF6F0DF)
+            AppPaperStyleOption.ENGINEERING_GRID ->
+                if (isDark) Color(0xFF111A22) else Color(0xFFE6F0F8)
+            AppPaperStyleOption.FROSTED_GLASS ->
+                if (isDark) Color(0xFF1E293B).copy(alpha = 0.52f) else Color.White.copy(alpha = 0.48f)
+            AppPaperStyleOption.DEFAULT_PURE ->
+                if (isDark) Color(0xFF1E293B) else Color(0xFFF8FAFC)
         }
 
     val headingColor: Color
         get() = when (AppPaperStyleRuntime.activePaperStyle) {
             AppPaperStyleOption.DARWIN_PARCHMENT ->
                 if (isDark) Color(0xFFF5ECD8) else Color(0xFF26160C)
+            AppPaperStyleOption.RULED_NOTEBOOK ->
+                if (isDark) Color(0xFFFDF8ED) else Color(0xFF1E293B)
+            AppPaperStyleOption.ENGINEERING_GRID ->
+                if (isDark) Color(0xFFF1F5F9) else Color(0xFF0F172A)
             else -> if (isDark) Color(0xFFFFFFFF) else baseHeadingColor
         }
 
@@ -70,6 +123,10 @@ enum class AppThemeOption(
         get() = when (AppPaperStyleRuntime.activePaperStyle) {
             AppPaperStyleOption.DARWIN_PARCHMENT ->
                 if (isDark) Color(0xFFD7C4A3) else Color(0xFF5C4028)
+            AppPaperStyleOption.RULED_NOTEBOOK ->
+                if (isDark) Color(0xFFD6CFC2) else Color(0xFF475569)
+            AppPaperStyleOption.ENGINEERING_GRID ->
+                if (isDark) Color(0xFFCBD5E1) else Color(0xFF334155)
             else -> if (isDark) Color(0xFFCBD5E1) else Color(0xFF475569)
         }
 }
@@ -79,15 +136,63 @@ enum class AppAccentColorOption(
     val primaryColor: Color,
     val darkModeColor: Color,
     val softContainerColor: Color,
-    val darkContainerColor: Color
+    val darkContainerColor: Color,
+    val labelKey: String = "theme_color_forest_green"
 ) {
-    FOREST_GREEN("#1B5E20", Color(0xFF1B5E20), Color(0xFF34D399), Color(0xFFE8F5E9), Color(0xFF064E3B)),
-    VIOLET("#7C3AED", Color(0xFF7C3AED), Color(0xFFA78BFA), Color(0xFFEDE9FE), Color(0xFF2E1065)),
-    OCEAN_BLUE("#2563EB", Color(0xFF2563EB), Color(0xFF60A5FA), Color(0xFFDBEAFE), Color(0xFF1E3A8A)),
-    MINT_EMERALD("#10B981", Color(0xFF10B981), Color(0xFF34D399), Color(0xFFD1FAE5), Color(0xFF064E3B)),
-    AMBER_GOLD("#D97706", Color(0xFFD97706), Color(0xFFFBBF24), Color(0xFFFEF3C7), Color(0xFF78350F)),
-    ROSE("#E11D48", Color(0xFFE11D48), Color(0xFFFB7185), Color(0xFFFFE4E6), Color(0xFF881337)),
-    DARWIN_BRONZE("#6E4720", Color(0xFF6E4720), Color(0xFFD4AF37), Color(0xFFF3E5CE), Color(0xFF3A2616))
+    FOREST_GREEN("#1B5E20", Color(0xFF1B5E20), Color(0xFF34D399), Color(0xFFE8F5E9), Color(0xFF064E3B), "theme_color_forest_green"),
+    VIOLET("#7C3AED", Color(0xFF7C3AED), Color(0xFFA78BFA), Color(0xFFEDE9FE), Color(0xFF2E1065), "theme_color_violet"),
+    OCEAN_BLUE("#2563EB", Color(0xFF2563EB), Color(0xFF60A5FA), Color(0xFFDBEAFE), Color(0xFF1E3A8A), "theme_color_ocean_blue"),
+    MINT_EMERALD("#10B981", Color(0xFF10B981), Color(0xFF34D399), Color(0xFFD1FAE5), Color(0xFF064E3B), "theme_color_mint_emerald"),
+    AMBER_GOLD("#D97706", Color(0xFFD97706), Color(0xFFFBBF24), Color(0xFFFEF3C7), Color(0xFF78350F), "theme_color_amber_gold"),
+    ROSE("#E11D48", Color(0xFFE11D48), Color(0xFFFB7185), Color(0xFFFFE4E6), Color(0xFF881337), "theme_color_rose"),
+    CRYSTAL_WHITE_GLASS("#475569", Color(0xFF475569), Color(0xFF94A3B8), Color(0xFFF1F5F9), Color(0xFF1E293B), "theme_color_crystal_white_glass"),
+    SMOKED_OBSIDIAN("#1E293B", Color(0xFF1E293B), Color(0xFF94A3B8), Color(0xFFE2E8F0), Color(0xFF0F172A), "theme_color_smoked_obsidian"),
+    DARWIN_BRONZE("#6E4720", Color(0xFF6E4720), Color(0xFFD4AF37), Color(0xFFF3E5CE), Color(0xFF3A2616), "theme_color_darwin_bronze"),
+    OAK_WOOD("#6D4C41", Color(0xFF6D4C41), Color(0xFFD7CCC8), Color(0xFFEFEBE9), Color(0xFF3E2723), "theme_color_oak_wood"),
+    SADDLE_LEATHER("#8B4513", Color(0xFF8B4513), Color(0xFFDEB887), Color(0xFFF5E6D3), Color(0xFF4A250A), "theme_color_saddle_leather"),
+    TERRACOTTA_COPPER("#C2410C", Color(0xFFC2410C), Color(0xFFFB923C), Color(0xFFFFEDD5), Color(0xFF7C2D12), "theme_color_terracotta_copper"),
+    OLIVE_GROVE("#3F6212", Color(0xFF3F6212), Color(0xFFA3E635), Color(0xFFECFCCB), Color(0xFF1A2E05), "theme_color_olive_grove"),
+    DEEP_TEAL("#0F766E", Color(0xFF0F766E), Color(0xFF2DD4BF), Color(0xFFCCFBF1), Color(0xFF134E4A), "theme_color_deep_teal")
+}
+
+enum class AppTabBarMotionStyle(
+    val badgeNumber: String,
+    val labelKey: String,
+    val defaultLabel: String
+) {
+    SLIDING_PILL("01", "tab_motion_sliding_pill", "01 — الكبسولة المنزلقة (Sliding Pill)"),
+    LIQUID_BULGE("02", "tab_motion_liquid_bulge", "02 — التموج السائل (Liquid Bulge)"),
+    FLOATING_NOTCH("03", "tab_motion_floating_notch", "03 — الفقاعة البارزة (Floating Notch)"),
+    ICON_FILL("04", "tab_motion_icon_fill", "04 — التعبئة المضيئة (Icon Fill)"),
+    EXPANDING_LABEL("05", "tab_motion_expanding_label", "05 — الكبسولة المتمددة (Expanding Label)"),
+    BUBBLE_FLOAT("06", "tab_motion_bubble_float", "06 — الفقاعات الطافية (Bubble Float)");
+
+    companion object {
+        fun fromStoredValue(raw: String?): AppTabBarMotionStyle {
+            return entries.firstOrNull { it.name == raw } ?: EXPANDING_LABEL
+        }
+    }
+}
+
+enum class AppIconStyleOption(
+    val badgeNumber: String,
+    val labelKey: String,
+    val defaultLabel: String
+) {
+    TACTILE_3D("01", "icon_style_tactile_3d", "01 — أيقونات ثلاثية الأبعاد بارزة (3D Tactile)"),
+    CLASSIC_INK("02", "icon_style_classic_ink", "02 — أيقونات حبرية كلاسيكية (Classic Ink)"),
+    FLAT_MINIMAL("03", "icon_style_flat_minimal", "03 — أيقونات مسطحة بسيطة (Flat Minimal)");
+
+    companion object {
+        fun fromStoredValue(raw: String?): AppIconStyleOption {
+            return entries.firstOrNull { it.name == raw } ?: TACTILE_3D
+        }
+    }
+}
+
+@Stable
+object AppIconStyleRuntime {
+    var activeIconStyle by mutableStateOf(AppIconStyleOption.TACTILE_3D)
 }
 
 enum class AppTextScaleOption(

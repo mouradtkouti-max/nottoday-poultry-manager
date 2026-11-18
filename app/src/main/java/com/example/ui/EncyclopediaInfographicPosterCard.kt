@@ -37,6 +37,10 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.zIndex
 import com.example.BookSubCardModel
+import com.example.darwinManuscriptBorder
+import com.example.darwinPaperBackground
+import com.example.models.AppPaperStyleOption
+import com.example.models.AppPaperStyleRuntime
 import com.example.models.AppThemeOption
 import com.example.models.EncyclopediaPosterSpec
 import com.example.models.InfographicTimelineStep
@@ -174,16 +178,24 @@ fun VintageSpiralBookPageContainer(
         )
     }
 
+    val isDark = currentTheme.isDark
+    val isDarwin = AppPaperStyleRuntime.activePaperStyle == AppPaperStyleOption.DARWIN_PARCHMENT
+    val pageOuterBg = if (isDarwin && !isDark) Color(0xFFF4EBD6) else currentTheme.bgColor
+    val pageInnerBg = if (isDarwin && !isDark) Color(0xFFFAF3E4) else currentTheme.cardColor
+    val pageBorderOuter = if (isDarwin && !isDark) Color(0xFF4A321F) else accentColor.copy(alpha = 0.55f)
+    val pageBorderInner = if (isDarwin && !isDark) Color(0xFF8C6D46) else accentColor.copy(alpha = 0.35f)
+
     CompositionLocalProvider(LocalLayoutDirection provides pageLayoutDirection) {
-        // Darwin Parchment Manuscript Sheet framed with double-line ink border (no school spiral rings)
+        // Darwin Parchment Manuscript Sheet or Active Paper Style Sheet framed with double-line ink border
         Surface(
             modifier = modifier
                 .fillMaxWidth()
+                .darwinManuscriptBorder(cornerRadius = cornerRadiusDp.dp, isDark = isDark)
                 .testTag("vintage_spiral_book_page_$lessonNumFormatted")
                 .testTag("book_detail_view_${detailCard.id}"),
             shape = RoundedCornerShape(cornerRadiusDp.dp),
-            color = Color(0xFFF4EBD6),
-            border = BorderStroke(1.4.dp, Color(0xFF4A321F)),
+            color = pageOuterBg,
+            border = BorderStroke(1.4.dp, pageBorderOuter),
             shadowElevation = 5.dp
         ) {
             Box(
@@ -191,12 +203,12 @@ fun VintageSpiralBookPageContainer(
                     .fillMaxWidth()
                     .padding(3.dp)
                     .background(
-                        Color(0xFFFAF3E4),
+                        pageInnerBg,
                         RoundedCornerShape((cornerRadiusDp - 3).coerceAtLeast(4).dp)
                     )
                     .border(
                         width = 0.8.dp,
-                        color = Color(0xFF8C6D46),
+                        color = pageBorderInner,
                         shape = RoundedCornerShape((cornerRadiusDp - 3).coerceAtLeast(4).dp)
                     )
             ) {
@@ -207,6 +219,8 @@ fun VintageSpiralBookPageContainer(
                         pageNumber = pageNumber,
                         totalPages = totalPages,
                         lang = lang,
+                        currentTheme = currentTheme,
+                        accentColor = accentColor,
                         specialtyTitle = specialtyTitle,
                         onBackToIndex = onBackToIndex,
                         onOpenZoom = { internalZoomOpen = true },
@@ -227,6 +241,8 @@ private fun VintageBookPageInnerContent(
     pageNumber: Int,
     totalPages: Int,
     lang: AppLanguage,
+    currentTheme: AppThemeOption = AppThemeOption.NATURE_GREEN,
+    accentColor: Color = BookBurgundy,
     specialtyTitle: String? = null,
     onBackToIndex: (() -> Unit)? = null,
     onOpenZoom: (() -> Unit)? = null,
@@ -347,6 +363,14 @@ private fun VintageBookPageInnerContent(
             }
         }
 
+        val isDark = currentTheme.isDark
+        val isDarwin = AppPaperStyleRuntime.activePaperStyle == AppPaperStyleOption.DARWIN_PARCHMENT
+        val mainTitleColor = if (isDarwin && !isDark) BookBurgundyDark else currentTheme.headingColor
+        val stageCardBg = if (isDarwin && !isDark) Color(0xFFFAF3E4) else currentTheme.innerStatBoxColor
+        val stageTextColor = if (isDarwin && !isDark) Color(0xFF26160C) else currentTheme.headingColor
+        val stageOuterBorder = if (isDarwin && !isDark) Color(0xFF4A321F) else accentColor.copy(alpha = 0.45f)
+        val stageInnerBorder = if (isDarwin && !isDark) Color(0xFF8C6D46) else accentColor.copy(alpha = 0.25f)
+
         // =========================================================================
         // 2. Main Centered Bold Burgundy Title ONLY (No subtitle, no Polaroid, no medallion)
         // =========================================================================
@@ -354,7 +378,7 @@ private fun VintageBookPageInnerContent(
             text = detailCard.title,
             fontSize = 20.sp,
             fontWeight = FontWeight.ExtraBold,
-            color = BookBurgundyDark,
+            color = mainTitleColor,
             textAlign = TextAlign.Center,
             lineHeight = 26.sp,
             maxLines = 3,
@@ -424,17 +448,18 @@ private fun VintageBookPageInnerContent(
                     Surface(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(top = 13.dp),
+                            .padding(top = 13.dp)
+                            .darwinManuscriptBorder(cornerRadius = 10.dp, isDark = isDark),
                         shape = RoundedCornerShape(10.dp),
-                        color = Color(0xFFFAF3E4),
-                        border = BorderStroke(1.3.dp, Color(0xFF4A321F)),
+                        color = stageCardBg,
+                        border = BorderStroke(1.3.dp, stageOuterBorder),
                         shadowElevation = 2.dp
                     ) {
                         Column(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .padding(2.5.dp)
-                                .border(0.7.dp, Color(0xFF8C6D46), RoundedCornerShape(8.dp))
+                                .border(0.7.dp, stageInnerBorder, RoundedCornerShape(8.dp))
                                 .padding(
                                     start = 5.dp,
                                     end = 5.dp,
@@ -448,7 +473,7 @@ private fun VintageBookPageInnerContent(
                                 text = stage.headerTitle,
                                 fontSize = 10.5.sp,
                                 fontWeight = FontWeight.ExtraBold,
-                                color = Color(0xFF26160C),
+                                color = stageTextColor,
                                 textAlign = TextAlign.Center,
                                 lineHeight = 14.sp,
                                 maxLines = 3,
@@ -468,7 +493,7 @@ private fun VintageBookPageInnerContent(
                                     text = stage.bottomSummary,
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.ExtraBold,
-                                    color = Color(0xFF26160C),
+                                    color = stageTextColor,
                                     textAlign = TextAlign.Center,
                                     lineHeight = 13.5.sp,
                                     maxLines = 3,

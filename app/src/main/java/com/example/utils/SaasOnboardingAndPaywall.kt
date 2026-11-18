@@ -49,6 +49,9 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.example.AgritechMockDb
+import com.example.Tactile3DIconBadge
+import com.example.universalPaperCardFrame
+import com.example.universalPaperScreenBackground
 import com.example.models.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -256,6 +259,8 @@ object SaasPreferencesManager {
     private const val KEY_TEXT_SCALE = "selected_text_scale"
     private const val KEY_CORNER_STYLE = "selected_corner_style"
     private const val KEY_PAPER_STYLE = "selected_paper_style"
+    private const val KEY_TAB_BAR_MOTION = "selected_tab_bar_motion"
+    private const val KEY_ICON_STYLE = "selected_icon_style"
     private const val KEY_UNLOCKED_ADDITIONAL_BARNS = "unlocked_additional_barns"
     private const val KEY_IS_LOGGED_IN = "session_is_logged_in"
     private const val KEY_USER_ROLE = "session_user_role"
@@ -497,12 +502,35 @@ object SaasPreferencesManager {
             val name = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                 .getString(KEY_PAPER_STYLE, AppPaperStyleOption.DARWIN_PARCHMENT.name)
                 ?: AppPaperStyleOption.DARWIN_PARCHMENT.name
-            val resolved = AppPaperStyleOption.values().firstOrNull { it.name == name }
-                ?: AppPaperStyleOption.DARWIN_PARCHMENT
+            val resolved = AppPaperStyleOption.fromStoredValue(name)
             AppPaperStyleRuntime.activePaperStyle = resolved
             resolved
         } catch (_: Exception) {
             AppPaperStyleOption.DARWIN_PARCHMENT
+        }
+    }
+
+    fun getSavedTabBarMotion(context: Context): AppTabBarMotionStyle {
+        return try {
+            val name = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .getString(KEY_TAB_BAR_MOTION, AppTabBarMotionStyle.EXPANDING_LABEL.name)
+                ?: AppTabBarMotionStyle.EXPANDING_LABEL.name
+            AppTabBarMotionStyle.fromStoredValue(name)
+        } catch (_: Exception) {
+            AppTabBarMotionStyle.EXPANDING_LABEL
+        }
+    }
+
+    fun getSavedIconStyle(context: Context): AppIconStyleOption {
+        return try {
+            val name = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .getString(KEY_ICON_STYLE, AppIconStyleOption.TACTILE_3D.name)
+                ?: AppIconStyleOption.TACTILE_3D.name
+            val resolved = AppIconStyleOption.fromStoredValue(name)
+            AppIconStyleRuntime.activeIconStyle = resolved
+            resolved
+        } catch (_: Exception) {
+            AppIconStyleOption.TACTILE_3D
         }
     }
 
@@ -512,9 +540,12 @@ object SaasPreferencesManager {
         accentColor: AppAccentColorOption,
         textScale: AppTextScaleOption,
         cornerStyle: AppCornerStyleOption,
-        paperStyle: AppPaperStyleOption = AppPaperStyleRuntime.activePaperStyle
+        paperStyle: AppPaperStyleOption = AppPaperStyleRuntime.activePaperStyle,
+        tabBarMotion: AppTabBarMotionStyle = getSavedTabBarMotion(context),
+        iconStyle: AppIconStyleOption = AppIconStyleRuntime.activeIconStyle
     ) {
         AppPaperStyleRuntime.activePaperStyle = paperStyle
+        AppIconStyleRuntime.activeIconStyle = iconStyle
         try {
             context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                 .edit()
@@ -523,6 +554,8 @@ object SaasPreferencesManager {
                 .putString(KEY_TEXT_SCALE, textScale.name)
                 .putString(KEY_CORNER_STYLE, cornerStyle.name)
                 .putString(KEY_PAPER_STYLE, paperStyle.name)
+                .putString(KEY_TAB_BAR_MOTION, tabBarMotion.name)
+                .putString(KEY_ICON_STYLE, iconStyle.name)
                 .apply()
         } catch (_: Exception) {}
     }
@@ -695,6 +728,8 @@ class AgritechAppSessionState(
     initialTextScale: AppTextScaleOption = AppTextScaleOption.DEFAULT,
     initialCornerStyle: AppCornerStyleOption = AppCornerStyleOption.ROUNDED,
     initialPaperStyle: AppPaperStyleOption = AppPaperStyleOption.DARWIN_PARCHMENT,
+    initialTabBarMotion: AppTabBarMotionStyle = AppTabBarMotionStyle.EXPANDING_LABEL,
+    initialIconStyle: AppIconStyleOption = AppIconStyleOption.TACTILE_3D,
     initialProfessionSelected: Boolean = true
 ) {
     var hasCompletedOnboarding by mutableStateOf(initialOnboardingCompleted)
@@ -709,9 +744,12 @@ class AgritechAppSessionState(
     var currentTextScale by mutableStateOf(initialTextScale)
     var currentCornerStyle by mutableStateOf(initialCornerStyle)
     var currentPaperStyle by mutableStateOf(initialPaperStyle)
+    var currentTabBarMotion by mutableStateOf(initialTabBarMotion)
+    var currentIconStyle by mutableStateOf(initialIconStyle)
 
     init {
         AppPaperStyleRuntime.activePaperStyle = initialPaperStyle
+        AppIconStyleRuntime.activeIconStyle = initialIconStyle
     }
 
     // Hoisted Auth & Navigation State — NEVER resets on recomposition or theme/language changes
@@ -898,21 +936,28 @@ class AgritechAppSessionState(
         newAccentColor: AppAccentColorOption = currentAccentColor,
         newTextScale: AppTextScaleOption = currentTextScale,
         newCornerStyle: AppCornerStyleOption = currentCornerStyle,
-        newPaperStyle: AppPaperStyleOption = currentPaperStyle
+        newPaperStyle: AppPaperStyleOption = currentPaperStyle,
+        newTabBarMotion: AppTabBarMotionStyle = currentTabBarMotion,
+        newIconStyle: AppIconStyleOption = currentIconStyle
     ) {
         currentTheme = newTheme
         currentAccentColor = newAccentColor
         currentTextScale = newTextScale
         currentCornerStyle = newCornerStyle
         currentPaperStyle = newPaperStyle
+        currentTabBarMotion = newTabBarMotion
+        currentIconStyle = newIconStyle
         AppPaperStyleRuntime.activePaperStyle = newPaperStyle
+        AppIconStyleRuntime.activeIconStyle = newIconStyle
         SaasPreferencesManager.saveAppearanceStudioSettings(
             context = context,
             theme = newTheme,
             accentColor = newAccentColor,
             textScale = newTextScale,
             cornerStyle = newCornerStyle,
-            paperStyle = newPaperStyle
+            paperStyle = newPaperStyle,
+            tabBarMotion = newTabBarMotion,
+            iconStyle = newIconStyle
         )
     }
 
@@ -946,6 +991,14 @@ class AgritechAppSessionState(
         updateAppearanceStudio(context = context, newPaperStyle = newPaperStyle)
     }
 
+    fun updateTabBarMotion(context: Context, newTabBarMotion: AppTabBarMotionStyle) {
+        updateAppearanceStudio(context = context, newTabBarMotion = newTabBarMotion)
+    }
+
+    fun updateIconStyle(context: Context, newIconStyle: AppIconStyleOption) {
+        updateAppearanceStudio(context = context, newIconStyle = newIconStyle)
+    }
+
     val appearanceState: AppAppearanceState
         get() = AppAppearanceState(
             theme = currentTheme,
@@ -959,6 +1012,8 @@ class AgritechAppSessionState(
             cornerStyle = currentCornerStyle,
             cornerRadiusDp = currentCornerStyle.cornerRadiusDp,
             paperStyle = currentPaperStyle,
+            tabBarMotion = currentTabBarMotion,
+            iconStyle = currentIconStyle,
             cardShape = RoundedCornerShape(currentCornerStyle.cornerRadiusDp.dp),
             buttonShape = RoundedCornerShape((currentCornerStyle.cornerRadiusDp - 4).coerceAtLeast(4).dp)
         )
@@ -976,6 +1031,8 @@ data class AppAppearanceState(
     val cornerStyle: AppCornerStyleOption = AppCornerStyleOption.ROUNDED,
     val cornerRadiusDp: Int = cornerStyle.cornerRadiusDp,
     val paperStyle: AppPaperStyleOption = AppPaperStyleRuntime.activePaperStyle,
+    val tabBarMotion: AppTabBarMotionStyle = AppTabBarMotionStyle.EXPANDING_LABEL,
+    val iconStyle: AppIconStyleOption = AppIconStyleRuntime.activeIconStyle,
     val cardShape: RoundedCornerShape = RoundedCornerShape(cornerStyle.cornerRadiusDp.dp),
     val buttonShape: RoundedCornerShape = RoundedCornerShape((cornerStyle.cornerRadiusDp - 4).coerceAtLeast(4).dp)
 ) {
@@ -1477,12 +1534,16 @@ fun PremiumSettingsModal(
     val committedTextScale = sessionState.currentTextScale
     val committedCornerStyle = sessionState.currentCornerStyle
     val committedPaperStyle = sessionState.currentPaperStyle
+    val committedTabMotion = sessionState.currentTabBarMotion
+    val committedIconStyle = sessionState.currentIconStyle
 
     var draftTheme by remember(committedTheme) { mutableStateOf(committedTheme) }
     var draftAccent by remember(committedAccent) { mutableStateOf(committedAccent) }
     var draftTextScale by remember(committedTextScale) { mutableStateOf(committedTextScale) }
     var draftCornerStyle by remember(committedCornerStyle) { mutableStateOf(committedCornerStyle) }
     var draftPaperStyle by remember(committedPaperStyle) { mutableStateOf(committedPaperStyle) }
+    var draftTabMotion by remember(committedTabMotion) { mutableStateOf(committedTabMotion) }
+    var draftIconStyle by remember(committedIconStyle) { mutableStateOf(committedIconStyle) }
 
     var selectedLang by remember(currentLanguage) { mutableStateOf(currentLanguage) }
     var selectedCountry by remember(currentCountryCode) {
@@ -1513,7 +1574,9 @@ fun PremiumSettingsModal(
         draftAccent, committedAccent,
         draftTextScale, committedTextScale,
         draftCornerStyle, committedCornerStyle,
-        draftPaperStyle, committedPaperStyle
+        draftPaperStyle, committedPaperStyle,
+        draftTabMotion, committedTabMotion,
+        draftIconStyle, committedIconStyle
     ) {
         var count = 0
         if (draftTheme != committedTheme) count++
@@ -1521,21 +1584,20 @@ fun PremiumSettingsModal(
         if (draftTextScale != committedTextScale) count++
         if (draftCornerStyle != committedCornerStyle) count++
         if (draftPaperStyle != committedPaperStyle) count++
+        if (draftTabMotion != committedTabMotion) count++
+        if (draftIconStyle != committedIconStyle) count++
         count
     }
 
     val isDark = draftTheme.isDark
     val isDarwinPaper = draftPaperStyle == AppPaperStyleOption.DARWIN_PARCHMENT
+    val isFrostedPaper = draftPaperStyle == AppPaperStyleOption.FROSTED_GLASS
     val screenBg = draftTheme.bgColor
     val cardBg = draftTheme.cardColor
-    val subtleSurfaceBg = when {
-        isDark && isDarwinPaper -> Color(0xFF211913)
-        isDark -> Color(0xFF0F172A)
-        isDarwinPaper -> Color(0xFFF4EBD6)
-        else -> Color(0xFFF8FAFC)
-    }
+    val subtleSurfaceBg = draftTheme.innerStatBoxColor
     val borderCol = when {
         isDark && isDarwinPaper -> Color(0xFF8B6914)
+        isFrostedPaper -> if (isDark) Color.White.copy(alpha = 0.28f) else Color.White.copy(alpha = 0.72f)
         isDark -> Color(0xFF334155)
         isDarwinPaper -> Color(0xFF8C6D46)
         else -> Color(0xFFE2E8F0)
@@ -1543,8 +1605,13 @@ fun PremiumSettingsModal(
     val textPrimary = draftTheme.headingColor
     val textSecondary = draftTheme.secondaryTextColor
     val activeAccent = if (isDark) draftAccent.darkModeColor else draftAccent.primaryColor
-    val activeAccentContainer = if (isDark) draftAccent.darkContainerColor else draftAccent.softContainerColor
+    val activeAccentContainer = if (isFrostedPaper) {
+        activeAccent.copy(alpha = if (isDark) 0.26f else 0.18f)
+    } else {
+        if (isDark) draftAccent.darkContainerColor else draftAccent.softContainerColor
+    }
     val previewShape = RoundedCornerShape(draftCornerStyle.cornerRadiusDp.dp)
+    val settingsCardElevation = if (isFrostedPaper) 0.dp else 1.dp
 
     Dialog(
         onDismissRequest = {
@@ -1569,14 +1636,20 @@ fun PremiumSettingsModal(
         }
 
         Scaffold(
-            containerColor = screenBg,
+            containerColor = Color.Transparent,
             modifier = Modifier
                 .fillMaxSize()
+                .universalPaperScreenBackground(
+                    paperStyle = draftPaperStyle,
+                    isDark = isDark,
+                    baseBgColor = screenBg,
+                    accentColor = activeAccent
+                )
                 .testTag("premium_settings_modal"),
             topBar = {
                 Surface(
                     color = cardBg,
-                    shadowElevation = 2.dp,
+                    shadowElevation = settingsCardElevation,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(
@@ -1777,13 +1850,17 @@ fun PremiumSettingsModal(
                                         draftTextScale = committedTextScale
                                         draftCornerStyle = committedCornerStyle
                                         draftPaperStyle = committedPaperStyle
+                                        draftTabMotion = committedTabMotion
+                                        draftIconStyle = committedIconStyle
                                         sessionState.updateAppearanceStudio(
                                             context = context,
                                             newTheme = committedTheme,
                                             newAccentColor = committedAccent,
                                             newTextScale = committedTextScale,
                                             newCornerStyle = committedCornerStyle,
-                                            newPaperStyle = committedPaperStyle
+                                            newPaperStyle = committedPaperStyle,
+                                            newTabBarMotion = committedTabMotion,
+                                            newIconStyle = committedIconStyle
                                         )
                                         onSelectTheme(committedTheme)
                                     },
@@ -1811,7 +1888,9 @@ fun PremiumSettingsModal(
                                         newAccentColor = draftAccent,
                                         newTextScale = draftTextScale,
                                         newCornerStyle = draftCornerStyle,
-                                        newPaperStyle = draftPaperStyle
+                                        newPaperStyle = draftPaperStyle,
+                                        newTabBarMotion = draftTabMotion,
+                                        newIconStyle = draftIconStyle
                                     )
                                     onSelectTheme(draftTheme)
                                     onSelectLanguage(selectedLang)
@@ -1917,9 +1996,15 @@ fun PremiumSettingsModal(
                                     shape = previewShape,
                                     color = cardBg,
                                     border = BorderStroke(1.dp, borderCol),
-                                    shadowElevation = 1.dp,
+                                    shadowElevation = settingsCardElevation,
                                     modifier = Modifier
                                         .fillMaxWidth()
+                                        .universalPaperCardFrame(
+                                            paperStyle = draftPaperStyle,
+                                            isDark = isDark,
+                                            cornerRadius = draftCornerStyle.cornerRadiusDp.dp,
+                                            accentColor = activeAccent
+                                        )
                                         .testTag("settings_profile_header_card")
                                 ) {
                                     Row(
@@ -1934,16 +2019,16 @@ fun PremiumSettingsModal(
                                             horizontalArrangement = Arrangement.spacedBy(12.dp),
                                             modifier = Modifier.weight(1f)
                                         ) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(52.dp)
-                                                    .clip(CircleShape)
-                                                    .background(activeAccentContainer)
-                                                    .border(2.dp, activeAccent, CircleShape),
-                                                contentAlignment = Alignment.Center
-                                            ) {
-                                                Text(activeRoleEmoji, fontSize = 24.sp)
-                                            }
+                                            com.example.Tactile3DIconBadge(
+                                                emoji = activeRoleEmoji,
+                                                tint = activeAccent,
+                                                containerColor = activeAccentContainer,
+                                                boxSize = 50.dp,
+                                                cornerRadius = 16.dp,
+                                                emojiFontSize = 23.sp,
+                                                iconStyle = draftIconStyle,
+                                                isDark = isDark
+                                            )
 
                                             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                                 Text(
@@ -2033,6 +2118,12 @@ fun PremiumSettingsModal(
                                 Card(
                                     modifier = Modifier
                                         .fillMaxWidth()
+                                        .universalPaperCardFrame(
+                                            paperStyle = draftPaperStyle,
+                                            isDark = isDark,
+                                            cornerRadius = draftCornerStyle.cornerRadiusDp.dp,
+                                            accentColor = activeAccent
+                                        )
                                         .clip(previewShape)
                                         .clickable {
                                             val toggled = if (draftTheme.isDark) AppThemeOption.ICE_BLUE else AppThemeOption.NIGHT_MODE
@@ -2044,7 +2135,7 @@ fun PremiumSettingsModal(
                                     shape = previewShape,
                                     colors = CardDefaults.cardColors(containerColor = cardBg),
                                     border = BorderStroke(1.5.dp, activeAccent.copy(alpha = 0.55f)),
-                                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                                    elevation = CardDefaults.cardElevation(defaultElevation = settingsCardElevation)
                                 ) {
                                     Row(
                                         modifier = Modifier
@@ -2065,18 +2156,16 @@ fun PremiumSettingsModal(
                                                 },
                                                 label = "HubSunMoonIconTransition"
                                             ) { darkActive ->
-                                                Surface(
-                                                    shape = CircleShape,
-                                                    color = if (darkActive) Color(0xFF312E81) else Color(0xFFFEF3C7),
-                                                    modifier = Modifier.size(44.dp)
-                                                ) {
-                                                    Box(contentAlignment = Alignment.Center) {
-                                                        Text(
-                                                            text = if (darkActive) "🌙" else "☀️",
-                                                            fontSize = 22.sp
-                                                        )
-                                                    }
-                                                }
+                                                com.example.Tactile3DIconBadge(
+                                                    emoji = if (darkActive) "🌙" else "☀️",
+                                                    tint = if (darkActive) Color(0xFF818CF8) else Color(0xFFD97706),
+                                                    containerColor = if (darkActive) Color(0xFF312E81) else Color(0xFFFEF3C7),
+                                                    boxSize = 44.dp,
+                                                    cornerRadius = 14.dp,
+                                                    emojiFontSize = 21.sp,
+                                                    iconStyle = draftIconStyle,
+                                                    isDark = darkActive
+                                                )
                                             }
 
                                             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -2120,11 +2209,18 @@ fun PremiumSettingsModal(
 
                                 // 3) WhatsApp-Style Full-Width Horizontal Navigation Rows Card
                                 Card(
-                                    modifier = Modifier.fillMaxWidth(),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .universalPaperCardFrame(
+                                            paperStyle = draftPaperStyle,
+                                            isDark = isDark,
+                                            cornerRadius = draftCornerStyle.cornerRadiusDp.dp,
+                                            accentColor = activeAccent
+                                        ),
                                     shape = previewShape,
                                     colors = CardDefaults.cardColors(containerColor = cardBg),
                                     border = BorderStroke(1.dp, borderCol),
-                                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                                    elevation = CardDefaults.cardElevation(defaultElevation = settingsCardElevation)
                                 ) {
                                     Column(modifier = Modifier.fillMaxWidth()) {
                                         // Row 0: 💼 الصفة المهنية ونوع الحساب (Clean WhatsApp-style horizontal row)
@@ -2397,24 +2493,32 @@ fun PremiumSettingsModal(
                                     }
                                 }
 
-                                // 4) Google Play Account Deletion Policy: Prominent Red Warning Button under Account section
+                                // 4) Sign Out Button at the bottom of Settings (Moved from TopAppBar)
                                 OutlinedButton(
-                                    onClick = { showDeleteAccountConfirmDialog = true },
+                                    onClick = {
+                                        runCatching { com.google.firebase.auth.FirebaseAuth.getInstance().signOut() }
+                                        sessionState.performExplicitLogout(context)
+                                        onDismiss()
+                                    },
                                     shape = previewShape,
                                     border = BorderStroke(1.5.dp, Color(0xFFE11D48)),
                                     colors = ButtonDefaults.outlinedButtonColors(
-                                        containerColor = if (isDark) Color(0xFF450A0A).copy(alpha = 0.45f) else Color(0xFFFFF1F2),
+                                        containerColor = if (draftPaperStyle == AppPaperStyleOption.FROSTED_GLASS) {
+                                            Color(0xFFE11D48).copy(alpha = if (isDark) 0.22f else 0.14f)
+                                        } else {
+                                            if (isDark) Color(0xFF450A0A).copy(alpha = 0.45f) else Color(0xFFFFF1F2)
+                                        },
                                         contentColor = Color(0xFFE11D48)
                                     ),
                                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .testTag("btn_delete_account_permanently")
+                                        .testTag("btn_logout_from_settings")
                                 ) {
                                     Text(
-                                        text = Translations.tr("settings_delete_account_btn", selectedLang),
+                                        text = Translations.tr("settings_logout_btn", selectedLang),
                                         fontWeight = FontWeight.ExtraBold,
-                                        fontSize = 13.sp,
+                                        fontSize = 13.5.sp,
                                         color = if (isDark) Color(0xFFFDA4AF) else Color(0xFFE11D48)
                                     )
                                 }
@@ -2433,6 +2537,12 @@ fun PremiumSettingsModal(
                             Card(
                                 modifier = Modifier
                                     .fillMaxWidth()
+                                    .universalPaperCardFrame(
+                                        paperStyle = draftPaperStyle,
+                                        isDark = isDark,
+                                        cornerRadius = draftCornerStyle.cornerRadiusDp.dp,
+                                        accentColor = activeAccent
+                                    )
                                     .clip(previewShape)
                                     .clickable {
                                         val toggled = if (draftTheme.isDark) AppThemeOption.ICE_BLUE else AppThemeOption.NIGHT_MODE
@@ -2446,7 +2556,7 @@ fun PremiumSettingsModal(
                                     containerColor = cardBg
                                 ),
                                 border = BorderStroke(1.5.dp, activeAccent.copy(alpha = 0.55f)),
-                                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                                elevation = CardDefaults.cardElevation(defaultElevation = settingsCardElevation)
                             ) {
                                 Row(
                                     modifier = Modifier
@@ -2467,18 +2577,16 @@ fun PremiumSettingsModal(
                                             },
                                             label = "SunMoonIconTransition"
                                         ) { darkActive ->
-                                            Surface(
-                                                shape = CircleShape,
-                                                color = if (darkActive) Color(0xFF312E81) else Color(0xFFFEF3C7),
-                                                modifier = Modifier.size(48.dp)
-                                            ) {
-                                                Box(contentAlignment = Alignment.Center) {
-                                                    Text(
-                                                        text = if (darkActive) "🌙" else "☀️",
-                                                        fontSize = 24.sp
-                                                    )
-                                                }
-                                            }
+                                            com.example.Tactile3DIconBadge(
+                                                emoji = if (darkActive) "🌙" else "☀️",
+                                                tint = if (darkActive) Color(0xFF818CF8) else Color(0xFFD97706),
+                                                containerColor = if (darkActive) Color(0xFF312E81) else Color(0xFFFEF3C7),
+                                                boxSize = 48.dp,
+                                                cornerRadius = 15.dp,
+                                                emojiFontSize = 23.sp,
+                                                iconStyle = draftIconStyle,
+                                                isDark = darkActive
+                                            )
                                         }
 
                                         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -2520,12 +2628,20 @@ fun PremiumSettingsModal(
                                 }
                             }
 
-                            // b2) PAPER STYLE Selector (📜 ورق مخطوطة داروين, 📓 ورق دفتر مسطّر, 📐 ورق هندسي مربعات, 💎 الخلفية النقية الافتراضية)
+                            // b2) PAPER STYLE Selector (📜 ورق مخطوطة داروين, 📓 ورق دفتر مسطّر, 📐 ورق هندسي مربعات, 🧊 مظهر زجاجي شفاف, 💎 الخلفية النقية الافتراضية)
                             Card(
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .universalPaperCardFrame(
+                                        paperStyle = draftPaperStyle,
+                                        isDark = isDark,
+                                        cornerRadius = draftCornerStyle.cornerRadiusDp.dp,
+                                        accentColor = activeAccent
+                                    ),
                                 shape = previewShape,
                                 colors = CardDefaults.cardColors(containerColor = cardBg),
-                                border = BorderStroke(1.dp, borderCol)
+                                border = BorderStroke(1.dp, borderCol),
+                                elevation = CardDefaults.cardElevation(defaultElevation = settingsCardElevation)
                             ) {
                                 Column(
                                     modifier = Modifier.padding(18.dp),
@@ -2546,15 +2662,17 @@ fun PremiumSettingsModal(
                                             val isSelected = draftPaperStyle == paperOpt
                                             val labelKey = when (paperOpt) {
                                                 AppPaperStyleOption.DARWIN_PARCHMENT -> "paper_style_darwin_parchment"
-                                                AppPaperStyleOption.RULED_LEDGER -> "paper_style_ruled_ledger"
-                                                AppPaperStyleOption.BLUEPRINT_GRID -> "paper_style_blueprint_grid"
-                                                AppPaperStyleOption.CLEAN_DEFAULT -> "paper_style_clean_default"
+                                                AppPaperStyleOption.RULED_NOTEBOOK -> "paper_style_ruled_notebook"
+                                                AppPaperStyleOption.ENGINEERING_GRID -> "paper_style_engineering_grid"
+                                                AppPaperStyleOption.FROSTED_GLASS -> "paper_style_frosted_glass"
+                                                AppPaperStyleOption.DEFAULT_PURE -> "paper_style_default_pure"
                                             }
                                             val swatchBg = when (paperOpt) {
                                                 AppPaperStyleOption.DARWIN_PARCHMENT -> if (isDark) Color(0xFF2A2018) else Color(0xFFF4EBD6)
-                                                AppPaperStyleOption.RULED_LEDGER -> if (isDark) Color(0xFF1E293B) else Color(0xFFFDFBF7)
-                                                AppPaperStyleOption.BLUEPRINT_GRID -> if (isDark) Color(0xFF0F2537) else Color(0xFFEEF6FF)
-                                                AppPaperStyleOption.CLEAN_DEFAULT -> if (isDark) Color(0xFF1E293B) else Color(0xFFF8FAFC)
+                                                AppPaperStyleOption.RULED_NOTEBOOK -> if (isDark) Color(0xFF24211B) else Color(0xFFFFFDF4)
+                                                AppPaperStyleOption.ENGINEERING_GRID -> if (isDark) Color(0xFF17222D) else Color(0xFFF4F9FD)
+                                                AppPaperStyleOption.FROSTED_GLASS -> if (isDark) Color(0xFF1E293B).copy(alpha = 0.72f) else Color(0xFFE0F2FE)
+                                                AppPaperStyleOption.DEFAULT_PURE -> if (isDark) Color(0xFF1E293B) else Color(0xFFF8FAFC)
                                             }
                                             Surface(
                                                 shape = previewShape,
@@ -2568,18 +2686,15 @@ fun PremiumSettingsModal(
                                                     .clip(previewShape)
                                                     .clickable {
                                                         draftPaperStyle = paperOpt
-                                                        val recommendedAccent = if (paperOpt == AppPaperStyleOption.DARWIN_PARCHMENT && draftAccent == AppAccentColorOption.FOREST_GREEN) {
-                                                            draftAccent
-                                                        } else {
-                                                            draftAccent
-                                                        }
                                                         sessionState.updateAppearanceStudio(
                                                             context = context,
                                                             newTheme = draftTheme,
-                                                            newAccentColor = recommendedAccent,
+                                                            newAccentColor = draftAccent,
                                                             newTextScale = draftTextScale,
                                                             newCornerStyle = draftCornerStyle,
-                                                            newPaperStyle = paperOpt
+                                                            newPaperStyle = paperOpt,
+                                                            newTabBarMotion = draftTabMotion,
+                                                            newIconStyle = draftIconStyle
                                                         )
                                                     }
                                                     .testTag("card_paper_style_${paperOpt.name}")
@@ -2629,12 +2744,20 @@ fun PremiumSettingsModal(
                                 }
                             }
 
-                            // c) THEME COLOR Selector (7 Circular Swatches including DARWIN_BRONZE with Scale Animation & Checkmark ✓)
+                            // c) THEME COLOR Selector (14 Circular Swatches with Localized Label, Scale Animation & Checkmark ✓)
                             Card(
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .universalPaperCardFrame(
+                                        paperStyle = draftPaperStyle,
+                                        isDark = isDark,
+                                        cornerRadius = draftCornerStyle.cornerRadiusDp.dp,
+                                        accentColor = activeAccent
+                                    ),
                                 shape = previewShape,
                                 colors = CardDefaults.cardColors(containerColor = cardBg),
-                                border = BorderStroke(1.dp, borderCol)
+                                border = BorderStroke(1.dp, borderCol),
+                                elevation = CardDefaults.cardElevation(defaultElevation = settingsCardElevation)
                             ) {
                                 Column(
                                     modifier = Modifier.padding(18.dp),
@@ -2652,8 +2775,8 @@ fun PremiumSettingsModal(
                                             color = textSecondary
                                         )
                                         Text(
-                                            text = draftAccent.hexCode,
-                                            fontSize = 11.5.sp,
+                                            text = "${Translations.tr(draftAccent.labelKey, selectedLang)} • ${draftAccent.hexCode}",
+                                            fontSize = 11.sp,
                                             fontWeight = FontWeight.Bold,
                                             color = activeAccent
                                         )
@@ -2714,10 +2837,18 @@ fun PremiumSettingsModal(
 
                             // d) TEXT SIZE Selector (`Aa`: Small, Default, Large, Extra Large)
                             Card(
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .universalPaperCardFrame(
+                                        paperStyle = draftPaperStyle,
+                                        isDark = isDark,
+                                        cornerRadius = draftCornerStyle.cornerRadiusDp.dp,
+                                        accentColor = activeAccent
+                                    ),
                                 shape = previewShape,
                                 colors = CardDefaults.cardColors(containerColor = cardBg),
-                                border = BorderStroke(1.dp, borderCol)
+                                border = BorderStroke(1.dp, borderCol),
+                                elevation = CardDefaults.cardElevation(defaultElevation = settingsCardElevation)
                             ) {
                                 Column(
                                     modifier = Modifier.padding(18.dp),
@@ -2795,10 +2926,18 @@ fun PremiumSettingsModal(
 
                             // e) UI STYLE (Corner Radius Selector: Rounded 20.dp, Soft 12.dp, Crisp 4.dp)
                             Card(
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .universalPaperCardFrame(
+                                        paperStyle = draftPaperStyle,
+                                        isDark = isDark,
+                                        cornerRadius = draftCornerStyle.cornerRadiusDp.dp,
+                                        accentColor = activeAccent
+                                    ),
                                 shape = previewShape,
                                 colors = CardDefaults.cardColors(containerColor = cardBg),
-                                border = BorderStroke(1.dp, borderCol)
+                                border = BorderStroke(1.dp, borderCol),
+                                elevation = CardDefaults.cardElevation(defaultElevation = settingsCardElevation)
                             ) {
                                 Column(
                                     modifier = Modifier.padding(18.dp),
@@ -2841,7 +2980,8 @@ fun PremiumSettingsModal(
                                                             newAccentColor = draftAccent,
                                                             newTextScale = draftTextScale,
                                                             newCornerStyle = cornerOpt,
-                                                            newPaperStyle = draftPaperStyle
+                                                            newPaperStyle = draftPaperStyle,
+                                                            newTabBarMotion = draftTabMotion
                                                         )
                                                     }
                                                     .testTag("card_corner_style_${cornerOpt.name}")
@@ -2874,6 +3014,214 @@ fun PremiumSettingsModal(
                                                         fontSize = 10.sp,
                                                         color = textSecondary
                                                     )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // f) TAB BAR MOTION Selector (6 Interactive Animations 01 - 06)
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .universalPaperCardFrame(
+                                        paperStyle = draftPaperStyle,
+                                        isDark = isDark,
+                                        cornerRadius = draftCornerStyle.cornerRadiusDp.dp,
+                                        accentColor = activeAccent
+                                    ),
+                                shape = previewShape,
+                                colors = CardDefaults.cardColors(containerColor = cardBg),
+                                border = BorderStroke(1.dp, borderCol),
+                                elevation = CardDefaults.cardElevation(defaultElevation = settingsCardElevation)
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(18.dp),
+                                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    Text(
+                                        text = Translations.tr("appearance_tab_motion_label", selectedLang),
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontSize = 12.5.sp,
+                                        color = textSecondary
+                                    )
+
+                                    Column(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        AppTabBarMotionStyle.values().forEach { motionOpt ->
+                                            val isSelected = draftTabMotion == motionOpt
+                                            Surface(
+                                                shape = previewShape,
+                                                color = if (isSelected) activeAccentContainer else subtleSurfaceBg,
+                                                border = BorderStroke(
+                                                    width = if (isSelected) 2.dp else 1.dp,
+                                                    color = if (isSelected) activeAccent else borderCol
+                                                ),
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .clip(previewShape)
+                                                    .clickable {
+                                                        draftTabMotion = motionOpt
+                                                        sessionState.updateAppearanceStudio(
+                                                            context = context,
+                                                            newTheme = draftTheme,
+                                                            newAccentColor = draftAccent,
+                                                            newTextScale = draftTextScale,
+                                                            newCornerStyle = draftCornerStyle,
+                                                            newPaperStyle = draftPaperStyle,
+                                                            newTabBarMotion = motionOpt
+                                                        )
+                                                    }
+                                                    .testTag("card_tab_motion_${motionOpt.name}")
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .padding(horizontal = 14.dp, vertical = 11.dp),
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Row(
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                                        modifier = Modifier.weight(1f)
+                                                    ) {
+                                                        Surface(
+                                                            shape = RoundedCornerShape(8.dp),
+                                                            color = if (isSelected) activeAccent else borderCol.copy(alpha = 0.45f)
+                                                        ) {
+                                                            Text(
+                                                                text = motionOpt.badgeNumber,
+                                                                fontSize = 11.sp,
+                                                                fontWeight = FontWeight.ExtraBold,
+                                                                color = if (isSelected) Color.White else textPrimary,
+                                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                                            )
+                                                        }
+                                                        Text(
+                                                            text = Translations.tr(motionOpt.labelKey, selectedLang),
+                                                            fontSize = 12.5.sp,
+                                                            fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.SemiBold,
+                                                            color = if (isSelected) activeAccent else textPrimary
+                                                        )
+                                                    }
+                                                    if (isSelected) {
+                                                        Text(
+                                                            text = "✓",
+                                                            fontSize = 15.sp,
+                                                            fontWeight = FontWeight.ExtraBold,
+                                                            color = activeAccent
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // g) ICON STYLE Selector (🧊 أيقونات بارزة ثلاثية الأبعاد 3D Tactile, 📜 أيقونات كلاسيكية بحبر داكن, ✨ أيقونات مسطحة نقية)
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .universalPaperCardFrame(
+                                        paperStyle = draftPaperStyle,
+                                        isDark = isDark,
+                                        cornerRadius = draftCornerStyle.cornerRadiusDp.dp,
+                                        accentColor = activeAccent
+                                    ),
+                                shape = previewShape,
+                                colors = CardDefaults.cardColors(containerColor = cardBg),
+                                border = BorderStroke(1.dp, borderCol),
+                                elevation = CardDefaults.cardElevation(defaultElevation = settingsCardElevation)
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(18.dp),
+                                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    Text(
+                                        text = Translations.tr("appearance_icon_style_label", selectedLang),
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontSize = 12.5.sp,
+                                        color = textSecondary
+                                    )
+
+                                    Column(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        AppIconStyleOption.values().forEach { iconOpt ->
+                                            val isSelected = draftIconStyle == iconOpt
+                                            val sampleEmoji = when (iconOpt) {
+                                                AppIconStyleOption.TACTILE_3D -> "🧊"
+                                                AppIconStyleOption.CLASSIC_INK -> "📜"
+                                                AppIconStyleOption.FLAT_MINIMAL -> "✨"
+                                            }
+                                            Surface(
+                                                shape = previewShape,
+                                                color = if (isSelected) activeAccentContainer else subtleSurfaceBg,
+                                                border = BorderStroke(
+                                                    width = if (isSelected) 2.dp else 1.dp,
+                                                    color = if (isSelected) activeAccent else borderCol
+                                                ),
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .clip(previewShape)
+                                                    .clickable {
+                                                        draftIconStyle = iconOpt
+                                                        sessionState.updateAppearanceStudio(
+                                                            context = context,
+                                                            newTheme = draftTheme,
+                                                            newAccentColor = draftAccent,
+                                                            newTextScale = draftTextScale,
+                                                            newCornerStyle = draftCornerStyle,
+                                                            newPaperStyle = draftPaperStyle,
+                                                            newTabBarMotion = draftTabMotion,
+                                                            newIconStyle = iconOpt
+                                                        )
+                                                    }
+                                                    .testTag("card_icon_style_${iconOpt.name}")
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .padding(horizontal = 14.dp, vertical = 11.dp),
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Row(
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                                        modifier = Modifier.weight(1f)
+                                                    ) {
+                                                        com.example.Tactile3DIconBadge(
+                                                            emoji = sampleEmoji,
+                                                            tint = activeAccent,
+                                                            containerColor = activeAccentContainer,
+                                                            boxSize = 36.dp,
+                                                            cornerRadius = 11.dp,
+                                                            emojiFontSize = 16.sp,
+                                                            iconStyle = iconOpt,
+                                                            isDark = isDark
+                                                        )
+                                                        Text(
+                                                            text = Translations.tr(iconOpt.labelKey, selectedLang),
+                                                            fontSize = 12.5.sp,
+                                                            fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.SemiBold,
+                                                            color = if (isSelected) activeAccent else textPrimary
+                                                        )
+                                                    }
+                                                    if (isSelected) {
+                                                        Text(
+                                                            text = "✓",
+                                                            fontSize = 15.sp,
+                                                            fontWeight = FontWeight.ExtraBold,
+                                                            color = activeAccent
+                                                        )
+                                                    }
                                                 }
                                             }
                                         }
@@ -2961,7 +3309,11 @@ fun PremiumSettingsModal(
         PrivacyPolicyAndTermsModal(
             lang = selectedLang,
             currentTheme = draftTheme,
-            onDismiss = { showPrivacyPolicyModal = false }
+            onDismiss = { showPrivacyPolicyModal = false },
+            onRequestDeleteAccount = {
+                showPrivacyPolicyModal = false
+                showDeleteAccountConfirmDialog = true
+            }
         )
     }
 
@@ -3103,17 +3455,17 @@ fun WhatsAppSettingsHubRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        Surface(
-            modifier = Modifier
-                .size(44.dp)
-                .testTag(secondaryTestTag),
-            shape = CircleShape,
-            color = iconBg
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                Text(text = iconEmoji, fontSize = 19.sp)
-            }
-        }
+        com.example.Tactile3DIconBadge(
+            emoji = iconEmoji,
+            tint = accentColor,
+            containerColor = iconBg,
+            boxSize = 44.dp,
+            cornerRadius = 14.dp,
+            emojiFontSize = 19.sp,
+            iconStyle = LocalAppAppearanceState.current.iconStyle,
+            isDark = LocalAppAppearanceState.current.isDark,
+            modifier = Modifier.testTag(secondaryTestTag)
+        )
         Column(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(2.dp)
@@ -7302,14 +7654,15 @@ fun PrivacyPolicyAndTermsModal(
     currentTheme: AppThemeOption = AppThemeOption.ICE_BLUE,
     isDark: Boolean = currentTheme.isDark,
     accentColor: Color = LocalAppAppearanceState.current.accentColor,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onRequestDeleteAccount: (() -> Unit)? = null
 ) {
     val appearance = LocalAppAppearanceState.current
-    val cardBg = if (isDark) Color(0xFF1E293B) else Color.White
-    val sectionBg = if (isDark) Color(0xFF0F172A) else Color(0xFFF8FAFC)
+    val cardBg = currentTheme.dialogCardColor
+    val sectionBg = currentTheme.innerStatBoxColor
     val borderCol = if (isDark) Color(0xFF334155) else Color(0xFFE2E8F0)
-    val textPrimary = if (isDark) Color(0xFFFFFFFF) else Color(0xFF0F172A)
-    val textSecondary = if (isDark) Color(0xFFCBD5E1) else Color(0xFF475569)
+    val textPrimary = currentTheme.headingColor
+    val textSecondary = currentTheme.secondaryTextColor
     val modalShape = RoundedCornerShape(appearance.cornerRadiusDp.dp)
 
     AlertDialog(
@@ -7368,6 +7721,30 @@ fun PrivacyPolicyAndTermsModal(
                         }
                     }
                 }
+
+                if (onRequestDeleteAccount != null) {
+                    OutlinedButton(
+                        onClick = onRequestDeleteAccount,
+                        shape = RoundedCornerShape((appearance.cornerRadiusDp - 6).coerceAtLeast(4).dp),
+                        border = BorderStroke(1.5.dp, Color(0xFFE11D48)),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = if (isDark) Color(0xFF450A0A).copy(alpha = 0.45f) else Color(0xFFFFF1F2),
+                            contentColor = Color(0xFFE11D48)
+                        ),
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 13.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 6.dp)
+                            .testTag("btn_delete_account_permanently")
+                    ) {
+                        Text(
+                            text = Translations.tr("settings_delete_account_btn", lang),
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 12.5.sp,
+                            color = if (isDark) Color(0xFFFDA4AF) else Color(0xFFE11D48)
+                        )
+                    }
+                }
             }
         },
         confirmButton = {
@@ -7402,9 +7779,9 @@ fun UgcReportReasonDialog(
     onDismiss: () -> Unit
 ) {
     val appearance = LocalAppAppearanceState.current
-    val cardBg = if (isDark) Color(0xFF1E293B) else Color.White
-    val textPrimary = if (isDark) Color(0xFFFFFFFF) else Color(0xFF0F172A)
-    val textSecondary = if (isDark) Color(0xFFCBD5E1) else Color(0xFF475569)
+    val cardBg = currentTheme.dialogCardColor
+    val textPrimary = currentTheme.headingColor
+    val textSecondary = currentTheme.secondaryTextColor
     val borderCol = if (isDark) Color(0xFF334155) else Color(0xFFE2E8F0)
     val reasons = listOf(
         Translations.tr("ugc_report_reason_fraud", lang),

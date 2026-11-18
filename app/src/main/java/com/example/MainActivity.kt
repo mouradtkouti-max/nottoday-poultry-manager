@@ -1763,6 +1763,8 @@ fun AgritechRootApp() {
         val savedTextScale = SaasPreferencesManager.getSavedTextScale(context)
         val savedCornerStyle = SaasPreferencesManager.getSavedCornerStyle(context)
         val savedPaperStyle = SaasPreferencesManager.getSavedPaperStyle(context)
+        val savedTabBarMotion = SaasPreferencesManager.getSavedTabBarMotion(context)
+        val savedIconStyle = SaasPreferencesManager.getSavedIconStyle(context)
         val firebaseSignedIn = AgritechAuthHelper.isSignedIn()
         val savedLoggedIn = SaasPreferencesManager.getSavedIsLoggedIn(context) || firebaseSignedIn
         val savedRole = SaasPreferencesManager.getSavedUserRole(context)
@@ -1786,6 +1788,8 @@ fun AgritechRootApp() {
             initialTextScale = savedTextScale,
             initialCornerStyle = savedCornerStyle,
             initialPaperStyle = savedPaperStyle,
+            initialTabBarMotion = savedTabBarMotion,
+            initialIconStyle = savedIconStyle,
             initialLanguage = savedLang,
             initialCountryCode = savedCountry,
             initialCurrencyCode = savedCurrency,
@@ -3150,7 +3154,9 @@ fun AgritechOwnerDashboard(
                         )
                     }
                     IconButton(
-                        onClick = { showGeneralChatSheet = true },
+                        onClick = {
+                            showGeneralChatSheet = true
+                        },
                         modifier = Modifier.testTag("btn_general_admin_chat")
                     ) {
                         Icon(
@@ -3161,9 +3167,6 @@ fun AgritechOwnerDashboard(
                     }
                     IconButton(onClick = onOpenSettings) {
                         Icon(Icons.Default.Settings, contentDescription = "Settings", tint = primaryTextColor)
-                    }
-                    IconButton(onClick = onLogout) {
-                        Icon(Icons.Default.Logout, contentDescription = "Logout", tint = primaryTextColor)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = currentTheme.bgColor)
@@ -3230,61 +3233,35 @@ fun AgritechOwnerDashboard(
             }
         },
         bottomBar = {
-            NavigationBar(
-                containerColor = currentTheme.cardColor,
-                contentColor = accentEmerald,
-                modifier = Modifier
-                    .navigationBarsPadding()
-                    .testTag("owner_global_bottom_nav")
-            ) {
-                val dynamicGlobalTabs = buildList {
-                    if (showBarnsTab) {
-                        add(Triple(GlobalDashboardTab.BARNS, "💼 ${Translations.tr("tab_management", lang)}", Icons.Default.BusinessCenter))
-                    }
-                    add(Triple(GlobalDashboardTab.CHAT, Translations.tr("global_tab_chat", lang), Icons.Default.ChatBubbleOutline))
-                    add(Triple(GlobalDashboardTab.MARKET, Translations.tr("global_tab_market", lang), Icons.Default.ShoppingCart))
-                    add(Triple(GlobalDashboardTab.AI_VET, Translations.tr("global_tab_ai_vet", lang), Icons.Default.MenuBook))
+            val dynamicGlobalTabs = buildList {
+                if (showBarnsTab) {
+                    add(Triple(GlobalDashboardTab.BARNS, "💼 ${Translations.tr("tab_management", lang)}", Icons.Default.BusinessCenter))
                 }
-
-                dynamicGlobalTabs.forEachIndexed { idx, (tabEnum, label, icon) ->
-                    val isSelected = selectedGlobalTab == tabEnum
-                    NavigationBarItem(
-                        modifier = Modifier.testTag("global_nav_tab_${tabEnum.name.lowercase()}_$idx"),
-                        selected = isSelected,
-                        onClick = {
-                            selectedGlobalTab = tabEnum
-                            if (tabEnum != GlobalDashboardTab.CHAT) selectedChatConversation = null
-                        },
-                        icon = {
-                            if (tabEnum == GlobalDashboardTab.AI_VET) {
-                                Text(
-                                    "📖",
-                                    fontSize = 18.sp
-                                )
-                            } else {
-                                Icon(
-                                    icon,
-                                    contentDescription = label,
-                                    tint = if (isSelected) accentEmerald else secondaryTextColor
-                                )
-                            }
-                        },
-                        label = {
-                            Text(
-                                label,
-                                color = if (isSelected) accentEmerald else secondaryTextColor,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                fontSize = 10.5.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        },
-                        colors = NavigationBarItemDefaults.colors(
-                            indicatorColor = accentBadgeBg
-                        )
-                    )
-                }
+                add(Triple(GlobalDashboardTab.CHAT, Translations.tr("global_tab_chat", lang), Icons.Default.ChatBubbleOutline))
+                add(Triple(GlobalDashboardTab.MARKET, Translations.tr("global_tab_market", lang), Icons.Default.ShoppingCart))
+                add(Triple(GlobalDashboardTab.AI_VET, Translations.tr("global_tab_ai_vet", lang), Icons.Default.MenuBook))
             }
+            val selectedGlobalIdx = dynamicGlobalTabs.indexOfFirst { it.first == selectedGlobalTab }.coerceAtLeast(0)
+
+            AgritechAnimatedBottomBar(
+                items = dynamicGlobalTabs.mapIndexed { idx, (tabEnum, label, icon) ->
+                    AgritechTabBarItemSpec(
+                        id = tabEnum.name,
+                        label = label,
+                        icon = if (tabEnum == GlobalDashboardTab.AI_VET) null else icon,
+                        emoji = if (tabEnum == GlobalDashboardTab.AI_VET) "📖" else null,
+                        testTag = "global_nav_tab_${tabEnum.name.lowercase()}_$idx"
+                    )
+                },
+                selectedIndex = selectedGlobalIdx,
+                onSelectIndex = { idx ->
+                    val tabEnum = dynamicGlobalTabs.getOrNull(idx)?.first ?: GlobalDashboardTab.BARNS
+                    selectedGlobalTab = tabEnum
+                    if (tabEnum != GlobalDashboardTab.CHAT) selectedChatConversation = null
+                },
+                currentTheme = currentTheme,
+                modifier = Modifier.testTag("owner_global_bottom_nav")
+            )
         }
     ) { padding ->
         Box(
@@ -3412,7 +3389,7 @@ fun AgritechOwnerDashboard(
             val parsedInitialCount = birdCountInput.toIntOrNull() ?: 0
             val parsedChickPrice = chickPriceInput.toDoubleOrNull() ?: 0.0
             val previewChicksExpense = parsedInitialCount * parsedChickPrice
-            val dialogBg = currentTheme.cardColor
+            val dialogBg = currentTheme.dialogCardColor
             val dialogCornerDp = activeCornerRadius
 
             AlertDialog(
@@ -3813,13 +3790,15 @@ fun ManagementHubScreen(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            val mgmtPillCornerDp = (appearance.cornerRadiusDp - 6).coerceAtLeast(4).dp
             Surface(
                 shape = pillShape,
-                color = accentBadgeBg,
+                color = if (appearance.paperStyle == AppPaperStyleOption.FROSTED_GLASS) currentTheme.cardColor else accentBadgeBg,
                 border = BorderStroke(1.dp, activeAccent.copy(alpha = 0.45f)),
                 modifier = Modifier
                     .weight(1f)
                     .defaultMinSize(minHeight = 48.dp)
+                    .darwinManuscriptBorder(cornerRadius = mgmtPillCornerDp, isDark = isDark)
                     .clip(pillShape)
                     .clickable { showMyManagementsDialog = true }
                     .testTag("btn_my_managements")
@@ -3854,6 +3833,7 @@ fun ManagementHubScreen(
                 modifier = Modifier
                     .weight(1f)
                     .defaultMinSize(minHeight = 48.dp)
+                    .darwinManuscriptBorder(cornerRadius = mgmtPillCornerDp, isDark = isDark)
                     .clip(pillShape)
                     .clickable { showAddManagementDialog = true }
                     .testTag("btn_add_management")
@@ -6495,7 +6475,7 @@ fun OwnerGlobalAiVetPlaceholderScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(currentTheme.bgColor)
+            .darwinPaperBackground(currentTheme)
             .testTag("global_ai_vet_screen")
     ) {
         // Glassmorphic Radial Light Glow behind AI Agent Cards
@@ -6524,13 +6504,16 @@ fun OwnerGlobalAiVetPlaceholderScreen(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .darwinManuscriptBorder(cornerRadius = appearance.cornerRadiusDp.dp, isDark = isDark)
                     .testTag("ai_vet_interactive_header_card"),
                 shape = aiCardShape,
                 colors = CardDefaults.cardColors(
-                    containerColor = currentTheme.cardColor.copy(alpha = if (isDark) 0.92f else 0.96f)
+                    containerColor = currentTheme.cardColor
                 ),
                 border = BorderStroke(1.2.dp, glassBorderColor),
-                elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
+                elevation = CardDefaults.cardElevation(
+                    defaultElevation = if (appearance.paperStyle == AppPaperStyleOption.FROSTED_GLASS) 0.dp else 3.dp
+                )
             ) {
                 Column(
                     modifier = Modifier
@@ -6918,107 +6901,14 @@ fun OwnerGlobalAiVetPlaceholderScreen(
                 }
 
                 2 -> {
-                    // القسم الثالث: 💬 المحادثة (بطاقة الترحيب الموثقة لكتاب العنبر الذكي + سجل المحادثة والردود)
-                    val visibleHistory = diagnosisHistory.reversed()
-                    LazyColumn(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxWidth()
-                            .testTag("ai_vet_messages_list"),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        items(visibleHistory) { (headerTitle, bodyText) ->
-                            val sanitizedHeader = headerTitle.replace("**", "")
-                            val sanitizedBody = bodyText.replace("**", "")
-                            Card(
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = aiCardShape,
-                                colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
-                                border = BorderStroke(1.dp, glassBorderColor)
-                            ) {
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(14.dp),
-                                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    Text(
-                                        text = sanitizedHeader,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        fontSize = 13.5.sp,
-                                        color = aiAccent
-                                    )
-                                    Text(
-                                        text = sanitizedBody,
-                                        fontSize = 13.sp,
-                                        color = primaryText,
-                                        lineHeight = 20.sp
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    Surface(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("ai_vet_chat_disclaimer_banner"),
-                        shape = RoundedCornerShape(10.dp),
-                        color = appearance.accentContainerColor,
-                        border = BorderStroke(1.dp, aiAccent.copy(alpha = 0.35f))
-                    ) {
-                        Text(
-                            text = Translations.tr("ai_vet_chat_disclaimer", lang),
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = if (isDark) Color(0xFFFFFFFF) else aiAccent,
-                            lineHeight = 16.sp
-                        )
-                    }
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        OutlinedTextField(
-                            value = promptInput,
-                            onValueChange = { promptInput = it },
-                            placeholder = {
-                                Text(
-                                    Translations.tr("ai_vet_input_placeholder", lang),
-                                    fontSize = 12.sp,
-                                    color = secondaryText.copy(alpha = 0.6f)
-                                )
-                            },
-                            shape = pillShape,
-                            singleLine = true,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = primaryText,
-                                unfocusedTextColor = primaryText,
-                                focusedBorderColor = aiAccent
-                            ),
-                            modifier = Modifier
-                                .weight(1f)
-                                .testTag("input_global_ai_vet_prompt")
-                        )
-                        Button(
-                            onClick = {
-                                val q = promptInput
-                                promptInput = ""
-                                triggerAiConsultation(q, switchToChat = false)
-                            },
-                            enabled = !isAnalyzing && promptInput.isNotBlank(),
-                            shape = pillShape,
-                            colors = ButtonDefaults.buttonColors(containerColor = aiPrimaryBtn),
-                            modifier = Modifier
-                                .height(52.dp)
-                                .testTag("btn_send_global_ai_vet")
-                        ) {
-                            Icon(Icons.Default.Send, contentDescription = "Send", tint = Color.White, modifier = Modifier.size(18.dp))
-                        }
-                    }
+                    AgritechAiVetInteractiveChatSection(
+                        selectedFarm = selectedAiFarm,
+                        currentTheme = currentTheme,
+                        lang = lang,
+                        diagnosisHistory = diagnosisHistory,
+                        onUpdateDiagnosisHistory = { diagnosisHistory = it },
+                        modifier = Modifier.weight(1f)
+                    )
                 }
             }
         }
@@ -7086,17 +6976,12 @@ fun FarmCard(
     val accentEmerald = appearance.accentColor
     val pillBgEmerald = appearance.accentContainerColor
     val pillBorderEmerald = accentEmerald.copy(alpha = 0.45f)
-    val identityPanelBg = when {
-        isDark && isDarwin -> Color(0xFF211913)
-        isDark -> Color(0xFF0F172A)
-        isDarwin -> Color(0xFFF4EBD6)
-        else -> Color(0xFFF8FBF8)
-    }
+    val identityPanelBg = currentTheme.innerStatBoxColor
     val identityPanelBorder = when {
         isDark && isDarwin -> Color(0xFF8B6914)
         isDark -> Color(0xFF334155)
         isDarwin -> Color(0xFF8C6D46)
-        else -> Color(0xFFE0F2F1)
+        else -> accentEmerald.copy(alpha = 0.28f)
     }
     val qrButtonBg = appearance.accentContainerColor
     val cardCornerShape = RoundedCornerShape(appearance.cornerRadiusDp.dp)
@@ -7107,7 +6992,7 @@ fun FarmCard(
         AlertDialog(
             onDismissRequest = { showDeleteBarnConfirmDialog = false },
             shape = cardCornerShape,
-            containerColor = currentTheme.cardColor,
+            containerColor = currentTheme.dialogCardColor,
             modifier = Modifier
                 .darwinManuscriptBorder(cornerRadius = appearance.cornerRadiusDp.dp, isDark = isDark)
                 .testTag("dialog_confirm_delete_farm_${farm.id}"),
@@ -7193,7 +7078,9 @@ fun FarmCard(
         shape = cardCornerShape,
         colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
         border = if (showDeleteBarnOverlay) BorderStroke(1.8.dp, ActionRed) else null,
-        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = if (appearance.paperStyle == AppPaperStyleOption.FROSTED_GLASS) 0.dp else 3.dp
+        )
     ) {
         Column(modifier = Modifier.padding(18.dp)) {
             if (showDeleteBarnOverlay) {
@@ -7326,9 +7213,10 @@ fun FarmCard(
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .darwinManuscriptBorder(cornerRadius = 24.dp, isDark = isDark)
                                 .testTag("farm_vitality_vaccines_sheet_${farm.id}"),
                             shape = RoundedCornerShape(24.dp),
-                            colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
+                            colors = CardDefaults.cardColors(containerColor = currentTheme.dialogCardColor),
                             border = BorderStroke(1.2.dp, accentEmerald.copy(alpha = 0.4f)),
                             elevation = CardDefaults.cardElevation(defaultElevation = 10.dp)
                         ) {
@@ -7565,9 +7453,10 @@ fun FarmCard(
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .darwinManuscriptBorder(cornerRadius = 24.dp, isDark = isDark)
                                 .testTag("farm_weight_income_sheet_${farm.id}"),
                             shape = RoundedCornerShape(24.dp),
-                            colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
+                            colors = CardDefaults.cardColors(containerColor = currentTheme.dialogCardColor),
                             border = BorderStroke(1.2.dp, accentEmerald.copy(alpha = 0.4f)),
                             elevation = CardDefaults.cardElevation(defaultElevation = 10.dp)
                         ) {
@@ -7872,9 +7761,10 @@ fun FarmCard(
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .darwinManuscriptBorder(cornerRadius = 24.dp, isDark = isDark)
                                 .testTag("card_direct_sales_profit_simulator_${farm.id}"),
                             shape = RoundedCornerShape(24.dp),
-                            colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
+                            colors = CardDefaults.cardColors(containerColor = currentTheme.dialogCardColor),
                             border = BorderStroke(1.2.dp, accentEmerald.copy(alpha = 0.35f)),
                             elevation = CardDefaults.cardElevation(defaultElevation = 10.dp)
                         ) {
@@ -8025,18 +7915,15 @@ fun FarmCard(
                             .weight(1f)
                             .padding(end = 10.dp)
                     ) {
-                        Surface(
-                            shape = RoundedCornerShape(14.dp),
-                            color = pillBgEmerald,
-                            border = BorderStroke(1.dp, pillBorderEmerald),
-                            modifier = Modifier
-                                .size(46.dp)
-                                .tactile3DStyle(baseColor = accentEmerald, cornerRadius = 14.dp, elevation = 6.dp)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Text("🏡", fontSize = 21.sp)
-                            }
-                        }
+                        Tactile3DIconBadge(
+                            emoji = "🏡",
+                            tint = accentEmerald,
+                            containerColor = pillBgEmerald,
+                            boxSize = 46.dp,
+                            cornerRadius = 14.dp,
+                            emojiFontSize = 21.sp,
+                            isDark = isDark
+                        )
                         Spacer(modifier = Modifier.width(12.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
@@ -8089,10 +7976,18 @@ fun FarmCard(
                 val feedInventoryColor = if (isFeedLow) {
                     if (isDark) Color(0xFFFCA5A5) else Color(0xFFD32F2F)
                 } else accentEmerald
-                val miniBoxBg = currentTheme.cardColor
+                val miniBoxBg = currentTheme.innerStatBoxColor
                 val miniBoxBorder = if (isDark) Color(0xFF334155) else accentEmerald.copy(alpha = 0.22f)
                 val feedBoxBg = if (isFeedLow) {
-                    if (isDark && isDarwin) Color(0xFF2A2018) else if (isDark) Color(0xFF450A0A) else Color(0xFFFFEBEE)
+                    if (appearance.paperStyle == AppPaperStyleOption.FROSTED_GLASS) {
+                        Color(0xFFE11D48).copy(alpha = if (isDark) 0.24f else 0.16f)
+                    } else if (isDark && isDarwin) {
+                        Color(0xFF2A2018)
+                    } else if (isDark) {
+                        Color(0xFF450A0A)
+                    } else {
+                        Color(0xFFFFEBEE)
+                    }
                 } else miniBoxBg
                 val feedBoxBorder = if (isFeedLow) {
                     if (isDark) Color(0xFFF87171).copy(alpha = 0.5f) else Color(0xFFEF9A9A)
@@ -8516,7 +8411,8 @@ fun TeamQrInviteBottomSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = Color.White,
+        containerColor = LocalAppAppearanceState.current.theme.dialogCardColor,
+        scrimColor = Color.Black.copy(alpha = 0.65f),
         shape = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp),
         modifier = Modifier.testTag("team_qr_invite_bottom_sheet")
     ) {
@@ -9260,9 +9156,9 @@ fun InvoiceApprovalSignatureDialog(
 ) {
     val appearance = LocalAppAppearanceState.current
     val isDark = currentTheme.isDark
-    val dialogBg = if (isDark) Color(0xFF1E293B) else Color.White
-    val primaryText = if (isDark) Color.White else Color(0xFF0F172A)
-    val secondaryText = if (isDark) Color(0xFFCBD5E1) else Color(0xFF475569)
+    val dialogBg = currentTheme.dialogCardColor
+    val primaryText = currentTheme.headingColor
+    val secondaryText = currentTheme.secondaryTextColor
     val activeAccent = appearance.accentColor
     val primaryButtonAccent = appearance.accentOption.primaryColor
 
@@ -10864,7 +10760,7 @@ fun AgritechFarmNotebookScreen(
                                 AlertDialog(
                                     onDismissRequest = { showResetCycleDialog = false },
                                     shape = RoundedCornerShape(appearance.cornerRadiusDp.dp),
-                                    containerColor = currentTheme.cardColor,
+                                    containerColor = currentTheme.dialogCardColor,
                                     title = {
                                         Text(
                                             Translations.tr("reset_cycle_dialog_title", lang),
@@ -10956,13 +10852,6 @@ fun AgritechFarmNotebookScreen(
                                         color = currentTheme.headingColor.copy(alpha = 0.85f),
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
-                                    )
-                                }
-                                IconButton(onClick = onOpenSettings) {
-                                    Icon(
-                                        Icons.Default.Settings,
-                                        contentDescription = "Settings",
-                                        tint = currentTheme.headingColor
                                     )
                                 }
                             }
@@ -11097,49 +10986,26 @@ fun AgritechFarmNotebookScreen(
             }
         },
         bottomBar = {
-            val appearance = LocalAppAppearanceState.current
-            val unselectedNavColor = if (currentTheme.isDark) Color(0xFFCBD5E1) else Color(0xFF475569)
-            NavigationBar(
-                containerColor = currentTheme.cardColor,
-                contentColor = appearance.accentColor,
-                modifier = Modifier.navigationBarsPadding()
-            ) {
-                val items = listOf(
-                    Triple(0, Translations.tr("tab_ledger", lang), Icons.Default.TableChart),
-                    Triple(1, Translations.tr("tab_treasury", lang), Icons.Default.ReceiptLong),
-                    Triple(2, Translations.tr("tab_analytics", lang), Icons.Default.Insights),
-                    Triple(3, Translations.tr("notebook_tab_inventory", lang), Icons.Default.Inventory2)
-                )
-
-                items.forEach { (index, label, icon) ->
-                    val isSelected = selectedTab == index
-                    NavigationBarItem(
-                        modifier = Modifier.testTag("nav_tab_$index"),
-                        selected = isSelected,
-                        onClick = { selectedTab = index },
-                        icon = {
-                            Icon(
-                                icon,
-                                contentDescription = label,
-                                tint = if (isSelected) appearance.accentColor else unselectedNavColor
-                            )
-                        },
-                        label = {
-                            Text(
-                                label,
-                                color = if (isSelected) appearance.accentColor else unselectedNavColor,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                fontSize = 10.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        },
-                        colors = NavigationBarItemDefaults.colors(
-                            indicatorColor = appearance.accentContainerColor
-                        )
+            val items = listOf(
+                Triple(0, Translations.tr("tab_ledger", lang), Icons.Default.TableChart),
+                Triple(1, Translations.tr("tab_treasury", lang), Icons.Default.ReceiptLong),
+                Triple(2, Translations.tr("tab_analytics", lang), Icons.Default.Insights),
+                Triple(3, Translations.tr("notebook_tab_inventory", lang), Icons.Default.Inventory2)
+            )
+            AgritechAnimatedBottomBar(
+                items = items.map { (index, label, icon) ->
+                    AgritechTabBarItemSpec(
+                        id = "notebook_tab_$index",
+                        label = label,
+                        icon = icon,
+                        testTag = "nav_tab_$index"
                     )
-                }
-            }
+                },
+                selectedIndex = selectedTab,
+                onSelectIndex = { selectedTab = it },
+                currentTheme = currentTheme,
+                modifier = Modifier.testTag("notebook_bottom_nav")
+            )
         }
     ) { padding ->
         val appearance = LocalAppAppearanceState.current
@@ -11241,7 +11107,8 @@ fun AgritechFarmNotebookScreen(
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 12.dp, vertical = 14.dp),
+                                .padding(horizontal = 12.dp, vertical = 14.dp)
+                                .darwinManuscriptBorder(cornerRadius = appearance.cornerRadiusDp.dp, isDark = currentTheme.isDark),
                             shape = notebookShape,
                             colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
                             elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
@@ -11255,7 +11122,7 @@ fun AgritechFarmNotebookScreen(
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .background(currentTheme.bgColor, RoundedCornerShape(8.dp))
+                                        .background(currentTheme.innerStatBoxColor, RoundedCornerShape(8.dp))
                                         .padding(vertical = 11.dp, horizontal = 4.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
@@ -11488,6 +11355,7 @@ fun AgritechFarmNotebookScreen(
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .darwinManuscriptBorder(cornerRadius = appearance.cornerRadiusDp.dp, isDark = currentTheme.isDark)
                                 .testTag("card_treasury_summary"),
                             shape = notebookShape,
                             colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
@@ -11652,6 +11520,7 @@ fun AgritechFarmNotebookScreen(
                                 Card(
                                     modifier = Modifier
                                         .fillMaxWidth()
+                                        .darwinManuscriptBorder(cornerRadius = appearance.cornerRadiusDp.dp, isDark = currentTheme.isDark)
                                         .testTag("tx_card_${tx.id}")
                                         .clickable {
                                             if (isMedicineTx) {
@@ -11813,7 +11682,9 @@ fun AgritechFarmNotebookScreen(
                         Text(Translations.tr("analytics_title", lang), fontWeight = FontWeight.Bold, fontSize = 16.sp, color = currentTheme.headingColor)
 
                         Card(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .darwinManuscriptBorder(cornerRadius = appearance.cornerRadiusDp.dp, isDark = currentTheme.isDark),
                             shape = notebookShape,
                             colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
                             elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)

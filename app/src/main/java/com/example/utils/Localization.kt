@@ -2385,21 +2385,53 @@ object Translations {
             "pt" to "📜 Pergaminho de Darwin",
             "hi" to "📜 डार्विन चर्मपत्र"
         ),
+        "paper_style_ruled_notebook" to mapOf(
+            "ar" to "📓 ورق دفتر مسطّر",
+            "fr" to "📓 Cahier ligné",
+            "en" to "📓 Ruled Notebook",
+            "es" to "📓 Cuaderno rayado",
+            "pt" to "📓 Caderno pautado",
+            "hi" to "📓 रेखांकित नोटबुक"
+        ),
         "paper_style_ruled_ledger" to mapOf(
             "ar" to "📓 ورق دفتر مسطّر",
             "fr" to "📓 Registre ligné",
-            "en" to "📓 Ruled Ledger",
+            "en" to "📓 Ruled Notebook",
             "es" to "📓 Cuaderno rayado",
             "pt" to "📓 Caderno pautado",
             "hi" to "📓 रेखांकित बही"
         ),
+        "paper_style_engineering_grid" to mapOf(
+            "ar" to "📐 ورق هندسي مربعات",
+            "fr" to "📐 Grille géométrique",
+            "en" to "📐 Engineering Grid",
+            "es" to "📐 Cuadrícula de ingeniería",
+            "pt" to "📐 Grade de engenharia",
+            "hi" to "📐 इंजीनियरिंग ग्रिड"
+        ),
         "paper_style_blueprint_grid" to mapOf(
             "ar" to "📐 ورق هندسي مربعات",
             "fr" to "📐 Grille géométrique",
-            "en" to "📐 Blueprint Grid",
+            "en" to "📐 Engineering Grid",
             "es" to "📐 Cuadrícula técnica",
             "pt" to "📐 Grade geométrica",
             "hi" to "📐 ज्यामितीय ग्रिड"
+        ),
+        "paper_style_frosted_glass" to mapOf(
+            "ar" to "🧊 مظهر زجاجي شفاف",
+            "fr" to "🧊 Verre dépoli",
+            "en" to "🧊 Frosted Glass",
+            "es" to "🧊 Cristal esmerilado",
+            "pt" to "🧊 Vidro fosco",
+            "hi" to "🧊 फ्रॉस्टेड ग्लास"
+        ),
+        "paper_style_default_pure" to mapOf(
+            "ar" to "💎 الخلفية النقية الافتراضية",
+            "fr" to "💎 Fond pur par défaut",
+            "en" to "💎 Default Pure",
+            "es" to "💎 Fondo puro predeterminado",
+            "pt" to "💎 Fundo puro padrão",
+            "hi" to "💎 स्वच्छ डिफ़ॉल्ट पृष्ठभूमि"
         ),
         "paper_style_clean_default" to mapOf(
             "ar" to "💎 الخلفية النقية الافتراضية",
@@ -2408,6 +2440,174 @@ object Translations {
             "es" to "💎 Fondo limpio predeterminado",
             "pt" to "💎 Fundo limpo padrão",
             "hi" to "💎 स्वच्छ डिफ़ॉल्ट पृष्ठभूमि"
+        ),
+        "theme_color_forest_green" to mapOf(
+            "ar" to "🌲 أخضر الغابة الزراعي",
+            "fr" to "🌲 Vert forêt agricole",
+            "en" to "🌲 Forest Green",
+            "es" to "🌲 Verde bosque",
+            "pt" to "🌲 Verde floresta",
+            "hi" to "🌲 फ़ॉरेस्ट ग्रीन"
+        ),
+        "theme_color_violet" to mapOf(
+            "ar" to "💜 البنفسجي الملكي",
+            "fr" to "💜 Violet royal",
+            "en" to "💜 Royal Violet",
+            "es" to "💜 Violeta real",
+            "pt" to "💜 Violeta real",
+            "hi" to "💜 रॉयल वायलेट"
+        ),
+        "theme_color_ocean_blue" to mapOf(
+            "ar" to "🌊 أزرق المحيط",
+            "fr" to "🌊 Bleu océan",
+            "en" to "🌊 Ocean Blue",
+            "es" to "🌊 Azul océano",
+            "pt" to "🌊 Azul oceano",
+            "hi" to "🌊 ओशन ब्लू"
+        ),
+        "theme_color_mint_emerald" to mapOf(
+            "ar" to "🌿 الزمرد النعناعي",
+            "fr" to "🌿 Émeraude menthe",
+            "en" to "🌿 Mint Emerald",
+            "es" to "🌿 Esmeralda menta",
+            "pt" to "🌿 Esmeralda menta",
+            "hi" to "🌿 मिंट एमराल्ड"
+        ),
+        "theme_color_amber_gold" to mapOf(
+            "ar" to "🌟 العنبر الذهبي",
+            "fr" to "🌟 Or ambré",
+            "en" to "🌟 Amber Gold",
+            "es" to "🌟 Oro ámbar",
+            "pt" to "🌟 Ouro âmbar",
+            "hi" to "🌟 एम्बर गोल्ड"
+        ),
+        "theme_color_rose" to mapOf(
+            "ar" to "🌹 الوردي الياقوتي",
+            "fr" to "🌹 Rose rubis",
+            "en" to "🌹 Ruby Rose",
+            "es" to "🌹 Rosa rubí",
+            "pt" to "🌹 Rosa rubi",
+            "hi" to "🌹 रूबी रोज़"
+        ),
+        "theme_color_crystal_white_glass" to mapOf(
+            "ar" to "🤍 أبيض كريستالي شفاف",
+            "fr" to "🤍 Verre blanc cristal",
+            "en" to "🤍 Crystal White Glass",
+            "es" to "🤍 Cristal blanco puro",
+            "pt" to "🤍 Cristal branco transparente",
+            "hi" to "🤍 क्रिस्टल व्हाइट ग्लास"
+        ),
+        "theme_color_smoked_obsidian" to mapOf(
+            "ar" to "🖤 زجاج دخاني ملكي",
+            "fr" to "🖤 Obsidienne fumée royale",
+            "en" to "🖤 Smoked Royal Obsidian",
+            "es" to "🖤 Obsidiana ahumada real",
+            "pt" to "🖤 Obsidiana fumê real",
+            "hi" to "🖤 स्मोक्ड रॉयल ओब्सीडियन"
+        ),
+        "theme_color_darwin_bronze" to mapOf(
+            "ar" to "👑 برونز مخطوطة داروين",
+            "fr" to "👑 Bronze parchemin de Darwin",
+            "en" to "👑 Darwin Manuscript Bronze",
+            "es" to "👑 Bronce manuscrito de Darwin",
+            "pt" to "👑 Bronze manuscrito de Darwin",
+            "hi" to "👑 डार्विन पांडुलिपि कांस्य"
+        ),
+        "theme_color_oak_wood" to mapOf(
+            "ar" to "🪵 بني خشب البلوط",
+            "fr" to "🪵 Bois de chêne",
+            "en" to "🪵 Oak Wood Brown",
+            "es" to "🪵 Marrón madera de roble",
+            "pt" to "🪵 Castanho madeira de carvalho",
+            "hi" to "🪵 ओक की लकड़ी भूरा"
+        ),
+        "theme_color_saddle_leather" to mapOf(
+            "ar" to "👜 بني الجلد الطبيعي",
+            "fr" to "👜 Cuir naturel",
+            "en" to "👜 Saddle Leather Brown",
+            "es" to "👜 Cuero natural",
+            "pt" to "👜 Couro natural",
+            "hi" to "👜 प्राकृतिक चमड़ा भूरा"
+        ),
+        "theme_color_terracotta_copper" to mapOf(
+            "ar" to "🏺 النحاسي الطيني",
+            "fr" to "🏺 Cuivre terre cuite",
+            "en" to "🏺 Terracotta Copper",
+            "es" to "🏺 Cobre terracota",
+            "pt" to "🏺 Cobre terracota",
+            "hi" to "🏺 टेराकोटा तांबा"
+        ),
+        "theme_color_olive_grove" to mapOf(
+            "ar" to "🫒 الزيتوني الزراعي",
+            "fr" to "🫒 Vert oliveraie",
+            "en" to "🫒 Olive Grove",
+            "es" to "🫒 Verde olivo agrícola",
+            "pt" to "🫒 Verde oliva agrícola",
+            "hi" to "🫒 ऑलिव ग्रोव"
+        ),
+        "theme_color_deep_teal" to mapOf(
+            "ar" to "🌊 التركواز العميق",
+            "fr" to "🌊 Sarcelle profond",
+            "en" to "🌊 Deep Teal",
+            "es" to "🌊 Turquesa profundo",
+            "pt" to "🌊 Turquesa profundo",
+            "hi" to "🌊 गहरा टील"
+        ),
+        "appearance_tab_motion_label" to mapOf(
+            "ar" to "✨ حركة شريط التبويبات والبوابات (TAB BAR MOTION)",
+            "fr" to "✨ ANIMATION DE LA BARRE D'ONGLETS (TAB BAR MOTION)",
+            "en" to "✨ TAB BAR MOTION & PORTALS",
+            "es" to "✨ MOVIMIENTO DE BARRA DE PESTAÑAS (TAB BAR MOTION)",
+            "pt" to "✨ ANIMAÇÃO DA BARRA DE ABAS (TAB BAR MOTION)",
+            "hi" to "✨ टैब बार गति (TAB BAR MOTION)"
+        ),
+        "tab_motion_sliding_pill" to mapOf(
+            "ar" to "01 — الكبسولة المنزلقة (Sliding Pill)",
+            "fr" to "01 — Pilule coulissante (Sliding Pill)",
+            "en" to "01 — Sliding Pill",
+            "es" to "01 — Cápsula deslizante (Sliding Pill)",
+            "pt" to "01 — Pílula deslizante (Sliding Pill)",
+            "hi" to "01 — स्लाइडिंग पिल (Sliding Pill)"
+        ),
+        "tab_motion_liquid_bulge" to mapOf(
+            "ar" to "02 — التموج السائل (Liquid Bulge)",
+            "fr" to "02 — Onde liquide (Liquid Bulge)",
+            "en" to "02 — Liquid Bulge",
+            "es" to "02 — Onda líquida (Liquid Bulge)",
+            "pt" to "02 — Onda líquida (Liquid Bulge)",
+            "hi" to "02 — लिक्विड बल्ज (Liquid Bulge)"
+        ),
+        "tab_motion_floating_notch" to mapOf(
+            "ar" to "03 — الفقاعة البارزة (Floating Notch)",
+            "fr" to "03 — Bulle flottante (Floating Notch)",
+            "en" to "03 — Floating Notch",
+            "es" to "03 — Burbuja flotante (Floating Notch)",
+            "pt" to "03 — Bolha flutuante (Floating Notch)",
+            "hi" to "03 — फ़्लोटिंग नॉच (Floating Notch)"
+        ),
+        "tab_motion_icon_fill" to mapOf(
+            "ar" to "04 — التعبئة المضيئة (Icon Fill)",
+            "fr" to "04 — Icône lumineuse (Icon Fill)",
+            "en" to "04 — Luminous Icon Fill",
+            "es" to "04 — Relleno luminoso (Icon Fill)",
+            "pt" to "04 — Preenchimento luminoso (Icon Fill)",
+            "hi" to "04 — आइकन फ़िल (Icon Fill)"
+        ),
+        "tab_motion_expanding_label" to mapOf(
+            "ar" to "05 — الكبسولة المتمددة (Expanding Label)",
+            "fr" to "05 — Capsule extensible (Expanding Label)",
+            "en" to "05 — Expanding Label Pill",
+            "es" to "05 — Cápsula expansible (Expanding Label)",
+            "pt" to "05 — Cápsula expansível (Expanding Label)",
+            "hi" to "05 — एक्सपैंडिंग लेबल (Expanding Label)"
+        ),
+        "tab_motion_bubble_float" to mapOf(
+            "ar" to "06 — الفقاعات الطافية (Bubble Float)",
+            "fr" to "06 — Bulles flottantes (Bubble Float)",
+            "en" to "06 — Bubble Float",
+            "es" to "06 — Burbujas flotantes (Bubble Float)",
+            "pt" to "06 — Bolhas flutuantes (Bubble Float)",
+            "hi" to "06 — बबल फ़्लोट (Bubble Float)"
         ),
         "book_field_observation_fig1" to mapOf(
             "ar" to "لوحة الرصد الميداني — Fig. 1",
@@ -5184,6 +5384,70 @@ object Translations {
             "es" to "Borrar registros del lote actual y volver al Día 1",
             "pt" to "Limpar registros do lote atual e voltar ao Dia 1",
             "hi" to "वर्तमान चक्र रिकॉर्ड साफ़ करें और बार्न को दिन 1 पर रीसेट करें"
+        ),
+        "appearance_icon_style_label" to mapOf(
+            "ar" to "🧊 نمط الأيقونات والرموز (ICON STYLE)",
+            "fr" to "🧊 Style des Icônes (ICON STYLE)",
+            "en" to "🧊 Icon & Badge Style (ICON STYLE)",
+            "es" to "🧊 Estilo de Iconos (ICON STYLE)",
+            "pt" to "🧊 Estilo dos Ícones (ICON STYLE)",
+            "hi" to "🧊 आइकन शैली (ICON STYLE)"
+        ),
+        "icon_style_tactile_3d" to mapOf(
+            "ar" to "01 — أيقونات ثلاثية الأبعاد بارزة (3D Tactile)",
+            "fr" to "01 — Icônes 3D en relief (3D Tactile)",
+            "en" to "01 — 3D Tactile Embossed Icons (3D Tactile)",
+            "es" to "01 — Iconos 3D en relieve (3D Tactile)",
+            "pt" to "01 — Ícones 3D em relevo (3D Tactile)",
+            "hi" to "01 — उभरे हुए 3D आइकन (3D Tactile)"
+        ),
+        "icon_style_classic_ink" to mapOf(
+            "ar" to "02 — أيقونات حبرية كلاسيكية (Classic Ink)",
+            "fr" to "02 — Icônes encre classique (Classic Ink)",
+            "en" to "02 — Classic Manuscript Ink Icons (Classic Ink)",
+            "es" to "02 — Iconos de tinta clásica (Classic Ink)",
+            "pt" to "02 — Ícones de tinta clássica (Classic Ink)",
+            "hi" to "02 — क्लासिक इंक आइकन (Classic Ink)"
+        ),
+        "icon_style_flat_minimal" to mapOf(
+            "ar" to "03 — أيقونات مسطحة بسيطة (Flat Minimal)",
+            "fr" to "03 — Icônes plates minimalistes (Flat Minimal)",
+            "en" to "03 — Clean Flat Minimal Icons (Flat Minimal)",
+            "es" to "03 — Iconos planos minimalistas (Flat Minimal)",
+            "pt" to "03 — Ícones planos minimalistas (Flat Minimal)",
+            "hi" to "03 — सरल फ्लैट आइकन (Flat Minimal)"
+        ),
+        "settings_logout_btn" to mapOf(
+            "ar" to "🚪 تسجيل الخروج من الحساب",
+            "fr" to "🚪 Se déconnecter du compte",
+            "en" to "🚪 Sign Out of Account",
+            "es" to "🚪 Cerrar sesión de la cuenta",
+            "pt" to "🚪 Sair da conta",
+            "hi" to "🚪 खाते से लॉग आउट करें"
+        ),
+        "ai_vet_key_connected_badge" to mapOf(
+            "ar" to "🔑 مفتاح Gemini API (متصل ✓)",
+            "fr" to "🔑 Clé Gemini API (Connectée ✓)",
+            "en" to "🔑 Gemini API Key (Connected ✓)",
+            "es" to "🔑 Clave Gemini API (Conectada ✓)",
+            "pt" to "🔑 Chave Gemini API (Conectada ✓)",
+            "hi" to "🔑 Gemini API कुंजी (कनेक्टेड ✓)"
+        ),
+        "ai_vet_key_setup_badge" to mapOf(
+            "ar" to "🔑 مفتاح Gemini API",
+            "fr" to "🔑 Clé Gemini API",
+            "en" to "🔑 Gemini API Key",
+            "es" to "🔑 Clave Gemini API",
+            "pt" to "🔑 Chave Gemini API",
+            "hi" to "🔑 Gemini API कुंजी"
+        ),
+        "ai_vet_open_chat_hint" to mapOf(
+            "ar" to "💬 اسأل الخبير البيطري الذكي عن عنبرك أو اختر سؤالاً سريعاً:",
+            "fr" to "💬 Posez une question sur votre bâtiment ou choisissez un sujet rapide :",
+            "en" to "💬 Ask the AI Vet about your barn or tap a quick topic:",
+            "es" to "💬 Pregunte al experto sobre su galpón o elija un tema rápido:",
+            "pt" to "💬 Pergunte ao especialista sobre seu galpão ou escolha um tópico rápido:",
+            "hi" to "💬 अपने बार्न के बारे में पूछें या त्वरित विषय चुनें:"
         )
     )
 
