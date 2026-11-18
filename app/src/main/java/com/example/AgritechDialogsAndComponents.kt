@@ -800,10 +800,15 @@ fun LuminousOutlinedTextField(
     val fieldShape = shape ?: RoundedCornerShape(cornerDp)
     var isFocused by remember { mutableStateOf(false) }
 
-    val fieldBg = if (!enabled) {
-        appearance.theme.innerStatBoxColor
-    } else {
-        appearance.theme.cardColor
+    val fieldBg = when {
+        !enabled -> if (appearance.paperStyle == AppPaperStyleOption.FROSTED_GLASS) {
+            if (isDark) Color(0xFF0F172A) else Color(0xFFF1F5F9)
+        } else {
+            appearance.theme.innerStatBoxColor
+        }
+        appearance.paperStyle == AppPaperStyleOption.FROSTED_GLASS ->
+            if (isDark) Color(0xFF0F172A) else Color(0xFFF8FAFC)
+        else -> appearance.theme.cardColor
     }
     val primaryText = appearance.theme.headingColor
     val secondaryText = appearance.theme.secondaryTextColor
@@ -2630,8 +2635,8 @@ fun OwnerDailyReportDialog(
 ) {
     val appearance = LocalAppAppearanceState.current
     val isDark = currentTheme.isDark
-    val dialogBg = currentTheme.dialogCardColor
-    val fieldSurfaceBg = currentTheme.bgColor
+    val dialogBg = currentTheme.dialogCardColor.copy(alpha = 1f)
+    val fieldSurfaceBg = if (isDark) Color(0xFF0F172A) else Color(0xFFF8FAFC)
     val cardBorderColor = if (isDark) Color(0xFF334155) else Color(0xFFE2E8F0)
     val primaryText = currentTheme.headingColor
     val secondaryText = currentTheme.secondaryTextColor
@@ -3300,7 +3305,7 @@ fun VetMedicineInvoiceDialog(
     val appearance = LocalAppAppearanceState.current
     val curr = Translations.tr("currency", lang)
     val isDark = currentTheme.isDark
-    val dialogBg = currentTheme.dialogCardColor
+    val dialogBg = currentTheme.dialogCardColor.copy(alpha = 1f)
     val primaryText = currentTheme.headingColor
     val secondaryText = currentTheme.secondaryTextColor
     val accentEmerald = appearance.accentColor
@@ -5196,7 +5201,7 @@ fun SimpleTransactionDialog(
 
     val appearance = LocalAppAppearanceState.current
     val isDark = appearance.isDark
-    val dialogBg = appearance.theme.dialogCardColor
+    val dialogBg = appearance.theme.dialogCardColor.copy(alpha = 1f)
     val primaryText = appearance.theme.headingColor
     val secondaryText = appearance.theme.secondaryTextColor
     val accentEmerald = appearance.accentColor
@@ -7228,9 +7233,6 @@ fun AgritechVetNotebookScreen(
                 actions = {
                     IconButton(onClick = { showVetMedicineInvoiceDialog = true }) {
                         Icon(Icons.Default.ReceiptLong, contentDescription = Translations.tr("vet_invoice_btn", lang), tint = activeAccent)
-                    }
-                    IconButton(onClick = onOpenSettings) {
-                        Icon(Icons.Default.Settings, contentDescription = "Settings", tint = primaryTextColor)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = currentTheme.bgColor)

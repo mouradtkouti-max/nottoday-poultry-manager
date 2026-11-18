@@ -3062,10 +3062,8 @@ fun AgritechOwnerDashboard(
     }
 
     if (showGeneralChatSheet) {
-        ContextualChatBottomSheet(
-            title = Translations.tr("chat_general_admin_title", lang),
-            subtitle = Translations.tr("farms_title", lang),
-            channelId = "general_admin",
+        QuickAiVetBottomSheet(
+            selectedFarm = farms.firstOrNull { it.id == sessionState.activeFarmId } ?: farms.firstOrNull(),
             currentTheme = currentTheme,
             lang = lang,
             onDismiss = { showGeneralChatSheet = false }
@@ -3098,11 +3096,26 @@ fun AgritechOwnerDashboard(
         return
     }
 
+    val appearance = LocalAppAppearanceState.current
+    val isFrostedGlassMode = appearance.paperStyle == AppPaperStyleOption.FROSTED_GLASS
+    val topBarGlassContainerColor = if (isFrostedGlassMode) currentTheme.cardColor else currentTheme.bgColor
+
     Scaffold(
-        containerColor = currentTheme.bgColor,
+        modifier = Modifier
+            .fillMaxSize()
+            .darwinPaperBackground(currentTheme),
+        containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
-                modifier = Modifier.statusBarsPadding(),
+                modifier = Modifier
+                    .statusBarsPadding()
+                    .then(
+                        if (isFrostedGlassMode) {
+                            Modifier.darwinManuscriptBorder(cornerRadius = 0.dp, isDark = currentTheme.isDark)
+                        } else {
+                            Modifier
+                        }
+                    ),
                 title = {
                     Column {
                         Text(
@@ -3161,7 +3174,7 @@ fun AgritechOwnerDashboard(
                     ) {
                         Icon(
                             Icons.Default.Chat,
-                            contentDescription = Translations.tr("chat_general_admin_title", lang),
+                            contentDescription = Translations.tr("quick_ai_vet_sheet_title", lang),
                             tint = primaryTextColor
                         )
                     }
@@ -3169,7 +3182,7 @@ fun AgritechOwnerDashboard(
                         Icon(Icons.Default.Settings, contentDescription = "Settings", tint = primaryTextColor)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = currentTheme.bgColor)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = topBarGlassContainerColor)
             )
         },
         floatingActionButton = {
@@ -4827,9 +4840,6 @@ fun WorkerSmartNotebookScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = onOpenSettings) {
-                        Icon(Icons.Default.Settings, contentDescription = "Settings", tint = primaryTextColor)
-                    }
                     IconButton(onClick = onLogout) {
                         Icon(Icons.Default.Logout, contentDescription = "Logout", tint = primaryTextColor)
                     }
@@ -10725,9 +10735,13 @@ fun AgritechFarmNotebookScreen(
             }
 
             Scaffold(
-                containerColor = currentTheme.bgColor,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .darwinPaperBackground(currentTheme),
+                containerColor = Color.Transparent,
                 topBar = {
                     val isDarwinNight = currentTheme.isDark && appearance.paperStyle == AppPaperStyleOption.DARWIN_PARCHMENT
+                    val isFrostedGlassNotebook = appearance.paperStyle == AppPaperStyleOption.FROSTED_GLASS
                     val climatePillColor = when {
                         isClimateAlert -> if (currentTheme.isDark) Color(0xFFFCA5A5) else Color(0xFFDC2626)
                         isClimateWarning -> if (currentTheme.isDark) Color(0xFFFBBF24) else Color(0xFFD97706)
@@ -10735,7 +10749,7 @@ fun AgritechFarmNotebookScreen(
                         else -> appearance.accentColor
                     }
                     val climatePillBg = when {
-                        isDarwinNight -> currentTheme.cardColor
+                        isDarwinNight || isFrostedGlassNotebook -> currentTheme.cardColor
                         isClimateAlert -> if (currentTheme.isDark) Color(0xFF450A0A) else Color(0xFFFEF2F2)
                         isClimateWarning -> if (currentTheme.isDark) Color(0xFF451A03) else Color(0xFFFFFBEB)
                         !hasRecordedTemperature -> if (currentTheme.isDark) currentTheme.cardColor else Color(0xFFF1F5F9)
@@ -10744,10 +10758,17 @@ fun AgritechFarmNotebookScreen(
                     val headerPillShape = RoundedCornerShape((appearance.cornerRadiusDp - 6).coerceAtLeast(6).dp)
 
                     Surface(
-                        color = currentTheme.bgColor,
+                        color = if (isFrostedGlassNotebook) currentTheme.cardColor else currentTheme.bgColor,
                         modifier = Modifier
                             .fillMaxWidth()
                             .statusBarsPadding()
+                            .then(
+                                if (isFrostedGlassNotebook) {
+                                    Modifier.darwinManuscriptBorder(cornerRadius = 0.dp, isDark = currentTheme.isDark)
+                                } else {
+                                    Modifier
+                                }
+                            )
                     ) {
                         Column(
                             modifier = Modifier
@@ -10910,7 +10931,7 @@ fun AgritechFarmNotebookScreen(
                                         .clickable { showFeedLedgerBottomSheet = true },
                                     shape = headerPillShape,
                                     color = when {
-                                        isDarwinNight -> currentTheme.cardColor
+                                        isDarwinNight || isFrostedGlassNotebook -> currentTheme.cardColor
                                         isLowFeedInventory -> if (currentTheme.isDark) Color(0xFF450A0A) else Color(0xFFFFEBEE)
                                         else -> appearance.accentContainerColor
                                     },
@@ -11111,7 +11132,9 @@ fun AgritechFarmNotebookScreen(
                                 .darwinManuscriptBorder(cornerRadius = appearance.cornerRadiusDp.dp, isDark = currentTheme.isDark),
                             shape = notebookShape,
                             colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                            elevation = CardDefaults.cardElevation(
+                                defaultElevation = if (appearance.paperStyle == AppPaperStyleOption.FROSTED_GLASS) 0.dp else 2.dp
+                            )
                         ) {
                             Column(
                                 modifier = Modifier
@@ -11123,6 +11146,7 @@ fun AgritechFarmNotebookScreen(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .background(currentTheme.innerStatBoxColor, RoundedCornerShape(8.dp))
+                                        .darwinManuscriptBorder(cornerRadius = 8.dp, isDark = currentTheme.isDark)
                                         .padding(vertical = 11.dp, horizontal = 4.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {

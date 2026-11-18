@@ -205,7 +205,7 @@ object AiVetGeminiService {
         )
         val cleanQuestion = question.trim()
         if (cleanQuestion.isEmpty()) {
-            return@withContext "${fallbackNoticeFor(lang)}\n" + buildClinicalFallbackAdvice(
+            return@withContext buildClinicalFallbackAdvice(
                 question = "",
                 flockAgeDays = resolvedContext.cycleAgeDays,
                 liveBirds = resolvedContext.liveBirdsCount,
@@ -221,7 +221,7 @@ object AiVetGeminiService {
         val langInstruction = when (lang) {
             AppLanguage.AR -> "أجب باللغة العربية بأسلوب طبيب بيطري خبير في دجاج التسمين (Ross 308 / Cobb 500) في الجزائر والمغرب العربي، في نقاط مختصرة وعملية جداً (التشخيص المبدئي، الإجراء الفوري في العنبر، العلاج المقترح، وفترة السحب إن وجدت)."
             AppLanguage.FR -> "Répondez en français comme un vétérinaire avicole expert (Ross 308), en points courts et pratiques (Diagnostic probable, Action immédiate au bâtiment, Traitement recommandé, Délai d'attente)."
-            AppLanguage.ES -> "Responda en español como un veterinario avícola experto (Ross 308), en puntos breves y prácticos (Diagnóstico probable, Acción inmediata en el galpón, Tratamiento sugerido, Tiempo de retiro)."
+            AppLanguage.ES -> "Responda en español como un veterinario avícola experto (Ross 308), en puntos breves et prácticos (Diagnóstico probable, Acción inmediata en el galpón, Tratamiento sugerido, Tiempo de retiro)."
             AppLanguage.PT -> "Responda em português como um veterinário avícola especialista (Ross 308), em tópicos curtos e práticos (Diagnóstico provável, Ação imediata no galpão, Tratamento sugerido, Período de carência)."
             else -> "Respond in English as an expert broiler poultry veterinarian (Ross 308), using concise, actionable bullet points (Likely Diagnosis, Immediate Barn Action, Suggested Treatment, Withdrawal Period)."
         }
@@ -270,7 +270,7 @@ object AiVetGeminiService {
             // Safe fallback when offline, unauthenticated, or when Firebase AI Logic is unavailable
         }
 
-        "${fallbackNoticeFor(lang)}\n" + buildClinicalFallbackAdvice(
+        buildClinicalFallbackAdvice(
             question = cleanQuestion,
             flockAgeDays = resolvedContext.cycleAgeDays,
             liveBirds = resolvedContext.liveBirdsCount,

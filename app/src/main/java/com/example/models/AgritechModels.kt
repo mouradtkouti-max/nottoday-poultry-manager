@@ -50,9 +50,9 @@ enum class AppThemeOption(
     val baseHeadingColor: Color,
     val isDark: Boolean
 ) {
-    ICE_BLUE(Color(0xFFE8F4FD), Color.White, Color(0xFF1B5E20), false),
-    NATURE_GREEN(Color(0xFFE8F5E9), Color.White, Color(0xFF1B5E20), false),
-    CRISP_WHITE(Color(0xFFF8FAFC), Color.White, Color(0xFF1B5E20), false),
+    ICE_BLUE(Color(0xFFE8F4FD), Color.White, Color(0xFF1E293B), false),
+    NATURE_GREEN(Color(0xFFE8F5E9), Color.White, Color(0xFF1E293B), false),
+    CRISP_WHITE(Color(0xFFF8FAFC), Color.White, Color(0xFF1E293B), false),
     NIGHT_MODE(Color(0xFF0E121A), Color(0xFF161B26), Color(0xFFFFFFFF), true);
 
     val bgColor: Color
@@ -90,7 +90,7 @@ enum class AppThemeOption(
             AppPaperStyleOption.ENGINEERING_GRID ->
                 if (isDark) Color(0xFF17222D) else Color(0xFFFAFDFF)
             AppPaperStyleOption.FROSTED_GLASS ->
-                if (isDark) Color(0xFF1E293B).copy(alpha = 0.85f) else Color.White.copy(alpha = 0.88f)
+                if (isDark) Color(0xFF1E293B) else Color(0xFFFFFFFF)
             AppPaperStyleOption.DEFAULT_PURE -> baseCardColor
         }
 
@@ -139,20 +139,36 @@ enum class AppAccentColorOption(
     val darkContainerColor: Color,
     val labelKey: String = "theme_color_forest_green"
 ) {
+    CRYSTAL_WHITE_GLASS("#FFFFFF", Color(0xFF1E293B), Color(0xFFF8FAFC), Color(0xFFFFFFFF), Color(0xFF1E293B), "theme_color_crystal_white_glass"),
+    SMOKED_OBSIDIAN("#090D16", Color(0xFF090D16), Color(0xFF94A3B8), Color(0xFFE2E8F0), Color(0xFF090D16), "theme_color_smoked_obsidian"),
+    DARWIN_BRONZE("#784B1C", Color(0xFF784B1C), Color(0xFFD4AF37), Color(0xFFF3E5CE), Color(0xFF3A2616), "theme_color_darwin_bronze"),
+    OAK_WOOD("#5D3A1A", Color(0xFF5D3A1A), Color(0xFFD7CCC8), Color(0xFFEFEBE9), Color(0xFF3E2723), "theme_color_oak_wood"),
     FOREST_GREEN("#1B5E20", Color(0xFF1B5E20), Color(0xFF34D399), Color(0xFFE8F5E9), Color(0xFF064E3B), "theme_color_forest_green"),
+    DEEP_TEAL("#0F766E", Color(0xFF0F766E), Color(0xFF2DD4BF), Color(0xFFCCFBF1), Color(0xFF134E4A), "theme_color_deep_teal"),
+    AMBER_GOLD("#D97706", Color(0xFFD97706), Color(0xFFFBBF24), Color(0xFFFEF3C7), Color(0xFF78350F), "theme_color_amber_gold"),
+    ROSE("#E11D48", Color(0xFFE11D48), Color(0xFFFB7185), Color(0xFFFFE4E6), Color(0xFF881337), "theme_color_rose"),
     VIOLET("#7C3AED", Color(0xFF7C3AED), Color(0xFFA78BFA), Color(0xFFEDE9FE), Color(0xFF2E1065), "theme_color_violet"),
     OCEAN_BLUE("#2563EB", Color(0xFF2563EB), Color(0xFF60A5FA), Color(0xFFDBEAFE), Color(0xFF1E3A8A), "theme_color_ocean_blue"),
     MINT_EMERALD("#10B981", Color(0xFF10B981), Color(0xFF34D399), Color(0xFFD1FAE5), Color(0xFF064E3B), "theme_color_mint_emerald"),
-    AMBER_GOLD("#D97706", Color(0xFFD97706), Color(0xFFFBBF24), Color(0xFFFEF3C7), Color(0xFF78350F), "theme_color_amber_gold"),
-    ROSE("#E11D48", Color(0xFFE11D48), Color(0xFFFB7185), Color(0xFFFFE4E6), Color(0xFF881337), "theme_color_rose"),
-    CRYSTAL_WHITE_GLASS("#475569", Color(0xFF475569), Color(0xFF94A3B8), Color(0xFFF1F5F9), Color(0xFF1E293B), "theme_color_crystal_white_glass"),
-    SMOKED_OBSIDIAN("#1E293B", Color(0xFF1E293B), Color(0xFF94A3B8), Color(0xFFE2E8F0), Color(0xFF0F172A), "theme_color_smoked_obsidian"),
-    DARWIN_BRONZE("#6E4720", Color(0xFF6E4720), Color(0xFFD4AF37), Color(0xFFF3E5CE), Color(0xFF3A2616), "theme_color_darwin_bronze"),
-    OAK_WOOD("#6D4C41", Color(0xFF6D4C41), Color(0xFFD7CCC8), Color(0xFFEFEBE9), Color(0xFF3E2723), "theme_color_oak_wood"),
     SADDLE_LEATHER("#8B4513", Color(0xFF8B4513), Color(0xFFDEB887), Color(0xFFF5E6D3), Color(0xFF4A250A), "theme_color_saddle_leather"),
     TERRACOTTA_COPPER("#C2410C", Color(0xFFC2410C), Color(0xFFFB923C), Color(0xFFFFEDD5), Color(0xFF7C2D12), "theme_color_terracotta_copper"),
-    OLIVE_GROVE("#3F6212", Color(0xFF3F6212), Color(0xFFA3E635), Color(0xFFECFCCB), Color(0xFF1A2E05), "theme_color_olive_grove"),
-    DEEP_TEAL("#0F766E", Color(0xFF0F766E), Color(0xFF2DD4BF), Color(0xFFCCFBF1), Color(0xFF134E4A), "theme_color_deep_teal")
+    OLIVE_GROVE("#3F6212", Color(0xFF3F6212), Color(0xFFA3E635), Color(0xFFECFCCB), Color(0xFF1A2E05), "theme_color_olive_grove");
+
+    val swatchDisplayColor: Color
+        get() = if (this == CRYSTAL_WHITE_GLASS) Color(0xFFFFFFFF) else primaryColor
+
+    companion object {
+        val curatedEightColors: List<AppAccentColorOption> = listOf(
+            CRYSTAL_WHITE_GLASS,
+            SMOKED_OBSIDIAN,
+            DARWIN_BRONZE,
+            OAK_WOOD,
+            FOREST_GREEN,
+            DEEP_TEAL,
+            AMBER_GOLD,
+            ROSE
+        )
+    }
 }
 
 enum class AppTabBarMotionStyle(

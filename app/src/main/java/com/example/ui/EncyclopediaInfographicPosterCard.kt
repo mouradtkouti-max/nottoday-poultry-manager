@@ -417,6 +417,21 @@ private fun VintageBookPageInnerContent(
 
         // =========================================================================
         // 4. Three Vertical Stage Cards Row (1 | 2 | 3) with Nano Banana Art & Farmer Metrics
+        val tapHintText = Translations.tr("book_tap_for_source_hint", lang)
+        var selectedScientificModalItem by remember { mutableStateOf<BookScientificDetailModalSpec?>(null) }
+
+        selectedScientificModalItem?.let { modalSpec ->
+            BookScientificDetailModalDialog(
+                spec = modalSpec,
+                currentTheme = currentTheme,
+                accentColor = accentColor,
+                lang = lang,
+                onDismiss = { selectedScientificModalItem = null }
+            )
+        }
+
+        // =========================================================================
+        // 4. Three Vertical Stage Cards Row (1 | 2 | 3) with Nano Banana Art & Farmer Metrics
         // =========================================================================
         Row(
             modifier = Modifier
@@ -449,7 +464,20 @@ private fun VintageBookPageInnerContent(
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(top = 13.dp)
-                            .darwinManuscriptBorder(cornerRadius = 10.dp, isDark = isDark),
+                            .clip(RoundedCornerShape(10.dp))
+                            .clickable {
+                                selectedScientificModalItem = buildRomanStageScientificModalSpec(
+                                    detailCard = detailCard,
+                                    spec = spec,
+                                    stageIndex = idx,
+                                    romanNumeral = romanNumeral,
+                                    stageTitle = stage.headerTitle,
+                                    stageMetric = stage.bottomSummary,
+                                    lang = lang
+                                )
+                            }
+                            .darwinManuscriptBorder(cornerRadius = 10.dp, isDark = isDark)
+                            .testTag("book_roman_stage_card_$romanNumeral"),
                         shape = RoundedCornerShape(10.dp),
                         color = stageCardBg,
                         border = BorderStroke(1.3.dp, stageOuterBorder),
@@ -464,7 +492,7 @@ private fun VintageBookPageInnerContent(
                                     start = 5.dp,
                                     end = 5.dp,
                                     top = 14.dp,
-                                    bottom = 8.dp
+                                    bottom = 6.dp
                                 ),
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.SpaceBetween
@@ -498,6 +526,24 @@ private fun VintageBookPageInnerContent(
                                     lineHeight = 13.5.sp,
                                     maxLines = 3,
                                     overflow = TextOverflow.Ellipsis
+                                )
+                            }
+
+                            Surface(
+                                shape = RoundedCornerShape(50),
+                                color = stageOuterBorder.copy(alpha = 0.12f),
+                                border = BorderStroke(0.6.dp, stageOuterBorder.copy(alpha = 0.35f)),
+                                modifier = Modifier.padding(top = 3.dp)
+                            ) {
+                                Text(
+                                    text = tapHintText,
+                                    fontSize = 7.8.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = stageTextColor.copy(alpha = 0.88f),
+                                    textAlign = TextAlign.Center,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
                                 )
                             }
                         }
@@ -570,6 +616,17 @@ private fun VintageBookPageInnerContent(
                     headerTitle = Translations.tr("book_card_success_do_this", lang),
                     bodyText = successBodyText,
                     textLayoutDirection = pageLayoutDirection,
+                    tapHintText = tapHintText,
+                    onClick = {
+                        selectedScientificModalItem = buildComparisonScientificModalSpec(
+                            detailCard = detailCard,
+                            spec = spec,
+                            isSuccess = true,
+                            headerTitle = Translations.tr("book_card_success_do_this", lang),
+                            bodyText = successBodyText,
+                            lang = lang
+                        )
+                    },
                     modifier = Modifier.weight(1f)
                 )
 
@@ -578,6 +635,17 @@ private fun VintageBookPageInnerContent(
                     headerTitle = Translations.tr("book_card_avoid_dont", lang),
                     bodyText = mistakeBodyText,
                     textLayoutDirection = pageLayoutDirection,
+                    tapHintText = tapHintText,
+                    onClick = {
+                        selectedScientificModalItem = buildComparisonScientificModalSpec(
+                            detailCard = detailCard,
+                            spec = spec,
+                            isSuccess = false,
+                            headerTitle = Translations.tr("book_card_avoid_dont", lang),
+                            bodyText = mistakeBodyText,
+                            lang = lang
+                        )
+                    },
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -591,6 +659,284 @@ private fun VintageBookPageInnerContent(
             totalPages = totalPages,
             lang = lang
         )
+    }
+}
+
+private data class BookScientificDetailModalSpec(
+    val romanOrBadgeLabel: String,
+    val itemTitle: String,
+    val benchmarkValue: String,
+    val practicalExplanationPoints: List<String>,
+    val barnApplicationSummary: String
+)
+
+private fun buildRomanStageScientificModalSpec(
+    detailCard: BookSubCardModel,
+    spec: EncyclopediaPosterSpec,
+    stageIndex: Int,
+    romanNumeral: String,
+    stageTitle: String,
+    stageMetric: String,
+    lang: AppLanguage
+): BookScientificDetailModalSpec {
+    val badgePrefix = when (lang) {
+        AppLanguage.AR -> "البند $romanNumeral"
+        AppLanguage.FR -> "Point $romanNumeral"
+        else -> "Stage $romanNumeral"
+    }
+    val rulePoint = detailCard.scientificRulePoints.getOrNull(stageIndex)
+        ?: detailCard.scientificRulePoints.firstOrNull().orEmpty()
+    val practicalStep = detailCard.practicalStepsWithCheck.getOrNull(stageIndex)
+        ?: detailCard.practicalStepsWithCheck.firstOrNull().orEmpty()
+    val extraStep = detailCard.practicalStepsWithCheck.getOrNull((stageIndex + 1) % detailCard.practicalStepsWithCheck.size.coerceAtLeast(1)).orEmpty()
+
+    val expandedPoints = buildList {
+        if (rulePoint.isNotBlank()) add("🔬 الأساس العلمي والفيزيولوجي: $rulePoint")
+        if (practicalStep.isNotBlank()) add("🛠️ التطبيق العملي داخل العنبر (باللتر والحرارة والتوقيت): $practicalStep")
+        if (extraStep.isNotBlank() && extraStep != practicalStep) add("📐 خطوة الضبط الميداني المكملة: $extraStep")
+        if (spec.isMedicalSixSectionLayout) {
+            spec.sec5DiagnosisPoints.getOrNull(stageIndex)?.let { add("🩺 التشخيص والمؤشر الحيوي: $it") }
+            spec.sec3TreatmentSteps.getOrNull(stageIndex)?.let { add("💊 البروتوكول العلاجي والوقائي: $it") }
+        }
+        if (detailCard.liveBarnComparisonText.isNotBlank()) {
+            add("📈 الأثر المباشر على الحيوية ومعامل التحويل (FCR): ${detailCard.liveBarnComparisonText}")
+        }
+    }.ifEmpty {
+        listOf(
+            "🔬 يضمن تطبيق هذا المعيار استقرار حرارة وحيوية القطيع ومنع الإجهاد الحراري أو التنفسي.",
+            "📈 يحافظ على كفاءة التحويل الغذائي (FCR) وتجانس أوزان القطيع وفق منحنى Ross 308 القياسي."
+        )
+    }
+
+    return BookScientificDetailModalSpec(
+        romanOrBadgeLabel = badgePrefix,
+        itemTitle = stageTitle.ifBlank { detailCard.title },
+        benchmarkValue = stageMetric.ifBlank { detailCard.badge1 },
+        practicalExplanationPoints = expandedPoints,
+        barnApplicationSummary = detailCard.title
+    )
+}
+
+private fun buildComparisonScientificModalSpec(
+    detailCard: BookSubCardModel,
+    spec: EncyclopediaPosterSpec,
+    isSuccess: Boolean,
+    headerTitle: String,
+    bodyText: String,
+    lang: AppLanguage
+): BookScientificDetailModalSpec {
+    val pair = spec.comparisonPair
+    val points = buildList {
+        if (bodyText.isNotBlank()) {
+            add(if (isSuccess) "✅ الإجراء الصحيح المعتمد: $bodyText" else "❌ الخطأ الحرج الواجب تجنبه: $bodyText")
+        }
+        if (isSuccess) {
+            pair?.goodPoints?.forEach { pt ->
+                if (pt.isNotBlank() && pt != bodyText) add("✔️ $pt")
+            }
+            detailCard.practicalStepsWithCheck.forEach { step ->
+                if (step.isNotBlank()) add("🛠️ خطوة التطبيق في العنبر: $step")
+            }
+        } else {
+            pair?.badPoints?.forEach { pt ->
+                if (pt.isNotBlank() && pt != bodyText) add("⚠️ $pt")
+            }
+            detailCard.scientificRulePoints.forEach { rule ->
+                if (rule.isNotBlank()) add("🔬 التفسير العلمي والوقائي: $rule")
+            }
+        }
+        if (detailCard.liveBarnComparisonText.isNotBlank()) {
+            add("📈 الأثر المباشر على الحيوية ومعامل التحويل (FCR): ${detailCard.liveBarnComparisonText}")
+        }
+    }
+
+    return BookScientificDetailModalSpec(
+        romanOrBadgeLabel = if (isSuccess) "✅" else "❌",
+        itemTitle = headerTitle,
+        benchmarkValue = bodyText,
+        practicalExplanationPoints = points,
+        barnApplicationSummary = detailCard.title
+    )
+}
+
+@Composable
+private fun BookScientificDetailModalDialog(
+    spec: BookScientificDetailModalSpec,
+    currentTheme: AppThemeOption,
+    accentColor: Color,
+    lang: AppLanguage,
+    onDismiss: () -> Unit
+) {
+    val isDark = currentTheme.isDark
+    val isDarwin = AppPaperStyleRuntime.activePaperStyle == AppPaperStyleOption.DARWIN_PARCHMENT
+    val modalBg = if (isDarwin && !isDark) Color(0xFFFAF3E4) else currentTheme.dialogCardColor
+    val innerBoxBg = if (isDarwin && !isDark) Color(0xFFF2E5C9) else currentTheme.innerStatBoxColor
+    val primaryInk = if (isDarwin && !isDark) Color(0xFF26160C) else currentTheme.headingColor
+    val secondaryInk = if (isDarwin && !isDark) Color(0xFF5C4028) else currentTheme.secondaryTextColor
+    val borderAccent = if (isDarwin && !isDark) Color(0xFF6E4720) else accentColor
+    val layoutDir = if (lang.isRtl) LayoutDirection.Rtl else LayoutDirection.Ltr
+
+    Dialog(onDismissRequest = onDismiss) {
+        CompositionLocalProvider(LocalLayoutDirection provides layoutDir) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .darwinManuscriptBorder(cornerRadius = 18.dp, isDark = isDark)
+                    .testTag("book_scientific_detail_modal"),
+                shape = RoundedCornerShape(18.dp),
+                color = modalBg,
+                border = BorderStroke(1.5.dp, borderAccent.copy(alpha = 0.65f)),
+                shadowElevation = 10.dp
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState())
+                        .padding(18.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    // Header: 📜 التفصيل العلمي التطبيقي والمصدر المرجعي
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = Color(0xFF6E4720),
+                            border = BorderStroke(1.5.dp, Color(0xFFD4AF37)),
+                            modifier = Modifier.size(38.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Text(
+                                    text = spec.romanOrBadgeLabel,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = Color(0xFFFAF3E4),
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        }
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = Translations.tr("book_scientific_modal_title", lang),
+                                fontSize = 13.5.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = primaryInk,
+                                lineHeight = 18.sp
+                            )
+                            Text(
+                                text = spec.barnApplicationSummary,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = secondaryInk,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+
+                    // 1) Full Item Title & Standard Benchmark Value
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = innerBoxBg,
+                        border = BorderStroke(1.dp, borderAccent.copy(alpha = 0.40f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                text = "${spec.romanOrBadgeLabel} — ${spec.itemTitle}",
+                                fontSize = 14.5.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = primaryInk,
+                                lineHeight = 20.sp
+                            )
+                            if (spec.benchmarkValue.isNotBlank() && spec.benchmarkValue != spec.itemTitle) {
+                                Text(
+                                    text = "🎯 القيمة والمعيار القياسي المعتمد: ${spec.benchmarkValue}",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = borderAccent,
+                                    lineHeight = 19.sp
+                                )
+                            }
+                        }
+                    }
+
+                    // 2) Expanded Practical Barn Explanation for the Farmer
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        spec.practicalExplanationPoints.forEach { point ->
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = modalBg,
+                                border = BorderStroke(0.8.dp, borderAccent.copy(alpha = 0.28f)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    text = point,
+                                    fontSize = 12.5.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = primaryInk,
+                                    lineHeight = 19.sp,
+                                    modifier = Modifier.padding(10.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    // 3) Documented Scientific Source Card (📚 المصدر المرجعي المعتمد)
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = innerBoxBg,
+                        border = BorderStroke(1.2.dp, Color(0xFFD4AF37).copy(alpha = 0.65f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(
+                                text = Translations.tr("book_scientific_source_title", lang),
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = borderAccent
+                            )
+                            Text(
+                                text = Translations.tr("book_scientific_source_body", lang),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = secondaryInk,
+                                lineHeight = 16.5.sp
+                            )
+                        }
+                    }
+
+                    // 4) Sleek Close Button (إغلاق ✓)
+                    Button(
+                        onClick = onDismiss,
+                        colors = ButtonDefaults.buttonColors(containerColor = borderAccent),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(46.dp)
+                            .testTag("btn_close_scientific_modal")
+                    ) {
+                        Text(
+                            text = "${Translations.tr("btn_close", lang)} ✓",
+                            fontSize = 13.5.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = Color.White
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 

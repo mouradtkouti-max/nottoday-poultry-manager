@@ -2789,8 +2789,9 @@ fun PremiumSettingsModal(
                                         horizontalArrangement = Arrangement.spacedBy(10.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        AppAccentColorOption.values().forEach { swatch ->
+                                        AppAccentColorOption.curatedEightColors.forEach { swatch ->
                                             val isSelected = draftAccent == swatch
+                                            val isWhiteGlass = swatch == AppAccentColorOption.CRYSTAL_WHITE_GLASS
                                             val animatedScale by animateFloatAsState(
                                                 targetValue = if (isSelected) 1.15f else 1.0f,
                                                 animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
@@ -2801,10 +2802,15 @@ fun PremiumSettingsModal(
                                                     .size(42.dp)
                                                     .scale(animatedScale)
                                                     .clip(CircleShape)
-                                                    .background(swatch.primaryColor)
+                                                    .background(swatch.swatchDisplayColor)
                                                     .border(
-                                                        width = if (isSelected) 3.dp else 1.dp,
-                                                        color = if (isSelected) textPrimary else Color.White.copy(alpha = 0.4f),
+                                                        width = if (isSelected) 3.dp else 1.4.dp,
+                                                        color = when {
+                                                            isSelected && isWhiteGlass -> Color(0xFF1E293B)
+                                                            isSelected -> textPrimary
+                                                            isWhiteGlass -> Color(0xFFCBD5E1)
+                                                            else -> Color.White.copy(alpha = 0.45f)
+                                                        },
                                                         shape = CircleShape
                                                     )
                                                     .clickable {
@@ -2824,7 +2830,7 @@ fun PremiumSettingsModal(
                                                 if (isSelected) {
                                                     Text(
                                                         text = "✓",
-                                                        color = Color.White,
+                                                        color = if (isWhiteGlass) Color(0xFF1E293B) else Color.White,
                                                         fontWeight = FontWeight.ExtraBold,
                                                         fontSize = 16.sp
                                                     )

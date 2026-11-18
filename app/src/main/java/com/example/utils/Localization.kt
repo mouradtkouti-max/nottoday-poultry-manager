@@ -2442,11 +2442,11 @@ object Translations {
             "hi" to "💎 स्वच्छ डिफ़ॉल्ट पृष्ठभूमि"
         ),
         "theme_color_forest_green" to mapOf(
-            "ar" to "🌲 أخضر الغابة الزراعي",
-            "fr" to "🌲 Vert forêt agricole",
-            "en" to "🌲 Forest Green",
-            "es" to "🌲 Verde bosque",
-            "pt" to "🌲 Verde floresta",
+            "ar" to "🌲 الأخضر الزراعي الزمردي",
+            "fr" to "🌲 Vert forêt émeraude",
+            "en" to "🌲 Emerald Forest Green",
+            "es" to "🌲 Verde esmeralda agrícola",
+            "pt" to "🌲 Verde esmeralda agrícola",
             "hi" to "🌲 फ़ॉरेस्ट ग्रीन"
         ),
         "theme_color_violet" to mapOf(
@@ -2474,35 +2474,35 @@ object Translations {
             "hi" to "🌿 मिंट एमराल्ड"
         ),
         "theme_color_amber_gold" to mapOf(
-            "ar" to "🌟 العنبر الذهبي",
-            "fr" to "🌟 Or ambré",
-            "en" to "🌟 Amber Gold",
-            "es" to "🌟 Oro ámbar",
-            "pt" to "🌟 Ouro âmbar",
-            "hi" to "🌟 एम्बर गोल्ड"
+            "ar" to "🟠 العنبري الذهبي الدافئ",
+            "fr" to "🟠 Or ambré chaud",
+            "en" to "🟠 Warm Amber Gold",
+            "es" to "🟠 Oro ámbar cálido",
+            "pt" to "🟠 Ouro âmbar quente",
+            "hi" to "🟠 एम्बर गोल्ड"
         ),
         "theme_color_rose" to mapOf(
-            "ar" to "🌹 الوردي الياقوتي",
-            "fr" to "🌹 Rose rubis",
-            "en" to "🌹 Ruby Rose",
-            "es" to "🌹 Rosa rubí",
-            "pt" to "🌹 Rosa rubi",
+            "ar" to "🌹 القرمزي الملكي",
+            "fr" to "🌹 Cramoisi royal",
+            "en" to "🌹 Royal Crimson Rose",
+            "es" to "🌹 Carmesí real",
+            "pt" to "🌹 Carmesim real",
             "hi" to "🌹 रूबी रोज़"
         ),
         "theme_color_crystal_white_glass" to mapOf(
-            "ar" to "🤍 أبيض كريستالي شفاف",
-            "fr" to "🤍 Verre blanc cristal",
-            "en" to "🤍 Crystal White Glass",
-            "es" to "🤍 Cristal blanco puro",
-            "pt" to "🤍 Cristal branco transparente",
+            "ar" to "🤍 الأبيض النقي الشفاف",
+            "fr" to "🤍 Blanc pur transparent",
+            "en" to "🤍 Pure Crystal White",
+            "es" to "🤍 Blanco puro transparente",
+            "pt" to "🤍 Branco puro transparente",
             "hi" to "🤍 क्रिस्टल व्हाइट ग्लास"
         ),
         "theme_color_smoked_obsidian" to mapOf(
-            "ar" to "🖤 زجاج دخاني ملكي",
-            "fr" to "🖤 Obsidienne fumée royale",
-            "en" to "🖤 Smoked Royal Obsidian",
-            "es" to "🖤 Obsidiana ahumada real",
-            "pt" to "🖤 Obsidiana fumê real",
+            "ar" to "🖤 الأسود الملكي الداكن",
+            "fr" to "🖤 Noir royal profond",
+            "en" to "🖤 Deep Royal Black",
+            "es" to "🖤 Negro real profundo",
+            "pt" to "🖤 Preto real profundo",
             "hi" to "🖤 स्मोक्ड रॉयल ओब्सीडियन"
         ),
         "theme_color_darwin_bronze" to mapOf(
@@ -2514,11 +2514,11 @@ object Translations {
             "hi" to "👑 डार्विन पांडुलिपि कांस्य"
         ),
         "theme_color_oak_wood" to mapOf(
-            "ar" to "🪵 بني خشب البلوط",
-            "fr" to "🪵 Bois de chêne",
-            "en" to "🪵 Oak Wood Brown",
-            "es" to "🪵 Marrón madera de roble",
-            "pt" to "🪵 Castanho madeira de carvalho",
+            "ar" to "🪵 البني الخشبي والجلدي",
+            "fr" to "🪵 Brun bois et cuir",
+            "en" to "🪵 Oak Wood & Leather Brown",
+            "es" to "🪵 Marrón madera y cuero",
+            "pt" to "🪵 Castanho madeira e couro",
             "hi" to "🪵 ओक की लकड़ी भूरा"
         ),
         "theme_color_saddle_leather" to mapOf(
@@ -2546,12 +2546,54 @@ object Translations {
             "hi" to "🫒 ऑलिव ग्रोव"
         ),
         "theme_color_deep_teal" to mapOf(
-            "ar" to "🌊 التركواز العميق",
-            "fr" to "🌊 Sarcelle profond",
-            "en" to "🌊 Deep Teal",
-            "es" to "🌊 Turquesa profundo",
-            "pt" to "🌊 Turquesa profundo",
+            "ar" to "🌊 الأزرق التركوازي الملكي",
+            "fr" to "🌊 Bleu turquoise royal",
+            "en" to "🌊 Royal Deep Teal",
+            "es" to "🌊 Turquesa real profundo",
+            "pt" to "🌊 Turquesa real profundo",
             "hi" to "🌊 गहरा टील"
+        ),
+        "book_scientific_modal_title" to mapOf(
+            "ar" to "📜 التفصيل العلمي التطبيقي والمصدر المرجعي",
+            "fr" to "📜 Détail scientifique pratique et source de référence",
+            "en" to "📜 Practical Scientific Detail & Reference Source",
+            "es" to "📜 Detalle científico práctico y fuente de referencia",
+            "pt" to "📜 Detalhe científico prático e fonte de referência"
+        ),
+        "book_tap_for_source_hint" to mapOf(
+            "ar" to "🔍 اضغط للتفصيل والمصدر",
+            "fr" to "🔍 Appuyer pour détail & source",
+            "en" to "🔍 Tap for detail & source",
+            "es" to "🔍 Toca para detalle y fuente",
+            "pt" to "🔍 Toque para detalhe e fonte"
+        ),
+        "book_scientific_source_title" to mapOf(
+            "ar" to "📚 المصدر المرجعي المعتمد",
+            "fr" to "📚 Source de référence certifiée",
+            "en" to "📚 Certified Reference Source",
+            "es" to "📚 Fuente de referencia certificada",
+            "pt" to "📚 Fonte de referência certificada"
+        ),
+        "book_scientific_source_body" to mapOf(
+            "ar" to "الدليل المرجعي العالمي لإدارة دجاج التسمين — Aviagen Ross 308 Broiler Management Handbook & Biosecurity Standards (البروتوكول البيطري المعتمد لرعاية القطيع)",
+            "fr" to "Guide mondial de gestion du poulet de chair — Aviagen Ross 308 Broiler Management Handbook & Biosecurity Standards (Protocole vétérinaire certifié)",
+            "en" to "Global Broiler Management Reference — Aviagen Ross 308 Broiler Management Handbook & Biosecurity Standards (Certified Veterinary Flock Protocol)",
+            "es" to "Guía mundial de manejo de pollos de engorde — Aviagen Ross 308 Broiler Management Handbook & Biosecurity Standards (Protocolo veterinario certificado)",
+            "pt" to "Guia mundial de manejo de frangos de corte — Aviagen Ross 308 Broiler Management Handbook & Biosecurity Standards (Protocolo veterinário certificado)"
+        ),
+        "quick_ai_vet_sheet_title" to mapOf(
+            "ar" to "🤖 المساعد البيطري الذكي السريع (IQ AI)",
+            "fr" to "🤖 Assistant Vétérinaire IA Rapide (IQ AI)",
+            "en" to "🤖 Quick AI Veterinary Assistant (IQ AI)",
+            "es" to "🤖 Asistente Veterinario IA Rápido (IQ AI)",
+            "pt" to "🤖 Assistente Veterinário IA Rápido (IQ AI)"
+        ),
+        "quick_ai_vet_sheet_subtitle" to mapOf(
+            "ar" to "استشارة بيطرية فورية بالريشة الذكية لبيانات العنبر الحية",
+            "fr" to "Consultation vétérinaire instantanée avec les données du bâtiment",
+            "en" to "Instant veterinary consultation powered by live barn telemetry",
+            "es" to "Consulta veterinaria instantánea con datos del galpón en vivo",
+            "pt" to "Consulta veterinária instantânea com dados do aviário ao vivo"
         ),
         "appearance_tab_motion_label" to mapOf(
             "ar" to "✨ حركة شريط التبويبات والبوابات (TAB BAR MOTION)",

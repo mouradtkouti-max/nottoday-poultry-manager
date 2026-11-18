@@ -6,6 +6,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -1298,6 +1299,8 @@ fun SuccessMistakeFarmerCard(
     headerTitle: String,
     bodyText: String,
     textLayoutDirection: LayoutDirection,
+    tapHintText: String = "",
+    onClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     // Darwin Parchment Manuscript Comparison Cards:
@@ -1314,6 +1317,10 @@ fun SuccessMistakeFarmerCard(
             modifier = modifier
                 .fillMaxWidth()
                 .fillMaxHeight()
+                .clip(RoundedCornerShape(12.dp))
+                .then(
+                    if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier
+                )
                 .testTag(if (isSuccess) "book_card_success_farmer" else "book_card_mistake_farmer"),
             shape = RoundedCornerShape(12.dp),
             color = parchmentBg,
@@ -1326,7 +1333,8 @@ fun SuccessMistakeFarmerCard(
                     .padding(3.dp)
                     .border(0.7.dp, innerInkBorder, RoundedCornerShape(9.dp))
                     .clip(RoundedCornerShape(9.dp)),
-                horizontalAlignment = Alignment.CenterHorizontally
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.SpaceBetween
             ) {
                 Box(
                     modifier = Modifier
@@ -1350,21 +1358,21 @@ fun SuccessMistakeFarmerCard(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 8.dp, vertical = 10.dp),
+                        .padding(horizontal = 8.dp, vertical = 8.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Surface(
                         shape = CircleShape,
                         color = Color(0xFFF4EBD6),
                         border = BorderStroke(1.4.dp, outerInkBorder),
                         shadowElevation = 1.dp,
-                        modifier = Modifier.size(34.dp)
+                        modifier = Modifier.size(32.dp)
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Text(
                                 text = badgeSymbol,
-                                fontSize = 15.sp,
+                                fontSize = 14.sp,
                                 fontWeight = FontWeight.ExtraBold,
                                 color = outerInkBorder
                             )
@@ -1382,6 +1390,23 @@ fun SuccessMistakeFarmerCard(
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.fillMaxWidth()
                     )
+
+                    if (tapHintText.isNotBlank()) {
+                        Surface(
+                            shape = RoundedCornerShape(50),
+                            color = outerInkBorder.copy(alpha = 0.10f),
+                            border = BorderStroke(0.7.dp, outerInkBorder.copy(alpha = 0.35f))
+                        ) {
+                            Text(
+                                text = tapHintText,
+                                fontSize = 8.5.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = outerInkBorder,
+                                maxLines = 1,
+                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
                 }
             }
         }

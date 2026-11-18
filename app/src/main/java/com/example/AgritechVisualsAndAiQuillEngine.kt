@@ -34,6 +34,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -59,10 +60,13 @@ import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -618,7 +622,7 @@ fun AgritechAnimatedBottomBar(
         AppPaperStyleOption.ENGINEERING_GRID ->
             if (currentTheme.isDark) Color(0xFF17222D) else Color(0xFFF4F9FD)
         AppPaperStyleOption.FROSTED_GLASS ->
-            if (currentTheme.isDark) Color(0xFF1E293B).copy(alpha = 0.76f) else Color.White.copy(alpha = 0.74f)
+            currentTheme.cardColor
         AppPaperStyleOption.DEFAULT_PURE ->
             if (currentTheme.isDark) Color(0xFF161B26) else Color.White
     }
@@ -631,7 +635,7 @@ fun AgritechAnimatedBottomBar(
         AppPaperStyleOption.ENGINEERING_GRID ->
             Color(0xFF0284C7).copy(alpha = 0.28f)
         AppPaperStyleOption.FROSTED_GLASS ->
-            activeAccent.copy(alpha = 0.36f)
+            if (currentTheme.isDark) Color.White.copy(alpha = 0.38f) else Color.White.copy(alpha = 0.88f)
         AppPaperStyleOption.DEFAULT_PURE ->
             activeAccent.copy(alpha = 0.16f)
     }
@@ -675,7 +679,7 @@ fun AgritechAnimatedBottomBar(
                         color = topBorderColor,
                         start = Offset(0f, 0f),
                         end = Offset(size.width, 0f),
-                        strokeWidth = 1.dp.toPx()
+                        strokeWidth = if (paperStyle == AppPaperStyleOption.FROSTED_GLASS) 1.4.dp.toPx() else 1.dp.toPx()
                     )
 
                     if (items.isNotEmpty()) {
@@ -2106,10 +2110,11 @@ fun AgritechAiVetInteractiveChatSection(
                                 color = activeAccent
                             )
                         }
+                        val aiAnswerInkColor = if (currentTheme.isDark) Color(0xFFF8FAFC) else Color(0xFF111827)
                         Text(
                             text = cleanAnswer,
                             fontSize = 13.5.sp,
-                            color = currentTheme.headingColor,
+                            color = aiAnswerInkColor,
                             lineHeight = 22.sp,
                             fontWeight = FontWeight.Normal,
                             modifier = Modifier.fillMaxWidth()
@@ -2189,11 +2194,12 @@ fun AgritechAiVetInteractiveChatSection(
                             }
 
                             if (activeStreamingAnswer.isNotBlank()) {
+                                val aiAnswerInkColor = if (currentTheme.isDark) Color(0xFFF8FAFC) else Color(0xFF111827)
                                 Text(
                                     text = activeStreamingAnswer,
                                     fontSize = 13.5.sp,
                                     lineHeight = 22.sp,
-                                    color = currentTheme.headingColor,
+                                    color = aiAnswerInkColor,
                                     fontWeight = FontWeight.Normal,
                                     modifier = Modifier.fillMaxWidth()
                                 )
@@ -2300,3 +2306,101 @@ fun AgritechAiVetInteractiveChatSection(
         }
     }
 }
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun QuickAiVetBottomSheet(
+    selectedFarm: FarmModel?,
+    currentTheme: AppThemeOption,
+    lang: AppLanguage,
+    onDismiss: () -> Unit
+) {
+    val appearance = LocalAppAppearanceState.current
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val sheetCorner = appearance.cornerRadiusDp.dp
+    val isDark = currentTheme.isDark
+    val activeAccent = appearance.accentColor
+    val primaryText = if (isDark) Color(0xFFF8FAFC) else Color(0xFF111827)
+    val secondaryText = currentTheme.secondaryTextColor
+    var quickSheetDiagnosisHistory by remember {
+        mutableStateOf<List<Pair<String, String>>>(emptyList())
+    }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = currentTheme.dialogCardColor,
+        shape = RoundedCornerShape(topStart = sheetCorner, topEnd = sheetCorner),
+        modifier = Modifier.testTag("quick_ai_vet_bottom_sheet")
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .fillMaxHeight(0.86f)
+                .darwinPaperBackground(currentTheme)
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .imePadding(),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            // Top Header: 🤖 المساعد البيطري الذكي السريع (IQ AI)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Tactile3DIconBadge(
+                        emoji = "🤖",
+                        tint = activeAccent,
+                        boxSize = 40.dp,
+                        cornerRadius = 12.dp,
+                        isDark = isDark
+                    )
+                    Column {
+                        Text(
+                            text = Translations.tr("quick_ai_vet_sheet_title", lang),
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 15.5.sp,
+                            color = primaryText
+                        )
+                        Text(
+                            text = Translations.tr("quick_ai_vet_sheet_subtitle", lang),
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = secondaryText
+                        )
+                    }
+                }
+                IconButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.testTag("btn_close_quick_ai_vet_sheet")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = Translations.tr("btn_close", lang),
+                        tint = primaryText
+                    )
+                }
+            }
+
+            HorizontalDivider(color = activeAccent.copy(alpha = 0.22f))
+
+            AgritechAiVetInteractiveChatSection(
+                selectedFarm = selectedFarm,
+                currentTheme = currentTheme,
+                lang = lang,
+                diagnosisHistory = quickSheetDiagnosisHistory,
+                onUpdateDiagnosisHistory = { quickSheetDiagnosisHistory = it },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+            )
+        }
+    }
+}
+
+
