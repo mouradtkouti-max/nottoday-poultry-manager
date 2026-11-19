@@ -5534,8 +5534,8 @@ fun FeedOrdersLedgerBottomSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = sheetBg,
-        scrimColor = Color.Black.copy(alpha = 0.65f),
+        containerColor = sheetBg.copy(alpha = 1f),
+        scrimColor = Color.Black.copy(alpha = 0.70f),
         shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
         modifier = Modifier.testTag("feed_orders_ledger_bottom_sheet")
     ) {
@@ -6294,8 +6294,8 @@ fun DigitalTransactionReceiptBottomSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = sheetBg,
-        scrimColor = Color.Black.copy(alpha = 0.65f),
+        containerColor = sheetBg.copy(alpha = 1f),
+        scrimColor = Color.Black.copy(alpha = 0.70f),
         shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
         modifier = Modifier.testTag("digital_receipt_ticket_sheet")
     ) {
@@ -7928,7 +7928,7 @@ fun DayMedicalDetailsBottomSheet(
 ) {
     val appearance = LocalAppAppearanceState.current
     val isDark = currentTheme.isDark
-    val dialogBg = currentTheme.dialogCardColor
+    val dialogBg = currentTheme.dialogCardColor.copy(alpha = 1f)
     val subtleBg = currentTheme.innerStatBoxColor
     val primaryText = currentTheme.headingColor
     val secondaryText = currentTheme.secondaryTextColor

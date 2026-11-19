@@ -2671,7 +2671,7 @@ fun PremiumSettingsModal(
                                                 AppPaperStyleOption.DARWIN_PARCHMENT -> if (isDark) Color(0xFF2A2018) else Color(0xFFF4EBD6)
                                                 AppPaperStyleOption.RULED_NOTEBOOK -> if (isDark) Color(0xFF24211B) else Color(0xFFFFFDF4)
                                                 AppPaperStyleOption.ENGINEERING_GRID -> if (isDark) Color(0xFF17222D) else Color(0xFFF4F9FD)
-                                                AppPaperStyleOption.FROSTED_GLASS -> if (isDark) Color(0xFF1E293B).copy(alpha = 0.72f) else Color(0xFFE0F2FE)
+                                                AppPaperStyleOption.FROSTED_GLASS -> if (isDark) Color(0xFF1C222D).copy(alpha = 0.78f) else Color(0xFFF6F3EC)
                                                 AppPaperStyleOption.DEFAULT_PURE -> if (isDark) Color(0xFF1E293B) else Color(0xFFF8FAFC)
                                             }
                                             Surface(
@@ -4833,8 +4833,8 @@ fun BarnClimateAndStatsDialog(
 ) {
     val appearance = LocalAppAppearanceState.current
     val isDark = appearance.isDark
-    val dialogBg = if (isDark) Color(0xFF0F172A) else Color(0xFFF8FAFC)
-    val headerCardBg = if (isDark) Color(0xFF1E293B) else Color.White
+    val dialogBg = if (isDark) Color(0xFF1E293B) else Color(0xFFF8FAFC)
+    val headerCardBg = if (isDark) Color(0xFF0F172A) else Color.White
     val borderCol = if (isDark) Color(0xFF334155) else Color(0xFFE2E8F0)
     val textPrimary = if (isDark) Color.White else currentTheme.headingColor
     val textSecondary = if (isDark) Color(0xFFCBD5E1) else Color(0xFF64748B)

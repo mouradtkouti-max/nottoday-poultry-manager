@@ -18,7 +18,7 @@ enum class AppPaperStyleOption(
     DARWIN_PARCHMENT("darwin_parchment", "📜", "Darwin Parchment"),
     RULED_NOTEBOOK("ruled_notebook", "📓", "Ruled Notebook"),
     ENGINEERING_GRID("engineering_grid", "📐", "Engineering Grid"),
-    FROSTED_GLASS("frosted_glass", "🧊", "Frosted Glass"),
+    FROSTED_GLASS("frosted_glass", "📄", "Translucent Paper"),
     DEFAULT_PURE("default_pure", "💎", "Default Pure");
 
     companion object {
@@ -31,7 +31,7 @@ enum class AppPaperStyleOption(
                 "DARWIN_PARCHMENT", "darwin_parchment" -> DARWIN_PARCHMENT
                 "RULED_NOTEBOOK", "ruled_notebook", "RULED_LEDGER", "ruled_ledger" -> RULED_NOTEBOOK
                 "ENGINEERING_GRID", "engineering_grid", "BLUEPRINT_GRID", "blueprint_grid" -> ENGINEERING_GRID
-                "FROSTED_GLASS", "frosted_glass" -> FROSTED_GLASS
+                "FROSTED_GLASS", "frosted_glass", "TRANSLUCENT_PAPER", "translucent_paper" -> FROSTED_GLASS
                 "DEFAULT_PURE", "default_pure", "CLEAN_DEFAULT", "clean_default" -> DEFAULT_PURE
                 else -> DARWIN_PARCHMENT
             }
@@ -64,7 +64,7 @@ enum class AppThemeOption(
             AppPaperStyleOption.ENGINEERING_GRID ->
                 if (isDark) Color(0xFF0F171E) else Color(0xFFEBF3F9)
             AppPaperStyleOption.FROSTED_GLASS ->
-                if (isDark) Color(0xFF0B1120) else Color(0xFFEFF6FF)
+                if (isDark) Color(0xFF0E1116) else Color(0xFFEDEAE2)
             AppPaperStyleOption.DEFAULT_PURE -> baseBgColor
         }
 
@@ -77,7 +77,7 @@ enum class AppThemeOption(
             AppPaperStyleOption.ENGINEERING_GRID ->
                 if (isDark) Color(0xFF17222D) else Color(0xFFF4F9FD)
             AppPaperStyleOption.FROSTED_GLASS ->
-                if (isDark) Color(0xFF1E293B).copy(alpha = 0.52f) else Color.White.copy(alpha = 0.48f)
+                if (isDark) Color(0xFF1C212B).copy(alpha = 0.78f) else Color(0xFFFFFDF9).copy(alpha = 0.82f)
             AppPaperStyleOption.DEFAULT_PURE -> baseCardColor
         }
 
@@ -90,7 +90,7 @@ enum class AppThemeOption(
             AppPaperStyleOption.ENGINEERING_GRID ->
                 if (isDark) Color(0xFF17222D) else Color(0xFFFAFDFF)
             AppPaperStyleOption.FROSTED_GLASS ->
-                if (isDark) Color(0xFF1E293B) else Color(0xFFFFFFFF)
+                if (isDark) Color(0xFF1E293B) else Color(0xFFF8FAFC)
             AppPaperStyleOption.DEFAULT_PURE -> baseCardColor
         }
 
@@ -103,7 +103,7 @@ enum class AppThemeOption(
             AppPaperStyleOption.ENGINEERING_GRID ->
                 if (isDark) Color(0xFF111A22) else Color(0xFFE6F0F8)
             AppPaperStyleOption.FROSTED_GLASS ->
-                if (isDark) Color(0xFF1E293B).copy(alpha = 0.52f) else Color.White.copy(alpha = 0.48f)
+                if (isDark) Color(0xFF334155).copy(alpha = 0.52f) else Color(0xFFF6F3EC).copy(alpha = 0.68f)
             AppPaperStyleOption.DEFAULT_PURE ->
                 if (isDark) Color(0xFF1E293B) else Color(0xFFF8FAFC)
         }

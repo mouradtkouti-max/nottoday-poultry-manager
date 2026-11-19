@@ -3098,7 +3098,11 @@ fun AgritechOwnerDashboard(
 
     val appearance = LocalAppAppearanceState.current
     val isFrostedGlassMode = appearance.paperStyle == AppPaperStyleOption.FROSTED_GLASS
-    val topBarGlassContainerColor = if (isFrostedGlassMode) currentTheme.cardColor else currentTheme.bgColor
+    val topBarGlassContainerColor = if (isFrostedGlassMode) {
+        if (currentTheme.isDark) Color(0xFF0F172A).copy(alpha = 0.94f) else Color(0xFFF8FAFC).copy(alpha = 0.94f)
+    } else {
+        currentTheme.bgColor
+    }
 
     Scaffold(
         modifier = Modifier
@@ -3106,16 +3110,9 @@ fun AgritechOwnerDashboard(
             .darwinPaperBackground(currentTheme),
         containerColor = Color.Transparent,
         topBar = {
-            TopAppBar(
-                modifier = Modifier
-                    .statusBarsPadding()
-                    .then(
-                        if (isFrostedGlassMode) {
-                            Modifier.darwinManuscriptBorder(cornerRadius = 0.dp, isDark = currentTheme.isDark)
-                        } else {
-                            Modifier
-                        }
-                    ),
+            Column(modifier = Modifier.fillMaxWidth()) {
+                TopAppBar(
+                    modifier = Modifier.statusBarsPadding(),
                 title = {
                     Column {
                         Text(
@@ -3184,6 +3181,10 @@ fun AgritechOwnerDashboard(
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = topBarGlassContainerColor)
             )
+            if (isFrostedGlassMode) {
+                HorizontalDivider(color = Color(0xFFCBD5E1), thickness = 1.dp)
+            }
+            }
         },
         floatingActionButton = {
             when (selectedGlobalTab) {
@@ -10155,7 +10156,7 @@ fun AgritechFarmNotebookScreen(
                 androidx.compose.ui.window.Dialog(onDismissRequest = { showFcrWeightEditorDialog = false }) {
                     Card(
                         shape = RoundedCornerShape(24.dp),
-                        colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
+                        colors = CardDefaults.cardColors(containerColor = currentTheme.dialogCardColor.copy(alpha = 1f)),
                         elevation = CardDefaults.cardElevation(defaultElevation = 10.dp),
                         modifier = Modifier
                             .fillMaxWidth()
@@ -10342,7 +10343,7 @@ fun AgritechFarmNotebookScreen(
                             .darwinManuscriptBorder(cornerRadius = appearance.cornerRadiusDp.dp, isDark = currentTheme.isDark)
                             .testTag("card_sales_profit_simulator"),
                         shape = RoundedCornerShape(appearance.cornerRadiusDp.dp),
-                        colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
+                        colors = CardDefaults.cardColors(containerColor = currentTheme.dialogCardColor.copy(alpha = 1f)),
                         border = BorderStroke(1.2.dp, dialogAccent.copy(alpha = 0.35f)),
                         elevation = CardDefaults.cardElevation(defaultElevation = 10.dp)
                     ) {
@@ -10758,17 +10759,14 @@ fun AgritechFarmNotebookScreen(
                     val headerPillShape = RoundedCornerShape((appearance.cornerRadiusDp - 6).coerceAtLeast(6).dp)
 
                     Surface(
-                        color = if (isFrostedGlassNotebook) currentTheme.cardColor else currentTheme.bgColor,
+                        color = if (isFrostedGlassNotebook) {
+                            if (currentTheme.isDark) Color(0xFF0F172A).copy(alpha = 0.94f) else Color(0xFFF8FAFC).copy(alpha = 0.94f)
+                        } else {
+                            currentTheme.bgColor
+                        },
                         modifier = Modifier
                             .fillMaxWidth()
                             .statusBarsPadding()
-                            .then(
-                                if (isFrostedGlassNotebook) {
-                                    Modifier.darwinManuscriptBorder(cornerRadius = 0.dp, isDark = currentTheme.isDark)
-                                } else {
-                                    Modifier
-                                }
-                            )
                     ) {
                         Column(
                             modifier = Modifier
@@ -10840,7 +10838,7 @@ fun AgritechFarmNotebookScreen(
                                 )
                             }
 
-                            // Row 1: Back Button + Full Barn Name & Day/Live Birds + Reset Cycle Button + Settings Icon
+                            // Row 1: Back Button + Full Barn Name & Day/Live Birds + Compact Glassy Portal Pill (`● البوابة`)
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically,
@@ -10962,6 +10960,10 @@ fun AgritechFarmNotebookScreen(
                                     }
                                 }
                             }
+                            if (isFrostedGlassNotebook) {
+                                Spacer(modifier = Modifier.height(4.dp))
+                                HorizontalDivider(color = Color(0xFFCBD5E1), thickness = 1.dp)
+                            }
                         }
                     }
                 },
@@ -11041,19 +11043,8 @@ fun AgritechFarmNotebookScreen(
                 .fillMaxSize()
                 .darwinPaperBackground(currentTheme)
                 .padding(padding)
-                .animateContentSize(
-                    animationSpec = spring(
-                        dampingRatio = Spring.DampingRatioNoBouncy,
-                        stiffness = Spring.StiffnessMediumLow
-                    )
-                )
         ) {
-            Crossfade(
-                targetState = selectedTab,
-                animationSpec = tween(durationMillis = 260),
-                label = "tab_crossfade"
-            ) { activeTab ->
-            when (activeTab) {
+            when (selectedTab) {
                 0 -> {
                     // TAB 0: جدول السجل اليومي (DataTable) - Directly visible at the top of the screen
                     // (Climate & Quick Stats are accessed on-demand via the top bar 🌡️ Climate Status Pill)
@@ -11141,12 +11132,12 @@ fun AgritechFarmNotebookScreen(
                                     .fillMaxWidth()
                                     .padding(horizontal = 6.dp, vertical = 8.dp)
                             ) {
-                                // 4-Column Responsive Table Header (📅 اليوم | 🌾 طعام (ق) | 💧 ماء (لتر) | 💀 نافق) — 100% visible without clipping
+                                // 4-Column Responsive Table Header (📅 اليوم | 🌾 طعام (ق) | 💧 ماء (لتر) | 💀 نافق) — 100% visible without clipping & zero pink tint
+                                val tableHeaderTextColor = if (currentTheme.isDark) Color(0xFFF8FAFC) else Color(0xFF0F172A)
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .background(currentTheme.innerStatBoxColor, RoundedCornerShape(8.dp))
-                                        .darwinManuscriptBorder(cornerRadius = 8.dp, isDark = currentTheme.isDark)
+                                        .background(appearance.accentColor.copy(alpha = 0.10f), RoundedCornerShape(8.dp))
                                         .padding(vertical = 11.dp, horizontal = 4.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
@@ -11154,33 +11145,40 @@ fun AgritechFarmNotebookScreen(
                                         Translations.tr("th_day", lang),
                                         modifier = Modifier.weight(1.15f),
                                         isHeader = true,
-                                        headingColor = currentTheme.headingColor,
+                                        headingColor = tableHeaderTextColor,
                                         fontSize = 11.sp
                                     )
                                     CalmTableCell(
                                         Translations.tr("th_feed", lang),
                                         modifier = Modifier.weight(1.0f),
                                         isHeader = true,
-                                        headingColor = currentTheme.headingColor,
+                                        headingColor = tableHeaderTextColor,
                                         fontSize = 11.sp
                                     )
                                     CalmTableCell(
                                         Translations.tr("th_water", lang),
                                         modifier = Modifier.weight(1.0f),
                                         isHeader = true,
-                                        headingColor = currentTheme.headingColor,
+                                        headingColor = tableHeaderTextColor,
                                         fontSize = 11.sp
                                     )
                                     CalmTableCell(
                                         Translations.tr("th_mortality", lang),
                                         modifier = Modifier.weight(0.85f),
                                         isHeader = true,
-                                        headingColor = currentTheme.headingColor,
+                                        headingColor = tableHeaderTextColor,
                                         fontSize = 11.sp
                                     )
                                 }
 
                                 Spacer(modifier = Modifier.height(4.dp))
+
+                                val isFrostedLedger = appearance.paperStyle == AppPaperStyleOption.FROSTED_GLASS
+                                val defaultInnerRowBg = if (isFrostedLedger) {
+                                    if (currentTheme.isDark) Color(0xFF334155).copy(alpha = 0.50f) else Color.White.copy(alpha = 0.55f)
+                                } else {
+                                    Color.Transparent
+                                }
 
                                 reportsForCycle.sortedBy { it.dayNumber }.forEach { r ->
                                     val isRowEdited = r.isEdited
@@ -11188,8 +11186,8 @@ fun AgritechFarmNotebookScreen(
                                     val hasMedForDay = r.medicineGiven || r.medicineSummary.isNotBlank() || dayMeds.isNotEmpty()
                                     val editedRowBg = when {
                                         isRowEdited -> if (currentTheme.isDark) Color(0xFF78350F).copy(alpha = 0.42f) else Color(0xFFFEF3C7)
-                                        hasMedForDay -> appearance.accentContainerColor.copy(alpha = 0.45f)
-                                        else -> Color.Transparent
+                                        hasMedForDay -> appearance.accentColor.copy(alpha = 0.10f)
+                                        else -> defaultInnerRowBg
                                     }
                                     val editedBorderColor = if (isRowEdited) Color(0xFFF59E0B) else Color.Transparent
 
@@ -11330,19 +11328,20 @@ fun AgritechFarmNotebookScreen(
                                             )
                                         }
                                     }
-                                    HorizontalDivider(color = if (currentTheme.isDark) Color(0xFF334155) else Color(0xFFF1F5F9), thickness = 1.dp)
+                                    HorizontalDivider(color = Color(0xFFE2E8F0), thickness = 0.6.dp)
                                 }
                             }
                         }
 
                         // Bottom Summary Bar ("إجمالي العلف" strictly in Quintals ق, "إجمالي الماء", "إجمالي النافق")
                         Surface(
-                            shadowElevation = 4.dp,
+                            shadowElevation = if (appearance.paperStyle == AppPaperStyleOption.FROSTED_GLASS) 0.dp else 4.dp,
                             color = currentTheme.cardColor,
                             shape = notebookShape,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = 12.dp)
+                                .darwinManuscriptBorder(cornerRadius = appearance.cornerRadiusDp.dp, isDark = currentTheme.isDark)
                         ) {
                             Row(
                                 modifier = Modifier
@@ -11383,7 +11382,9 @@ fun AgritechFarmNotebookScreen(
                                 .testTag("card_treasury_summary"),
                             shape = notebookShape,
                             colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                            elevation = CardDefaults.cardElevation(
+                                defaultElevation = if (appearance.paperStyle == AppPaperStyleOption.FROSTED_GLASS) 0.dp else 2.dp
+                            )
                         ) {
                             Column(modifier = Modifier.padding(18.dp)) {
                                 Text(
@@ -11556,7 +11557,9 @@ fun AgritechFarmNotebookScreen(
                                         },
                                     shape = notebookShape,
                                     colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
-                                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                                    elevation = CardDefaults.cardElevation(
+                                        defaultElevation = if (appearance.paperStyle == AppPaperStyleOption.FROSTED_GLASS) 0.dp else 2.dp
+                                    ),
                                     border = when {
                                         isPendingTx -> BorderStroke(1.5.dp, Color(0xFFF59E0B))
                                         isChickenSale -> BorderStroke(1.dp, notebookAccent.copy(alpha = 0.5f))
@@ -11711,7 +11714,9 @@ fun AgritechFarmNotebookScreen(
                                 .darwinManuscriptBorder(cornerRadius = appearance.cornerRadiusDp.dp, isDark = currentTheme.isDark),
                             shape = notebookShape,
                             colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                            elevation = CardDefaults.cardElevation(
+                                defaultElevation = if (appearance.paperStyle == AppPaperStyleOption.FROSTED_GLASS) 0.dp else 2.dp
+                            )
                         ) {
                             Column(modifier = Modifier.padding(20.dp)) {
                                 val positiveGreen = notebookAccent
@@ -11859,10 +11864,14 @@ fun AgritechFarmNotebookScreen(
                         }
 
                         Card(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .darwinManuscriptBorder(cornerRadius = appearance.cornerRadiusDp.dp, isDark = currentTheme.isDark),
                             shape = notebookShape,
                             colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                            elevation = CardDefaults.cardElevation(
+                                defaultElevation = if (appearance.paperStyle == AppPaperStyleOption.FROSTED_GLASS) 0.dp else 2.dp
+                            )
                         ) {
                             Column(
                                 modifier = Modifier.padding(20.dp),
@@ -12169,11 +12178,14 @@ fun AgritechFarmNotebookScreen(
                             Card(
                                 modifier = Modifier
                                     .fillMaxWidth()
+                                    .darwinManuscriptBorder(cornerRadius = appearance.cornerRadiusDp.dp, isDark = currentTheme.isDark)
                                     .testTag("barn_inventory_card_$supplyKey"),
                                 shape = notebookShape,
                                 colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
-                                border = BorderStroke(1.dp, notebookAccent.copy(alpha = 0.28f)),
-                                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                                border = if (appearance.paperStyle == AppPaperStyleOption.FROSTED_GLASS) null else BorderStroke(1.dp, notebookAccent.copy(alpha = 0.28f)),
+                                elevation = CardDefaults.cardElevation(
+                                    defaultElevation = if (appearance.paperStyle == AppPaperStyleOption.FROSTED_GLASS) 0.dp else 2.dp
+                                )
                             ) {
                                 Column(
                                     modifier = Modifier.padding(14.dp),
@@ -12403,11 +12415,14 @@ fun AgritechFarmNotebookScreen(
                             Card(
                                 modifier = Modifier
                                     .fillMaxWidth()
+                                    .darwinManuscriptBorder(cornerRadius = appearance.cornerRadiusDp.dp, isDark = currentTheme.isDark)
                                     .testTag("vet_note_card_${vn.id}"),
                                 shape = notebookShape,
                                 colors = CardDefaults.cardColors(containerColor = currentTheme.cardColor),
                                 border = if (isPendingNote) BorderStroke(1.5.dp, Color(0xFFF59E0B)) else null,
-                                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                                elevation = CardDefaults.cardElevation(
+                                    defaultElevation = if (appearance.paperStyle == AppPaperStyleOption.FROSTED_GLASS) 0.dp else 2.dp
+                                )
                             ) {
                                 Column(modifier = Modifier.padding(20.dp)) {
                                     Row(
@@ -12545,7 +12560,6 @@ fun AgritechFarmNotebookScreen(
                         }
                     }
                 }
-            }
             }
         }
     }

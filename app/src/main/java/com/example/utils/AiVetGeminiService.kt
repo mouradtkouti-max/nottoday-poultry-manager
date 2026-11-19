@@ -12,7 +12,7 @@ import com.google.firebase.ai.type.content
 import com.google.firebase.ai.type.generationConfig
 import com.google.firebase.appcheck.AppCheckProviderFactory
 import com.google.firebase.appcheck.FirebaseAppCheck
-import com.google.firebase.appcheck.recaptcha.RecaptchaAppCheckProviderFactory
+import com.google.firebase.appcheck.playintegrity.PlayIntegrityAppCheckProviderFactory
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -20,7 +20,6 @@ private const val APP_CHECK_TAG = "AppCheckInit"
 private const val DEBUG_TOKEN_EXTRA = "FIREBASE_APPCHECK_DEBUG_TOKEN"
 private const val DEBUG_STORE_PREFIX = "com.google.firebase.appcheck.debug.store."
 private const val DEBUG_SECRET_KEY = "com.google.firebase.appcheck.debug.DEBUG_SECRET"
-private const val RECAPTCHA_SITE_KEY_RES = "recaptcha_site_key"
 
 /**
  * Safely configures Firebase App Check conditionally by build variant (Debug vs Release)
@@ -52,20 +51,10 @@ fun configureAppCheck(context: Context, intent: Intent?) {
             FirebaseAppCheck.getInstance().installAppCheckProviderFactory(debugFactory)
             runCatching { Log.d(APP_CHECK_TAG, "DebugAppCheckProviderFactory installed.") }
         } else {
-            val resId = context.resources.getIdentifier(RECAPTCHA_SITE_KEY_RES, "string", context.packageName)
-            if (resId != 0) {
-                val siteKey = context.getString(resId)
-                if (siteKey.isNotBlank()) {
-                    FirebaseAppCheck.getInstance().installAppCheckProviderFactory(
-                        RecaptchaAppCheckProviderFactory.getInstance(siteKey)
-                    )
-                    runCatching { Log.d(APP_CHECK_TAG, "RecaptchaAppCheckProviderFactory installed.") }
-                } else {
-                    runCatching { Log.e(APP_CHECK_TAG, "recaptcha_site_key resource string is blank.") }
-                }
-            } else {
-                runCatching { Log.e(APP_CHECK_TAG, "recaptcha_site_key string resource not found in package.") }
-            }
+            FirebaseAppCheck.getInstance().installAppCheckProviderFactory(
+                PlayIntegrityAppCheckProviderFactory.getInstance()
+            )
+            runCatching { Log.d(APP_CHECK_TAG, "PlayIntegrityAppCheckProviderFactory installed.") }
         }
     } catch (e: Throwable) {
         runCatching { Log.e(APP_CHECK_TAG, "Failed to initialize Firebase App Check", e) }

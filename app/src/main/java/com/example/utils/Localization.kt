@@ -46,7 +46,9 @@ object Translations {
     // Global SaaS Currency & Country state applied across all financial text fields
     var globalCurrencyCode by mutableStateOf<String?>(null)
     var globalCountryCode by mutableStateOf("DZ")
-    private val dict: Map<String, Map<String, String>> = mapOf(
+    private val dict: Map<String, Map<String, String>> = buildDictPart1() + buildDictPart2()
+
+    private fun buildDictPart1(): Map<String, Map<String, String>> = mapOf(
         "app_title" to mapOf(
             "ar" to "IQ Notebook — دفتر المزرعة الذكي",
             "fr" to "IQ Notebook — Registre Avicole Intelligent",
@@ -2418,12 +2420,44 @@ object Translations {
             "hi" to "📐 ज्यामितीय ग्रिड"
         ),
         "paper_style_frosted_glass" to mapOf(
-            "ar" to "🧊 مظهر زجاجي شفاف",
-            "fr" to "🧊 Verre dépoli",
-            "en" to "🧊 Frosted Glass",
-            "es" to "🧊 Cristal esmerilado",
-            "pt" to "🧊 Vidro fosco",
-            "hi" to "🧊 फ्रॉस्टेड ग्लास"
+            "ar" to "📄 مظهر أوراق شفاف",
+            "fr" to "📄 Papier translucide",
+            "en" to "📄 Translucent Paper",
+            "es" to "📄 Papel translúcido",
+            "pt" to "📄 Papel translúcido",
+            "hi" to "📄 पारभासी कागज़"
+        ),
+        "portal_menu_btn_label" to mapOf(
+            "ar" to "البوابة",
+            "fr" to "Portail",
+            "en" to "Menu",
+            "es" to "Portal",
+            "pt" to "Portal",
+            "hi" to "मेनू"
+        ),
+        "portal_menu_close_btn" to mapOf(
+            "ar" to "إغلاق",
+            "fr" to "Fermer",
+            "en" to "Close",
+            "es" to "Cerrar",
+            "pt" to "Fechar",
+            "hi" to "बंद करें"
+        ),
+        "portal_menu_header_title" to mapOf(
+            "ar" to "بوابة التنقل السريع",
+            "fr" to "Portail de navigation",
+            "en" to "Glassy Menu Navigation",
+            "es" to "Portal de navegación",
+            "pt" to "Portal de navegação",
+            "hi" to "त्वरित नेविगेशन पोर्टल"
+        ),
+        "portal_menu_quick_actions" to mapOf(
+            "ar" to "الأدوات والمظهر السريع",
+            "fr" to "Outils & Apparence rapide",
+            "en" to "Quick Tools & Appearance",
+            "es" to "Herramientas y apariencia",
+            "pt" to "Ferramentas e aparência",
+            "hi" to "त्वरित उपकरण और रूप"
         ),
         "paper_style_default_pure" to mapOf(
             "ar" to "💎 الخلفية النقية الافتراضية",
@@ -2970,7 +3004,10 @@ object Translations {
             "es" to "+ Añadir contacto por teléfono",
             "pt" to "+ Adicionar contato por telefone",
             "hi" to "+ फ़ोन नंबर से संपर्क जोड़ें"
-        ),
+        )
+    )
+
+    private fun buildDictPart2(): Map<String, Map<String, String>> = mapOf(
         "dialog_add_contact_title" to mapOf(
             "ar" to "إضافة جهة اتصال جديدة",
             "fr" to "Ajouter un contact",
