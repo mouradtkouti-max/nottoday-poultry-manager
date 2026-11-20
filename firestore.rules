@@ -612,10 +612,18 @@ service cloud.firestore {
       allow read: if isUser(userId);
       allow get: if isUser(userId);
       allow list: if false;
-      allow create: if isUser(userId) && isValidUserProfile(userId);
+      allow create: if isUser(userId)
+                    && isValidUserProfile(userId)
+                    && (!('subscriptionTier' in request.resource.data) || request.resource.data.subscriptionTier == 'FREE')
+                    && (!('subscriptionExpiresAtMillis' in request.resource.data) || request.resource.data.subscriptionExpiresAtMillis == 0)
+                    && (!('ownedFarmsCount' in request.resource.data) || request.resource.data.ownedFarmsCount == 0);
       allow update: if isUser(userId)
                     && isValidUserProfile(userId)
-                    && request.resource.data.get('uid', request.resource.data.get('userId', '')) == resource.data.get('uid', resource.data.get('userId', ''));
+                    && request.resource.data.get('uid', request.resource.data.get('userId', '')) == resource.data.get('uid', resource.data.get('userId', ''))
+                    && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['subscriptionTier', 'subscriptionExpiresAtMillis', 'ownedFarmsCount'])
+                    && request.resource.data.get('subscriptionTier', 'FREE') == resource.data.get('subscriptionTier', 'FREE')
+                    && request.resource.data.get('subscriptionExpiresAtMillis', 0) == resource.data.get('subscriptionExpiresAtMillis', 0)
+                    && request.resource.data.get('ownedFarmsCount', 0) == resource.data.get('ownedFarmsCount', 0);
       allow delete: if isUser(userId);
     }
 
@@ -849,7 +857,12 @@ service cloud.firestore {
                     && request.resource.data.priceDzd >= 0;
       allow update: if isSignedIn()
                     && resource.data.userId == request.auth.uid
-                    && request.resource.data.userId == resource.data.userId;
+                    && request.resource.data.userId == resource.data.userId
+                    && request.resource.data.title is string
+                    && request.resource.data.title.size() >= 2
+                    && request.resource.data.title.size() <= 150
+                    && request.resource.data.priceDzd is number
+                    && request.resource.data.priceDzd >= 0;
       allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
     }
 

@@ -100,15 +100,6 @@ data class SmartBarnTelemetrySnapshot(
 object AiVetGeminiService {
 
     private const val MODEL_NAME = "gemini-2.5-flash"
-    const val LOCAL_FALLBACK_NOTICE_AR = "ℹ️ (إرشاد محلي احتياطي — تعذر الاتصال بالخادم الذكي حالياً)"
-    const val LOCAL_FALLBACK_NOTICE_FR = "ℹ️ (Conseil local de secours — serveur IA actuellement indisponible)"
-    const val LOCAL_FALLBACK_NOTICE_EN = "ℹ️ (Local fallback guidance — cloud AI server currently unreachable)"
-
-    fun fallbackNoticeFor(lang: AppLanguage): String = when (lang) {
-        AppLanguage.AR -> LOCAL_FALLBACK_NOTICE_AR
-        AppLanguage.FR -> LOCAL_FALLBACK_NOTICE_FR
-        else -> LOCAL_FALLBACK_NOTICE_EN
-    }
 
     /**
      * Safely resolves any configured API key from BuildConfig (via Secrets Gradle Plugin) or system env

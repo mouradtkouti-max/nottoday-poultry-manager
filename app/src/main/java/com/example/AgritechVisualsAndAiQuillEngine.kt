@@ -1281,7 +1281,7 @@ private suspend fun callPersonalGeminiHttpApi(
     for (modelName in candidateModels) {
         var connection: HttpURLConnection? = null
         try {
-            val endpoint = "https://generativelanguage.googleapis.com/v1beta/models/$modelName:generateContent?key=$trimmedKey"
+            val endpoint = "https://generativelanguage.googleapis.com/v1beta/models/$modelName:generateContent"
             val url = URL(endpoint)
             connection = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = "POST"
@@ -1289,6 +1289,7 @@ private suspend fun callPersonalGeminiHttpApi(
                 readTimeout = 20000
                 doOutput = true
                 setRequestProperty("Content-Type", "application/json; charset=UTF-8")
+                setRequestProperty("x-goog-api-key", trimmedKey)
             }
 
             val payload = JSONObject().apply {

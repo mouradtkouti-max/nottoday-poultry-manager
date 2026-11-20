@@ -1334,10 +1334,11 @@ object AgritechMockDb {
         vetNotes.clear()
         transactions.clear()
         supervisedVetFarms.clear()
+        vetPharmacyInventory.clear()
+        vetEpidemicAlerts.clear()
+        roleBusinessOrders.clear()
         workerPersonalEntries.clear()
-        workerPersonalEntries.addAll(initialWorkerPersonalEntriesSeed)
         barnInventoryCounters.clear()
-        barnInventoryCounters.putAll(initialBarnInventorySeed)
         blockedUserIds.clear()
         reportedUgcItemIds.clear()
     }
@@ -1366,6 +1367,9 @@ object AgritechMockDb {
         vetNotes.clear()
         transactions.clear()
         supervisedVetFarms.clear()
+        vetPharmacyInventory.clear()
+        vetEpidemicAlerts.clear()
+        roleBusinessOrders.clear()
         workerPersonalEntries.clear()
         barnInventoryCounters.clear()
         blockedUserIds.clear()
@@ -6472,8 +6476,7 @@ fun OwnerGlobalAiVetPlaceholderScreen(
                     barnContext = barnContext
                 ).replace("**", "")
             } catch (e: Exception) {
-                "${AiVetGeminiService.fallbackNoticeFor(lang)}\n" +
-                    Translations.tr("ai_vet_fallback_reply", lang).replace("**", "")
+                Translations.tr("ai_vet_fallback_reply", lang).replace("**", "")
             }
             diagnosisHistory = diagnosisHistory.dropLast(1) + Pair(
                 "${Translations.tr("ai_vet_diagnosis_prefix", lang)} ($cleanQuery)",
