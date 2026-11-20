@@ -670,6 +670,14 @@ private data class BookScientificDetailModalSpec(
     val barnApplicationSummary: String
 )
 
+private val ARABIC_CHAR_REGEX = Regex("[\\u0600-\\u06FF]")
+
+private fun String.isSafeForLanguage(lang: AppLanguage): Boolean {
+    if (isBlank()) return false
+    if (lang == AppLanguage.AR || lang == AppLanguage.UR) return true
+    return !ARABIC_CHAR_REGEX.containsMatchIn(this)
+}
+
 private fun buildRomanStageScientificModalSpec(
     detailCard: BookSubCardModel,
     spec: EncyclopediaPosterSpec,
@@ -679,39 +687,81 @@ private fun buildRomanStageScientificModalSpec(
     stageMetric: String,
     lang: AppLanguage
 ): BookScientificDetailModalSpec {
-    val badgePrefix = when (lang) {
-        AppLanguage.AR -> "البند $romanNumeral"
-        AppLanguage.FR -> "Point $romanNumeral"
-        else -> "Stage $romanNumeral"
+    val badgePrefix = "${Translations.tr("book_stage_prefix", lang)} $romanNumeral"
+
+    val rawRulePoint = if (lang == AppLanguage.AR) {
+        detailCard.scientificRulePoints.getOrNull(stageIndex)
+            ?: detailCard.scientificRulePoints.firstOrNull().orEmpty()
+    } else {
+        spec.whyImportantPoints.getOrNull(stageIndex)
+            ?: spec.whyImportantPoints.firstOrNull()
+            ?: spec.coreIdea
     }
-    val rulePoint = detailCard.scientificRulePoints.getOrNull(stageIndex)
-        ?: detailCard.scientificRulePoints.firstOrNull().orEmpty()
-    val practicalStep = detailCard.practicalStepsWithCheck.getOrNull(stageIndex)
-        ?: detailCard.practicalStepsWithCheck.firstOrNull().orEmpty()
-    val extraStep = detailCard.practicalStepsWithCheck.getOrNull((stageIndex + 1) % detailCard.practicalStepsWithCheck.size.coerceAtLeast(1)).orEmpty()
+    val rulePoint = rawRulePoint.takeIf { it.isSafeForLanguage(lang) }.orEmpty()
+
+    val rawPracticalStep = if (lang == AppLanguage.AR) {
+        detailCard.practicalStepsWithCheck.getOrNull(stageIndex)
+            ?: detailCard.practicalStepsWithCheck.firstOrNull().orEmpty()
+    } else {
+        spec.timelineSteps.getOrNull(stageIndex)?.title
+            ?: spec.heroCalloutTop
+    }
+    val practicalStep = rawPracticalStep.takeIf { it.isSafeForLanguage(lang) }.orEmpty()
+
+    val rawExtraStep = if (lang == AppLanguage.AR) {
+        detailCard.practicalStepsWithCheck.getOrNull((stageIndex + 1) % detailCard.practicalStepsWithCheck.size.coerceAtLeast(1)).orEmpty()
+    } else {
+        val nextTimeline = spec.timelineSteps.getOrNull((stageIndex + 1) % spec.timelineSteps.size.coerceAtLeast(1))?.title.orEmpty()
+        nextTimeline.ifBlank { spec.heroCalloutBottom }
+    }
+    val extraStep = rawExtraStep.takeIf { it.isSafeForLanguage(lang) }.orEmpty()
+
+    val rawImpactText = if (lang == AppLanguage.AR) {
+        detailCard.liveBarnComparisonText
+    } else {
+        spec.warningNote.ifBlank { spec.sec6ImportantNote }
+    }
+    val impactText = rawImpactText.takeIf { it.isSafeForLanguage(lang) }.orEmpty()
 
     val expandedPoints = buildList {
-        if (rulePoint.isNotBlank()) add("🔬 الأساس العلمي والفيزيولوجي: $rulePoint")
-        if (practicalStep.isNotBlank()) add("🛠️ التطبيق العملي داخل العنبر (باللتر والحرارة والتوقيت): $practicalStep")
-        if (extraStep.isNotBlank() && extraStep != practicalStep) add("📐 خطوة الضبط الميداني المكملة: $extraStep")
-        if (spec.isMedicalSixSectionLayout) {
-            spec.sec5DiagnosisPoints.getOrNull(stageIndex)?.let { add("🩺 التشخيص والمؤشر الحيوي: $it") }
-            spec.sec3TreatmentSteps.getOrNull(stageIndex)?.let { add("💊 البروتوكول العلاجي والوقائي: $it") }
+        if (rulePoint.isNotBlank()) {
+            add("🔬 ${Translations.tr("book_sci_basis_label", lang)}: $rulePoint")
         }
-        if (detailCard.liveBarnComparisonText.isNotBlank()) {
-            add("📈 الأثر المباشر على الحيوية ومعامل التحويل (FCR): ${detailCard.liveBarnComparisonText}")
+        if (practicalStep.isNotBlank()) {
+            add("🛠️ ${Translations.tr("book_sci_practical_label", lang)}: $practicalStep")
+        }
+        if (extraStep.isNotBlank() && extraStep != practicalStep) {
+            add("📐 ${Translations.tr("book_sci_field_step_label", lang)}: $extraStep")
+        }
+        if (spec.isMedicalSixSectionLayout) {
+            spec.sec5DiagnosisPoints.getOrNull(stageIndex)?.takeIf { it.isSafeForLanguage(lang) }?.let {
+                add("🩺 ${Translations.tr("book_sci_diagnosis_label", lang)}: $it")
+            }
+            spec.sec3TreatmentSteps.getOrNull(stageIndex)?.takeIf { it.isSafeForLanguage(lang) }?.let {
+                add("💊 ${Translations.tr("book_sci_protocol_label", lang)}: $it")
+            }
+        }
+        if (impactText.isNotBlank()) {
+            add("📈 ${Translations.tr("book_sci_fcr_impact_label", lang)}: $impactText")
+        } else {
+            add("📈 ${Translations.tr("book_sci_fcr_impact_label", lang)}: ${Translations.tr("book_sci_fallback_2", lang)}")
         }
     }.ifEmpty {
         listOf(
-            "🔬 يضمن تطبيق هذا المعيار استقرار حرارة وحيوية القطيع ومنع الإجهاد الحراري أو التنفسي.",
-            "📈 يحافظ على كفاءة التحويل الغذائي (FCR) وتجانس أوزان القطيع وفق منحنى Ross 308 القياسي."
+            "🔬 ${Translations.tr("book_sci_fallback_1", lang)}",
+            "📈 ${Translations.tr("book_sci_fallback_2", lang)}"
         )
     }
 
+    val safeBenchmark = stageMetric.takeIf { it.isSafeForLanguage(lang) }
+        ?: detailCard.badge1.takeIf { it.isSafeForLanguage(lang) }
+        ?: spec.heroCalloutTop.takeIf { it.isSafeForLanguage(lang) }
+        ?: ""
+
     return BookScientificDetailModalSpec(
         romanOrBadgeLabel = badgePrefix,
-        itemTitle = stageTitle.ifBlank { detailCard.title },
-        benchmarkValue = stageMetric.ifBlank { detailCard.badge1 },
+        itemTitle = stageTitle.takeIf { it.isSafeForLanguage(lang) } ?: detailCard.title,
+        benchmarkValue = safeBenchmark,
         practicalExplanationPoints = expandedPoints,
         barnApplicationSummary = detailCard.title
     )
@@ -726,34 +776,73 @@ private fun buildComparisonScientificModalSpec(
     lang: AppLanguage
 ): BookScientificDetailModalSpec {
     val pair = spec.comparisonPair
+    val safeBody = bodyText.takeIf { it.isSafeForLanguage(lang) }.orEmpty()
+    val safeImpact = (if (lang == AppLanguage.AR) detailCard.liveBarnComparisonText else spec.warningNote.ifBlank { spec.sec6ImportantNote })
+        .takeIf { it.isSafeForLanguage(lang) }
+        .orEmpty()
+
     val points = buildList {
-        if (bodyText.isNotBlank()) {
-            add(if (isSuccess) "✅ الإجراء الصحيح المعتمد: $bodyText" else "❌ الخطأ الحرج الواجب تجنبه: $bodyText")
+        if (safeBody.isNotBlank()) {
+            val prefix = if (isSuccess) {
+                "✅ ${Translations.tr("book_sci_approved_action_label", lang)}"
+            } else {
+                "❌ ${Translations.tr("book_sci_critical_mistake_label", lang)}"
+            }
+            add("$prefix: $safeBody")
         }
         if (isSuccess) {
-            pair?.goodPoints?.forEach { pt ->
-                if (pt.isNotBlank() && pt != bodyText) add("✔️ $pt")
-            }
-            detailCard.practicalStepsWithCheck.forEach { step ->
-                if (step.isNotBlank()) add("🛠️ خطوة التطبيق في العنبر: $step")
+            if (lang == AppLanguage.AR) {
+                pair?.goodPoints?.forEach { pt ->
+                    if (pt.isNotBlank() && pt != safeBody) add("✔️ $pt")
+                }
+                detailCard.practicalStepsWithCheck.forEach { step ->
+                    if (step.isNotBlank()) add("🛠️ ${Translations.tr("book_sci_barn_step_label", lang)}: $step")
+                }
+            } else {
+                spec.timelineSteps.forEach { step ->
+                    if (step.title.isSafeForLanguage(lang) && step.title != safeBody) {
+                        add("🛠️ ${Translations.tr("book_sci_barn_step_label", lang)}: ${step.title}")
+                    }
+                }
+                spec.whyImportantPoints.take(2).forEach { pt ->
+                    if (pt.isSafeForLanguage(lang) && pt != safeBody) add("✔️ $pt")
+                }
             }
         } else {
-            pair?.badPoints?.forEach { pt ->
-                if (pt.isNotBlank() && pt != bodyText) add("⚠️ $pt")
-            }
-            detailCard.scientificRulePoints.forEach { rule ->
-                if (rule.isNotBlank()) add("🔬 التفسير العلمي والوقائي: $rule")
+            if (lang == AppLanguage.AR) {
+                pair?.badPoints?.forEach { pt ->
+                    if (pt.isNotBlank() && pt != safeBody) add("⚠️ $pt")
+                }
+                detailCard.scientificRulePoints.forEach { rule ->
+                    if (rule.isNotBlank()) add("🔬 ${Translations.tr("book_sci_preventive_label", lang)}: $rule")
+                }
+            } else {
+                spec.whyImportantPoints.forEach { rule ->
+                    if (rule.isSafeForLanguage(lang) && rule != safeBody) {
+                        add("🔬 ${Translations.tr("book_sci_preventive_label", lang)}: $rule")
+                    }
+                }
+                if (spec.coreIdea.isSafeForLanguage(lang) && spec.coreIdea != safeBody) {
+                    add("⚠️ ${spec.coreIdea}")
+                }
             }
         }
-        if (detailCard.liveBarnComparisonText.isNotBlank()) {
-            add("📈 الأثر المباشر على الحيوية ومعامل التحويل (FCR): ${detailCard.liveBarnComparisonText}")
+        if (safeImpact.isNotBlank()) {
+            add("📈 ${Translations.tr("book_sci_fcr_impact_label", lang)}: $safeImpact")
+        } else {
+            add("📈 ${Translations.tr("book_sci_fcr_impact_label", lang)}: ${Translations.tr("book_sci_fallback_2", lang)}")
         }
+    }.ifEmpty {
+        listOf(
+            "🔬 ${Translations.tr("book_sci_fallback_1", lang)}",
+            "📈 ${Translations.tr("book_sci_fallback_2", lang)}"
+        )
     }
 
     return BookScientificDetailModalSpec(
         romanOrBadgeLabel = if (isSuccess) "✅" else "❌",
         itemTitle = headerTitle,
-        benchmarkValue = bodyText,
+        benchmarkValue = safeBody,
         practicalExplanationPoints = points,
         barnApplicationSummary = detailCard.title
     )
@@ -856,7 +945,7 @@ private fun BookScientificDetailModalDialog(
                             )
                             if (spec.benchmarkValue.isNotBlank() && spec.benchmarkValue != spec.itemTitle) {
                                 Text(
-                                    text = "🎯 القيمة والمعيار القياسي المعتمد: ${spec.benchmarkValue}",
+                                    text = "🎯 ${Translations.tr("book_sci_benchmark_label", lang)}: ${spec.benchmarkValue}",
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.ExtraBold,
                                     color = borderAccent,

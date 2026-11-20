@@ -1802,115 +1802,54 @@ fun PremiumSettingsModal(
                 }
             },
             bottomBar = {
-                // Bottom Floating Action Bar: Shows pending changes count with "Discard" and "Apply / Save" buttons
+                // Bottom Floating Action Bar: Sleek clean "Apply / Save ✓" button only
                 Surface(
                     color = cardBg,
-                    shadowElevation = 10.dp,
+                    shadowElevation = if (draftPaperStyle == AppPaperStyleOption.FROSTED_GLASS) 0.dp else 10.dp,
                     border = BorderStroke(1.dp, borderCol),
                     modifier = Modifier
                         .fillMaxWidth()
                         .navigationBarsPadding()
                         .testTag("appearance_floating_action_bar")
                 ) {
-                    Row(
+                    Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                            .padding(horizontal = 20.dp, vertical = 12.dp),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = if (pendingChangesCount > 0) {
-                                    "• $pendingChangesCount ${Translations.tr("appearance_pending_changes", selectedLang).removePrefix("•").trim()}"
-                                } else {
-                                    "✓ ${Translations.getLocalizedThemeTitle(draftTheme, selectedLang)} • ${draftAccent.hexCode}"
-                                },
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = if (pendingChangesCount > 0) activeAccent else textSecondary,
-                                modifier = Modifier.testTag("appearance_pending_changes_text")
-                            )
-                            Text(
-                                text = "${draftTextScale.defaultLabel} (${(draftTextScale.scaleFactor * 100).toInt()}%) • ${draftCornerStyle.defaultLabel} (${draftCornerStyle.cornerRadiusDp}dp)",
-                                fontSize = 10.5.sp,
-                                color = textSecondary
-                            )
-                        }
-
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            if (pendingChangesCount > 0) {
-                                OutlinedButton(
-                                    onClick = {
-                                        draftTheme = committedTheme
-                                        draftAccent = committedAccent
-                                        draftTextScale = committedTextScale
-                                        draftCornerStyle = committedCornerStyle
-                                        draftPaperStyle = committedPaperStyle
-                                        draftTabMotion = committedTabMotion
-                                        draftIconStyle = committedIconStyle
-                                        sessionState.updateAppearanceStudio(
-                                            context = context,
-                                            newTheme = committedTheme,
-                                            newAccentColor = committedAccent,
-                                            newTextScale = committedTextScale,
-                                            newCornerStyle = committedCornerStyle,
-                                            newPaperStyle = committedPaperStyle,
-                                            newTabBarMotion = committedTabMotion,
-                                            newIconStyle = committedIconStyle
-                                        )
-                                        onSelectTheme(committedTheme)
-                                    },
-                                    shape = previewShape,
-                                    border = BorderStroke(1.dp, borderCol),
-                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-                                    modifier = Modifier
-                                        .height(42.dp)
-                                        .testTag("btn_appearance_discard")
-                                ) {
-                                    Text(
-                                        text = Translations.tr("appearance_btn_discard", selectedLang),
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = textPrimary
-                                    )
-                                }
-                            }
-
-                            Button(
-                                onClick = {
-                                    sessionState.updateAppearanceStudio(
-                                        context = context,
-                                        newTheme = draftTheme,
-                                        newAccentColor = draftAccent,
-                                        newTextScale = draftTextScale,
-                                        newCornerStyle = draftCornerStyle,
-                                        newPaperStyle = draftPaperStyle,
-                                        newTabBarMotion = draftTabMotion,
-                                        newIconStyle = draftIconStyle
-                                    )
-                                    onSelectTheme(draftTheme)
-                                    onSelectLanguage(selectedLang)
-                                    onUpdateCountryAndCurrency(selectedCountry.code, selectedCurrency.code)
-                                    onDismiss()
-                                },
-                                shape = previewShape,
-                                colors = ButtonDefaults.buttonColors(containerColor = draftAccent.primaryColor),
-                                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                                modifier = Modifier
-                                    .height(42.dp)
-                                    .testTag("btn_appearance_apply")
-                            ) {
-                                Text(
-                                    text = Translations.tr("appearance_btn_apply", selectedLang),
-                                    fontSize = 12.5.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = Color.White
+                        Button(
+                            onClick = {
+                                sessionState.updateAppearanceStudio(
+                                    context = context,
+                                    newTheme = draftTheme,
+                                    newAccentColor = draftAccent,
+                                    newTextScale = draftTextScale,
+                                    newCornerStyle = draftCornerStyle,
+                                    newPaperStyle = draftPaperStyle,
+                                    newTabBarMotion = draftTabMotion,
+                                    newIconStyle = draftIconStyle
                                 )
-                            }
+                                onSelectTheme(draftTheme)
+                                onSelectLanguage(selectedLang)
+                                onUpdateCountryAndCurrency(selectedCountry.code, selectedCurrency.code)
+                                onDismiss()
+                            },
+                            shape = previewShape,
+                            colors = ButtonDefaults.buttonColors(containerColor = draftAccent.primaryColor),
+                            contentPadding = PaddingValues(horizontal = 24.dp, vertical = 10.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .widthIn(max = 360.dp)
+                                .height(48.dp)
+                                .testTag("btn_appearance_apply")
+                        ) {
+                            Text(
+                                text = Translations.tr("appearance_btn_apply", selectedLang),
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Color.White
+                            )
                         }
                     }
                 }
@@ -2785,11 +2724,12 @@ fun PremiumSettingsModal(
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .horizontalScroll(rememberScrollState()),
+                                            .horizontalScroll(rememberScrollState())
+                                            .padding(vertical = 4.dp),
                                         horizontalArrangement = Arrangement.spacedBy(10.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        AppAccentColorOption.curatedEightColors.forEach { swatch ->
+                                        AppAccentColorOption.curatedThemeColors.forEach { swatch ->
                                             val isSelected = draftAccent == swatch
                                             val isWhiteGlass = swatch == AppAccentColorOption.CRYSTAL_WHITE_GLASS
                                             val animatedScale by animateFloatAsState(

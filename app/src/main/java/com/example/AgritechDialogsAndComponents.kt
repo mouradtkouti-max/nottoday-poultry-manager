@@ -7271,7 +7271,7 @@ fun AgritechVetNotebookScreen(
                             )
                         },
                         colors = NavigationBarItemDefaults.colors(
-                            indicatorColor = accentBadgeBg
+                            indicatorColor = Color.Transparent
                         )
                     )
                 }

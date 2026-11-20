@@ -3103,7 +3103,7 @@ fun AgritechOwnerDashboard(
     val appearance = LocalAppAppearanceState.current
     val isFrostedGlassMode = appearance.paperStyle == AppPaperStyleOption.FROSTED_GLASS
     val topBarGlassContainerColor = if (isFrostedGlassMode) {
-        if (currentTheme.isDark) Color(0xFF0F172A).copy(alpha = 0.94f) else Color(0xFFF8FAFC).copy(alpha = 0.94f)
+        if (currentTheme.isDark) Color(0xFF0F172A).copy(alpha = 0.92f) else Color(0xFFF8FAFC).copy(alpha = 0.92f)
     } else {
         currentTheme.bgColor
     }
@@ -4879,7 +4879,7 @@ fun WorkerSmartNotebookScreen(
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = activeAccent,
                             selectedTextColor = activeAccent,
-                            indicatorColor = accentBadgeBg,
+                            indicatorColor = Color.Transparent,
                             unselectedIconColor = secondaryTextColor,
                             unselectedTextColor = secondaryTextColor
                         )
@@ -6990,8 +6990,10 @@ fun FarmCard(
     val accentEmerald = appearance.accentColor
     val pillBgEmerald = appearance.accentContainerColor
     val pillBorderEmerald = accentEmerald.copy(alpha = 0.45f)
+    val isFrostedDayCard = !isDark && appearance.paperStyle == AppPaperStyleOption.FROSTED_GLASS
     val identityPanelBg = currentTheme.innerStatBoxColor
     val identityPanelBorder = when {
+        isFrostedDayCard -> Color.White.copy(alpha = 0.85f)
         isDark && isDarwin -> Color(0xFF8B6914)
         isDark -> Color(0xFF334155)
         isDarwin -> Color(0xFF8C6D46)
@@ -7991,7 +7993,12 @@ fun FarmCard(
                     if (isDark) Color(0xFFFCA5A5) else Color(0xFFD32F2F)
                 } else accentEmerald
                 val miniBoxBg = currentTheme.innerStatBoxColor
-                val miniBoxBorder = if (isDark) Color(0xFF334155) else accentEmerald.copy(alpha = 0.22f)
+                val miniBoxBorder = when {
+                    isFrostedDayCard -> Color.White.copy(alpha = 0.85f)
+                    isDark -> Color(0xFF334155)
+                    else -> accentEmerald.copy(alpha = 0.22f)
+                }
+                val miniBoxBorderWidth = if (isFrostedDayCard) 0.9.dp else 1.dp
                 val feedBoxBg = if (isFeedLow) {
                     if (appearance.paperStyle == AppPaperStyleOption.FROSTED_GLASS) {
                         Color(0xFFE11D48).copy(alpha = if (isDark) 0.24f else 0.16f)
@@ -8087,7 +8094,7 @@ fun FarmCard(
                                     .clickable { showFarmWeightAndIncomeSummarySheet = true },
                                 shape = innerCornerShape,
                                 color = miniBoxBg,
-                                border = BorderStroke(1.dp, miniBoxBorder)
+                                border = BorderStroke(miniBoxBorderWidth, miniBoxBorder)
                             ) {
                                 Column(
                                     modifier = Modifier
@@ -8125,7 +8132,7 @@ fun FarmCard(
                                     .clickable { showFarmVitalityAndVaccinesSheet = true },
                                 shape = innerCornerShape,
                                 color = miniBoxBg,
-                                border = BorderStroke(1.dp, miniBoxBorder)
+                                border = BorderStroke(miniBoxBorderWidth, miniBoxBorder)
                             ) {
                                 Column(
                                     modifier = Modifier
@@ -8163,7 +8170,7 @@ fun FarmCard(
                                     .clickable { showCardFeedLedger = true },
                                 shape = innerCornerShape,
                                 color = feedBoxBg,
-                                border = BorderStroke(1.dp, feedBoxBorder)
+                                border = BorderStroke(miniBoxBorderWidth, feedBoxBorder)
                             ) {
                                 Column(
                                     modifier = Modifier
@@ -10763,7 +10770,7 @@ fun AgritechFarmNotebookScreen(
 
                     Surface(
                         color = if (isFrostedGlassNotebook) {
-                            if (currentTheme.isDark) Color(0xFF0F172A).copy(alpha = 0.94f) else Color(0xFFF8FAFC).copy(alpha = 0.94f)
+                            if (currentTheme.isDark) Color(0xFF0F172A).copy(alpha = 0.92f) else Color(0xFFF8FAFC).copy(alpha = 0.92f)
                         } else {
                             currentTheme.bgColor
                         },

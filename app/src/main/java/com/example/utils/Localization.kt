@@ -2492,12 +2492,12 @@ object Translations {
             "hi" to "💜 रॉयल वायलेट"
         ),
         "theme_color_ocean_blue" to mapOf(
-            "ar" to "🌊 أزرق المحيط",
-            "fr" to "🌊 Bleu océan",
-            "en" to "🌊 Ocean Blue",
-            "es" to "🌊 Azul océano",
-            "pt" to "🌊 Azul oceano",
-            "hi" to "🌊 ओशन ब्लू"
+            "ar" to "💙 الأزرق الاحترافي",
+            "fr" to "💙 Bleu professionnel",
+            "en" to "💙 Pro Blue",
+            "es" to "💙 Azul profesional",
+            "pt" to "💙 Azul profissional",
+            "hi" to "💙 प्रोफेशनल ब्लू"
         ),
         "theme_color_mint_emerald" to mapOf(
             "ar" to "🌿 الزمرد النعناعي",
@@ -2586,6 +2586,30 @@ object Translations {
             "es" to "🌊 Turquesa real profundo",
             "pt" to "🌊 Turquesa real profundo",
             "hi" to "🌊 गहरा टील"
+        ),
+        "theme_color_deep_navy" to mapOf(
+            "ar" to "🌌 الكحلي العميق",
+            "fr" to "🌌 Bleu marine profond",
+            "en" to "🌌 Deep Navy",
+            "es" to "🌌 Azul marino profundo",
+            "pt" to "🌌 Azul-marinho profundo",
+            "hi" to "🌌 डीप नेवी ब्लू"
+        ),
+        "theme_color_ice_sky" to mapOf(
+            "ar" to "🩵 السماوي الجليدي",
+            "fr" to "🩵 Bleu ciel glacé",
+            "en" to "🩵 Ice Sky Blue",
+            "es" to "🩵 Azul cielo glaciar",
+            "pt" to "🩵 Azul céu glacial",
+            "hi" to "🩵 आइस स्काई ब्लू"
+        ),
+        "theme_color_steel_slate" to mapOf(
+            "ar" to "🪨 الرمادي الفولاذي",
+            "fr" to "🪨 Gris acier ardoise",
+            "en" to "🪨 Steel Slate Gray",
+            "es" to "🪨 Gris acero pizarra",
+            "pt" to "🪨 Cinza aço ardósia",
+            "hi" to "🪨 स्टील स्लेट ग्रे"
         ),
         "book_scientific_modal_title" to mapOf(
             "ar" to "📜 التفصيل العلمي التطبيقي والمصدر المرجعي",

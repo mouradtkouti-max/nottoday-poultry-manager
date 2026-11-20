@@ -10,6 +10,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.example.models.AppAccentColorOption
 import com.example.models.AppCornerStyleOption
+import com.example.models.AppPaperStyleOption
+import com.example.models.AppPaperStyleRuntime
 
 @Composable
 fun PoultryTheme(
@@ -24,6 +26,7 @@ fun PoultryTheme(
 ) {
     val activePrimary = if (isDark) accentColor.darkModeColor else accentColor.primaryColor
     val activeContainer = if (isDark) accentColor.darkContainerColor else accentColor.softContainerColor
+    val isFrostedDay = !isDark && AppPaperStyleRuntime.activePaperStyle == AppPaperStyleOption.FROSTED_GLASS
     val colorScheme = if (isDark) {
         val resolvedBg = themeBgColor ?: Color(0xFF0F172A)
         val resolvedCard = themeCardColor ?: Color(0xFF1E293B)
@@ -44,8 +47,8 @@ fun PoultryTheme(
             onSurfaceVariant = resolvedSecondary
         )
     } else {
-        val resolvedBg = themeBgColor ?: IceBlueBg
-        val resolvedCard = themeCardColor ?: WhiteCard
+        val resolvedBg = themeBgColor ?: if (isFrostedDay) Color(0xFFE0F2FE) else IceBlueBg
+        val resolvedCard = themeCardColor ?: if (isFrostedDay) Color.White.copy(alpha = 0.58f) else WhiteCard
         val resolvedHeading = themeHeadingColor ?: Color(0xFF0F172A)
         val resolvedSecondary = themeSecondaryTextColor ?: Color(0xFF475569)
         lightColorScheme(

@@ -241,56 +241,84 @@ fun Modifier.universalPaperScreenBackground(
         }
 
         AppPaperStyleOption.FROSTED_GLASS -> {
-            // 📄 Translucent Layered Paper & Glass (مظهر أوراق شفاف احترافي)
-            // Warm tactile layered paper backdrop in Day mode (#EDEAE2 -> #E4E2D8), Smoked Obsidian paper-glass in Night mode (#0E1116 -> #151921)
-            val topBg = if (isDark) Color(0xFF0E1116) else Color(0xFFEDEAE2)
-            val botBg = if (isDark) Color(0xFF151921) else Color(0xFFE4E2D8)
-            drawRect(
-                brush = Brush.verticalGradient(
-                    colors = listOf(topBg, botBg)
-                )
-            )
             val maxDim = max(size.width, size.height).coerceAtLeast(1f)
-            // Warm Ambient Paper Glow 1 (top-right active accent refraction)
-            drawRect(
-                brush = Brush.radialGradient(
-                    colors = listOf(
-                        accentColor.copy(alpha = if (isDark) 0.28f else 0.18f),
-                        accentColor.copy(alpha = if (isDark) 0.09f else 0.06f),
-                        Color.Transparent
-                    ),
-                    center = Offset(size.width * 0.85f, size.height * 0.16f),
-                    radius = maxDim * 0.62f
+            if (isDark) {
+                // Keep existing Smoked Obsidian dark frosted glass untouched
+                drawRect(
+                    brush = Brush.verticalGradient(
+                        colors = listOf(Color(0xFF0E1116), Color(0xFF151921))
+                    )
                 )
-            )
-            // Warm Ambient Paper Glow 2 (bottom-left soft sage / warm parchment glow)
-            val warmSageOrb = if (isDark) Color(0xFF38BDF8) else Color(0xFF94A387)
-            drawRect(
-                brush = Brush.radialGradient(
-                    colors = listOf(
-                        warmSageOrb.copy(alpha = if (isDark) 0.20f else 0.22f),
-                        Color.Transparent
-                    ),
-                    center = Offset(size.width * 0.15f, size.height * 0.80f),
-                    radius = maxDim * 0.62f
+                drawRect(
+                    brush = Brush.radialGradient(
+                        colors = listOf(
+                            accentColor.copy(alpha = 0.28f),
+                            accentColor.copy(alpha = 0.09f),
+                            Color.Transparent
+                        ),
+                        center = Offset(size.width * 0.85f, size.height * 0.16f),
+                        radius = maxDim * 0.62f
+                    )
                 )
-            )
-            // Subtle tactile paper fiber lines on background only (never crossing card text)
-            val paperFiberColor = if (isDark) {
-                Color.White.copy(alpha = 0.025f)
+                drawRect(
+                    brush = Brush.radialGradient(
+                        colors = listOf(
+                            Color(0xFF38BDF8).copy(alpha = 0.20f),
+                            Color.Transparent
+                        ),
+                        center = Offset(size.width * 0.15f, size.height * 0.80f),
+                        radius = maxDim * 0.62f
+                    )
+                )
+                val paperFiberColor = Color.White.copy(alpha = 0.025f)
+                val stepPx = 24.dp.toPx()
+                var y = stepPx
+                while (y < size.height) {
+                    drawLine(
+                        color = paperFiberColor,
+                        start = Offset(0f, y),
+                        end = Offset(size.width, y),
+                        strokeWidth = 0.55.dp.toPx()
+                    )
+                    y += stepPx
+                }
             } else {
-                Color(0xFF5C5346).copy(alpha = 0.035f)
-            }
-            val stepPx = 24.dp.toPx()
-            var y = stepPx
-            while (y < size.height) {
-                drawLine(
-                    color = paperFiberColor,
-                    start = Offset(0f, y),
-                    end = Offset(size.width, y),
-                    strokeWidth = 0.55.dp.toPx()
+                // Ultra Frosted Glass Day Backdrop: Luminous Icy Sky -> Aqua -> Soft Lavender -> Crystal Sky
+                drawRect(
+                    brush = Brush.linearGradient(
+                        colors = listOf(
+                            Color(0xFFE0F2FE),
+                            Color(0xFFCCFBF1),
+                            Color(0xFFEDE9FE),
+                            Color(0xFFBAE6FD)
+                        ),
+                        start = Offset.Zero,
+                        end = Offset(size.width, size.height)
+                    )
                 )
-                y += stepPx
+                // Soft airy ambient glass orbs visible clearly behind translucent 0.58f cards
+                drawRect(
+                    brush = Brush.radialGradient(
+                        colors = listOf(
+                            Color(0xFF38BDF8).copy(alpha = 0.26f),
+                            Color(0xFF2DD4BF).copy(alpha = 0.10f),
+                            Color.Transparent
+                        ),
+                        center = Offset(size.width * 0.84f, size.height * 0.18f),
+                        radius = maxDim * 0.56f
+                    )
+                )
+                drawRect(
+                    brush = Brush.radialGradient(
+                        colors = listOf(
+                            Color(0xFFA78BFA).copy(alpha = 0.24f),
+                            Color(0xFF7DD3FC).copy(alpha = 0.10f),
+                            Color.Transparent
+                        ),
+                        center = Offset(size.width * 0.16f, size.height * 0.78f),
+                        radius = maxDim * 0.58f
+                    )
+                )
             }
         }
 
@@ -309,7 +337,7 @@ fun Modifier.universalPaperCardFrame(
     cornerRadius: Dp,
     accentColor: Color
 ): Modifier = this.drawWithContent {
-    // 1. In FROSTED_GLASS (📄 Translucent Layered Paper), add a warm paper-glass specular sheen behind card content
+    // 1. In FROSTED_GLASS, add a subtle crystal glass sheen behind card content without dulling translucency
     if (paperStyle == AppPaperStyleOption.FROSTED_GLASS) {
         val cornerPx = cornerRadius.toPx()
         drawRoundRect(
@@ -322,9 +350,9 @@ fun Modifier.universalPaperCardFrame(
                     )
                 } else {
                     listOf(
-                        Color(0xFFFFFFFF).copy(alpha = 0.62f),
-                        Color(0xFFF7F4EC).copy(alpha = 0.22f),
-                        accentColor.copy(alpha = 0.06f)
+                        Color.White.copy(alpha = 0.30f),
+                        Color.White.copy(alpha = 0.08f),
+                        Color.Transparent
                     )
                 },
                 start = Offset.Zero,
@@ -409,26 +437,27 @@ fun Modifier.universalPaperCardFrame(
         }
 
         AppPaperStyleOption.FROSTED_GLASS -> {
-            // 1.3.dp specular dual-toned paper-glass bevel frame
-            drawRoundRect(
-                brush = Brush.linearGradient(
-                    colors = if (isDark) {
-                        listOf(
+            if (isDark) {
+                drawRoundRect(
+                    brush = Brush.linearGradient(
+                        colors = listOf(
                             Color(0xFFFFFFFF).copy(alpha = 0.62f),
                             Color(0xFFCBD5E1).copy(alpha = 0.28f)
-                        )
-                    } else {
-                        listOf(
-                            Color(0xFFFFFFFF),
-                            Color(0xFFC8C2B4)
-                        )
-                    },
-                    start = Offset.Zero,
-                    end = Offset(size.width, size.height)
-                ),
-                cornerRadius = CornerRadius(cornerPx, cornerPx),
-                style = Stroke(width = 1.3.dp.toPx())
-            )
+                        ),
+                        start = Offset.Zero,
+                        end = Offset(size.width, size.height)
+                    ),
+                    cornerRadius = CornerRadius(cornerPx, cornerPx),
+                    style = Stroke(width = 1.3.dp.toPx())
+                )
+            } else {
+                // Crisp 1.2.dp glossy white frosted-glass frame
+                drawRoundRect(
+                    color = Color.White.copy(alpha = 0.85f),
+                    cornerRadius = CornerRadius(cornerPx, cornerPx),
+                    style = Stroke(width = 1.2.dp.toPx())
+                )
+            }
         }
 
         AppPaperStyleOption.DEFAULT_PURE -> {
@@ -642,7 +671,7 @@ fun AgritechAnimatedBottomBar(
         AppPaperStyleOption.ENGINEERING_GRID ->
             if (isDark) Color(0xFF0F171E).copy(alpha = 0.96f) else Color(0xFFEBF3F9).copy(alpha = 0.96f)
         AppPaperStyleOption.FROSTED_GLASS ->
-            if (isDark) Color(0xFF0F172A).copy(alpha = 0.94f) else Color(0xFFF8FAFC).copy(alpha = 0.94f)
+            if (isDark) Color(0xFF0F172A).copy(alpha = 0.92f) else Color(0xFFF8FAFC).copy(alpha = 0.92f)
         AppPaperStyleOption.DEFAULT_PURE ->
             if (isDark) Color(0xFF121722).copy(alpha = 0.96f) else Color(0xFFF8FAFC).copy(alpha = 0.96f)
     }
@@ -863,53 +892,25 @@ fun AgritechAnimatedBottomBar(
                     if (items.isNotEmpty()) {
                         when (motionStyle) {
                             AppTabBarMotionStyle.SLIDING_PILL -> {
-                                // 01 — SLIDING PILL: Carved 3D paper pill springs & covers the active tab
-                                val pillW = (tabWidth * 0.80f).coerceAtMost(84.dp.toPx())
-                                val pillH = (capsuleHeight - 12.dp.toPx()).coerceAtLeast(34.dp.toPx())
+                                // 01 — SLIDING PILL: Clean sliding top accent pill without any opaque background rectangle behind the active tab
+                                val pillW = (tabWidth * 0.48f).coerceIn(26.dp.toPx(), 44.dp.toPx())
+                                val pillH = 3.2.dp.toPx()
                                 val leftX = centerX - pillW / 2f
-                                val topY = capsuleCenterY - pillH / 2f
-                                // 3D pill bottom lip
                                 drawRoundRect(
-                                    color = activePaperDiscLip,
-                                    topLeft = Offset(leftX, topY + 2.2.dp.toPx()),
+                                    color = activeAccent,
+                                    topLeft = Offset(leftX, capsuleTop + 1.dp.toPx()),
                                     size = Size(pillW, pillH),
-                                    cornerRadius = CornerRadius(pillH / 2f, pillH / 2f)
-                                )
-                                // 3D pill surface
-                                drawRoundRect(
-                                    color = activePaperDiscFill,
-                                    topLeft = Offset(leftX, topY),
-                                    size = Size(pillW, pillH),
-                                    cornerRadius = CornerRadius(pillH / 2f, pillH / 2f)
-                                )
-                                drawRoundRect(
-                                    color = activeAccent.copy(alpha = 0.52f),
-                                    topLeft = Offset(leftX, topY),
-                                    size = Size(pillW, pillH),
-                                    cornerRadius = CornerRadius(pillH / 2f, pillH / 2f),
-                                    style = Stroke(width = 1.1.dp.toPx())
+                                    cornerRadius = CornerRadius(pillH, pillH)
                                 )
                             }
 
                             AppTabBarMotionStyle.LIQUID_BULGE -> {
-                                // 02 — LIQUID BULGE: Paper disc nestled inside the liquid roof bulge
-                                val discR = 19.dp.toPx()
-                                val discY = capsuleCenterY - 4.dp.toPx()
+                                // 02 — LIQUID BULGE: Pure organic roof bulge without any extra disc obscuring the icon or label
+                                val dotR = 2.6.dp.toPx()
                                 drawCircle(
-                                    color = activePaperDiscLip,
-                                    radius = discR,
-                                    center = Offset(centerX, discY + 2.dp.toPx())
-                                )
-                                drawCircle(
-                                    color = activePaperDiscFill,
-                                    radius = discR,
-                                    center = Offset(centerX, discY)
-                                )
-                                drawCircle(
-                                    color = activeAccent.copy(alpha = 0.50f),
-                                    radius = discR,
-                                    center = Offset(centerX, discY),
-                                    style = Stroke(width = 1.1.dp.toPx())
+                                    color = activeAccent,
+                                    radius = dotR,
+                                    center = Offset(centerX, capsuleTop - 2.dp.toPx())
                                 )
                             }
 
@@ -949,25 +950,39 @@ fun AgritechAnimatedBottomBar(
                             }
 
                             AppTabBarMotionStyle.ICON_FILL -> {
-                                // 04 — ICON FILL: Soft radial paper aura + bottom tactile indicator bar
-                                drawCircle(
-                                    brush = Brush.radialGradient(
+                                // 04 — SPOTLIGHT BEAM FROM TOP: Glowing top-edge bar + soft downward light cone onto the icon
+                                val topBarW = (tabWidth * 0.44f).coerceIn(24.dp.toPx(), 40.dp.toPx())
+                                val topBarH = 3.2.dp.toPx()
+                                val beamTopY = capsuleTop + topBarH * 0.6f
+                                val beamBottomY = capsuleBottom - 5.dp.toPx()
+                                val beamHalfTop = topBarW * 0.46f
+                                val beamHalfBottom = (tabWidth * 0.46f).coerceIn(28.dp.toPx(), 46.dp.toPx())
+
+                                val spotlightPath = Path().apply {
+                                    moveTo(centerX - beamHalfTop, beamTopY)
+                                    lineTo(centerX + beamHalfTop, beamTopY)
+                                    lineTo(centerX + beamHalfBottom, beamBottomY)
+                                    lineTo(centerX - beamHalfBottom, beamBottomY)
+                                    close()
+                                }
+                                drawPath(
+                                    path = spotlightPath,
+                                    brush = Brush.verticalGradient(
                                         colors = listOf(
-                                            activeAccent.copy(alpha = if (isDark) 0.34f else 0.24f),
+                                            activeAccent.copy(alpha = if (isDark) 0.36f else 0.28f),
+                                            activeAccent.copy(alpha = if (isDark) 0.14f else 0.10f),
                                             Color.Transparent
                                         ),
-                                        center = Offset(centerX, capsuleCenterY - 2.dp.toPx()),
-                                        radius = 24.dp.toPx()
-                                    ),
-                                    radius = 24.dp.toPx(),
-                                    center = Offset(centerX, capsuleCenterY - 2.dp.toPx())
+                                        startY = beamTopY,
+                                        endY = beamBottomY
+                                    )
                                 )
-                                val barW = 22.dp.toPx()
+                                // Luminous indicator bar at the top edge of the active tab
                                 drawRoundRect(
                                     color = activeAccent,
-                                    topLeft = Offset(centerX - barW / 2f, capsuleBottom - 6.dp.toPx()),
-                                    size = Size(barW, 3.dp.toPx()),
-                                    cornerRadius = CornerRadius(4.dp.toPx(), 4.dp.toPx())
+                                    topLeft = Offset(centerX - topBarW / 2f, capsuleTop),
+                                    size = Size(topBarW, topBarH),
+                                    cornerRadius = CornerRadius(topBarH, topBarH)
                                 )
                             }
 
@@ -976,53 +991,25 @@ fun AgritechAnimatedBottomBar(
                             }
 
                             AppTabBarMotionStyle.BUBBLE_FLOAT -> {
-                                // 06 — BUBBLE FLOAT: 3D paper bubbles rise into the 12.dp top headroom above the active disc
-                                val discR = 18.dp.toPx()
-                                val discY = capsuleCenterY - 1.dp.toPx()
-                                drawCircle(
-                                    color = activePaperDiscLip,
-                                    radius = discR,
-                                    center = Offset(centerX, discY + 2.dp.toPx())
-                                )
-                                drawCircle(
-                                    color = activePaperDiscFill,
-                                    radius = discR,
-                                    center = Offset(centerX, discY)
-                                )
-                                drawCircle(
-                                    color = activeAccent.copy(alpha = 0.45f),
-                                    radius = discR,
-                                    center = Offset(centerX, discY),
-                                    style = Stroke(width = 1.dp.toPx())
-                                )
-
-                                // Floating 3D paper bubbles rising cleanly into the unclipped top headroom
+                                // 06 — BUBBLE FLOAT: Clean rising bubbles above the icon with NO obscuring circle over icon/label
                                 val offsetsX = listOf(-12f, 11f, -3f, 14f, 3f)
                                 val phaseShifts = listOf(0f, 0.22f, 0.45f, 0.67f, 0.85f)
                                 for (i in offsetsX.indices) {
                                     val p = (bubblePhase + phaseShifts[i]) % 1f
                                     val bx = centerX + offsetsX[i].dp.toPx()
-                                    val by = (capsuleTop + 14.dp.toPx()) - (p * 22.dp.toPx())
-                                    val bAlpha = ((1f - p) * 0.92f).coerceIn(0f, 1f)
-                                    val br = (5.2f - p * 2.2f).coerceAtLeast(2.2f).dp.toPx()
-                                    // Bubble 3D drop shadow
+                                    val by = (capsuleTop + 10.dp.toPx()) - (p * 19.dp.toPx())
+                                    val bAlpha = ((1f - p) * 0.90f).coerceIn(0f, 1f)
+                                    val br = (4.6f - p * 2.0f).coerceAtLeast(2.0f).dp.toPx()
                                     drawCircle(
-                                        color = capsuleLipColor.copy(alpha = bAlpha * 0.65f),
-                                        radius = br,
-                                        center = Offset(bx, by + 1.4.dp.toPx())
-                                    )
-                                    // Bubble paper fill
-                                    drawCircle(
-                                        color = activePaperDiscFill.copy(alpha = bAlpha),
+                                        color = activePaperDiscFill.copy(alpha = bAlpha * 0.85f),
                                         radius = br,
                                         center = Offset(bx, by)
                                     )
-                                    // Bubble crisp rim
                                     drawCircle(
-                                        color = activeAccent.copy(alpha = bAlpha * 0.55f),
+                                        color = activeAccent.copy(alpha = bAlpha * 0.65f),
                                         radius = br,
                                         center = Offset(bx, by),
-                                        style = Stroke(width = 0.8.dp.toPx())
+                                        style = Stroke(width = 0.85.dp.toPx())
                                     )
                                 }
                             }
@@ -1075,29 +1062,7 @@ fun AgritechAnimatedBottomBar(
                             .weight(if (isExpandingPillStyle && isSelected) 1.38f else 1f)
                             .fillMaxHeight()
                             .padding(vertical = 4.dp, horizontal = 2.dp)
-                            .then(
-                                if (isExpandingPillStyle && isSelected) {
-                                    Modifier
-                                        .shadow(
-                                            elevation = 2.dp,
-                                            shape = RoundedCornerShape(50),
-                                            spotColor = activePaperDiscLip,
-                                            ambientColor = activePaperDiscLip
-                                        )
-                                        .clip(RoundedCornerShape(50))
-                                        .background(
-                                            color = activePaperDiscFill,
-                                            shape = RoundedCornerShape(50)
-                                        )
-                                        .border(
-                                            width = 1.1.dp,
-                                            color = activeAccent.copy(alpha = 0.52f),
-                                            shape = RoundedCornerShape(50)
-                                        )
-                                } else {
-                                    Modifier
-                                }
-                            )
+                            .background(Color.Transparent)
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null

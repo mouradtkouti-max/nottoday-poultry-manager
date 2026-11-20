@@ -64,7 +64,7 @@ enum class AppThemeOption(
             AppPaperStyleOption.ENGINEERING_GRID ->
                 if (isDark) Color(0xFF0F171E) else Color(0xFFEBF3F9)
             AppPaperStyleOption.FROSTED_GLASS ->
-                if (isDark) Color(0xFF0E1116) else Color(0xFFEDEAE2)
+                if (isDark) Color(0xFF0E1116) else Color(0xFFE0F2FE)
             AppPaperStyleOption.DEFAULT_PURE -> baseBgColor
         }
 
@@ -77,7 +77,7 @@ enum class AppThemeOption(
             AppPaperStyleOption.ENGINEERING_GRID ->
                 if (isDark) Color(0xFF17222D) else Color(0xFFF4F9FD)
             AppPaperStyleOption.FROSTED_GLASS ->
-                if (isDark) Color(0xFF1C212B).copy(alpha = 0.78f) else Color(0xFFFFFDF9).copy(alpha = 0.82f)
+                if (isDark) Color(0xFF1C212B).copy(alpha = 0.78f) else Color.White.copy(alpha = 0.58f)
             AppPaperStyleOption.DEFAULT_PURE -> baseCardColor
         }
 
@@ -103,7 +103,7 @@ enum class AppThemeOption(
             AppPaperStyleOption.ENGINEERING_GRID ->
                 if (isDark) Color(0xFF111A22) else Color(0xFFE6F0F8)
             AppPaperStyleOption.FROSTED_GLASS ->
-                if (isDark) Color(0xFF334155).copy(alpha = 0.52f) else Color(0xFFF6F3EC).copy(alpha = 0.68f)
+                if (isDark) Color(0xFF334155).copy(alpha = 0.52f) else Color.White.copy(alpha = 0.45f)
             AppPaperStyleOption.DEFAULT_PURE ->
                 if (isDark) Color(0xFF1E293B) else Color(0xFFF8FAFC)
         }
@@ -152,13 +152,16 @@ enum class AppAccentColorOption(
     MINT_EMERALD("#10B981", Color(0xFF10B981), Color(0xFF34D399), Color(0xFFD1FAE5), Color(0xFF064E3B), "theme_color_mint_emerald"),
     SADDLE_LEATHER("#8B4513", Color(0xFF8B4513), Color(0xFFDEB887), Color(0xFFF5E6D3), Color(0xFF4A250A), "theme_color_saddle_leather"),
     TERRACOTTA_COPPER("#C2410C", Color(0xFFC2410C), Color(0xFFFB923C), Color(0xFFFFEDD5), Color(0xFF7C2D12), "theme_color_terracotta_copper"),
-    OLIVE_GROVE("#3F6212", Color(0xFF3F6212), Color(0xFFA3E635), Color(0xFFECFCCB), Color(0xFF1A2E05), "theme_color_olive_grove");
+    OLIVE_GROVE("#4D7C0F", Color(0xFF4D7C0F), Color(0xFFA3E635), Color(0xFFECFCCB), Color(0xFF1A2E05), "theme_color_olive_grove"),
+    DEEP_NAVY("#1E3A8A", Color(0xFF1E3A8A), Color(0xFF60A5FA), Color(0xFFDBEAFE), Color(0xFF172554), "theme_color_deep_navy"),
+    ICE_SKY("#0284C7", Color(0xFF0284C7), Color(0xFF38BDF8), Color(0xFFE0F2FE), Color(0xFF0C4A6E), "theme_color_ice_sky"),
+    STEEL_SLATE("#475569", Color(0xFF475569), Color(0xFF94A3B8), Color(0xFFE2E8F0), Color(0xFF1E293B), "theme_color_steel_slate");
 
     val swatchDisplayColor: Color
         get() = if (this == CRYSTAL_WHITE_GLASS) Color(0xFFFFFFFF) else primaryColor
 
     companion object {
-        val curatedEightColors: List<AppAccentColorOption> = listOf(
+        val curatedThemeColors: List<AppAccentColorOption> = listOf(
             CRYSTAL_WHITE_GLASS,
             SMOKED_OBSIDIAN,
             DARWIN_BRONZE,
@@ -166,8 +169,17 @@ enum class AppAccentColorOption(
             FOREST_GREEN,
             DEEP_TEAL,
             AMBER_GOLD,
-            ROSE
+            ROSE,
+            VIOLET,
+            OCEAN_BLUE,
+            DEEP_NAVY,
+            ICE_SKY,
+            OLIVE_GROVE,
+            STEEL_SLATE
         )
+
+        val curatedEightColors: List<AppAccentColorOption>
+            get() = curatedThemeColors
     }
 }
 
