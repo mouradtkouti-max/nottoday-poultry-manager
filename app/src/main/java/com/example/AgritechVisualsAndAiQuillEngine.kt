@@ -671,12 +671,12 @@ fun AgritechAnimatedBottomBar(
         AppPaperStyleOption.ENGINEERING_GRID ->
             if (isDark) Color(0xFF0F171E).copy(alpha = 0.96f) else Color(0xFFEBF3F9).copy(alpha = 0.96f)
         AppPaperStyleOption.FROSTED_GLASS ->
-            if (isDark) Color(0xFF0F172A).copy(alpha = 0.92f) else Color(0xFFF8FAFC).copy(alpha = 0.92f)
+            if (isDark) Color(0xFF0F172A).copy(alpha = 0.48f) else Color.White.copy(alpha = 0.42f)
         AppPaperStyleOption.DEFAULT_PURE ->
             if (isDark) Color(0xFF121722).copy(alpha = 0.96f) else Color(0xFFF8FAFC).copy(alpha = 0.96f)
     }
 
-    // 3D Tactile Paper Capsule body colors (matching the warm cream paper capsule in Video 2)
+    // 3D Tactile Paper Capsule body colors (soft translucent crystal glass in FROSTED_GLASS, warm tactile paper in other modes)
     val capsuleTopColor = when (paperStyle) {
         AppPaperStyleOption.DARWIN_PARCHMENT ->
             if (isDark) Color(0xFF30241B) else Color(0xFFFFFAF0)
@@ -685,7 +685,7 @@ fun AgritechAnimatedBottomBar(
         AppPaperStyleOption.ENGINEERING_GRID ->
             if (isDark) Color(0xFF1E2C3A) else Color(0xFFF8FCFF)
         AppPaperStyleOption.FROSTED_GLASS ->
-            if (isDark) Color(0xFF1E293B) else Color(0xFFFFFDF9)
+            if (isDark) Color(0xFF1E293B).copy(alpha = 0.54f) else Color.White.copy(alpha = 0.54f)
         AppPaperStyleOption.DEFAULT_PURE ->
             if (isDark) Color(0xFF1E2534) else Color(0xFFFFFFFF)
     }
@@ -697,19 +697,20 @@ fun AgritechAnimatedBottomBar(
         AppPaperStyleOption.ENGINEERING_GRID ->
             if (isDark) Color(0xFF15202B) else Color(0xFFE4F0F8)
         AppPaperStyleOption.FROSTED_GLASS ->
-            if (isDark) Color(0xFF151E2E) else Color(0xFFF2EFE7)
+            if (isDark) Color(0xFF0F172A).copy(alpha = 0.46f) else Color.White.copy(alpha = 0.38f)
         AppPaperStyleOption.DEFAULT_PURE ->
             if (isDark) Color(0xFF161B26) else Color(0xFFF1F5F9)
     }
-    val capsuleLipColor = if (isDark) {
-        Color(0xFF090D14)
-    } else {
-        Color(0xFFD5CFC2)
+    val capsuleLipColor = when {
+        paperStyle == AppPaperStyleOption.FROSTED_GLASS -> Color.Transparent
+        isDark -> Color(0xFF090D14)
+        else -> Color(0xFFD5CFC2)
     }
-    val capsuleStrokeColor = if (isDark) {
-        Color.White.copy(alpha = 0.22f)
-    } else {
-        Color.White
+    val capsuleStrokeColor = when {
+        paperStyle == AppPaperStyleOption.FROSTED_GLASS ->
+            Color.White.copy(alpha = if (isDark) 0.24f else 0.78f)
+        isDark -> Color.White.copy(alpha = 0.22f)
+        else -> Color.White
     }
 
     // Soft sage/accent 3D pill & disc fill (like the tactile pale-green paper discs in Video 2)
@@ -737,7 +738,7 @@ fun AgritechAnimatedBottomBar(
         AppPaperStyleOption.ENGINEERING_GRID ->
             Color(0xFF0284C7).copy(alpha = 0.25f)
         AppPaperStyleOption.FROSTED_GLASS ->
-            Color(0xFFCBD5E1)
+            Color.White.copy(alpha = 0.65f)
         AppPaperStyleOption.DEFAULT_PURE ->
             activeAccent.copy(alpha = 0.16f)
     }
@@ -777,12 +778,12 @@ fun AgritechAnimatedBottomBar(
             modifier = Modifier
                 .fillMaxSize()
                 .drawBehind {
-                    // Top separator line (1.dp #CBD5E1 in FROSTED_GLASS)
+                    // Top separator line (0.8.dp glossy white hairline in FROSTED_GLASS)
                     drawLine(
                         color = topBorderColor,
                         start = Offset(0f, 0f),
                         end = Offset(size.width, 0f),
-                        strokeWidth = 1.dp.toPx()
+                        strokeWidth = if (paperStyle == AppPaperStyleOption.FROSTED_GLASS) 0.8.dp.toPx() else 1.dp.toPx()
                     )
 
                     val horizPad = 14.dp.toPx()

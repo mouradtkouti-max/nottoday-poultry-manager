@@ -1802,55 +1802,48 @@ fun PremiumSettingsModal(
                 }
             },
             bottomBar = {
-                // Bottom Floating Action Bar: Sleek clean "Apply / Save ✓" button only
-                Surface(
-                    color = cardBg,
-                    shadowElevation = if (draftPaperStyle == AppPaperStyleOption.FROSTED_GLASS) 0.dp else 10.dp,
-                    border = BorderStroke(1.dp, borderCol),
+                // Bottom Floating Action Button: Clean floating "Apply / Save ✓" button with transparent background
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .background(Color.Transparent)
                         .navigationBarsPadding()
-                        .testTag("appearance_floating_action_bar")
+                        .padding(horizontal = 20.dp, vertical = 12.dp)
+                        .testTag("appearance_floating_action_bar"),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Box(
+                    Button(
+                        onClick = {
+                            sessionState.updateAppearanceStudio(
+                                context = context,
+                                newTheme = draftTheme,
+                                newAccentColor = draftAccent,
+                                newTextScale = draftTextScale,
+                                newCornerStyle = draftCornerStyle,
+                                newPaperStyle = draftPaperStyle,
+                                newTabBarMotion = draftTabMotion,
+                                newIconStyle = draftIconStyle
+                            )
+                            onSelectTheme(draftTheme)
+                            onSelectLanguage(selectedLang)
+                            onUpdateCountryAndCurrency(selectedCountry.code, selectedCurrency.code)
+                            onDismiss()
+                        },
+                        shape = previewShape,
+                        colors = ButtonDefaults.buttonColors(containerColor = draftAccent.primaryColor),
+                        contentPadding = PaddingValues(horizontal = 24.dp, vertical = 10.dp),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 20.dp, vertical = 12.dp),
-                        contentAlignment = Alignment.Center
+                            .widthIn(max = 360.dp)
+                            .height(48.dp)
+                            .testTag("btn_appearance_apply")
                     ) {
-                        Button(
-                            onClick = {
-                                sessionState.updateAppearanceStudio(
-                                    context = context,
-                                    newTheme = draftTheme,
-                                    newAccentColor = draftAccent,
-                                    newTextScale = draftTextScale,
-                                    newCornerStyle = draftCornerStyle,
-                                    newPaperStyle = draftPaperStyle,
-                                    newTabBarMotion = draftTabMotion,
-                                    newIconStyle = draftIconStyle
-                                )
-                                onSelectTheme(draftTheme)
-                                onSelectLanguage(selectedLang)
-                                onUpdateCountryAndCurrency(selectedCountry.code, selectedCurrency.code)
-                                onDismiss()
-                            },
-                            shape = previewShape,
-                            colors = ButtonDefaults.buttonColors(containerColor = draftAccent.primaryColor),
-                            contentPadding = PaddingValues(horizontal = 24.dp, vertical = 10.dp),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .widthIn(max = 360.dp)
-                                .height(48.dp)
-                                .testTag("btn_appearance_apply")
-                        ) {
-                            Text(
-                                text = Translations.tr("appearance_btn_apply", selectedLang),
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = Color.White
-                            )
-                        }
+                        Text(
+                            text = Translations.tr("appearance_btn_apply", selectedLang),
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = Color.White
+                        )
                     }
                 }
             }
