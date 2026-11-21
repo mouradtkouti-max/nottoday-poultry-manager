@@ -2272,7 +2272,7 @@ fun PremiumSettingsModal(
                                             AlertDialog(
                                                 onDismissRequest = { showResetActiveCycleConfirm = false },
                                                 shape = previewShape,
-                                                containerColor = cardBg,
+                                                containerColor = draftTheme.dialogCardColor,
                                                 title = {
                                                     Text(
                                                         Translations.tr("reset_cycle_dialog_title", selectedLang),
@@ -3260,7 +3260,7 @@ fun PremiumSettingsModal(
         AlertDialog(
             onDismissRequest = { showDeleteAccountConfirmDialog = false },
             shape = previewShape,
-            containerColor = cardBg,
+            containerColor = draftTheme.dialogCardColor,
             modifier = Modifier.testTag("dialog_confirm_delete_account"),
             title = {
                 Text(

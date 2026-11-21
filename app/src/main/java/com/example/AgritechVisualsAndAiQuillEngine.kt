@@ -671,12 +671,12 @@ fun AgritechAnimatedBottomBar(
         AppPaperStyleOption.ENGINEERING_GRID ->
             if (isDark) Color(0xFF0F171E).copy(alpha = 0.96f) else Color(0xFFEBF3F9).copy(alpha = 0.96f)
         AppPaperStyleOption.FROSTED_GLASS ->
-            if (isDark) Color(0xFF0F172A).copy(alpha = 0.48f) else Color.White.copy(alpha = 0.42f)
+            if (isDark) Color(0xFF0F172A).copy(alpha = 0.48f) else Color.White.copy(alpha = 0.24f)
         AppPaperStyleOption.DEFAULT_PURE ->
             if (isDark) Color(0xFF121722).copy(alpha = 0.96f) else Color(0xFFF8FAFC).copy(alpha = 0.96f)
     }
 
-    // 3D Tactile Paper Capsule body colors (soft translucent crystal glass in FROSTED_GLASS, warm tactile paper in other modes)
+    // 3D Tactile Paper Capsule body colors (ultra-sheer crystal glass in FROSTED_GLASS, warm tactile paper in other modes)
     val capsuleTopColor = when (paperStyle) {
         AppPaperStyleOption.DARWIN_PARCHMENT ->
             if (isDark) Color(0xFF30241B) else Color(0xFFFFFAF0)
@@ -685,7 +685,7 @@ fun AgritechAnimatedBottomBar(
         AppPaperStyleOption.ENGINEERING_GRID ->
             if (isDark) Color(0xFF1E2C3A) else Color(0xFFF8FCFF)
         AppPaperStyleOption.FROSTED_GLASS ->
-            if (isDark) Color(0xFF1E293B).copy(alpha = 0.54f) else Color.White.copy(alpha = 0.54f)
+            if (isDark) Color(0xFF1E293B).copy(alpha = 0.54f) else Color.White.copy(alpha = 0.30f)
         AppPaperStyleOption.DEFAULT_PURE ->
             if (isDark) Color(0xFF1E2534) else Color(0xFFFFFFFF)
     }
@@ -697,7 +697,7 @@ fun AgritechAnimatedBottomBar(
         AppPaperStyleOption.ENGINEERING_GRID ->
             if (isDark) Color(0xFF15202B) else Color(0xFFE4F0F8)
         AppPaperStyleOption.FROSTED_GLASS ->
-            if (isDark) Color(0xFF0F172A).copy(alpha = 0.46f) else Color.White.copy(alpha = 0.38f)
+            if (isDark) Color(0xFF0F172A).copy(alpha = 0.46f) else Color.White.copy(alpha = 0.16f)
         AppPaperStyleOption.DEFAULT_PURE ->
             if (isDark) Color(0xFF161B26) else Color(0xFFF1F5F9)
     }

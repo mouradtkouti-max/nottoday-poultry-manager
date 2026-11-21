@@ -1757,6 +1757,7 @@ fun AgritechRootApp() {
         AgritechMockDb.bindContext(context)
         val savedUid = AgritechAuthHelper.currentUserUid() ?: SaasPreferencesManager.getSavedUserUid(context)
         LocalFarmPersistence.setActiveIdentity(AgritechAuthHelper.resolveActiveStorageIdentityKey(savedUid))
+        AgritechMockDb.resetForAccountSwitch()
         LocalFarmPersistence.loadIntoMockDb(context)
         val onboardingDone = SaasPreferencesManager.hasCompletedOnboarding(context)
         val savedLang = SaasPreferencesManager.getSavedLanguage(context)
@@ -2200,6 +2201,7 @@ fun AgritechMainApp(
                     val isAlreadySignedIn = AgritechAuthHelper.isSignedIn()
                     if (isAlreadySignedIn) {
                         LocalFarmPersistence.restoreFromReloginArchiveIfNeeded(context)
+                        AgritechMockDb.resetForAccountSwitch()
                         LocalFarmPersistence.loadIntoMockDb(context)
                         // Do not automatically assign the first local farm to a user who doesn't own or belong to it:
                         // Only retain activeFarmId if it was already selected and valid for this role; otherwise start unassigned ("")
@@ -2239,6 +2241,7 @@ fun AgritechMainApp(
                             onAuthSuccess = {
                                 authErrorBanner = null
                                 LocalFarmPersistence.restoreFromReloginArchiveIfNeeded(context)
+                                AgritechMockDb.resetForAccountSwitch()
                                 LocalFarmPersistence.loadIntoMockDb(context)
                                 val currentActive = sessionState.activeFarmId.takeIf {
                                     it.isNotBlank() && it !in AgritechMockDb.deletedFarmIds &&
@@ -4386,7 +4389,7 @@ fun ManagementHubScreen(
                                 Button(
                                     onClick = { showPartnerFinancialReqDialog = true },
                                     modifier = Modifier
-                                        .height(42.dp)
+                                        .heightIn(min = 42.dp)
                                         .testTag("btn_partner_hub_send_invoice"),
                                     shape = pillShape,
                                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
@@ -4398,7 +4401,7 @@ fun ManagementHubScreen(
                                         fontWeight = FontWeight.Bold,
                                         color = Color.White,
                                         maxLines = 1,
-                                        softWrap = false
+                                        overflow = TextOverflow.Ellipsis
                                     )
                                 }
                             }
@@ -4655,7 +4658,7 @@ fun ManagementHubScreen(
                                                     Button(
                                                         onClick = { pendingHubTxForSignature = reqTx },
                                                         modifier = Modifier
-                                                            .height(36.dp)
+                                                            .heightIn(min = 40.dp)
                                                             .testTag("btn_hub_approve_tx_${reqTx.id}"),
                                                         shape = pillShape,
                                                         colors = ButtonDefaults.buttonColors(containerColor = primaryButtonAccent),
@@ -5300,7 +5303,7 @@ fun WorkerSmartNotebookScreen(
                                                     colors = ButtonDefaults.buttonColors(containerColor = primaryButtonAccent),
                                                     modifier = Modifier
                                                         .weight(1.3f)
-                                                        .height(40.dp)
+                                                        .heightIn(min = 40.dp)
                                                         .testTag("btn_home_ai_approve_bill")
                                                 ) {
                                                     Text(
@@ -5308,7 +5311,8 @@ fun WorkerSmartNotebookScreen(
                                                         fontSize = 11.5.sp,
                                                         fontWeight = FontWeight.Bold,
                                                         color = Color.White,
-                                                        maxLines = 1
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis
                                                     )
                                                 }
                                                 OutlinedButton(
@@ -5317,7 +5321,7 @@ fun WorkerSmartNotebookScreen(
                                                     border = BorderStroke(1.dp, secondaryTextColor.copy(alpha = 0.4f)),
                                                     modifier = Modifier
                                                         .weight(0.7f)
-                                                        .height(40.dp)
+                                                        .heightIn(min = 40.dp)
                                                 ) {
                                                     Text(
                                                         Translations.tr("ai_agent_card2_ignore", lang),
@@ -5367,7 +5371,7 @@ fun WorkerSmartNotebookScreen(
                                     shape = pillShape,
                                     colors = ButtonDefaults.buttonColors(containerColor = primaryButtonAccent),
                                     modifier = Modifier
-                                        .height(40.dp)
+                                        .heightIn(min = 40.dp)
                                         .testTag("btn_worker_add_custom_bill")
                                 ) {
                                     Text(
@@ -7074,7 +7078,7 @@ fun FarmCard(
                     variant = PremiumPillVariant.PRIMARY,
                     fontSize = 12.sp,
                     modifier = Modifier
-                        .height(42.dp)
+                        .heightIn(min = 42.dp)
                         .testTag("btn_cancel_delete_farm_${farm.id}")
                 )
             }
@@ -11648,7 +11652,7 @@ fun AgritechFarmNotebookScreen(
                                                         },
                                                         modifier = Modifier
                                                             .fillMaxWidth()
-                                                            .height(42.dp)
+                                                            .heightIn(min = 42.dp)
                                                             .testTag("btn_approve_vet_invoice_${tx.id}"),
                                                         shape = notebookBtnShape,
                                                         colors = ButtonDefaults.buttonColors(containerColor = notebookButtonAccent)
@@ -12273,7 +12277,7 @@ fun AgritechFarmNotebookScreen(
                                             fontSize = 12.5.sp,
                                             modifier = Modifier
                                                 .weight(1f)
-                                                .height(40.dp)
+                                                .heightIn(min = 42.dp)
                                                 .tactile3DStyle(baseColor = Color(0xFF64748B), cornerRadius = 14.dp, elevation = 5.dp)
                                                 .testTag("btn_dec_barn_inv_$supplyKey")
                                         )
@@ -12289,7 +12293,7 @@ fun AgritechFarmNotebookScreen(
                                             fontSize = 12.5.sp,
                                             modifier = Modifier
                                                 .weight(1f)
-                                                .height(40.dp)
+                                                .heightIn(min = 42.dp)
                                                 .tactile3DStyle(baseColor = Color(0xFF64748B), cornerRadius = 14.dp, elevation = 5.dp)
                                                 .testTag("btn_inc1_barn_inv_$supplyKey")
                                         )
@@ -12306,7 +12310,7 @@ fun AgritechFarmNotebookScreen(
                                             fontSize = 12.5.sp,
                                             modifier = Modifier
                                                 .weight(1f)
-                                                .height(40.dp)
+                                                .heightIn(min = 42.dp)
                                                 .tactile3DStyle(baseColor = notebookButtonAccent, cornerRadius = 14.dp, elevation = 5.dp)
                                                 .testTag("btn_inc5_barn_inv_$supplyKey")
                                         )
@@ -12344,7 +12348,7 @@ fun AgritechFarmNotebookScreen(
                                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
                                         modifier = Modifier
                                             .weight(1f)
-                                            .height(42.dp)
+                                            .heightIn(min = 44.dp)
                                             .testTag("btn_consult_vet_3d")
                                     )
                                     PremiumPillButton(
@@ -12355,7 +12359,7 @@ fun AgritechFarmNotebookScreen(
                                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
                                         modifier = Modifier
                                             .weight(1f)
-                                            .height(42.dp)
+                                            .heightIn(min = 44.dp)
                                             .testTag("btn_open_vet_invoice_dialog")
                                     )
                                 }
@@ -12543,7 +12547,7 @@ fun AgritechFarmNotebookScreen(
                                                         },
                                                         modifier = Modifier
                                                             .fillMaxWidth()
-                                                            .height(42.dp)
+                                                            .heightIn(min = 42.dp)
                                                             .testTag("btn_approve_vet_note_${vn.id}"),
                                                         shape = notebookBtnShape,
                                                         colors = ButtonDefaults.buttonColors(containerColor = notebookButtonAccent)

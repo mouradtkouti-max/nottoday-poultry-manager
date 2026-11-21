@@ -3839,7 +3839,7 @@ fun TeamChatTab(
                                                 },
                                                 modifier = Modifier
                                                     .fillMaxWidth()
-                                                    .height(38.dp)
+                                                    .heightIn(min = 40.dp)
                                                     .testTag("btn_approve_chat_tx_${msg.linkedTransactionId}"),
                                                 shape = RoundedCornerShape(10.dp),
                                                 colors = ButtonDefaults.buttonColors(containerColor = sendBtnAccent)
@@ -7879,7 +7879,7 @@ fun AgritechVetNotebookScreen(
                                         OutlinedButton(
                                             onClick = { AgritechMockDb.adjustVetPharmacyStock(medItem.id, -1) },
                                             modifier = Modifier
-                                                .height(38.dp)
+                                                .heightIn(min = 40.dp)
                                                 .testTag("btn_dec_stock_${medItem.id}"),
                                             shape = pillShape,
                                             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
@@ -7889,7 +7889,7 @@ fun AgritechVetNotebookScreen(
                                         OutlinedButton(
                                             onClick = { AgritechMockDb.adjustVetPharmacyStock(medItem.id, +5) },
                                             modifier = Modifier
-                                                .height(38.dp)
+                                                .heightIn(min = 40.dp)
                                                 .testTag("btn_inc_stock_${medItem.id}"),
                                             shape = pillShape,
                                             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
@@ -8229,7 +8229,7 @@ fun DayMedicalDetailsBottomSheet(
                                 },
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(42.dp)
+                                    .heightIn(min = 44.dp)
                                     .testTag("btn_save_day_medical_note"),
                                 shape = pillShape,
                                 colors = ButtonDefaults.buttonColors(containerColor = primaryButtonAccent)
